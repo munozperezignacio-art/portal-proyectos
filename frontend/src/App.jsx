@@ -5,7 +5,7 @@ import Personal from './components/Personal';
 import Maquinaria from './components/Maquinaria';
 import ConfigCorreos from './components/ConfigCorreos';
 import { 
-  LogOut, LayoutDashboard, Building2, Users, Truck, ShieldAlert, Settings, Info, Menu, X 
+  LogOut, LayoutDashboard, Building2, Users, Truck, ShieldAlert, Settings, Info, Menu, X, Loader2 
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 
