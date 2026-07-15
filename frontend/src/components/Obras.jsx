@@ -2,8 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { 
   Building2, ArrowLeft, Users, Truck, Wrench, FileSpreadsheet, 
-  ExternalLink, Calendar, Plus, Info, Check, UserCheck, Play, ArrowRightLeft, FileText, AlertCircle, AlertTriangle 
+  ExternalLink, Calendar, Plus, Info, Check, UserCheck, Play, ArrowRightLeft, FileText, AlertCircle, AlertTriangle, Camera 
 } from 'lucide-react';
+
+const defaultCovers = [
+  "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=600&q=80",
+  "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=600&q=80",
+  "https://images.unsplash.com/photo-1581094288338-2314dddb7ecc?auto=format&fit=crop&w=600&q=80",
+  "https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&w=600&q=80",
+  "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=600&q=80",
+  "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=600&q=80"
+];
 
 function Obras({ user, onBack, initialObraName }) {
   const [obras, setObras] = useState([]);
@@ -26,6 +35,52 @@ function Obras({ user, onBack, initialObraName }) {
     } else {
       setSelectedObra(null);
     }
+  };
+
+  const handleUploadProjectCover = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      alert("La imagen de portada no debe superar los 2MB de tamaño.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64 = reader.result;
+      try {
+        const { error } = await supabase
+          .from('obras')
+          .update({ imagen_base64: base64 })
+          .eq('id', selectedObra.id);
+        
+        if (error) throw error;
+        
+        setSelectedObra({ ...selectedObra, imagen_base64: base64 });
+        alert("¡Imagen de portada del proyecto actualizada con éxito!");
+      } catch (err) {
+        alert("Error al actualizar la imagen: " + err.message);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const [favorites, setFavorites] = useState(() => {
+    const saved = localStorage.getItem('emin_favorites');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const toggleFavorite = (e, name) => {
+    e.stopPropagation();
+    let updated;
+    if (favorites.includes(name)) {
+      updated = favorites.filter(f => f !== name);
+    } else {
+      updated = [...favorites, name];
+    }
+    setFavorites(updated);
+    localStorage.setItem('emin_favorites', JSON.stringify(updated));
   };
   
   // Estados para métricas de la obra seleccionada
@@ -300,21 +355,56 @@ function Obras({ user, onBack, initialObraName }) {
               <span>No se encontraron obras asignadas a tu cuenta. Contacta al administrador.</span>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4">
-              {obras.map((o) => (
-                <div
-                  key={o.id}
-                  onClick={() => setSelectedObra(o)}
-                  className="w-full p-5 bg-white rounded-2xl shadow-sm border border-slate-200 text-left flex justify-between items-center hover:border-blue-600 transition hover:-translate-y-0.5 hover:shadow-md cursor-pointer"
-                >
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-bold text-slate-800">{o.nombre}</h3>
-                    <p className="text-[10px] text-slate-400 font-medium">Especialidad: {o.tipo || 'N/A'}</p>
-                    <p className="text-[9px] text-slate-400">Admin: {o.administrador || 'No asignado'}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {obras.map((o, idx) => {
+                const cover = o.imagen_base64 || defaultCovers[idx % defaultCovers.length];
+                const isFav = favorites.includes(o.nombre);
+                return (
+                  <div
+                    key={o.id}
+                    onClick={() => setSelectedObra(o)}
+                    className="group bg-white border border-slate-250 rounded-2xl shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer relative overflow-hidden flex flex-col"
+                  >
+                    {/* Imagen de Portada */}
+                    <div className="h-36 w-full relative overflow-hidden bg-slate-100">
+                      <img 
+                        src={cover} 
+                        className="w-full h-full object-cover group-hover:scale-105 transition duration-500" 
+                        alt={o.nombre} 
+                      />
+                      {/* Dot Indicador (Azul) */}
+                      <div className="absolute top-3 left-3 w-3 h-3 bg-blue-600 rounded-full border-2 border-white shadow-sm" />
+                      
+                      {/* Estrella Favorito */}
+                      <button
+                        onClick={(e) => toggleFavorite(e, o.nombre)}
+                        className="absolute top-3 right-3 p-1 rounded-full bg-black/30 hover:bg-black/55 text-white cursor-pointer transition"
+                      >
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          viewBox="0 0 24 24" 
+                          fill={isFav ? "yellow" : "none"} 
+                          stroke={isFav ? "yellow" : "currentColor"} 
+                          strokeWidth="2.5" 
+                          className="w-3.5 h-3.5"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499c.151-.326.623-.326.774 0l1.848 3.75 4.143.602c.361.052.506.502.244.756l-3 2.923.708 4.126c.062.36-.317.635-.639.466l-3.706-1.95-3.706 1.95c-.322.169-.701-.106-.639-.466l.708-4.126-3-2.923c-.262-.254-.117-.704.244-.756l4.143-.602 1.848-3.75Z" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    {/* Título de la Obra */}
+                    <div className="p-4 bg-white flex-1 flex flex-col justify-center min-h-[75px] border-t border-slate-100">
+                      <h3 className="font-extrabold text-slate-800 text-xs tracking-wide leading-snug group-hover:text-primary transition uppercase line-clamp-2">
+                        {o.nombre}
+                      </h3>
+                      {o.tipo && (
+                        <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Especialidad: {o.tipo}</p>
+                      )}
+                    </div>
                   </div>
-                  <span className="text-blue-900 font-bold text-lg">→</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -336,18 +426,39 @@ function Obras({ user, onBack, initialObraName }) {
               <p className="text-xs text-slate-500 font-medium mt-1">Especialidad: {selectedObra.tipo || 'General'}</p>
             </div>
             
-            {/* Carpeta Drive */}
-            {selectedObra.link && (
-              <a
-                href={selectedObra.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 bg-blue-50 text-[11px] text-blue-900 font-bold px-3 py-2 border border-blue-200 rounded-lg hover:bg-blue-100 transition cursor-pointer"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                <span>Planos y Carpetas</span>
-              </a>
-            )}
+            <div className="flex gap-2">
+              {/* Cambiar Portada */}
+              <div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  id="project-cover-upload"
+                  onChange={handleUploadProjectCover}
+                  className="hidden"
+                />
+                <label
+                  htmlFor="project-cover-upload"
+                  className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-[11px] text-slate-700 font-bold px-3 py-2 border border-slate-250 rounded-lg cursor-pointer transition"
+                  title="Cambiar imagen de portada del proyecto"
+                >
+                  <Camera className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Portada</span>
+                </label>
+              </div>
+
+              {/* Carpeta Drive */}
+              {selectedObra.link && (
+                <a
+                  href={selectedObra.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 bg-blue-50 text-[11px] text-blue-900 font-bold px-3 py-2 border border-blue-200 rounded-lg hover:bg-blue-100 transition cursor-pointer"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Planos y Carpetas</span>
+                </a>
+              )}
+            </div>
           </div>
 
           {/* Tarjetas de Métricas Rápidas */}

@@ -436,12 +436,11 @@ function App() {
           
           {currentModule === 'dashboard' ? (
             <div className="space-y-6">
-              
-              {/* Dashboard Banner/Header */}
+                  {/* Dashboard Banner/Header */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 border border-slate-200 rounded-3xl shadow-xs">
                 <div>
-                  <h2 className="text-xl font-bold text-slate-800">Proyectos y Obras Activas</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">Selecciona un proyecto para registrar avances, asistencias y maquinarias.</p>
+                  <h2 className="text-xl font-bold text-slate-800">Módulos de Gestión</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Selecciona un módulo para comenzar a trabajar.</p>
                 </div>
                 <div className="flex gap-2">
                   <span className="text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 px-3 py-1.5 rounded-xl uppercase tracking-wide">
@@ -453,70 +452,77 @@ function App() {
                 </div>
               </div>
 
-              {/* Grid de proyectos tipo Trello */}
-              {obrasLoading ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                  <span className="text-sm text-slate-500 ml-2">⏳ Cargando proyectos...</span>
-                </div>
-              ) : obras.length === 0 ? (
-                <div className="bg-slate-100 p-8 rounded-3xl text-center text-slate-400 text-xs italic border border-dashed border-slate-250">
-                  No tienes proyectos autorizados o asignados en esta empresa.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {obras.map((o, idx) => {
-                    const cover = defaultCovers[idx % defaultCovers.length];
-                    const isFav = favorites.includes(o.nombre);
-                    return (
-                      <div
-                        key={o.id}
-                        onClick={() => {
-                          setSelectedObraName(o.nombre);
-                          setCurrentModule('obras');
-                        }}
-                        className="group bg-white border border-slate-250 rounded-2xl shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer relative overflow-hidden flex flex-col"
-                      >
-                        {/* Portada */}
-                        <div className="h-36 w-full relative overflow-hidden bg-slate-100">
-                          <img 
-                            src={cover} 
-                            className="w-full h-full object-cover group-hover:scale-105 transition duration-500" 
-                            alt={o.nombre} 
-                          />
-                          {/* Dot indicador (Azul) */}
-                          <div className="absolute top-3 left-3 w-3 h-3 bg-blue-600 rounded-full border-2 border-white shadow-sm" />
-                          
-                          {/* Estrella Favorito */}
-                          <button
-                            onClick={(e) => toggleFavorite(e, o.nombre)}
-                            className="absolute top-3 right-3 p-1 rounded-full bg-black/30 hover:bg-black/55 text-white cursor-pointer transition"
-                          >
-                            <svg 
-                              xmlns="http://www.w3.org/2000/svg" 
-                              viewBox="0 0 24 24" 
-                              fill={isFav ? "yellow" : "none"} 
-                              stroke={isFav ? "yellow" : "currentColor"} 
-                              strokeWidth="2.5" 
-                              className="w-3.5 h-3.5"
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499c.151-.326.623-.326.774 0l1.848 3.75 4.143.602c.361.052.506.502.244.756l-3 2.923.708 4.126c.062.36-.317.635-.639.466l-3.706-1.95-3.706 1.95c-.322.169-.701-.106-.639-.466l.708-4.126-3-2.923c-.262-.254-.117-.704.244-.756l4.143-.602 1.848-3.75Z" />
-                            </svg>
-                          </button>
-                        </div>
-
-                        {/* Nombre de la obra */}
-                        <div className="p-4 bg-white flex-1 flex items-center min-h-[70px] border-t border-slate-100">
-                          <h3 className="font-extrabold text-slate-800 text-xs tracking-wide leading-snug group-hover:text-primary transition uppercase line-clamp-2">
-                            {o.nombre}
-                          </h3>
-                        </div>
+              {/* Grid de Módulos (Forma rectangular, sin imágenes) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[
+                  {
+                    id: 'obras',
+                    title: 'Proyectos y Obras Activas',
+                    description: 'Control diario de producción, asistencia, maquinaria e inventario en faena.',
+                    icon: <Building2 className="w-5 h-5" />,
+                    allowed: modulosPermitidos.includes('obras') || user.rol.toLowerCase() === 'superusuario',
+                    action: () => setCurrentModule('obras')
+                  },
+                  {
+                    id: 'rrhh',
+                    title: 'Recursos Humanos',
+                    description: 'Control de personal, asignación de trabajadores a proyectos y fichas.',
+                    icon: <Users className="w-5 h-5" />,
+                    allowed: modulosPermitidos.includes('rrhh') || user.rol.toLowerCase() === 'superusuario',
+                    action: () => setCurrentModule('rrhh')
+                  },
+                  {
+                    id: 'maquinaria',
+                    title: 'Gestión de Maquinaria',
+                    description: 'Alta de equipos, asignación directa, disponibilidad y requerimientos.',
+                    icon: <Truck className="w-5 h-5" />,
+                    allowed: modulosPermitidos.includes('maquinaria') || user.rol.toLowerCase() === 'superusuario',
+                    action: () => setCurrentModule('maquinaria')
+                  },
+                  {
+                    id: 'prevencion',
+                    title: 'Prevención de Riesgos',
+                    description: 'Reportes de seguridad, observaciones en terreno y control de incidentes.',
+                    icon: <ShieldAlert className="w-5 h-5" />,
+                    allowed: modulosPermitidos.includes('prevencion') || user.rol.toLowerCase() === 'superusuario',
+                    action: () => setCurrentModule('prevencion')
+                  },
+                  {
+                    id: 'admin',
+                    title: 'Panel de Administración',
+                    description: 'Configuración de correos, branding de empresas y gestión de usuarios.',
+                    icon: <Settings className="w-5 h-5" />,
+                    allowed: modulosPermitidos.includes('admin') || user.rol.toLowerCase() === 'superusuario',
+                    action: () => setCurrentModule('admin')
+                  }
+                ]
+                  .filter(m => m.allowed)
+                  .map((m) => (
+                    <div
+                      key={m.id}
+                      onClick={m.action}
+                      className="group bg-white border border-slate-250 rounded-2xl p-5 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer relative overflow-hidden flex items-start gap-4 min-h-[110px]"
+                    >
+                      {/* Dot Indicador (Azul) */}
+                      <div className="absolute top-3 left-3 w-2.5 h-2.5 bg-blue-600 rounded-full border border-white shadow-sm" />
+                      
+                      {/* Icono del Módulo */}
+                      <div className="p-3.5 bg-primary/10 text-primary rounded-xl group-hover:bg-primary group-hover:text-white transition-all duration-300 mt-1">
+                        {m.icon}
                       </div>
-                    );
-                  })}
-                </div>
-              )}
 
+                      {/* Info del Módulo */}
+                      <div className="flex-1 space-y-1 pl-1">
+                        <h3 className="font-extrabold text-slate-800 text-xs tracking-wide leading-snug group-hover:text-primary transition uppercase">
+                          {m.title}
+                        </h3>
+                        <p className="text-[10px] text-slate-500 leading-normal">
+                          {m.description}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+              </div>
             </div>
           ) : currentModule === 'obras' ? (
             <Obras 
