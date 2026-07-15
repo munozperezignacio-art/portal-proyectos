@@ -5,10 +5,28 @@ import {
   ExternalLink, Calendar, Plus, Info, Check, UserCheck, Play, ArrowRightLeft, FileText, AlertCircle, AlertTriangle 
 } from 'lucide-react';
 
-function Obras({ user, onBack }) {
+function Obras({ user, onBack, initialObraName }) {
   const [obras, setObras] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedObra, setSelectedObra] = useState(null);
+
+  // Si viene una obra preseleccionada por prop, buscarla y marcarla
+  useEffect(() => {
+    if (initialObraName && obras.length > 0) {
+      const matched = obras.find(o => o.nombre.toLowerCase() === initialObraName.toLowerCase());
+      if (matched) {
+        setSelectedObra(matched);
+      }
+    }
+  }, [initialObraName, obras]);
+
+  const handleBackToProjects = () => {
+    if (initialObraName) {
+      onBack();
+    } else {
+      setSelectedObra(null);
+    }
+  };
   
   // Estados para métricas de la obra seleccionada
   const [personalCount, setPersonalCount] = useState(0);
@@ -308,7 +326,7 @@ function Obras({ user, onBack }) {
           <div className="flex justify-between items-start border-b border-slate-200 pb-4">
             <div>
               <button 
-                onClick={() => setSelectedObra(null)} 
+                onClick={handleBackToProjects} 
                 className="text-xs text-blue-900 hover:text-blue-700 font-semibold flex items-center gap-1 mb-2 cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
