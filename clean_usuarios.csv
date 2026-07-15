@@ -1,0 +1,6 @@
+usuario,empresa,contrasena,rol,obras,modulos,correo,trabajador_rut
+admin,EMIN,Emin.Faena.2026!,Superusuario,TODAS,"obras,rrhh,maquinaria,prevencion,admin",imunozp@eminsg.cl,
+mventura,EMIN,MVentura27!,Superusuario,TODAS,"obras,rrhh,maquinaria,prevencion",mventura@eminsg.cl,
+CTorres,EMINSG,CTorres2026.,Supervisor,FEP Talcahuano,"obras,avance_prod,asist_pers,report_maq,inventario,docs_drive",,17.159.199-6
+mzapata,EMINSG,MZapata2026.,Administrador de contrato,TODAS,"admin,obras,rrhh,maquinaria,prevencion",,
+Prueba,EMINSG,Prueba.emin1,Supervisor,CAM Coquimbo,"obras,prevencion",imunozp@eminsg.cl,

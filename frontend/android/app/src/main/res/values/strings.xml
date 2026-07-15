@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">EMIN Portal de Proyectos</string>
+    <string name="title_activity_main">EMIN Portal de Proyectos</string>
+    <string name="package_name">com.emin.gestionproyectos</string>
+    <string name="custom_url_scheme">com.emin.gestionproyectos</string>
+</resources>
