@@ -5,10 +5,12 @@ import Personal from './components/Personal';
 import Maquinaria from './components/Maquinaria';
 import ConfigCorreos from './components/ConfigCorreos';
 import { LogOut, LayoutDashboard, Building2, Users, Truck, ShieldAlert, Settings, Info } from 'lucide-react';
+import { supabase } from './supabaseClient';
 
 function App() {
   const [user, setUser] = useState(null);
   const [currentModule, setCurrentModule] = useState('dashboard');
+  const [companyBranding, setCompanyBranding] = useState(null);
 
   // Cargar sesión del usuario desde localStorage al iniciar
   useEffect(() => {
@@ -21,6 +23,35 @@ function App() {
       }
     }
   }, []);
+
+  // Cargar identidad visual de la empresa del usuario
+  useEffect(() => {
+    if (!user) return;
+    async function fetchBranding() {
+      try {
+        const { data, error } = await supabase
+          .from('config_empresa')
+          .select('logo_base64, color_primario, color_secundario')
+          .eq('empresa', user.empresa)
+          .maybeSingle();
+
+        if (error) throw error;
+        
+        if (data) {
+          setCompanyBranding(data);
+          document.documentElement.style.setProperty('--primary-color', data.color_primario || '#1e3a8a');
+          document.documentElement.style.setProperty('--primary-color-hover', data.color_secundario || '#1d4ed8');
+        } else {
+          setCompanyBranding(null);
+          document.documentElement.style.setProperty('--primary-color', '#1e3a8a');
+          document.documentElement.style.setProperty('--primary-color-hover', '#1d4ed8');
+        }
+      } catch (err) {
+        console.error('Error al cargar branding en App:', err);
+      }
+    }
+    fetchBranding();
+  }, [user]);
 
   const handleLoginSuccess = (userData) => {
     setUser(userData);
@@ -48,14 +79,22 @@ function App() {
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800">
       
       {/* Header Superior Principal */}
-      <header className="bg-gradient-to-r from-blue-900 to-indigo-950 text-white p-4 flex justify-between items-center shadow-md">
+      <header className="bg-primary text-white p-4 flex justify-between items-center shadow-md transition-all">
         <div className="flex items-center gap-3">
-          <div className="bg-white p-1 rounded-lg">
-            <span className="text-blue-900 font-black text-sm tracking-wider px-1">EMIN</span>
-          </div>
+          {companyBranding && companyBranding.logo_base64 ? (
+            <img 
+              src={companyBranding.logo_base64} 
+              className="h-10 max-w-[150px] object-contain bg-white p-1 rounded-lg" 
+              alt="Logo Empresa" 
+            />
+          ) : (
+            <div className="bg-white p-1.5 rounded-lg flex items-center justify-center">
+              <span className="text-primary font-black text-sm tracking-wider px-1">{user.empresa}</span>
+            </div>
+          )}
           <div>
             <h1 className="text-base font-bold text-white leading-tight">Portal de Proyectos</h1>
-            <p className="text-[10px] text-blue-200">Plataforma de Faenas</p>
+            <p className="text-[10px] text-blue-100/85">Plataforma de Faenas | {user.empresa}</p>
           </div>
         </div>
 
@@ -63,11 +102,11 @@ function App() {
         <div className="flex items-center gap-4">
           <div className="hidden sm:block text-right">
             <p className="text-xs font-semibold text-white">{user.usuario}</p>
-            <p className="text-[10px] text-blue-200 uppercase font-bold tracking-wider">{user.rol}</p>
+            <p className="text-[10px] text-white/80 uppercase font-bold tracking-wider">{user.rol}</p>
           </div>
           <button
             onClick={handleLogout}
-            className="flex items-center gap-1.5 bg-blue-800/80 text-xs px-3 py-2 rounded-lg text-blue-100 hover:bg-blue-700 transition font-medium border border-blue-700/50 cursor-pointer"
+            className="flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-xs px-3 py-2 rounded-lg text-white transition font-medium border border-white/10 cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span>Salir</span>
@@ -84,7 +123,7 @@ function App() {
         {currentModule !== 'dashboard' && (
           <button
             onClick={() => setCurrentModule('dashboard')}
-            className="text-blue-900 hover:text-blue-700 font-semibold flex items-center gap-1 cursor-pointer"
+            className="text-primary hover:text-primary-hover font-semibold flex items-center gap-1 cursor-pointer"
           >
             <LayoutDashboard className="w-3.5 h-3.5" />
             <span>Volver al Dashboard</span>
@@ -104,14 +143,14 @@ function App() {
               {(modulosPermitidos.includes('obras') || user.rol.toLowerCase() === 'superusuario') && (
                 <div
                   onClick={() => setCurrentModule('obras')}
-                  className="group w-full p-5 bg-white border border-slate-200 rounded-2xl shadow-sm text-left transition-all hover:shadow-md hover:border-blue-500 hover:-translate-y-0.5 cursor-pointer"
+                  className="group w-full p-5 bg-white border border-slate-200 rounded-2xl shadow-sm text-left transition-all hover:shadow-md hover:border-primary hover:-translate-y-0.5 cursor-pointer"
                 >
                   <div className="flex items-start gap-4">
-                    <div className="p-3 bg-blue-900 text-white rounded-xl group-hover:bg-blue-800 transition">
+                    <div className="p-3 bg-primary text-white rounded-xl group-hover:bg-primary-hover transition">
                       <Building2 className="w-6 h-6" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-bold text-slate-800 group-hover:text-blue-900 transition text-sm">Proyectos y Obras Activas</h3>
+                      <h3 className="font-bold text-slate-800 group-hover:text-primary transition text-sm">Proyectos y Obras Activas</h3>
                       <p className="text-[11px] text-slate-500 mt-1">Control diario de producción, asistencia, maquinaria e inventario en faena.</p>
                     </div>
                   </div>
@@ -122,14 +161,14 @@ function App() {
               {(modulosPermitidos.includes('rrhh') || user.rol.toLowerCase() === 'superusuario') && (
                 <div
                   onClick={() => setCurrentModule('rrhh')}
-                  className="group w-full p-5 bg-white border border-slate-200 rounded-2xl shadow-sm text-left transition-all hover:shadow-md hover:border-blue-500 hover:-translate-y-0.5 cursor-pointer"
+                  className="group w-full p-5 bg-white border border-slate-200 rounded-2xl shadow-sm text-left transition-all hover:shadow-md hover:border-primary hover:-translate-y-0.5 cursor-pointer"
                 >
                   <div className="flex items-start gap-4">
-                    <div className="p-3 bg-blue-900 text-white rounded-xl group-hover:bg-blue-800 transition">
+                    <div className="p-3 bg-primary text-white rounded-xl group-hover:bg-primary-hover transition">
                       <Users className="w-6 h-6" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-bold text-slate-800 group-hover:text-blue-900 transition text-sm">Recursos Humanos</h3>
+                      <h3 className="font-bold text-slate-800 group-hover:text-primary transition text-sm">Recursos Humanos</h3>
                       <p className="text-[11px] text-slate-500 mt-1">Control de personal, asignación de trabajadores a proyectos y fichas de contratación.</p>
                     </div>
                   </div>
@@ -140,14 +179,14 @@ function App() {
               {(modulosPermitidos.includes('maquinaria') || user.rol.toLowerCase() === 'superusuario') && (
                 <div
                   onClick={() => setCurrentModule('maquinaria')}
-                  className="group w-full p-5 bg-white border border-slate-200 rounded-2xl shadow-sm text-left transition-all hover:shadow-md hover:border-blue-500 hover:-translate-y-0.5 cursor-pointer"
+                  className="group w-full p-5 bg-white border border-slate-200 rounded-2xl shadow-sm text-left transition-all hover:shadow-md hover:border-primary hover:-translate-y-0.5 cursor-pointer"
                 >
                   <div className="flex items-start gap-4">
-                    <div className="p-3 bg-blue-900 text-white rounded-xl group-hover:bg-blue-800 transition">
+                    <div className="p-3 bg-primary text-white rounded-xl group-hover:bg-primary-hover transition">
                       <Truck className="w-6 h-6" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-bold text-slate-800 group-hover:text-blue-900 transition text-sm">Gestión de Maquinaria</h3>
+                      <h3 className="font-bold text-slate-800 group-hover:text-primary transition text-sm">Gestión de Maquinaria</h3>
                       <p className="text-[11px] text-slate-500 mt-1">Alta de equipos, asignación directa, disponibilidad y requerimientos.</p>
                     </div>
                   </div>
@@ -158,14 +197,14 @@ function App() {
               {(modulosPermitidos.includes('prevencion') || user.rol.toLowerCase() === 'superusuario') && (
                 <div
                   onClick={() => setCurrentModule('prevencion')}
-                  className="group w-full p-5 bg-white border border-slate-200 rounded-2xl shadow-sm text-left transition-all hover:shadow-md hover:border-blue-500 hover:-translate-y-0.5 cursor-pointer"
+                  className="group w-full p-5 bg-white border border-slate-200 rounded-2xl shadow-sm text-left transition-all hover:shadow-md hover:border-primary hover:-translate-y-0.5 cursor-pointer"
                 >
                   <div className="flex items-start gap-4">
-                    <div className="p-3 bg-blue-900 text-white rounded-xl group-hover:bg-blue-800 transition">
+                    <div className="p-3 bg-primary text-white rounded-xl group-hover:bg-primary-hover transition">
                       <ShieldAlert className="w-6 h-6" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-bold text-slate-800 group-hover:text-blue-900 transition text-sm">Prevención de Riesgos</h3>
+                      <h3 className="font-bold text-slate-800 group-hover:text-primary transition text-sm">Prevención de Riesgos</h3>
                       <p className="text-[11px] text-slate-500 mt-1">Reportes de seguridad, observaciones en terreno y control de incidentes.</p>
                     </div>
                   </div>
@@ -176,14 +215,14 @@ function App() {
               {(modulosPermitidos.includes('admin') || user.rol.toLowerCase() === 'superusuario') && (
                 <div
                   onClick={() => setCurrentModule('admin')}
-                  className="group w-full p-5 bg-white border border-slate-200 rounded-2xl shadow-sm text-left transition-all hover:shadow-md hover:border-blue-500 hover:-translate-y-0.5 cursor-pointer"
+                  className="group w-full p-5 bg-white border border-slate-200 rounded-2xl shadow-sm text-left transition-all hover:shadow-md hover:border-primary hover:-translate-y-0.5 cursor-pointer"
                 >
                   <div className="flex items-start gap-4">
-                    <div className="p-3 bg-blue-900 text-white rounded-xl group-hover:bg-blue-800 transition">
+                    <div className="p-3 bg-primary text-white rounded-xl group-hover:bg-primary-hover transition">
                       <Settings className="w-6 h-6" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-bold text-slate-800 group-hover:text-blue-900 transition text-sm">Administración y Configuración</h3>
+                      <h3 className="font-bold text-slate-800 group-hover:text-primary transition text-sm">Administración y Configuración</h3>
                       <p className="text-[11px] text-slate-500 mt-1">Configuración de correos, gestión de usuarios de la plataforma y parámetros.</p>
                     </div>
                   </div>
