@@ -4,6 +4,7 @@ import Obras from './components/Obras';
 import Personal from './components/Personal';
 import Maquinaria from './components/Maquinaria';
 import ConfigCorreos from './components/ConfigCorreos';
+import PresupuestosPlanif from './components/PresupuestosPlanif';
 import { 
   LogOut, LayoutDashboard, Building2, Users, Truck, ShieldAlert, Settings, Info, Menu, X, Loader2,
   Layers, Handshake, Receipt, Coins, ClipboardCheck, Boxes, BadgeCheck
@@ -540,6 +541,11 @@ function App() {
             }} />
           ) : currentModule === 'admin' ? (
             <ConfigCorreos user={user} onBack={() => {
+              setSelectedObraName(null);
+              setCurrentModule('dashboard');
+            }} />
+          ) : currentModule === 'presupuestos' ? (
+            <PresupuestosPlanif user={user} onBack={() => {
               setSelectedObraName(null);
               setCurrentModule('dashboard');
             }} />
