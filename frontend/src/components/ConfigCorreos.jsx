@@ -53,7 +53,8 @@ function ConfigCorreos({ user, onBack }) {
     empresa: '',
     logo_base64: '',
     color_primario: '#1e3a8a',
-    color_secundario: '#1d4ed8'
+    color_secundario: '#1d4ed8',
+    modulos_activos: []
   });
 
   const [searchUserQuery, setSearchUserQuery] = useState('');
@@ -324,7 +325,8 @@ function ConfigCorreos({ user, onBack }) {
       empresa: '',
       logo_base64: '',
       color_primario: '#1e3a8a',
-      color_secundario: '#1d4ed8'
+      color_secundario: '#1d4ed8',
+      modulos_activos: []
     });
     setSuccessMsg('');
     setErrorMsg('');
@@ -337,7 +339,8 @@ function ConfigCorreos({ user, onBack }) {
       empresa: comp.empresa,
       logo_base64: comp.logo_base64 || '',
       color_primario: comp.color_primario || '#1e3a8a',
-      color_secundario: comp.color_secundario || '#1d4ed8'
+      color_secundario: comp.color_secundario || '#1d4ed8',
+      modulos_activos: comp.modulos_activos ? comp.modulos_activos.split(',').map(m => m.trim()) : []
     });
     setSuccessMsg('');
     setErrorMsg('');
@@ -370,7 +373,8 @@ function ConfigCorreos({ user, onBack }) {
       empresa: companyFormData.empresa.trim(),
       logo_base64: companyFormData.logo_base64,
       color_primario: companyFormData.color_primario,
-      color_secundario: companyFormData.color_secundario
+      color_secundario: companyFormData.color_secundario,
+      modulos_activos: (companyFormData.modulos_activos || []).join(',')
     };
 
     try {
@@ -528,7 +532,7 @@ function ConfigCorreos({ user, onBack }) {
   });
 
   const tiposReporte = ['Produccion Diaria', 'Uso Maquinaria', 'Asistencia Personal'];
-  const modulosDisponibles = ['obras', 'rrhh', 'maquinaria', 'prevencion', 'admin'];
+  const modulosDisponibles = ['obras', 'rrhh', 'maquinaria', 'prevencion', 'acreditaciones', 'calidad', 'bodega', 'presupuestos', 'clientes', 'facturacion', 'gastos', 'admin'];
 
   return (
     <div className="space-y-4">
@@ -1073,7 +1077,15 @@ function ConfigCorreos({ user, onBack }) {
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1.5">Módulos Permitidos</label>
                 <div className="flex flex-wrap gap-2">
-                  {modulosDisponibles.map((m) => {
+                  {modulosDisponibles.filter(m => {
+                    if (userFormData.rol === 'Superusuario') return true;
+                    const comp = allCompaniesList.find(c => c.empresa === userFormData.empresa);
+                    if (comp && comp.modulos_activos) {
+                      const compMods = comp.modulos_activos.split(',').map(x => x.trim().toLowerCase());
+                      return m === 'admin' || compMods.includes(m);
+                    }
+                    return true;
+                  }).map((m) => {
                     const isChecked = userFormData.modulos.includes(m);
                     return (
                       <button
@@ -1196,6 +1208,42 @@ function ConfigCorreos({ user, onBack }) {
                       className="border border-slate-200 rounded p-1 text-[10px] text-slate-800 w-full uppercase"
                     />
                   </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1.5">Módulos Habilitados para la Empresa</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {modulosDisponibles.filter(m => m !== 'admin').map((m) => {
+                    const isChecked = companyFormData.modulos_activos?.includes(m);
+                    return (
+                      <button
+                        type="button"
+                        key={m}
+                        onClick={() => {
+                          const activeMods = [...(companyFormData.modulos_activos || [])];
+                          if (activeMods.includes(m)) {
+                            setCompanyFormData({
+                              ...companyFormData,
+                              modulos_activos: activeMods.filter(x => x !== m)
+                            });
+                          } else {
+                            setCompanyFormData({
+                              ...companyFormData,
+                              modulos_activos: [...activeMods, m]
+                            });
+                          }
+                        }}
+                        className={`px-2 py-1 rounded-lg text-[9px] font-bold capitalize transition border cursor-pointer ${
+                          isChecked 
+                            ? 'bg-primary text-white border-primary' 
+                            : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        {m}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

@@ -5,7 +5,8 @@ import Personal from './components/Personal';
 import Maquinaria from './components/Maquinaria';
 import ConfigCorreos from './components/ConfigCorreos';
 import { 
-  LogOut, LayoutDashboard, Building2, Users, Truck, ShieldAlert, Settings, Info, Menu, X, Loader2 
+  LogOut, LayoutDashboard, Building2, Users, Truck, ShieldAlert, Settings, Info, Menu, X, Loader2,
+  Layers, Handshake, Receipt, Coins, ClipboardCheck, Boxes, BadgeCheck
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 
@@ -52,7 +53,7 @@ function App() {
       try {
         const { data, error } = await supabase
           .from('config_empresa')
-          .select('logo_base64, color_primario, color_secundario')
+          .select('logo_base64, color_primario, color_secundario, modulos_activos')
           .eq('empresa', user.empresa)
           .maybeSingle();
 
@@ -139,6 +140,117 @@ function App() {
     ? user.modulos.split(',').map((m) => m.trim().toLowerCase())
     : [];
 
+  // Módulos habilitados para la empresa actual
+  const modulosActivosEmpresa = companyBranding && companyBranding.modulos_activos
+    ? companyBranding.modulos_activos.split(',').map(m => m.trim().toLowerCase())
+    : null; // Si es nulo, por defecto todos están habilitados para compatibilidad
+
+  const allModulesList = [
+    {
+      id: 'obras',
+      title: 'Proyectos y Obras Activas',
+      description: 'Control diario de producción, asistencia, maquinaria e inventario en faena.',
+      icon: <Building2 className="w-5 h-5" />,
+      sidebarIcon: <Building2 className="w-4 h-4" />,
+      action: () => { setSelectedObraName(null); setCurrentModule('obras'); }
+    },
+    {
+      id: 'rrhh',
+      title: 'Recursos Humanos',
+      description: 'Control de personal, asignación de trabajadores a proyectos y fichas.',
+      icon: <Users className="w-5 h-5" />,
+      sidebarIcon: <Users className="w-4 h-4" />,
+      action: () => { setSelectedObraName(null); setCurrentModule('rrhh'); }
+    },
+    {
+      id: 'maquinaria',
+      title: 'Gestión de Maquinaria',
+      description: 'Alta de equipos, asignación directa, disponibilidad y requerimientos.',
+      icon: <Truck className="w-5 h-5" />,
+      sidebarIcon: <Truck className="w-4 h-4" />,
+      action: () => { setSelectedObraName(null); setCurrentModule('maquinaria'); }
+    },
+    {
+      id: 'prevencion',
+      title: 'Prevención de Riesgos',
+      description: 'Reportes de seguridad, observaciones en terreno y control de incidentes.',
+      icon: <ShieldAlert className="w-5 h-5" />,
+      sidebarIcon: <ShieldAlert className="w-4 h-4" />,
+      action: () => { setSelectedObraName(null); setCurrentModule('prevencion'); }
+    },
+    {
+      id: 'acreditaciones',
+      title: 'Acreditaciones',
+      description: 'Gestión de acreditaciones de personal y maquinaria para ingreso a faenas.',
+      icon: <BadgeCheck className="w-5 h-5" />,
+      sidebarIcon: <BadgeCheck className="w-4 h-4" />,
+      action: () => { setSelectedObraName(null); setCurrentModule('acreditaciones'); }
+    },
+    {
+      id: 'calidad',
+      title: 'Calidad de Obras',
+      description: 'Aseguramiento de calidad, no conformidades y auditorías en terreno.',
+      icon: <ClipboardCheck className="w-5 h-5" />,
+      sidebarIcon: <ClipboardCheck className="w-4 h-4" />,
+      action: () => { setSelectedObraName(null); setCurrentModule('calidad'); }
+    },
+    {
+      id: 'bodega',
+      title: 'Bodega e Inventario',
+      description: 'Control de inventario, stock mínimo, entradas y salidas de herramientas.',
+      icon: <Boxes className="w-5 h-5" />,
+      sidebarIcon: <Boxes className="w-4 h-4" />,
+      action: () => { setSelectedObraName(null); setCurrentModule('bodega'); }
+    },
+    {
+      id: 'presupuestos',
+      title: 'Presupuestos y Planificación',
+      description: 'Planificación de tareas, presupuestos y control de costes en tiempo real.',
+      icon: <Layers className="w-5 h-5" />,
+      sidebarIcon: <Layers className="w-4 h-4" />,
+      action: () => { setSelectedObraName(null); setCurrentModule('presupuestos'); }
+    },
+    {
+      id: 'clientes',
+      title: 'Gestión de Clientes',
+      description: 'Seguimiento de relaciones comerciales, contactos y propuestas.',
+      icon: <Handshake className="w-5 h-5" />,
+      sidebarIcon: <Handshake className="w-4 h-4" />,
+      action: () => { setSelectedObraName(null); setCurrentModule('clientes'); }
+    },
+    {
+      id: 'facturacion',
+      title: 'Facturación Electrónica',
+      description: 'Emisión de facturas electrónicas, control tributario y cobros integrados.',
+      icon: <Receipt className="w-5 h-5" />,
+      sidebarIcon: <Receipt className="w-4 h-4" />,
+      action: () => { setSelectedObraName(null); setCurrentModule('facturacion'); }
+    },
+    {
+      id: 'gastos',
+      title: 'Rendición de Gastos',
+      description: 'Control y aprobación de rendiciones, caja chica e informes de viáticos.',
+      icon: <Coins className="w-5 h-5" />,
+      sidebarIcon: <Coins className="w-4 h-4" />,
+      action: () => { setSelectedObraName(null); setCurrentModule('gastos'); }
+    }
+  ];
+
+  const visibleModules = allModulesList.filter(m => {
+    // 1. Filtrar por permisos del usuario
+    const permitidoUsuario = modulosPermitidos.includes(m.id) || user.rol.toLowerCase() === 'superusuario';
+    if (!permitidoUsuario) return false;
+
+    // 2. Si el rol es superusuario de la aplicación, tiene acceso a todo de todas formas
+    if (user.rol.toLowerCase() === 'superusuario') return true;
+
+    // 3. Filtrar por módulos habilitados para la empresa
+    if (modulosActivosEmpresa) {
+      return modulosActivosEmpresa.includes(m.id);
+    }
+    return true;
+  });
+
   return (
     <div className="min-h-screen flex bg-slate-50 text-slate-800 font-sans">
       
@@ -172,82 +284,45 @@ function App() {
         </div>
 
         {/* Menu Navigation Links */}
-        <nav className="flex-1 p-4 space-y-6 overflow-y-auto">
-          <div>
-            <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3 mb-2">Proyectos</h5>
+        <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
+          {/* Dashboard/Inicio */}
+          <button
+            onClick={() => {
+              setSelectedObraName(null);
+              setCurrentModule('dashboard');
+            }}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+              currentModule === 'dashboard'
+                ? 'bg-primary text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+            }`}
+          >
+            <LayoutDashboard className="w-4 h-4" />
+            <span>Dashboard</span>
+          </button>
+
+          <div className="border-t border-slate-150 my-2" />
+
+          {/* Listado plano de módulos dinámicos */}
+          {visibleModules.filter(m => m.id !== 'admin').map((m) => (
             <button
-              onClick={() => {
-                setSelectedObraName(null);
-                setCurrentModule('dashboard');
-              }}
+              key={m.id}
+              onClick={m.action}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
-                currentModule === 'dashboard'
+                currentModule === m.id
                   ? 'bg-primary text-white shadow-sm'
                   : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
               }`}
             >
-              <LayoutDashboard className="w-4 h-4" />
-              <span>Obras y Proyectos</span>
+              {m.sidebarIcon}
+              <span>{m.title}</span>
             </button>
-          </div>
+          ))}
 
-          <div>
-            <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3 mb-2">Módulos</h5>
-            <div className="space-y-1">
-              {(modulosPermitidos.includes('rrhh') || user.rol.toLowerCase() === 'superusuario') && (
-                <button
-                  onClick={() => {
-                    setSelectedObraName(null);
-                    setCurrentModule('rrhh');
-                  }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
-                    currentModule === 'rrhh'
-                      ? 'bg-primary text-white shadow-sm'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                  }`}
-                >
-                  <Users className="w-4 h-4" />
-                  <span>Personal (RRHH)</span>
-                </button>
-              )}
-              {(modulosPermitidos.includes('maquinaria') || user.rol.toLowerCase() === 'superusuario') && (
-                <button
-                  onClick={() => {
-                    setSelectedObraName(null);
-                    setCurrentModule('maquinaria');
-                  }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
-                    currentModule === 'maquinaria'
-                      ? 'bg-primary text-white shadow-sm'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                  }`}
-                >
-                  <Truck className="w-4 h-4" />
-                  <span>Maquinaria</span>
-                </button>
-              )}
-              {(modulosPermitidos.includes('prevencion') || user.rol.toLowerCase() === 'superusuario') && (
-                <button
-                  onClick={() => {
-                    setSelectedObraName(null);
-                    setCurrentModule('prevencion');
-                  }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
-                    currentModule === 'prevencion'
-                      ? 'bg-primary text-white shadow-sm'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                  }`}
-                >
-                  <ShieldAlert className="w-4 h-4" />
-                  <span>Prevención de Riesgos</span>
-                </button>
-              )}
-            </div>
-          </div>
-
+          {/* Panel de Administración en la base si corresponde */}
           {(modulosPermitidos.includes('admin') || user.rol.toLowerCase() === 'superusuario') && (
-            <div>
-              <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3 mb-2">Configuración</h5>
+            <>
+              <div className="border-t border-slate-150 my-2" />
               <button
                 onClick={() => {
                   setSelectedObraName(null);
@@ -262,7 +337,7 @@ function App() {
                 <Settings className="w-4 h-4" />
                 <span>Panel de Control</span>
               </button>
-            </div>
+            </>
           )}
         </nav>
 
@@ -324,7 +399,7 @@ function App() {
               </div>
 
               {/* Navigation links */}
-              <nav className="flex-1 p-4 space-y-6 overflow-y-auto">
+              <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
                 <button
                   onClick={() => {
                     setSelectedObraName(null);
@@ -338,67 +413,30 @@ function App() {
                   }`}
                 >
                   <LayoutDashboard className="w-4 h-4" />
-                  <span>Obras y Proyectos</span>
+                  <span>Dashboard</span>
                 </button>
 
-                <div className="space-y-1">
-                  <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3 mb-1">Módulos</h5>
-                  {(modulosPermitidos.includes('rrhh') || user.rol.toLowerCase() === 'superusuario') && (
-                    <button
-                      onClick={() => {
-                        setSelectedObraName(null);
-                        setCurrentModule('rrhh');
-                        setSidebarOpen(false);
-                      }}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
-                        currentModule === 'rrhh'
-                          ? 'bg-primary text-white shadow-sm'
-                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                      }`}
-                    >
-                      <Users className="w-4 h-4" />
-                      <span>Personal (RRHH)</span>
-                    </button>
-                  )}
-                  {(modulosPermitidos.includes('maquinaria') || user.rol.toLowerCase() === 'superusuario') && (
-                    <button
-                      onClick={() => {
-                        setSelectedObraName(null);
-                        setCurrentModule('maquinaria');
-                        setSidebarOpen(false);
-                      }}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
-                        currentModule === 'maquinaria'
-                          ? 'bg-primary text-white shadow-sm'
-                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                      }`}
-                    >
-                      <Truck className="w-4 h-4" />
-                      <span>Maquinaria</span>
-                    </button>
-                  )}
-                  {(modulosPermitidos.includes('prevencion') || user.rol.toLowerCase() === 'superusuario') && (
-                    <button
-                      onClick={() => {
-                        setSelectedObraName(null);
-                        setCurrentModule('prevencion');
-                        setSidebarOpen(false);
-                      }}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
-                        currentModule === 'prevencion'
-                          ? 'bg-primary text-white shadow-sm'
-                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                      }`}
-                    >
-                      <ShieldAlert className="w-4 h-4" />
-                      <span>Prevención de Riesgos</span>
-                    </button>
-                  )}
-                </div>
+                <div className="border-t border-slate-150 my-2" />
+
+                {/* Módulos en formato plano */}
+                {visibleModules.filter(m => m.id !== 'admin').map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => { m.action(); setSidebarOpen(false); }}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                      currentModule === m.id
+                        ? 'bg-primary text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    {m.sidebarIcon}
+                    <span>{m.title}</span>
+                  </button>
+                ))}
 
                 {(modulosPermitidos.includes('admin') || user.rol.toLowerCase() === 'superusuario') && (
-                  <div className="space-y-1">
-                    <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3 mb-1">Configuración</h5>
+                  <>
+                    <div className="border-t border-slate-150 my-2" />
                     <button
                       onClick={() => {
                         setSelectedObraName(null);
@@ -414,7 +452,7 @@ function App() {
                       <Settings className="w-4 h-4" />
                       <span>Panel de Control</span>
                     </button>
-                  </div>
+                  </>
                 )}
               </nav>
 
@@ -454,74 +492,31 @@ function App() {
 
               {/* Grid de Módulos (Forma rectangular, sin imágenes) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {[
-                  {
-                    id: 'obras',
-                    title: 'Proyectos y Obras Activas',
-                    description: 'Control diario de producción, asistencia, maquinaria e inventario en faena.',
-                    icon: <Building2 className="w-5 h-5" />,
-                    allowed: modulosPermitidos.includes('obras') || user.rol.toLowerCase() === 'superusuario',
-                    action: () => setCurrentModule('obras')
-                  },
-                  {
-                    id: 'rrhh',
-                    title: 'Recursos Humanos',
-                    description: 'Control de personal, asignación de trabajadores a proyectos y fichas.',
-                    icon: <Users className="w-5 h-5" />,
-                    allowed: modulosPermitidos.includes('rrhh') || user.rol.toLowerCase() === 'superusuario',
-                    action: () => setCurrentModule('rrhh')
-                  },
-                  {
-                    id: 'maquinaria',
-                    title: 'Gestión de Maquinaria',
-                    description: 'Alta de equipos, asignación directa, disponibilidad y requerimientos.',
-                    icon: <Truck className="w-5 h-5" />,
-                    allowed: modulosPermitidos.includes('maquinaria') || user.rol.toLowerCase() === 'superusuario',
-                    action: () => setCurrentModule('maquinaria')
-                  },
-                  {
-                    id: 'prevencion',
-                    title: 'Prevención de Riesgos',
-                    description: 'Reportes de seguridad, observaciones en terreno y control de incidentes.',
-                    icon: <ShieldAlert className="w-5 h-5" />,
-                    allowed: modulosPermitidos.includes('prevencion') || user.rol.toLowerCase() === 'superusuario',
-                    action: () => setCurrentModule('prevencion')
-                  },
-                  {
-                    id: 'admin',
-                    title: 'Panel de Administración',
-                    description: 'Configuración de correos, branding de empresas y gestión de usuarios.',
-                    icon: <Settings className="w-5 h-5" />,
-                    allowed: modulosPermitidos.includes('admin') || user.rol.toLowerCase() === 'superusuario',
-                    action: () => setCurrentModule('admin')
-                  }
-                ]
-                  .filter(m => m.allowed)
-                  .map((m) => (
-                    <div
-                      key={m.id}
-                      onClick={m.action}
-                      className="group bg-white border border-slate-250 rounded-2xl p-5 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer relative overflow-hidden flex items-start gap-4 min-h-[110px]"
-                    >
-                      {/* Dot Indicador (Azul) */}
-                      <div className="absolute top-3 left-3 w-2.5 h-2.5 bg-blue-600 rounded-full border border-white shadow-sm" />
-                      
-                      {/* Icono del Módulo */}
-                      <div className="p-3.5 bg-primary/10 text-primary rounded-xl group-hover:bg-primary group-hover:text-white transition-all duration-300 mt-1">
-                        {m.icon}
-                      </div>
-
-                      {/* Info del Módulo */}
-                      <div className="flex-1 space-y-1 pl-1">
-                        <h3 className="font-extrabold text-slate-800 text-xs tracking-wide leading-snug group-hover:text-primary transition uppercase">
-                          {m.title}
-                        </h3>
-                        <p className="text-[10px] text-slate-500 leading-normal">
-                          {m.description}
-                        </p>
-                      </div>
+                {visibleModules.map((m) => (
+                  <div
+                    key={m.id}
+                    onClick={m.action}
+                    className="group bg-white border border-slate-250 rounded-2xl p-5 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer relative overflow-hidden flex items-start gap-4 min-h-[110px]"
+                  >
+                    {/* Dot Indicador (Azul) */}
+                    <div className="absolute top-3 left-3 w-2.5 h-2.5 bg-blue-600 rounded-full border border-white shadow-sm" />
+                    
+                    {/* Icono del Módulo */}
+                    <div className="p-3.5 bg-primary/10 text-primary rounded-xl group-hover:bg-primary group-hover:text-white transition-all duration-300 mt-1">
+                      {m.icon}
                     </div>
-                  ))}
+
+                    {/* Info del Módulo */}
+                    <div className="flex-1 space-y-1 pl-1">
+                      <h3 className="font-extrabold text-slate-800 text-xs tracking-wide leading-snug group-hover:text-primary transition uppercase">
+                        {m.title}
+                      </h3>
+                      <p className="text-[10px] text-slate-500 leading-normal">
+                        {m.description}
+                      </p>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ) : currentModule === 'obras' ? (
