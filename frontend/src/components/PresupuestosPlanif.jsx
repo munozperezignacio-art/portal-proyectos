@@ -776,7 +776,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
 
         {/* ================= VISTA A: MENÚ PRINCIPAL DE APARTADOS (RECTÁNGULOS) ================= */}
         {activeSection === '' ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             
             {/* Card 1: Crear Presupuesto */}
             <div 
@@ -846,6 +846,24 @@ export default function PresupuestosPlanif({ user, onBack }) {
                 </h3>
                 <p className="text-xs text-slate-500 leading-normal">
                   Controla y desglosa los insumos necesarios para el proyecto clasificados en Materiales, Mano de Obra y Maquinaria.
+                </p>
+              </div>
+            </div>
+
+            {/* Card 5: Mis Presupuestos */}
+            <div 
+              onClick={() => { setActiveSection('mis_presupuestos'); setErrorMsg(''); setSuccessMsg(''); }}
+              className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex items-start gap-5 min-h-[140px]"
+            >
+              <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300 shrink-0">
+                <Briefcase className="w-6 h-6" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
+                  Mis Presupuestos
+                </h3>
+                <p className="text-xs text-slate-500 leading-normal">
+                  Visualiza el listado completo de presupuestos creados, controla su estado de avance y cárgalos para seguir editando.
                 </p>
               </div>
             </div>
@@ -1431,6 +1449,121 @@ export default function PresupuestosPlanif({ user, onBack }) {
                       </tbody>
                     </table>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* APARTADO: MIS PRESUPUESTOS */}
+            {activeSection === 'mis_presupuestos' && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
+                  <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2">
+                      <Briefcase className="w-5 h-5 text-primary" />
+                      <h3 className="font-extrabold text-xs uppercase tracking-wider text-slate-800">Presupuestos Registrados</h3>
+                    </div>
+                  </div>
+
+                  {proyectos.length === 0 ? (
+                    <div className="p-8 text-center text-xs text-slate-400 italic">
+                      No hay ningún presupuesto registrado en el sistema. Crea uno nuevo para comenzar.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-slate-655 font-bold text-[9px] uppercase tracking-wider select-none">
+                            <th className="p-3.5">Proyecto / Presupuesto</th>
+                            <th className="p-3.5">Cliente</th>
+                            <th className="p-3.5">Ubicación</th>
+                            <th className="p-3.5 w-32 text-center">Plazo</th>
+                            <th className="p-3.5 w-40 text-right">Límite Estimado ($)</th>
+                            <th className="p-3.5 w-32 text-center">Estado</th>
+                            <th className="p-3.5 w-52 text-center"></th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-150">
+                          {proyectos.map((p) => {
+                            const isActive = p.id === parseInt(selectedProyectoId, 10);
+                            return (
+                              <tr key={p.id} className={`hover:bg-slate-50/50 transition ${isActive ? 'bg-primary/5' : ''}`}>
+                                <td className="p-3.5 font-bold text-slate-800 uppercase">
+                                  {p.nombre}
+                                  {p.descripcion && (
+                                    <span className="block text-[10px] text-slate-450 font-normal normal-case mt-0.5">{p.descripcion}</span>
+                                  )}
+                                </td>
+                                <td className="p-3.5 text-slate-650 uppercase font-semibold">{p.cliente || '-'}</td>
+                                <td className="p-3.5 text-slate-600 uppercase font-semibold">
+                                  {p.ubicacion || '-'}
+                                </td>
+                                <td className="p-3.5 text-center font-bold text-slate-700">{p.plazo_estimado ? `${p.plazo_estimado} días` : '-'}</td>
+                                <td className="p-3.5 text-right font-bold text-slate-850">
+                                  {p.presupuesto_estimado ? formatCLP(p.presupuesto_estimado) : '-'}
+                                </td>
+                                <td className="p-3.5 text-center">
+                                  {isActive ? (
+                                    <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase border border-emerald-200">
+                                      <Check className="w-3 h-3" /> Activo
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase">
+                                      Guardado
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="p-3.5">
+                                  <div className="flex items-center justify-center gap-2">
+                                    {!isActive && (
+                                      <button
+                                        onClick={() => {
+                                          setSelectedProyectoId(p.id);
+                                          setSuccessMsg(`Proyecto "${p.nombre}" cargado exitosamente.`);
+                                          setActiveSection(''); // Volver al menú
+                                        }}
+                                        className="bg-primary hover:bg-primary-hover text-white text-[10px] font-bold px-3 py-1.5 rounded-lg transition cursor-pointer"
+                                      >
+                                        Cargar Proyecto
+                                      </button>
+                                    )}
+                                    {isActive && (
+                                      <span className="text-[10px] text-emerald-650 font-bold px-3 py-1.5 italic">Cargado</span>
+                                    )}
+                                    <button
+                                      onClick={async () => {
+                                        if (confirm(`¿Estás seguro de eliminar el proyecto "${p.nombre}"? Se borrarán todos sus ítems de presupuesto, tareas del diagrama Gantt y recursos asignados.`)) {
+                                          try {
+                                            await supabase.from('presupuestos_items').delete().eq('presupuesto_id', p.id);
+                                            await supabase.from('planificacion_cronogramas').delete().eq('presupuesto_id', p.id);
+                                            await supabase.from('recursos_presupuesto').delete().eq('presupuesto_id', p.id);
+                                            
+                                            const { error } = await supabase
+                                              .from('presupuestos_proyectos')
+                                              .delete()
+                                              .eq('id', p.id);
+                                            if (error) throw error;
+                                            
+                                            setSuccessMsg(`Proyecto "${p.nombre}" eliminado con éxito.`);
+                                            fetchProyectos();
+                                          } catch (err) {
+                                            setErrorMsg('Error al eliminar: ' + err.message);
+                                          }
+                                        }
+                                      }}
+                                      className="p-1.5 text-red-650 hover:bg-red-50 rounded-lg transition cursor-pointer"
+                                      title="Eliminar Proyecto"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
