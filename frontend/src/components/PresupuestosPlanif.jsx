@@ -5,6 +5,7 @@ import {
   Upload, Check, AlertCircle, RefreshCw, ChevronRight, CalendarDays,
   FolderPlus, DollarSign, Hammer, Briefcase, FileText, MapPin, Clock, ChevronLeft
 } from 'lucide-react';
+import { comunasChile } from '../utils/comunas';
 
 export default function PresupuestosPlanif({ user, onBack }) {
   // Lista de proyectos/presupuestos independientes
@@ -778,7 +779,25 @@ export default function PresupuestosPlanif({ user, onBack }) {
         {activeSection === '' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             
-            {/* Card 1: Crear Presupuesto */}
+            {/* Card 1: Mis Presupuestos */}
+            <div 
+              onClick={() => { setActiveSection('mis_presupuestos'); setErrorMsg(''); setSuccessMsg(''); }}
+              className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex items-start gap-5 min-h-[140px]"
+            >
+              <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300 shrink-0">
+                <Briefcase className="w-6 h-6" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
+                  Mis Presupuestos
+                </h3>
+                <p className="text-xs text-slate-500 leading-normal">
+                  Visualiza el listado completo de presupuestos creados, controla su estado de avance y cárgalos para seguir editando.
+                </p>
+              </div>
+            </div>
+
+            {/* Card 2: Crear Presupuesto */}
             <div 
               onClick={() => { setActiveSection('crear'); setErrorMsg(''); setSuccessMsg(''); }}
               className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex items-start gap-5 min-h-[140px]"
@@ -796,7 +815,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
               </div>
             </div>
 
-            {/* Card 2: Ingresar Presupuesto */}
+            {/* Card 3: Ingresar Presupuesto */}
             <div 
               onClick={() => { setActiveSection('ingresar'); setErrorMsg(''); setSuccessMsg(''); }}
               className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex items-start gap-5 min-h-[140px]"
@@ -814,7 +833,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
               </div>
             </div>
 
-            {/* Card 3: Diagrama Gantt */}
+            {/* Card 4: Diagrama Gantt */}
             <div 
               onClick={() => { setActiveSection('gantt'); setErrorMsg(''); setSuccessMsg(''); }}
               className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex items-start gap-5 min-h-[140px]"
@@ -832,7 +851,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
               </div>
             </div>
 
-            {/* Card 4: Recursos */}
+            {/* Card 5: Recursos */}
             <div 
               onClick={() => { setActiveSection('recursos'); setErrorMsg(''); setSuccessMsg(''); }}
               className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex items-start gap-5 min-h-[140px]"
@@ -846,24 +865,6 @@ export default function PresupuestosPlanif({ user, onBack }) {
                 </h3>
                 <p className="text-xs text-slate-500 leading-normal">
                   Controla y desglosa los insumos necesarios para el proyecto clasificados en Materiales, Mano de Obra y Maquinaria.
-                </p>
-              </div>
-            </div>
-
-            {/* Card 5: Mis Presupuestos */}
-            <div 
-              onClick={() => { setActiveSection('mis_presupuestos'); setErrorMsg(''); setSuccessMsg(''); }}
-              className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex items-start gap-5 min-h-[140px]"
-            >
-              <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300 shrink-0">
-                <Briefcase className="w-6 h-6" />
-              </div>
-              <div className="space-y-2">
-                <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
-                  Mis Presupuestos
-                </h3>
-                <p className="text-xs text-slate-500 leading-normal">
-                  Visualiza el listado completo de presupuestos creados, controla su estado de avance y cárgalos para seguir editando.
                 </p>
               </div>
             </div>
