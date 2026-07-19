@@ -3,7 +3,8 @@ import { supabase } from '../supabaseClient';
 import { 
   ArrowLeft, FileSpreadsheet, Calendar, Plus, Save, Trash2, 
   Upload, Check, AlertCircle, RefreshCw, ChevronRight, CalendarDays,
-  FolderPlus, DollarSign, Hammer, Briefcase, FileText, MapPin, Clock, ChevronLeft
+  FolderPlus, DollarSign, Hammer, Briefcase, FileText, MapPin, Clock, ChevronLeft,
+  Settings, Percent, Coins, Sliders, Info
 } from 'lucide-react';
 import { comunasChile } from '../utils/comunas';
 
@@ -26,7 +27,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
     comuna: ''
   });
 
-  // Apartado activo: '' (Menú principal de apartados), 'crear', 'ingresar', 'gantt', 'recursos'
+  // Apartado activo: '' (Menú principal de apartados), 'crear', 'ingresar', 'gantt', 'recursos', 'mis_presupuestos'
   const [activeSection, setActiveSection] = useState('');
 
   // Estados del Presupuesto (Crear/Detalle)
@@ -49,6 +50,28 @@ export default function PresupuestosPlanif({ user, onBack }) {
   // Importador Masivo (Ingresar Presupuesto)
   const [importText, setImportText] = useState('');
 
+  // Estados de Costos Indirectos / Generales
+  const [indirectCosts, setIndirectCosts] = useState([]);
+  const [indirectLoading, setIndirectLoading] = useState(false);
+  const [showIndirectModal, setShowIndirectModal] = useState(false);
+
+  // Estados de APU (Análisis de Precios Unitarios)
+  const [showApuModal, setShowApuModal] = useState(false);
+  const [apuItem, setApuItem] = useState(null);
+  const [apuResources, setApuResources] = useState([]);
+  const [apuLoading, setApuLoading] = useState(false);
+  const [selectedAddResourceId, setSelectedAddResourceId] = useState('');
+  const [apuForm, setApuForm] = useState({
+    tipo_metodologia: 'Precio Unitario',
+    leyes_sociales_pct: 0,
+    imponderables_pct: 0,
+    rendimiento_meta: 0,
+    tiempo_estimado: 0,
+    costo_materiales: 0,
+    costo_mano_obra: 0,
+    costo_maquinaria: 0
+  });
+
   // Mensajes generales
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -64,10 +87,12 @@ export default function PresupuestosPlanif({ user, onBack }) {
       fetchBudgetItems(selectedProyectoId);
       fetchCronograma(selectedProyectoId);
       fetchRecursos(selectedProyectoId);
+      fetchIndirectCosts(selectedProyectoId);
     } else {
       setItemsPresupuesto([]);
       setCronograma([]);
       setRecursos([]);
+      setIndirectCosts([]);
     }
   }, [selectedProyectoId]);
 
@@ -156,6 +181,23 @@ export default function PresupuestosPlanif({ user, onBack }) {
       console.error('Error cargando recursos:', err.message);
     } finally {
       setResourcesLoading(false);
+    }
+  };
+
+  const fetchIndirectCosts = async (projId) => {
+    setIndirectLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('presupuestos_costos_indirectos')
+        .select('*')
+        .eq('presupuesto_id', projId)
+        .order('id', { ascending: true });
+      if (error) throw error;
+      setIndirectCosts(data || []);
+    } catch (err) {
+      console.error('Error cargando costos indirectos:', err.message);
+    } finally {
+      setIndirectLoading(false);
     }
   };
 
@@ -255,7 +297,14 @@ export default function PresupuestosPlanif({ user, onBack }) {
       unidad: 'un',
       cantidad: 0,
       costo_unitario: 0,
-      rendimiento_meta: 0
+      rendimiento_meta: 0,
+      tipo_metodologia: 'Precio Unitario',
+      leyes_sociales_pct: 0,
+      imponderables_pct: 0,
+      tiempo_estimado: 0,
+      costo_materiales: 0,
+      costo_mano_obra: 0,
+      costo_maquinaria: 0
     };
     setItemsPresupuesto([...itemsPresupuesto, newRow]);
   };
@@ -274,11 +323,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
   };
 
   const handleSaveBudget = async () => {
-    if (!selectedProyectoId) {
-      alert("Por favor, crea o selecciona un Proyecto arriba antes de guardar.");
-      setShowCreateProjectModal(true);
-      return;
-    }
+    if (!selectedProyectoId) return;
     setBudgetLoading(true);
     setErrorMsg('');
     setSuccessMsg('');
@@ -344,12 +389,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
 
   // --- TAB: INGRESAR PRESUPUESTO ---
   const handleImportCSV = async () => {
-    if (!selectedProyectoId) {
-      alert("Por favor, crea o selecciona un Proyecto arriba antes de importar.");
-      setShowCreateProjectModal(true);
-      return;
-    }
-    if (!importText.trim()) return;
+    if (!selectedProyectoId || !importText.trim()) return;
     setBudgetLoading(true);
     setErrorMsg('');
     setSuccessMsg('');
@@ -390,7 +430,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
 
       setSuccessMsg(`Se ingresaron e importaron ${records.length} partidas al presupuesto.`);
       setImportText('');
-      setActiveSection('crear'); // Redirigir a ver el presupuesto
+      setActiveSection('crear');
       fetchBudgetItems(selectedProyectoId);
     } catch (err) {
       setErrorMsg('Error al importar: ' + err.message);
@@ -472,11 +512,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
   };
 
   const handleSaveCronograma = async () => {
-    if (!selectedProyectoId) {
-      alert("Por favor, crea o selecciona un Proyecto arriba antes de guardar.");
-      setShowCreateProjectModal(true);
-      return;
-    }
+    if (!selectedProyectoId) return;
     setTasksLoading(true);
     setErrorMsg('');
     setSuccessMsg('');
@@ -571,11 +607,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
   };
 
   const handleSaveResources = async () => {
-    if (!selectedProyectoId) {
-      alert("Por favor, crea o selecciona un Proyecto arriba antes de guardar.");
-      setShowCreateProjectModal(true);
-      return;
-    }
+    if (!selectedProyectoId) return;
     setResourcesLoading(true);
     setErrorMsg('');
     setSuccessMsg('');
@@ -638,6 +670,90 @@ export default function PresupuestosPlanif({ user, onBack }) {
     }
   };
 
+  // --- LÓGICA DE COSTOS INDIRECTOS ---
+  const handleAddIndirectCostRow = () => {
+    const newRow = {
+      id: 'temp-' + Date.now() + Math.random(),
+      presupuesto_id: selectedProyectoId,
+      concepto: 'NUEVO COSTO INDIRECTO',
+      tipo: 'Porcentaje',
+      valor: 0
+    };
+    setIndirectCosts([...indirectCosts, newRow]);
+  };
+
+  const handleUpdateIndirectCostField = (id, field, value) => {
+    setIndirectCosts(prev => prev.map(item => {
+      if (item.id === id) {
+        return { ...item, [field]: value };
+      }
+      return item;
+    }));
+  };
+
+  const handleDeleteIndirectCostRow = (id) => {
+    setIndirectCosts(prev => prev.filter(c => c.id !== id));
+  };
+
+  const handleSaveIndirectCosts = async () => {
+    if (!selectedProyectoId) return;
+    setIndirectLoading(true);
+    try {
+      const toUpdate = indirectCosts.filter(c => typeof c.id === 'number');
+      const toInsert = indirectCosts
+        .filter(c => typeof c.id === 'string' && c.id.startsWith('temp-'))
+        .map(c => {
+          const { id, ...rest } = c;
+          return { ...rest, presupuesto_id: selectedProyectoId };
+        });
+
+      const { data: dbCurrent, error: dbErr } = await supabase
+        .from('presupuestos_costos_indirectos')
+        .select('id')
+        .eq('presupuesto_id', selectedProyectoId);
+      if (dbErr) throw dbErr;
+
+      const dbIds = (dbCurrent || []).map(x => x.id);
+      const keepIds = toUpdate.map(x => x.id);
+      const toDeleteIds = dbIds.filter(id => !keepIds.includes(id));
+
+      if (toDeleteIds.length > 0) {
+        const { error: delErr } = await supabase
+          .from('presupuestos_costos_indirectos')
+          .delete()
+          .in('id', toDeleteIds);
+        if (delErr) throw delErr;
+      }
+
+      for (const item of toUpdate) {
+        const { error: updErr } = await supabase
+          .from('presupuestos_costos_indirectos')
+          .update({
+            concepto: item.concepto,
+            tipo: item.tipo,
+            valor: parseFloat(item.valor) || 0
+          })
+          .eq('id', item.id);
+        if (updErr) throw updErr;
+      }
+
+      if (toInsert.length > 0) {
+        const { error: insErr } = await supabase
+          .from('presupuestos_costos_indirectos')
+          .insert(toInsert);
+        if (insErr) throw insErr;
+      }
+
+      setSuccessMsg('Costos indirectos actualizados correctamente.');
+      setShowIndirectModal(false);
+      fetchIndirectCosts(selectedProyectoId);
+    } catch (err) {
+      setErrorMsg('Error al guardar costos indirectos: ' + err.message);
+    } finally {
+      setIndirectLoading(false);
+    }
+  };
+
   // --- MÉTODOS DE CÁLCULO GANTT ---
   const generateGanttDays = () => {
     const days = [];
@@ -683,10 +799,23 @@ export default function PresupuestosPlanif({ user, onBack }) {
   const currentProyecto = proyectos.find(p => p.id === parseInt(selectedProyectoId, 10));
 
   // Totales
-  const totalBudgetCost = itemsPresupuesto.reduce((acc, curr) => {
+  const totalDirectCost = itemsPresupuesto.reduce((acc, curr) => {
     if (isChapterRow(curr, itemsPresupuesto)) return acc;
     return acc + ((parseFloat(curr.cantidad) || 0) * (parseFloat(curr.costo_unitario) || 0));
   }, 0);
+
+  const calculateIndirectCostValue = (cost) => {
+    if (cost.tipo === 'Porcentaje') {
+      return totalDirectCost * (parseFloat(cost.valor) || 0) / 100;
+    }
+    return parseFloat(cost.valor) || 0;
+  };
+
+  const totalIndirectCostValue = indirectCosts.reduce((acc, curr) => {
+    return acc + calculateIndirectCostValue(curr);
+  }, 0);
+
+  const totalProjectCost = totalDirectCost + totalIndirectCostValue;
 
   const totalResourceCost = recursos.reduce((acc, curr) => {
     return acc + ((parseFloat(curr.cantidad_estimada) || 0) * (parseFloat(curr.costo_unitario) || 0));
@@ -695,6 +824,203 @@ export default function PresupuestosPlanif({ user, onBack }) {
   const materialCost = recursos.filter(r => r.tipo === 'Material').reduce((sum, r) => sum + (r.cantidad_estimada * r.costo_unitario), 0);
   const laborCost = recursos.filter(r => r.tipo === 'Mano de Obra').reduce((sum, r) => sum + (r.cantidad_estimada * r.costo_unitario), 0);
   const machineryCost = recursos.filter(r => r.tipo === 'Maquinaria').reduce((sum, r) => sum + (r.cantidad_estimada * r.costo_unitario), 0);
+
+  // --- ACCIONES DE APU MODAL ---
+  const openApuModal = async (item) => {
+    if (typeof item.id !== 'number') {
+      alert("Por favor, guarda el presupuesto primero para poder analizar esta partida en detalle.");
+      return;
+    }
+    setApuItem(item);
+    setApuLoading(true);
+    setShowApuModal(true);
+    
+    // Rellenar formulario APU
+    setApuForm({
+      tipo_metodologia: item.tipo_metodologia || 'Precio Unitario',
+      leyes_sociales_pct: item.leyes_sociales_pct || 0,
+      imponderables_pct: item.imponderables_pct || 0,
+      rendimiento_meta: item.rendimiento_meta || 0,
+      tiempo_estimado: item.tiempo_estimado || 0,
+      costo_materiales: item.costo_materiales || 0,
+      costo_mano_obra: item.costo_mano_obra || 0,
+      costo_maquinaria: item.costo_maquinaria || 0
+    });
+
+    try {
+      const { data, error } = await supabase
+        .from('presupuestos_items_recursos')
+        .select('*')
+        .eq('item_id', item.id);
+      if (error) throw error;
+      setApuResources(data || []);
+    } catch (err) {
+      console.error('Error cargando recursos de partida:', err.message);
+    } finally {
+      setApuLoading(false);
+    }
+  };
+
+  const handleAddResourceToApu = () => {
+    if (!selectedAddResourceId) return;
+    const resourceId = parseInt(selectedAddResourceId, 10);
+    if (apuResources.some(r => r.recurso_id === resourceId)) {
+      alert("Este recurso ya está añadido en el análisis de esta partida.");
+      return;
+    }
+
+    const newLink = {
+      id: 'temp-apu-' + Date.now() + Math.random(),
+      item_id: apuItem.id,
+      recurso_id: resourceId,
+      cantidad_unidad: 1,
+      rendimiento: 1
+    };
+    setApuResources([...apuResources, newLink]);
+    setSelectedAddResourceId('');
+  };
+
+  const handleUpdateApuResourceField = (id, field, value) => {
+    setApuResources(prev => prev.map(item => {
+      if (item.id === id) {
+        return { ...item, [field]: value };
+      }
+      return item;
+    }));
+  };
+
+  const handleDeleteApuResource = (id) => {
+    setApuResources(prev => prev.filter(r => r.id !== id));
+  };
+
+  const calculateApuCost = () => {
+    if (apuForm.tipo_metodologia === 'Costo-Tiempo') {
+      return (parseFloat(apuForm.costo_materiales) || 0) + 
+             (parseFloat(apuForm.costo_mano_obra) || 0) + 
+             (parseFloat(apuForm.costo_maquinaria) || 0);
+    } else {
+      let matSum = 0;
+      let laborSum = 0;
+      let machSum = 0;
+      
+      apuResources.forEach(link => {
+        const res = recursos.find(r => r.id === link.recurso_id);
+        if (res) {
+          const qty = parseFloat(link.cantidad_unidad) || 0;
+          const rend = parseFloat(link.rendimiento) || 1;
+          const cost = parseFloat(res.costo_unitario) || 0;
+          const subtotal = cost * qty * rend;
+          
+          if (res.tipo === 'Material') matSum += subtotal;
+          else if (res.tipo === 'Mano de Obra') laborSum += subtotal;
+          else if (res.tipo === 'Maquinaria') machSum += subtotal;
+        }
+      });
+      
+      const laborConLeyes = laborSum * (1 + (parseFloat(apuForm.leyes_sociales_pct) || 0) / 100);
+      const subtotalDirecto = matSum + machSum + laborConLeyes;
+      const totalUnitario = subtotalDirecto * (1 + (parseFloat(apuForm.imponderables_pct) || 0) / 100);
+      return totalUnitario;
+    }
+  };
+
+  const handleSaveApu = async () => {
+    if (!apuItem) return;
+    setApuLoading(true);
+    try {
+      const finalUnitCost = calculateApuCost();
+      
+      // Auto-calcular tiempo si es Costo-Tiempo
+      let autoTiempo = apuForm.tiempo_estimado;
+      if (apuForm.tipo_metodologia === 'Costo-Tiempo' && apuForm.rendimiento_meta > 0) {
+        autoTiempo = (parseFloat(apuItem.cantidad) || 0) / parseFloat(apuForm.rendimiento_meta);
+      }
+
+      // 1. Guardar en presupuestos_items
+      const { error: itemErr } = await supabase
+        .from('presupuestos_items')
+        .update({
+          tipo_metodologia: apuForm.tipo_metodologia,
+          rendimiento_meta: parseFloat(apuForm.rendimiento_meta) || 0,
+          tiempo_estimado: autoTiempo,
+          costo_materiales: parseFloat(apuForm.costo_materiales) || 0,
+          costo_mano_obra: parseFloat(apuForm.costo_mano_obra) || 0,
+          costo_maquinaria: parseFloat(apuForm.costo_maquinaria) || 0,
+          leyes_sociales_pct: parseFloat(apuForm.leyes_sociales_pct) || 0,
+          imponderables_pct: parseFloat(apuForm.imponderables_pct) || 0,
+          costo_unitario: finalUnitCost
+        })
+        .eq('id', apuItem.id);
+      if (itemErr) throw itemErr;
+
+      // 2. Guardar recursos vinculados (APU)
+      if (apuForm.tipo_metodologia === 'Precio Unitario') {
+        const toUpdate = apuResources.filter(r => typeof r.id === 'number');
+        const toInsert = apuResources
+          .filter(r => typeof r.id === 'string' && r.id.startsWith('temp-apu-'))
+          .map(r => ({
+            item_id: apuItem.id,
+            recurso_id: r.recurso_id,
+            cantidad_unidad: parseFloat(r.cantidad_unidad) || 0,
+            rendimiento: parseFloat(r.rendimiento) || 1
+          }));
+
+        const { data: dbCurrent, error: dbErr } = await supabase
+          .from('presupuestos_items_recursos')
+          .select('id')
+          .eq('item_id', apuItem.id);
+        if (dbErr) throw dbErr;
+
+        const dbIds = (dbCurrent || []).map(x => x.id);
+        const keepIds = toUpdate.map(x => x.id);
+        const toDeleteIds = dbIds.filter(id => !keepIds.includes(id));
+
+        if (toDeleteIds.length > 0) {
+          const { error: delErr } = await supabase
+            .from('presupuestos_items_recursos')
+            .delete()
+            .in('id', toDeleteIds);
+          if (delErr) throw delErr;
+        }
+
+        for (const item of toUpdate) {
+          const { error: updErr } = await supabase
+            .from('presupuestos_items_recursos')
+            .update({
+              cantidad_unidad: parseFloat(item.cantidad_unidad) || 0,
+              rendimiento: parseFloat(item.rendimiento) || 1
+            })
+            .eq('id', item.id);
+          if (updErr) throw updErr;
+        }
+
+        if (toInsert.length > 0) {
+          const { error: insErr } = await supabase
+            .from('presupuestos_items_recursos')
+            .insert(toInsert);
+          if (insErr) throw insErr;
+        }
+      } else {
+        // Si cambia a costo-tiempo, eliminamos los vínculos de recursos
+        await supabase
+          .from('presupuestos_items_recursos')
+          .delete()
+          .eq('item_id', apuItem.id);
+      }
+
+      setSuccessMsg('Análisis de partida guardado correctamente.');
+      setShowApuModal(false);
+      fetchBudgetItems(selectedProyectoId);
+    } catch (err) {
+      setErrorMsg('Error al guardar APU: ' + err.message);
+    } finally {
+      setApuLoading(false);
+    }
+  };
+
+  // --- GESTIÓN DE PANTALLA OBLIGATORIA DE SELECCIÓN ---
+  const isWorkspaceActive = activeSection !== '' && activeSection !== 'mis_presupuestos';
+  const showBlockerGate = isWorkspaceActive && !selectedProyectoId;
 
   return (
     <div className="space-y-6">
@@ -706,8 +1032,8 @@ export default function PresupuestosPlanif({ user, onBack }) {
             <ArrowLeft className="w-5 h-5 text-slate-600" />
           </button>
           <div>
-            <h2 className="text-xl font-bold text-slate-800 tracking-tight">Presupuestos</h2>
-            <p className="text-[10px] text-slate-450 font-bold uppercase mt-0.5">Control de costos, diagramas Gantt y asignación de recursos independientes</p>
+            <h2 className="text-xl font-bold text-slate-800 tracking-tight font-sans">Presupuestos</h2>
+            <p className="text-[10px] text-slate-455 font-bold uppercase mt-0.5">Control de costos, diagramas Gantt y asignación de recursos independientes</p>
           </div>
         </div>
 
@@ -724,7 +1050,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                 value={selectedProyectoId}
                 onChange={(e) => {
                   setSelectedProyectoId(e.target.value);
-                  setActiveSection(''); // Resetear al menú de apartados al cambiar de proyecto
+                  setActiveSection(''); // Resetear al menú de apartados
                 }}
                 className="bg-transparent text-xs font-bold text-slate-850 focus:outline-none cursor-pointer uppercase border-0 p-0"
               >
@@ -752,7 +1078,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
       <div className="space-y-6">
         
         {/* Ficha Resumen de Información Básica del Proyecto Activo */}
-        {currentProyecto && (
+        {currentProyecto && !showBlockerGate && (
           <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs grid grid-cols-2 md:grid-cols-6 gap-4">
             <div className="space-y-1">
               <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Cliente / Mandante</span>
@@ -792,788 +1118,888 @@ export default function PresupuestosPlanif({ user, onBack }) {
           </div>
         )}
 
-        {/* ================= VISTA A: MENÚ PRINCIPAL DE APARTADOS (RECTÁNGULOS) ================= */}
-        {activeSection === '' ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            
-            {/* Card 1: Mis Presupuestos */}
-            <div 
-              onClick={() => { setActiveSection('mis_presupuestos'); setErrorMsg(''); setSuccessMsg(''); }}
-              className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex items-start gap-5 min-h-[140px]"
-            >
-              <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300 shrink-0">
-                <Briefcase className="w-6 h-6" />
-              </div>
-              <div className="space-y-2">
-                <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
-                  Mis Presupuestos
-                </h3>
-                <p className="text-xs text-slate-500 leading-normal">
-                  Visualiza el listado completo de presupuestos creados, controla su estado de avance y cárgalos para seguir editando.
-                </p>
-              </div>
+        {/* ================= GALAXY GATE BLOCKER: FORZAR PROYECTO ================= */}
+        {showBlockerGate ? (
+          <div className="bg-white border border-slate-200 rounded-3xl p-10 text-center shadow-xs max-w-xl mx-auto space-y-5 py-12 animate-in fade-in duration-200">
+            <div className="mx-auto w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center text-amber-500">
+              <AlertCircle className="w-6 h-6" />
             </div>
-
-            {/* Card 2: Crear Presupuesto */}
-            <div 
-              onClick={() => { setActiveSection('crear'); setErrorMsg(''); setSuccessMsg(''); }}
-              className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex items-start gap-5 min-h-[140px]"
-            >
-              <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300 shrink-0">
-                <FileSpreadsheet className="w-6 h-6" />
-              </div>
-              <div className="space-y-2">
-                <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
-                  Crear Presupuesto
-                </h3>
-                <p className="text-xs text-slate-500 leading-normal">
-                  Estructura y edita en línea el listado de partidas, unidades, cantidades y precios unitarios. Soporta capítulos auto-calculados.
-                </p>
-              </div>
+            <div className="space-y-2">
+              <h3 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Requiere Proyecto Activo</h3>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Para poder interactuar con las planillas, importar presupuestos o planificar etapas de trabajo, primero debes seleccionar o crear un proyecto de construcción.
+              </p>
             </div>
-
-            {/* Card 3: Ingresar Presupuesto */}
-            <div 
-              onClick={() => { setActiveSection('ingresar'); setErrorMsg(''); setSuccessMsg(''); }}
-              className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex items-start gap-5 min-h-[140px]"
-            >
-              <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300 shrink-0">
-                <Upload className="w-6 h-6" />
-              </div>
-              <div className="space-y-2">
-                <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
-                  Ingresar Presupuesto (Carga Masiva)
-                </h3>
-                <p className="text-xs text-slate-500 leading-normal">
-                  Importa rápidamente tu presupuesto estructurado pegando textos y datos tabulados o separados por comas.
-                </p>
-              </div>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+              {proyectos.length > 0 && (
+                <div className="w-full sm:w-auto">
+                  <select
+                    value={selectedProyectoId}
+                    onChange={(e) => setSelectedProyectoId(e.target.value)}
+                    className="border border-slate-250 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 uppercase focus:outline-none focus:border-primary bg-white cursor-pointer w-full"
+                  >
+                    <option value="">Selecciona Proyecto...</option>
+                    {proyectos.map(p => (
+                      <option key={p.id} value={p.id}>{p.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <button
+                onClick={() => setShowCreateProjectModal(true)}
+                className="flex items-center justify-center gap-1.5 bg-primary text-white text-xs font-bold px-5 py-2.5 rounded-xl hover:bg-primary-hover transition w-full sm:w-auto cursor-pointer"
+              >
+                <FolderPlus className="w-4 h-4" />
+                <span>Crear Nuevo Proyecto</span>
+              </button>
             </div>
-
-            {/* Card 4: Diagrama Gantt */}
-            <div 
-              onClick={() => { setActiveSection('gantt'); setErrorMsg(''); setSuccessMsg(''); }}
-              className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex items-start gap-5 min-h-[140px]"
-            >
-              <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300 shrink-0">
-                <Calendar className="w-6 h-6" />
-              </div>
-              <div className="space-y-2">
-                <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
-                  Diagrama Gantt
-                </h3>
-                <p className="text-xs text-slate-500 leading-normal">
-                  Programa etapas de trabajo, asigna predecesoras para encadenamiento automático y visualiza el cronograma mediante diagrama Gantt.
-                </p>
-              </div>
-            </div>
-
-            {/* Card 5: Recursos */}
-            <div 
-              onClick={() => { setActiveSection('recursos'); setErrorMsg(''); setSuccessMsg(''); }}
-              className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex items-start gap-5 min-h-[140px]"
-            >
-              <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300 shrink-0">
-                <Hammer className="w-6 h-6" />
-              </div>
-              <div className="space-y-2">
-                <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
-                  Recursos
-                </h3>
-                <p className="text-xs text-slate-500 leading-normal">
-                  Controla y desglosa los insumos necesarios para el proyecto clasificados en Materiales, Mano de Obra y Maquinaria.
-                </p>
-              </div>
-            </div>
-
           </div>
         ) : (
-          // ================= VISTA B: APARTADO INDIVIDUAL DETALLADO =================
-          <div className="space-y-6">
-            
-            {/* Barra superior de Apartado */}
-            <div className="flex justify-between items-center bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
-              <button
-                onClick={() => { setActiveSection(''); setErrorMsg(''); setSuccessMsg(''); }}
-                className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-slate-850 font-bold cursor-pointer transition"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                <span>Volver al menú de apartados</span>
-              </button>
-
-              <div className="flex items-center gap-3">
-                {activeSection === 'crear' && (
-                  <button
-                    onClick={handleSaveBudget}
-                    disabled={budgetLoading}
-                    className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-4 py-2 rounded-xl transition cursor-pointer"
-                  >
-                    <Save className="w-4 h-4" />
-                    <span>{budgetLoading ? 'Guardando...' : 'Guardar Presupuesto'}</span>
-                  </button>
-                )}
-                {activeSection === 'gantt' && (
-                  <button
-                    onClick={handleSaveCronograma}
-                    disabled={tasksLoading}
-                    className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-4 py-2 rounded-xl transition cursor-pointer"
-                  >
-                    <Save className="w-4 h-4" />
-                    <span>{tasksLoading ? 'Guardando...' : 'Guardar Planificación'}</span>
-                  </button>
-                )}
-                {activeSection === 'recursos' && (
-                  <button
-                    onClick={handleSaveResources}
-                    disabled={resourcesLoading}
-                    className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-4 py-2 rounded-xl transition cursor-pointer"
-                  >
-                    <Save className="w-4 h-4" />
-                    <span>{resourcesLoading ? 'Guardando...' : 'Guardar Recursos'}</span>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* APARTADO: CREAR PRESUPUESTO */}
-            {activeSection === 'crear' && (
-              <div className="space-y-4 animate-in fade-in duration-200">
-                <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                  <div>
-                    <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Costo Presupuestado Total</h4>
-                    <p className="text-2xl font-black text-slate-850 mt-1">{formatCLP(totalBudgetCost)}</p>
-                  </div>
-                  <button
-                    onClick={handleAddBudgetRow}
-                    className="flex items-center gap-1.5 bg-slate-50 border border-slate-250 text-slate-700 text-xs font-bold px-3.5 py-2 rounded-xl hover:bg-slate-100 transition cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4 text-primary" />
-                    <span>Añadir Partida</span>
-                  </button>
-                </div>
-
-                <div className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-655 font-bold text-[9px] uppercase tracking-wider select-none">
-                          <th className="p-3.5 w-24">Código</th>
-                          <th className="p-3.5">Concepto / Partida</th>
-                          <th className="p-3.5 w-20">Unidad</th>
-                          <th className="p-3.5 w-24">Cantidad</th>
-                          <th className="p-3.5 w-28">Precio Unit. ($)</th>
-                          <th className="p-3.5 w-32">Importe ($)</th>
-                          <th className="p-3.5 w-24">Rend. Meta</th>
-                          <th className="p-3.5 w-16 text-center"></th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-150">
-                        {itemsPresupuesto.map((item) => {
-                          const isChapter = isChapterRow(item, itemsPresupuesto);
-                          const importeVal = isChapter
-                            ? getChapterSum(item.codigo, itemsPresupuesto)
-                            : (parseFloat(item.cantidad) || 0) * (parseFloat(item.costo_unitario) || 0);
-                          const isIndent = item.codigo && item.codigo.includes('.');
-
-                          return (
-                            <tr 
-                              key={item.id}
-                              className={`transition ${isChapter ? 'bg-slate-50/70 font-bold' : 'hover:bg-slate-50/35'}`}
-                            >
-                              <td className="p-2">
-                                <input
-                                  type="text"
-                                  value={item.codigo || ''}
-                                  onChange={(e) => handleUpdateBudgetField(item.id, 'codigo', e.target.value)}
-                                  placeholder="01.01"
-                                  className={`w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-800 ${isChapter ? 'font-black' : ''}`}
-                                />
-                              </td>
-                              <td className="p-2">
-                                <div className="flex items-center gap-1">
-                                  {isIndent && <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1.5" />}
-                                  <input
-                                    type="text"
-                                    value={item.partida || ''}
-                                    onChange={(e) => handleUpdateBudgetField(item.id, 'partida', e.target.value)}
-                                    placeholder="ej: Fundaciones"
-                                    className={`w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-800 uppercase ${isChapter ? 'font-extrabold text-slate-900' : 'text-slate-700'}`}
-                                  />
-                                </div>
-                              </td>
-                              <td className="p-2">
-                                {!isChapter && (
-                                  <input
-                                    type="text"
-                                    value={item.unidad || ''}
-                                    onChange={(e) => handleUpdateBudgetField(item.id, 'unidad', e.target.value)}
-                                    placeholder="m3"
-                                    className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-600 text-center uppercase"
-                                  />
-                                )}
-                              </td>
-                              <td className="p-2">
-                                {!isChapter && (
-                                  <input
-                                    type="number"
-                                    step="any"
-                                    value={item.cantidad ?? ''}
-                                    onChange={(e) => handleUpdateBudgetField(item.id, 'cantidad', e.target.value)}
-                                    placeholder="0"
-                                    className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-700 font-semibold"
-                                  />
-                                )}
-                              </td>
-                              <td className="p-2">
-                                {!isChapter && (
-                                  <input
-                                    type="number"
-                                    step="any"
-                                    value={item.costo_unitario ?? ''}
-                                    onChange={(e) => handleUpdateBudgetField(item.id, 'costo_unitario', e.target.value)}
-                                    placeholder="0"
-                                    className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-700"
-                                  />
-                                )}
-                              </td>
-                              <td className="p-3.5 font-bold text-slate-800">
-                                {formatCLP(importeVal)}
-                              </td>
-                              <td className="p-2">
-                                {!isChapter && (
-                                  <input
-                                    type="number"
-                                    step="any"
-                                    value={item.rendimiento_meta ?? ''}
-                                    onChange={(e) => handleUpdateBudgetField(item.id, 'rendimiento_meta', e.target.value)}
-                                    placeholder="0"
-                                    className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-650"
-                                  />
-                                )}
-                              </td>
-                              <td className="p-2 text-center">
-                                  <button
-                                    onClick={() => handleDeleteBudgetRow(item.id)}
-                                    className="p-1.5 text-red-650 hover:bg-red-50 rounded-lg transition"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* APARTADO: INGRESAR PRESUPUESTO */}
-            {activeSection === 'ingresar' && (
-              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4 animate-in fade-in duration-200">
-                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                  <Upload className="w-5 h-5 text-primary" />
-                  <h3 className="font-extrabold text-xs uppercase tracking-wider text-slate-800">Ingresar Presupuesto (Carga Masiva)</h3>
-                </div>
-
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  Copia y pega partidas directamente desde otro sistema o planilla de cálculo en el cuadro de texto.
-                </p>
-
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-[10px] font-semibold text-slate-500 space-y-2">
-                  <span className="font-bold text-slate-850 block">Formato aceptado:</span>
-                  <code className="bg-white px-2 py-1 rounded border font-mono block text-slate-800">
-                    Código, Concepto, Unidad, Cantidad, CostoUnitario, RendimientoMeta
-                  </code>
-                  <span className="font-bold text-slate-850 block mt-2">Ejemplo:</span>
-                  <code className="bg-white px-2 py-1 rounded border font-mono block text-slate-800 whitespace-pre">
-                    01, Obras Preliminares, gl, 1, 600000, 0{"\n"}
-                    01.01, Trazados y niveles, m2, 350, 1200, 150
-                  </code>
-                </div>
-
-                <textarea
-                  rows="8"
-                  value={importText}
-                  onChange={(e) => setImportText(e.target.value)}
-                  placeholder="Pega las líneas aquí..."
-                  className="w-full border border-slate-200 rounded-xl p-3 text-xs text-slate-800 focus:outline-none focus:border-primary font-mono bg-slate-50/50"
-                />
-
-                <div className="flex justify-end">
-                  <button
-                    onClick={handleImportCSV}
-                    disabled={budgetLoading || !importText.trim()}
-                    className="flex items-center gap-1.5 bg-primary hover:bg-primary-hover text-white text-xs font-bold px-5 py-2.5 rounded-xl transition cursor-pointer shadow-xs disabled:opacity-50"
-                  >
-                    <Check className="w-4 h-4" />
-                    <span>Procesar e Importar</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* APARTADO: DIAGRAMA GANTT */}
-            {activeSection === 'gantt' && (
-              <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start animate-in fade-in duration-200">
+          <>
+            {/* ================= VISTA A: MENÚ PRINCIPAL DE APARTADOS (RECTÁNGULOS) ================= */}
+            {activeSection === '' ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 
-                {/* Hoja de Planificación (Izquierda) */}
-                <div className="xl:col-span-6 space-y-4">
-                  <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex justify-between items-center">
-                    <div>
-                      <h3 className="text-xs font-extrabold uppercase text-slate-800 tracking-wider">Hoja de Planificación</h3>
-                      <p className="text-[10px] text-slate-450 font-bold uppercase mt-0.5">Listado de etapas y plazos</p>
-                    </div>
-                    <button
-                      onClick={handleAddCronogramaRow}
-                      className="flex items-center gap-1.5 bg-slate-50 border border-slate-250 text-slate-700 text-xs font-bold px-3 py-2 rounded-xl hover:bg-slate-100 transition cursor-pointer"
-                    >
-                      <Plus className="w-4 h-4 text-primary" />
-                      <span>Agregar Tarea</span>
-                    </button>
+                {/* Card 1: Mis Presupuestos */}
+                <div 
+                  onClick={() => { setActiveSection('mis_presupuestos'); setErrorMsg(''); setSuccessMsg(''); }}
+                  className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex items-start gap-5 min-h-[140px]"
+                >
+                  <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300 shrink-0">
+                    <Briefcase className="w-6 h-6" />
                   </div>
-
-                  <div className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs border-collapse">
-                        <thead>
-                          <tr className="bg-slate-50 border-b border-slate-200 text-slate-660 font-bold text-[9px] uppercase tracking-wider select-none">
-                            <th className="p-3 w-16 text-center">Código</th>
-                            <th className="p-3">Tarea</th>
-                            <th className="p-3 w-20">Inicio</th>
-                            <th className="p-3 w-16 text-center">Días</th>
-                            <th className="p-3 w-16 text-center">Pred.</th>
-                            <th className="p-3 w-20 text-center">Avance</th>
-                            <th className="p-3 w-12"></th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-150">
-                          {cronograma.map((task) => {
-                            let alertConflict = false;
-                            if (task.predecesora) {
-                              const pred = cronograma.find(x => x.codigo === task.predecesora.trim());
-                              if (pred && pred.fecha_fin && task.fecha_inicio) {
-                                alertConflict = task.fecha_inicio < pred.fecha_fin;
-                              }
-                            }
-
-                            return (
-                              <tr key={task.id} className="hover:bg-slate-50/50 transition">
-                                <td className="p-2">
-                                  <input
-                                    type="text"
-                                    value={task.codigo || ''}
-                                    onChange={(e) => handleUpdateCronogramaField(task.id, 'codigo', e.target.value)}
-                                    className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-800 font-bold text-center"
-                                  />
-                                </td>
-                                <td className="p-2">
-                                  <input
-                                    type="text"
-                                    value={task.tarea || ''}
-                                    onChange={(e) => handleUpdateCronogramaField(task.id, 'tarea', e.target.value)}
-                                    placeholder="Nueva Tarea"
-                                    className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-800 uppercase font-semibold"
-                                  />
-                                </td>
-                                <td className="p-2">
-                                  <div className="relative flex items-center">
-                                    {alertConflict && (
-                                      <span className="absolute -left-2.5 text-amber-500 cursor-help" title="Conflicto: Inicia antes del término de la predecesora">⚠️</span>
-                                    )}
-                                    <input
-                                      type="date"
-                                      value={task.fecha_inicio || ''}
-                                      onChange={(e) => handleUpdateCronogramaField(task.id, 'fecha_inicio', e.target.value)}
-                                      className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-[11px] text-slate-700 font-medium"
-                                    />
-                                  </div>
-                                </td>
-                                <td className="p-2">
-                                  <input
-                                    type="number"
-                                    min="1"
-                                    value={task.duracion ?? ''}
-                                    onChange={(e) => handleUpdateCronogramaField(task.id, 'duracion', e.target.value)}
-                                    className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-700 font-bold text-center"
-                                  />
-                                </td>
-                                <td className="p-2">
-                                  <input
-                                    type="text"
-                                    value={task.predecesora || ''}
-                                    onChange={(e) => handleUpdateCronogramaField(task.id, 'predecesora', e.target.value)}
-                                    placeholder="nº"
-                                    className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-655 text-center font-bold"
-                                  />
-                                </td>
-                                <td className="p-2">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    max="100"
-                                    value={task.porcentaje_avance ?? ''}
-                                    onChange={(e) => handleUpdateCronogramaField(task.id, 'porcentaje_avance', e.target.value)}
-                                    className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-700 text-center font-semibold"
-                                  />
-                                </td>
-                                <td className="p-2 text-center">
-                                  <button
-                                    onClick={() => handleDeleteCronogramaRow(task.id)}
-                                    className="p-1 text-red-655 hover:bg-red-50 rounded-lg transition"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
+                  <div className="space-y-2">
+                    <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
+                      Mis Presupuestos
+                    </h3>
+                    <p className="text-xs text-slate-500 leading-normal">
+                      Visualiza el listado completo de presupuestos creados, controla su estado de avance y cárgalos para seguir editando.
+                    </p>
                   </div>
-
-                  {cronograma.length === 0 && (
-                    <div className="p-8 text-center text-xs text-slate-400 italic">
-                      No hay tareas de planificación. Haz clic en "Agregar Tarea" para empezar.
-                    </div>
-                  )}
                 </div>
 
-                {/* Diagrama Gantt (Derecha) */}
-                <div className="xl:col-span-6 space-y-4">
-                  <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex flex-wrap justify-between items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">Fecha Escala:</span>
-                      <input
-                        type="date"
-                        value={ganttStartDate}
-                        onChange={(e) => setGanttStartDate(e.target.value)}
-                        className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-800 focus:outline-none"
-                      />
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">Límites:</span>
-                      <select
-                        value={ganttScale}
-                        onChange={(e) => setGanttScale(parseInt(e.target.value, 10))}
-                        className="border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-700 bg-white"
-                      >
-                        <option value={15}>15 días</option>
-                        <option value={30}>30 días (Mes)</option>
-                        <option value={60}>60 días (Trimestre)</option>
-                      </select>
-                    </div>
+                {/* Card 2: Crear Presupuesto */}
+                <div 
+                  onClick={() => { setActiveSection('crear'); setErrorMsg(''); setSuccessMsg(''); }}
+                  className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex items-start gap-5 min-h-[140px]"
+                >
+                  <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300 shrink-0">
+                    <FileSpreadsheet className="w-6 h-6" />
                   </div>
+                  <div className="space-y-2">
+                    <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
+                      Crear Presupuesto
+                    </h3>
+                    <p className="text-xs text-slate-500 leading-normal">
+                      Estructura y edita en línea el listado de partidas, unidades, cantidades y precios unitarios. Soporta capítulos auto-calculados.
+                    </p>
+                  </div>
+                </div>
 
-                  <div className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden">
-                    <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                      <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">Diagrama Gantt de Actividades</span>
-                      <div className="flex gap-3 text-[9px] font-bold uppercase">
-                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 bg-yellow-500 rounded-xs" /> Pendiente</span>
-                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 bg-blue-600 rounded-xs" /> En Curso</span>
-                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 bg-emerald-600 rounded-xs" /> Completado</span>
-                      </div>
-                    </div>
+                {/* Card 3: Ingresar Presupuesto */}
+                <div 
+                  onClick={() => { setActiveSection('ingresar'); setErrorMsg(''); setSuccessMsg(''); }}
+                  className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex items-start gap-5 min-h-[140px]"
+                >
+                  <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300 shrink-0">
+                    <Upload className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
+                      Ingresar Presupuesto (Carga Masiva)
+                    </h3>
+                    <p className="text-xs text-slate-500 leading-normal">
+                      Importa rápidamente tu presupuesto estructurado pegando textos y datos tabulados o separados por comas.
+                    </p>
+                  </div>
+                </div>
 
-                    <div className="p-4 overflow-x-auto">
-                      <div 
-                        className="grid border-r border-b border-slate-200 select-none min-w-[650px]"
-                        style={{ gridTemplateColumns: `repeat(${ganttScale}, minmax(26px, 1fr))` }}
-                      >
-                        {ganttDays.map((day, idx) => (
-                          <div 
-                            key={idx}
-                            className={`text-center py-2 border-t border-l border-slate-200 flex flex-col justify-center items-center ${
-                              day.isWeekend ? 'bg-slate-100/70 text-slate-400' : 'bg-slate-50 text-slate-650'
-                            }`}
-                          >
-                            <span className="text-[7.5px] font-bold uppercase tracking-wider">{day.monthStr}</span>
-                            <span className="text-[10px] font-black">{day.dayNum}</span>
-                          </div>
-                        ))}
+                {/* Card 4: Diagrama Gantt */}
+                <div 
+                  onClick={() => { setActiveSection('gantt'); setErrorMsg(''); setSuccessMsg(''); }}
+                  className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex items-start gap-5 min-h-[140px]"
+                >
+                  <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300 shrink-0">
+                    <Calendar className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
+                      Diagrama Gantt
+                    </h3>
+                    <p className="text-xs text-slate-500 leading-normal">
+                      Programa etapas de trabajo, asigna predecesoras para encadenamiento automático y visualiza el cronograma mediante diagrama Gantt.
+                    </p>
+                  </div>
+                </div>
 
-                        {cronograma.map((task) => {
-                          const span = getGanttSpan(task.fecha_inicio, task.fecha_fin);
-                          let barColor = 'bg-yellow-500';
-                          if (task.estado === 'En Progreso') barColor = 'bg-blue-600';
-                          else if (task.estado === 'Completado') barColor = 'bg-emerald-600';
-
-                          return (
-                            <div 
-                              key={task.id}
-                              className="h-9 relative border-t border-l border-slate-200 flex items-center bg-slate-50/20"
-                              style={{ gridColumn: `1 / span ${ganttScale}` }}
-                            >
-                              <div 
-                                className="grid h-full w-full absolute top-0 left-0"
-                                style={{ gridTemplateColumns: `repeat(${ganttScale}, minmax(26px, 1fr))` }}
-                              >
-                                {span && (
-                                  <div 
-                                    className="relative flex items-center h-full px-1"
-                                    style={{
-                                      gridColumnStart: span.gridColumnStart,
-                                      gridColumnEnd: span.gridColumnEnd
-                                    }}
-                                  >
-                                    <div 
-                                      className={`w-full h-5 ${barColor} text-white rounded-lg flex items-center justify-between px-2 text-[9px] font-bold shadow-xs truncate`}
-                                      title={`${task.tarea}: ${task.fecha_inicio} a ${task.fecha_fin}`}
-                                    >
-                                      <span className="truncate uppercase">{task.tarea}</span>
-                                      <span>{task.porcentaje_avance}%</span>
-                                    </div>
-                                  </div>
-                                )}
-
-                                {ganttDays.map((day, idx) => (
-                                  <div 
-                                    key={idx} 
-                                    className={`border-r border-slate-100/50 h-full pointer-events-none ${
-                                      day.isWeekend ? 'bg-slate-100/10' : ''
-                                    }`} 
-                                  />
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
+                {/* Card 5: Recursos */}
+                <div 
+                  onClick={() => { setActiveSection('recursos'); setErrorMsg(''); setSuccessMsg(''); }}
+                  className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex items-start gap-5 min-h-[140px]"
+                >
+                  <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300 shrink-0">
+                    <Hammer className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
+                      Recursos
+                    </h3>
+                    <p className="text-xs text-slate-500 leading-normal">
+                      Controla y desglosa los insumos necesarios para el proyecto clasificados en Materiales, Mano de Obra y Maquinaria.
+                    </p>
                   </div>
                 </div>
 
               </div>
-            )}
-
-            {/* APARTADO: RECURSOS */}
-            {activeSection === 'recursos' && (
-              <div className="space-y-4 animate-in fade-in duration-200">
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
-                  <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs">
-                    <h4 className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">Costo Estimado de Recursos</h4>
-                    <p className="text-xl font-black text-slate-850 mt-1">{formatCLP(totalResourceCost)}</p>
-                  </div>
-                  <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs">
-                    <h4 className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">Materiales</h4>
-                    <p className="text-xl font-bold text-slate-700 mt-1">{formatCLP(materialCost)}</p>
-                  </div>
-                  <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs">
-                    <h4 className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">Mano de Obra</h4>
-                    <p className="text-xl font-bold text-slate-700 mt-1">{formatCLP(laborCost)}</p>
-                  </div>
-                  <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs">
-                    <h4 className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">Maquinaria</h4>
-                    <p className="text-xl font-bold text-slate-700 mt-1">{formatCLP(machineryCost)}</p>
-                  </div>
-                </div>
-
-                <div className="flex justify-end">
+            ) : (
+              // ================= VISTA B: APARTADO INDIVIDUAL DETALLADO =================
+              <div className="space-y-6">
+                
+                {/* Barra superior de Apartado */}
+                <div className="flex justify-between items-center bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
                   <button
-                    onClick={handleAddResourceRow}
-                    className="flex items-center gap-1.5 bg-slate-50 border border-slate-250 text-slate-700 text-xs font-bold px-4 py-2 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+                    onClick={() => { setActiveSection(''); setErrorMsg(''); setSuccessMsg(''); }}
+                    className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-slate-850 font-bold cursor-pointer transition"
                   >
-                    <Plus className="w-4 h-4 text-primary" />
-                    <span>Añadir Recurso</span>
+                    <ChevronLeft className="w-4 h-4" />
+                    <span>Volver al menú de apartados</span>
                   </button>
+
+                  <div className="flex items-center gap-3">
+                    {activeSection === 'crear' && (
+                      <>
+                        <button
+                          onClick={() => setShowIndirectModal(true)}
+                          className="flex items-center gap-1.5 bg-slate-50 border border-slate-250 text-slate-700 text-xs font-bold px-4 py-2 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+                        >
+                          <Sliders className="w-4 h-4 text-primary" />
+                          <span>Costos Generales</span>
+                        </button>
+                        <button
+                          onClick={handleSaveBudget}
+                          disabled={budgetLoading}
+                          className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-4 py-2 rounded-xl transition cursor-pointer"
+                        >
+                          <Save className="w-4 h-4" />
+                          <span>{budgetLoading ? 'Guardando...' : 'Guardar Presupuesto'}</span>
+                        </button>
+                      </>
+                    )}
+                    {activeSection === 'gantt' && (
+                      <button
+                        onClick={handleSaveCronograma}
+                        disabled={tasksLoading}
+                        className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-4 py-2 rounded-xl transition cursor-pointer"
+                      >
+                        <Save className="w-4 h-4" />
+                        <span>{tasksLoading ? 'Guardando...' : 'Guardar Planificación'}</span>
+                      </button>
+                    )}
+                    {activeSection === 'recursos' && (
+                      <button
+                        onClick={handleSaveResources}
+                        disabled={resourcesLoading}
+                        className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-4 py-2 rounded-xl transition cursor-pointer"
+                      >
+                        <Save className="w-4 h-4" />
+                        <span>{resourcesLoading ? 'Guardando...' : 'Guardar Recursos'}</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-650 font-bold text-[9px] uppercase tracking-wider select-none">
-                          <th className="p-3.5">Nombre Recurso</th>
-                          <th className="p-3.5 w-32">Tipo</th>
-                          <th className="p-3.5 w-24">Unidad</th>
-                          <th className="p-3.5 w-32">Costo Unit. ($)</th>
-                          <th className="p-3.5 w-32">Cant. Estimada</th>
-                          <th className="p-3.5 w-36">Costo Total ($)</th>
-                          <th className="p-3.5 w-16 text-center"></th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-150">
-                        {recursos.map((item) => {
-                          const totalRow = (parseFloat(item.cantidad_estimada) || 0) * (parseFloat(item.costo_unitario) || 0);
+                {/* APARTADO: CREAR PRESUPUESTO */}
+                {activeSection === 'crear' && (
+                  <div className="space-y-4 animate-in fade-in duration-200">
+                    <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                      <div>
+                        <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Costo Directo Subtotal</h4>
+                        <p className="text-2xl font-black text-slate-850 mt-1">{formatCLP(totalDirectCost)}</p>
+                      </div>
+                      <button
+                        onClick={handleAddBudgetRow}
+                        className="flex items-center gap-1.5 bg-slate-50 border border-slate-250 text-slate-700 text-xs font-bold px-3.5 py-2 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4 text-primary" />
+                        <span>Añadir Partida</span>
+                      </button>
+                    </div>
 
-                          return (
-                            <tr key={item.id} className="hover:bg-slate-50/50 transition">
-                              <td className="p-2">
-                                <input
-                                  type="text"
-                                  value={item.recurso || ''}
-                                  onChange={(e) => handleUpdateResourceField(item.id, 'recurso', e.target.value)}
-                                  placeholder="ej: Cemento Gris"
-                                  className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-800 uppercase font-semibold"
-                                />
-                              </td>
-                              <td className="p-2">
-                                <select
-                                  value={item.tipo || 'Material'}
-                                  onChange={(e) => handleUpdateResourceField(item.id, 'tipo', e.target.value)}
-                                  className="w-full border-0 bg-transparent focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-705"
-                                >
-                                  <option value="Material">Material</option>
-                                  <option value="Mano de Obra">Mano de Obra</option>
-                                  <option value="Maquinaria">Maquinaria</option>
-                                </select>
-                              </td>
-                              <td className="p-2">
-                                <input
-                                  type="text"
-                                  value={item.unidad || ''}
-                                  onChange={(e) => handleUpdateResourceField(item.id, 'unidad', e.target.value)}
-                                  placeholder="bolsas"
-                                  className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-600 text-center uppercase"
-                                />
-                              </td>
-                              <td className="p-2">
-                                <input
-                                  type="number"
-                                  step="any"
-                                  value={item.costo_unitario ?? ''}
-                                  onChange={(e) => handleUpdateResourceField(item.id, 'costo_unitario', e.target.value)}
-                                  placeholder="0"
-                                  className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-700"
-                                />
-                              </td>
-                              <td className="p-2">
-                                <input
-                                  type="number"
-                                  step="any"
-                                  value={item.cantidad_estimada ?? ''}
-                                  onChange={(e) => handleUpdateResourceField(item.id, 'cantidad_estimada', e.target.value)}
-                                  placeholder="0"
-                                  className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-700 font-semibold"
-                                />
-                              </td>
-                              <td className="p-3.5 font-bold text-slate-800">
-                                {formatCLP(totalRow)}
-                              </td>
-                              <td className="p-2 text-center">
-                                <button
-                                  onClick={() => handleDeleteResourceRow(item.id)}
-                                  className="p-1.5 text-red-650 hover:bg-red-50 rounded-lg transition cursor-pointer"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </td>
+                    <div className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="bg-slate-50 border-b border-slate-200 text-slate-655 font-bold text-[9px] uppercase tracking-wider select-none">
+                              <th className="p-3.5 w-24">Código</th>
+                              <th className="p-3.5">Concepto / Partida</th>
+                              <th className="p-3.5 w-20">Unidad</th>
+                              <th className="p-3.5 w-24">Cantidad</th>
+                              <th className="p-3.5 w-28">Precio Unit. ($)</th>
+                              <th className="p-3.5 w-32">Importe ($)</th>
+                              <th className="p-3.5 w-24">Rend. Meta</th>
+                              <th className="p-3.5 w-28 text-center">Método</th>
+                              <th className="p-3.5 w-28 text-center"></th>
                             </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            )}
+                          </thead>
+                          <tbody className="divide-y divide-slate-150">
+                            {itemsPresupuesto.map((item) => {
+                              const isChapter = isChapterRow(item, itemsPresupuesto);
+                              const importeVal = isChapter
+                                ? getChapterSum(item.codigo, itemsPresupuesto)
+                                : (parseFloat(item.cantidad) || 0) * (parseFloat(item.costo_unitario) || 0);
+                              const isIndent = item.codigo && item.codigo.includes('.');
 
-            {/* APARTADO: MIS PRESUPUESTOS */}
-            {activeSection === 'mis_presupuestos' && (
-              <div className="space-y-6 animate-in fade-in duration-200">
-                <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
-                  <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                    <div className="flex items-center gap-2">
-                      <Briefcase className="w-5 h-5 text-primary" />
-                      <h3 className="font-extrabold text-xs uppercase tracking-wider text-slate-800">Presupuestos Registrados</h3>
-                    </div>
-                  </div>
-
-                  {proyectos.length === 0 ? (
-                    <div className="p-8 text-center text-xs text-slate-400 italic">
-                      No hay ningún presupuesto registrado en el sistema. Crea uno nuevo para comenzar.
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs border-collapse">
-                        <thead>
-                          <tr className="bg-slate-50 border-b border-slate-200 text-slate-655 font-bold text-[9px] uppercase tracking-wider select-none">
-                            <th className="p-3.5">Proyecto / Presupuesto</th>
-                            <th className="p-3.5">Cliente</th>
-                            <th className="p-3.5">Ubicación</th>
-                            <th className="p-3.5 w-32 text-center">Plazo</th>
-                            <th className="p-3.5 w-40 text-right">Límite Estimado ($)</th>
-                            <th className="p-3.5 w-32 text-center">Estado</th>
-                            <th className="p-3.5 w-52 text-center"></th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-150">
-                          {proyectos.map((p) => {
-                            const isActive = p.id === parseInt(selectedProyectoId, 10);
-                            return (
-                              <tr key={p.id} className={`hover:bg-slate-50/50 transition ${isActive ? 'bg-primary/5' : ''}`}>
-                                <td className="p-3.5 font-bold text-slate-800 uppercase">
-                                  <div className="flex items-center gap-1.5">
-                                    <span>{p.nombre}</span>
-                                    <span className={`text-[8.5px] px-1.5 py-0.5 rounded-md font-extrabold ${p.tipo_proyecto === 'Público' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-50 text-slate-600 border border-slate-200'}`}>
-                                      {p.tipo_proyecto || 'Privado'}
-                                    </span>
-                                  </div>
-                                  {p.descripcion && (
-                                    <span className="block text-[10px] text-slate-450 font-normal normal-case mt-0.5">{p.descripcion}</span>
-                                  )}
-                                </td>
-                                <td className="p-3.5 text-slate-650 uppercase font-semibold">{p.cliente || '-'}</td>
-                                <td className="p-3.5 text-slate-600 uppercase font-semibold">
-                                  <span>{p.comuna || '-'}</span>
-                                  {p.ubicacion && (
-                                    <span className="block text-[10px] text-slate-450 font-normal normal-case mt-0.5">{p.ubicacion}</span>
-                                  )}
-                                </td>
-                                <td className="p-3.5 text-center font-bold text-slate-700">{p.plazo_estimado ? `${p.plazo_estimado} días` : '-'}</td>
-                                <td className="p-3.5 text-right font-bold text-slate-850">
-                                  {p.presupuesto_estimado ? formatCLP(p.presupuesto_estimado) : '-'}
-                                </td>
-                                <td className="p-3.5 text-center">
-                                  {isActive ? (
-                                    <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase border border-emerald-200">
-                                      <Check className="w-3 h-3" /> Activo
-                                    </span>
-                                  ) : (
-                                    <span className="inline-flex bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase">
-                                      Guardado
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="p-3.5">
-                                  <div className="flex items-center justify-center gap-2">
-                                    {!isActive && (
+                              return (
+                                <tr 
+                                  key={item.id}
+                                  className={`transition ${isChapter ? 'bg-slate-50/70 font-bold' : 'hover:bg-slate-50/35'}`}
+                                >
+                                  <td className="p-2">
+                                    <input
+                                      type="text"
+                                      value={item.codigo || ''}
+                                      onChange={(e) => handleUpdateBudgetField(item.id, 'codigo', e.target.value)}
+                                      placeholder="01.01"
+                                      className={`w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-800 ${isChapter ? 'font-black' : ''}`}
+                                    />
+                                  </td>
+                                  <td className="p-2">
+                                    <div className="flex items-center gap-1">
+                                      {isIndent && <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1.5" />}
+                                      <input
+                                        type="text"
+                                        value={item.partida || ''}
+                                        onChange={(e) => handleUpdateBudgetField(item.id, 'partida', e.target.value)}
+                                        placeholder="ej: Fundaciones"
+                                        className={`w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-800 uppercase ${isChapter ? 'font-extrabold text-slate-900' : 'text-slate-700'}`}
+                                      />
+                                    </div>
+                                  </td>
+                                  <td className="p-2">
+                                    {!isChapter && (
+                                      <input
+                                        type="text"
+                                        value={item.unidad || ''}
+                                        onChange={(e) => handleUpdateBudgetField(item.id, 'unidad', e.target.value)}
+                                        placeholder="m3"
+                                        className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-600 text-center uppercase"
+                                      />
+                                    )}
+                                  </td>
+                                  <td className="p-2">
+                                    {!isChapter && (
+                                      <input
+                                        type="number"
+                                        step="any"
+                                        value={item.cantidad ?? ''}
+                                        onChange={(e) => handleUpdateBudgetField(item.id, 'cantidad', e.target.value)}
+                                        placeholder="0"
+                                        className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-700 font-semibold"
+                                      />
+                                    )}
+                                  </td>
+                                  <td className="p-2">
+                                    {!isChapter && (
+                                      <input
+                                        type="number"
+                                        step="any"
+                                        value={item.costo_unitario ?? ''}
+                                        onChange={(e) => handleUpdateBudgetField(item.id, 'costo_unitario', e.target.value)}
+                                        placeholder="0"
+                                        disabled={item.tipo_metodologia === 'Precio Unitario' && typeof item.id === 'number'}
+                                        className={`w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs font-semibold ${item.tipo_metodologia === 'Precio Unitario' && typeof item.id === 'number' ? 'text-slate-500 cursor-not-allowed bg-slate-50/50' : 'text-slate-700'}`}
+                                      />
+                                    )}
+                                  </td>
+                                  <td className="p-3.5 font-bold text-slate-800">
+                                    {formatCLP(importeVal)}
+                                  </td>
+                                  <td className="p-2">
+                                    {!isChapter && (
+                                      <input
+                                        type="number"
+                                        step="any"
+                                        value={item.rendimiento_meta ?? ''}
+                                        onChange={(e) => handleUpdateBudgetField(item.id, 'rendimiento_meta', e.target.value)}
+                                        placeholder="0"
+                                        disabled={item.tipo_metodologia === 'Precio Unitario' && typeof item.id === 'number'}
+                                        className={`w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs ${item.tipo_metodologia === 'Precio Unitario' && typeof item.id === 'number' ? 'text-slate-500 cursor-not-allowed' : 'text-slate-650'}`}
+                                      />
+                                    )}
+                                  </td>
+                                  <td className="p-2 text-center">
+                                    {!isChapter && (
+                                      <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded border uppercase">
+                                        {item.tipo_metodologia || 'Precio Unitario'}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="p-2 text-center">
+                                    <div className="flex items-center justify-center gap-1.5">
+                                      {!isChapter && (
+                                        <button
+                                          onClick={() => openApuModal(item)}
+                                          className="p-1.5 text-primary hover:bg-primary/5 rounded-lg transition"
+                                          title="Análisis de Partida (APU)"
+                                        >
+                                          <Settings className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
                                       <button
-                                        onClick={() => {
-                                          setSelectedProyectoId(p.id);
-                                          setSuccessMsg(`Proyecto "${p.nombre}" cargado exitosamente.`);
-                                          setActiveSection(''); // Volver al menú
-                                        }}
-                                        className="bg-primary hover:bg-primary-hover text-white text-[10px] font-bold px-3 py-1.5 rounded-lg transition cursor-pointer"
+                                        onClick={() => handleDeleteBudgetRow(item.id)}
+                                        className="p-1.5 text-red-650 hover:bg-red-50 rounded-lg transition"
                                       >
-                                        Cargar Proyecto
+                                        <Trash2 className="w-3.5 h-3.5" />
                                       </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+
+                            {/* COSTOS GENERALES / PIE DE PÁGINA */}
+                            {itemsPresupuesto.length > 0 && (
+                              <>
+                                <tr className="bg-slate-50/50 font-bold border-t-2 border-slate-300">
+                                  <td colSpan="5" className="p-3.5 text-right uppercase text-[10px] text-slate-500 font-extrabold tracking-wider">Costo Directo Total:</td>
+                                  <td className="p-3.5 text-slate-850 font-black text-sm">{formatCLP(totalDirectCost)}</td>
+                                  <td colSpan="3"></td>
+                                </tr>
+                                
+                                {indirectCosts.map((cost) => {
+                                  const costVal = calculateIndirectCostValue(cost);
+                                  return (
+                                    <tr key={cost.id} className="bg-slate-50/30 text-slate-600 font-semibold border-t border-slate-200">
+                                      <td colSpan="5" className="p-3 text-right uppercase text-[9px] font-bold text-slate-450 tracking-wider">
+                                        {cost.concepto} ({cost.tipo === 'Porcentaje' ? `${cost.valor}%` : 'Monto Fijo'}):
+                                      </td>
+                                      <td className="p-3 text-slate-800 font-bold">{formatCLP(costVal)}</td>
+                                      <td colSpan="3"></td>
+                                    </tr>
+                                  );
+                                })}
+
+                                <tr className="bg-slate-100 font-black border-t-2 border-slate-400">
+                                  <td colSpan="5" className="p-3.5 text-right uppercase text-xs text-slate-700 tracking-wider">Total General del Presupuesto:</td>
+                                  <td className="p-3.5 text-primary font-black text-base">{formatCLP(totalProjectCost)}</td>
+                                  <td colSpan="3"></td>
+                                </tr>
+                              </>
+                            )}
+
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* APARTADO: INGRESAR PRESUPUESTO */}
+                {activeSection === 'ingresar' && (
+                  <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4 animate-in fade-in duration-200">
+                    <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                      <Upload className="w-5 h-5 text-primary" />
+                      <h3 className="font-extrabold text-xs uppercase tracking-wider text-slate-800">Ingresar Presupuesto (Carga Masiva)</h3>
+                    </div>
+
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      Copia y pega partidas directamente desde otro sistema o planilla de cálculo en el cuadro de texto.
+                    </p>
+
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-[10px] font-semibold text-slate-500 space-y-2">
+                      <span className="font-bold text-slate-850 block">Formato aceptado:</span>
+                      <code className="bg-white px-2 py-1 rounded border font-mono block text-slate-800">
+                        Código, Concepto, Unidad, Cantidad, CostoUnitario, RendimientoMeta
+                      </code>
+                      <span className="font-bold text-slate-850 block mt-2">Ejemplo:</span>
+                      <code className="bg-white px-2 py-1 rounded border font-mono block text-slate-800 whitespace-pre">
+                        01, Obras Preliminares, gl, 1, 600000, 0{"\n"}
+                        01.01, Trazados y niveles, m2, 350, 1200, 150
+                      </code>
+                    </div>
+
+                    <textarea
+                      rows="8"
+                      value={importText}
+                      onChange={(e) => setImportText(e.target.value)}
+                      placeholder="Pega las líneas aquí..."
+                      className="w-full border border-slate-200 rounded-xl p-3 text-xs text-slate-800 focus:outline-none focus:border-primary font-mono bg-slate-50/50"
+                    />
+
+                    <div className="flex justify-end">
+                      <button
+                        onClick={handleImportCSV}
+                        disabled={budgetLoading || !importText.trim()}
+                        className="flex items-center gap-1.5 bg-primary hover:bg-primary-hover text-white text-xs font-bold px-5 py-2.5 rounded-xl transition cursor-pointer shadow-xs disabled:opacity-50"
+                      >
+                        <Check className="w-4 h-4" />
+                        <span>Procesar e Importar</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* APARTADO: DIAGRAMA GANTT */}
+                {activeSection === 'gantt' && (
+                  <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start animate-in fade-in duration-200">
+                    
+                    {/* Hoja de Planificación (Izquierda) */}
+                    <div className="xl:col-span-6 space-y-4">
+                      <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex justify-between items-center">
+                        <div>
+                          <h3 className="text-xs font-extrabold uppercase text-slate-800 tracking-wider">Hoja de Planificación</h3>
+                          <p className="text-[10px] text-slate-455 font-bold uppercase mt-0.5">Listado de etapas y plazos</p>
+                        </div>
+                        <button
+                          onClick={handleAddCronogramaRow}
+                          className="flex items-center gap-1.5 bg-slate-50 border border-slate-250 text-slate-700 text-xs font-bold px-3 py-2 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4 text-primary" />
+                          <span>Agregar Tarea</span>
+                        </button>
+                      </div>
+
+                      <div className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs border-collapse">
+                            <thead>
+                              <tr className="bg-slate-50 border-b border-slate-200 text-slate-660 font-bold text-[9px] uppercase tracking-wider select-none">
+                                <th className="p-3 w-16 text-center">Código</th>
+                                <th className="p-3">Tarea</th>
+                                <th className="p-3 w-20">Inicio</th>
+                                <th className="p-3 w-16 text-center">Días</th>
+                                <th className="p-3 w-16 text-center">Pred.</th>
+                                <th className="p-3 w-20 text-center">Avance</th>
+                                <th className="p-3 w-12"></th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-150">
+                              {cronograma.map((task) => {
+                                let alertConflict = false;
+                                if (task.predecesora) {
+                                  const pred = cronograma.find(x => x.codigo === task.predecesora.trim());
+                                  if (pred && pred.fecha_fin && task.fecha_inicio) {
+                                    alertConflict = task.fecha_inicio < pred.fecha_fin;
+                                  }
+                                }
+
+                                return (
+                                  <tr key={task.id} className="hover:bg-slate-50/50 transition">
+                                    <td className="p-2">
+                                      <input
+                                        type="text"
+                                        value={task.codigo || ''}
+                                        onChange={(e) => handleUpdateCronogramaField(task.id, 'codigo', e.target.value)}
+                                        className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-800 font-bold text-center"
+                                      />
+                                    </td>
+                                    <td className="p-2">
+                                      <input
+                                        type="text"
+                                        value={task.tarea || ''}
+                                        onChange={(e) => handleUpdateCronogramaField(task.id, 'tarea', e.target.value)}
+                                        placeholder="Nueva Tarea"
+                                        className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-800 uppercase font-semibold"
+                                      />
+                                    </td>
+                                    <td className="p-2">
+                                      <div className="relative flex items-center">
+                                        {alertConflict && (
+                                          <span className="absolute -left-2.5 text-amber-500 cursor-help" title="Conflicto: Inicia antes del término de la predecesora">⚠️</span>
+                                        )}
+                                        <input
+                                          type="date"
+                                          value={task.fecha_inicio || ''}
+                                          onChange={(e) => handleUpdateCronogramaField(task.id, 'fecha_inicio', e.target.value)}
+                                          className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-[11px] text-slate-700 font-medium"
+                                        />
+                                      </div>
+                                    </td>
+                                    <td className="p-2">
+                                      <input
+                                        type="number"
+                                        min="1"
+                                        value={task.duracion ?? ''}
+                                        onChange={(e) => handleUpdateCronogramaField(task.id, 'duracion', e.target.value)}
+                                        className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-700 font-bold text-center"
+                                      />
+                                    </td>
+                                    <td className="p-2">
+                                      <input
+                                        type="text"
+                                        value={task.predecesora || ''}
+                                        onChange={(e) => handleUpdateCronogramaField(task.id, 'predecesora', e.target.value)}
+                                        placeholder="nº"
+                                        className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-655 text-center font-bold"
+                                      />
+                                    </td>
+                                    <td className="p-2">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        value={task.porcentaje_avance ?? ''}
+                                        onChange={(e) => handleUpdateCronogramaField(task.id, 'porcentaje_avance', e.target.value)}
+                                        className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-700 text-center font-semibold"
+                                      />
+                                    </td>
+                                    <td className="p-2 text-center">
+                                      <button
+                                        onClick={() => handleDeleteCronogramaRow(task.id)}
+                                        className="p-1 text-red-655 hover:bg-red-50 rounded-lg transition"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {cronograma.length === 0 && (
+                        <div className="p-8 text-center text-xs text-slate-400 italic">
+                          No hay tareas de planificación. Haz clic en "Agregar Tarea" para empezar.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Diagrama Gantt (Derecha) */}
+                    <div className="xl:col-span-6 space-y-4">
+                      <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex flex-wrap justify-between items-center gap-4">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">Fecha Escala:</span>
+                          <input
+                            type="date"
+                            value={ganttStartDate}
+                            onChange={(e) => setGanttStartDate(e.target.value)}
+                            className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-800 focus:outline-none"
+                          />
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">Límites:</span>
+                          <select
+                            value={ganttScale}
+                            onChange={(e) => setGanttScale(parseInt(e.target.value, 10))}
+                            className="border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-700 bg-white"
+                          >
+                            <option value={15}>15 días</option>
+                            <option value={30}>30 días (Mes)</option>
+                            <option value={60}>60 días (Trimestre)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden">
+                        <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                          <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">Diagrama Gantt de Actividades</span>
+                          <div className="flex gap-3 text-[9px] font-bold uppercase">
+                            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 bg-yellow-500 rounded-xs" /> Pendiente</span>
+                            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 bg-blue-600 rounded-xs" /> En Curso</span>
+                            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 bg-emerald-600 rounded-xs" /> Completado</span>
+                          </div>
+                        </div>
+
+                        <div className="p-4 overflow-x-auto">
+                          <div 
+                            className="grid border-r border-b border-slate-200 select-none min-w-[650px]"
+                            style={{ gridTemplateColumns: `repeat(${ganttScale}, minmax(26px, 1fr))` }}
+                          >
+                            {ganttDays.map((day, idx) => (
+                              <div 
+                                key={idx}
+                                className={`text-center py-2 border-t border-l border-slate-200 flex flex-col justify-center items-center ${
+                                  day.isWeekend ? 'bg-slate-100/70 text-slate-400' : 'bg-slate-50 text-slate-655'
+                                }`}
+                              >
+                                <span className="text-[7.5px] font-bold uppercase tracking-wider">{day.monthStr}</span>
+                                <span className="text-[10px] font-black">{day.dayNum}</span>
+                              </div>
+                            ))}
+
+                            {cronograma.map((task) => {
+                              const span = getGanttSpan(task.fecha_inicio, task.fecha_fin);
+                              let barColor = 'bg-yellow-500';
+                              if (task.estado === 'En Progreso') barColor = 'bg-blue-600';
+                              else if (task.estado === 'Completado') barColor = 'bg-emerald-600';
+
+                              return (
+                                <div 
+                                  key={task.id}
+                                  className="h-9 relative border-t border-l border-slate-200 flex items-center bg-slate-50/20"
+                                  style={{ gridColumn: `1 / span ${ganttScale}` }}
+                                >
+                                  <div 
+                                    className="grid h-full w-full absolute top-0 left-0"
+                                    style={{ gridTemplateColumns: `repeat(${ganttScale}, minmax(26px, 1fr))` }}
+                                  >
+                                    {span && (
+                                      <div 
+                                        className="relative flex items-center h-full px-1"
+                                        style={{
+                                          gridColumnStart: span.gridColumnStart,
+                                          gridColumnEnd: span.gridColumnEnd
+                                        }}
+                                      >
+                                        <div 
+                                          className={`w-full h-5 ${barColor} text-white rounded-lg flex items-center justify-between px-2 text-[9px] font-bold shadow-xs truncate`}
+                                          title={`${task.tarea}: ${task.fecha_inicio} a ${task.fecha_fin}`}
+                                        >
+                                          <span className="truncate uppercase">{task.tarea}</span>
+                                          <span>{task.porcentaje_avance}%</span>
+                                        </div>
+                                      </div>
                                     )}
-                                    {isActive && (
-                                      <span className="text-[10px] text-emerald-650 font-bold px-3 py-1.5 italic">Cargado</span>
-                                    )}
+
+                                    {ganttDays.map((day, idx) => (
+                                      <div 
+                                        key={idx} 
+                                        className={`border-r border-slate-100/50 h-full pointer-events-none ${
+                                          day.isWeekend ? 'bg-slate-100/10' : ''
+                                        }`} 
+                                      />
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                )}
+
+                {/* APARTADO: RECURSOS */}
+                {activeSection === 'recursos' && (
+                  <div className="space-y-4 animate-in fade-in duration-200">
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
+                      <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs">
+                        <h4 className="text-[10px] text-slate-455 font-bold uppercase tracking-wider">Costo Estimado de Recursos</h4>
+                        <p className="text-xl font-black text-slate-850 mt-1">{formatCLP(totalResourceCost)}</p>
+                      </div>
+                      <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs">
+                        <h4 className="text-[10px] text-slate-455 font-bold uppercase tracking-wider">Materiales</h4>
+                        <p className="text-xl font-bold text-slate-700 mt-1">{formatCLP(materialCost)}</p>
+                      </div>
+                      <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs">
+                        <h4 className="text-[10px] text-slate-455 font-bold uppercase tracking-wider">Mano de Obra</h4>
+                        <p className="text-xl font-bold text-slate-700 mt-1">{formatCLP(laborCost)}</p>
+                      </div>
+                      <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs">
+                        <h4 className="text-[10px] text-slate-455 font-bold uppercase tracking-wider">Maquinaria</h4>
+                        <p className="text-xl font-bold text-slate-700 mt-1">{formatCLP(machineryCost)}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end">
+                      <button
+                        onClick={handleAddResourceRow}
+                        className="flex items-center gap-1.5 bg-slate-50 border border-slate-250 text-slate-700 text-xs font-bold px-4 py-2 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4 text-primary" />
+                        <span>Añadir Recurso</span>
+                      </button>
+                    </div>
+
+                    <div className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="bg-slate-50 border-b border-slate-200 text-slate-650 font-bold text-[9px] uppercase tracking-wider select-none">
+                              <th className="p-3.5">Nombre Recurso</th>
+                              <th className="p-3.5 w-32">Tipo</th>
+                              <th className="p-3.5 w-24">Unidad</th>
+                              <th className="p-3.5 w-32">Costo Unit. ($)</th>
+                              <th className="p-3.5 w-32">Cant. Estimada</th>
+                              <th className="p-3.5 w-36">Costo Total ($)</th>
+                              <th className="p-3.5 w-16 text-center"></th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-150">
+                            {recursos.map((item) => {
+                              const totalRow = (parseFloat(item.cantidad_estimada) || 0) * (parseFloat(item.costo_unitario) || 0);
+
+                              return (
+                                <tr key={item.id} className="hover:bg-slate-50/50 transition">
+                                  <td className="p-2">
+                                    <input
+                                      type="text"
+                                      value={item.recurso || ''}
+                                      onChange={(e) => handleUpdateResourceField(item.id, 'recurso', e.target.value)}
+                                      placeholder="ej: Cemento Gris"
+                                      className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-800 uppercase font-semibold"
+                                    />
+                                  </td>
+                                  <td className="p-2">
+                                    <select
+                                      value={item.tipo || 'Material'}
+                                      onChange={(e) => handleUpdateResourceField(item.id, 'tipo', e.target.value)}
+                                      className="w-full border-0 bg-transparent focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-705"
+                                    >
+                                      <option value="Material">Material</option>
+                                      <option value="Mano de Obra">Mano de Obra</option>
+                                      <option value="Maquinaria">Maquinaria</option>
+                                    </select>
+                                  </td>
+                                  <td className="p-2">
+                                    <input
+                                      type="text"
+                                      value={item.unidad || ''}
+                                      onChange={(e) => handleUpdateResourceField(item.id, 'unidad', e.target.value)}
+                                      placeholder="bolsas"
+                                      className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-600 text-center uppercase"
+                                    />
+                                  </td>
+                                  <td className="p-2">
+                                    <input
+                                      type="number"
+                                      step="any"
+                                      value={item.costo_unitario ?? ''}
+                                      onChange={(e) => handleUpdateResourceField(item.id, 'costo_unitario', e.target.value)}
+                                      placeholder="0"
+                                      className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-700"
+                                    />
+                                  </td>
+                                  <td className="p-2">
+                                    <input
+                                      type="number"
+                                      step="any"
+                                      value={item.cantidad_estimada ?? ''}
+                                      onChange={(e) => handleUpdateResourceField(item.id, 'cantidad_estimada', e.target.value)}
+                                      placeholder="0"
+                                      className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-700 font-semibold"
+                                    />
+                                  </td>
+                                  <td className="p-3.5 font-bold text-slate-800">
+                                    {formatCLP(totalRow)}
+                                  </td>
+                                  <td className="p-2 text-center">
                                     <button
-                                      onClick={async () => {
-                                        if (confirm(`¿Estás seguro de eliminar el proyecto "${p.nombre}"? Se borrarán todos sus ítems de presupuesto, tareas del diagrama Gantt y recursos asignados.`)) {
-                                          try {
-                                            await supabase.from('presupuestos_items').delete().eq('presupuesto_id', p.id);
-                                            await supabase.from('planificacion_cronogramas').delete().eq('presupuesto_id', p.id);
-                                            await supabase.from('recursos_presupuesto').delete().eq('presupuesto_id', p.id);
-                                            
-                                            const { error } = await supabase
-                                              .from('presupuestos_proyectos')
-                                              .delete()
-                                              .eq('id', p.id);
-                                            if (error) throw error;
-                                            
-                                            setSuccessMsg(`Proyecto "${p.nombre}" eliminado con éxito.`);
-                                            fetchProyectos();
-                                          } catch (err) {
-                                            setErrorMsg('Error al eliminar: ' + err.message);
-                                          }
+                                      onClick={() => handleDeleteResourceRow(item.id)}
+                                      className="p-1.5 text-red-650 hover:bg-red-50 rounded-lg transition cursor-pointer"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* APARTADO: MIS PRESUPUESTOS */}
+                {activeSection === 'mis_presupuestos' && (
+                  <div className="space-y-6 animate-in fade-in duration-200">
+                    <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
+                      <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                        <div className="flex items-center gap-2">
+                          <Briefcase className="w-5 h-5 text-primary" />
+                          <h3 className="font-extrabold text-xs uppercase tracking-wider text-slate-800">Presupuestos Registrados</h3>
+                        </div>
+                      </div>
+
+                      {proyectos.length === 0 ? (
+                        <div className="p-8 text-center text-xs text-slate-400 italic">
+                          No hay ningún presupuesto registrado en el sistema. Crea uno nuevo para comenzar.
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs border-collapse">
+                            <thead>
+                              <tr className="bg-slate-50 border-b border-slate-200 text-slate-655 font-bold text-[9px] uppercase tracking-wider select-none">
+                                <th className="p-3.5">Proyecto / Presupuesto</th>
+                                <th className="p-3.5">Cliente</th>
+                                <th className="p-3.5">Ubicación</th>
+                                <th className="p-3.5 w-32 text-center">Plazo</th>
+                                <th className="p-3.5 w-40 text-right">Límite Estimado ($)</th>
+                                <th className="p-3.5 w-32 text-center">Estado</th>
+                                <th className="p-3.5 w-52 text-center"></th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-150">
+                              {proyectos.map((p) => {
+                                const isActive = p.id === parseInt(selectedProyectoId, 10);
+                                return (
+                                  <tr key={p.id} className={`hover:bg-slate-50/50 transition ${isActive ? 'bg-primary/5' : ''}`}>
+                                    <td className="p-3.5 font-bold text-slate-800 uppercase">
+                                      <div className="flex items-center gap-1.5">
+                                        <span>{p.nombre}</span>
+                                        <span className={`text-[8.5px] px-1.5 py-0.5 rounded-md font-extrabold ${p.tipo_proyecto === 'Público' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-50 text-slate-600 border border-slate-200'}`}>
+                                          {p.tipo_proyecto || 'Privado'}
+                                        </span>
+                                      </div>
+                                      {p.descripcion && (
+                                        <span className="block text-[10px] text-slate-455 font-normal normal-case mt-0.5">{p.descripcion}</span>
+                                      )}
+                                    </td>
+                                    <td className="p-3.5 text-slate-650 uppercase font-semibold">{p.cliente || '-'}</td>
+                                    <td className="p-3.5 text-slate-600 uppercase font-semibold">
+                                      <span>{p.comuna || '-'}</span>
+                                      {p.ubicacion && (
+                                        <span className="block text-[10px] text-slate-455 font-normal normal-case mt-0.5">{p.ubicacion}</span>
+                                      )}
+                                    </td>
+                                    <td className="p-3.5 text-center font-bold text-slate-700">{p.plazo_estimado ? `${p.plazo_estimado} días` : '-'}</td>
+                                    <td className="p-3.5 text-right font-bold text-slate-850">
+                                      {p.presupuesto_estimado ? formatCLP(p.presupuesto_estimado) : '-'}
+                                    </td>
+                                    <td className="p-3.5 text-center">
+                                      {isActive ? (
+                                        <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase border border-emerald-200">
+                                          <Check className="w-3 h-3" /> Activo
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase">
+                                          Guardado
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="p-3.5">
+                                      <div className="flex items-center justify-center gap-2">
+                                        {!isActive && (
+                                          <button
+                                            onClick={() => {
+                                              setSelectedProyectoId(p.id);
+                                              setSuccessMsg(`Proyecto "${p.nombre}" cargado exitosamente.`);
+                                              setActiveSection('');
+                                            }}
+                                            className="bg-primary hover:bg-primary-hover text-white text-[10px] font-bold px-3 py-1.5 rounded-lg transition cursor-pointer"
+                                          >
+                                            Cargar Proyecto
+                                          </button>
+                                        )}
+                                        {isActive && (
+                                          <span className="text-[10px] text-emerald-650 font-bold px-3 py-1.5 italic">Cargado</span>
+                                        )}
+                                        <button
+                                          onClick={async () => {
+                                            if (confirm(`¿Estás seguro de eliminar el proyecto "${p.nombre}"? Se borrarán todos sus ítems de presupuesto, tareas del diagrama Gantt y recursos asignados.`)) {
+                                              try {
+                                                await supabase.from('presupuestos_items').delete().eq('presupuesto_id', p.id);
+                                                await supabase.from('planificacion_cronogramas').delete().eq('presupuesto_id', p.id);
+                                                await supabase.from('recursos_presupuesto').delete().eq('presupuesto_id', p.id);
+                                                await supabase.from('presupuestos_costos_indirectos').delete().eq('presupuesto_id', p.id);
+                                                
+                                                const { error } = await supabase
+                                                  .from('presupuestos_proyectos')
+                                                  .delete()
+                                                  .eq('id', p.id);
+                                                if (error) throw error;
+                                                
+                                                setSuccessMsg(`Proyecto "${p.nombre}" eliminado con éxito.`);
+                                                fetchProyectos();
+                                              } catch (err) {
+                                                setErrorMsg('Error al eliminar: ' + err.message);
+                                              }
                                         }
                                       }}
                                       className="p-1.5 text-red-650 hover:bg-red-50 rounded-lg transition cursor-pointer"
@@ -1593,11 +2019,393 @@ export default function PresupuestosPlanif({ user, onBack }) {
                 </div>
               </div>
             )}
-
           </div>
+          )}
+          </>
         )}
 
       </div>
+
+      {/* ================= MODAL: ANÁLISIS DE PARTIDA / APU ================= */}
+      {showApuModal && apuItem && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-4xl p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 overflow-y-auto max-h-[90vh]">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100">
+              <div>
+                <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                  <Settings className="w-4.5 h-4.5 text-primary" />
+                  <span>Análisis Unitario de Partida</span>
+                </h3>
+                <p className="text-[10px] text-slate-500 font-bold uppercase mt-1">Partida: {apuItem.codigo} - {apuItem.partida}</p>
+              </div>
+              <button 
+                onClick={() => setShowApuModal(false)} 
+                className="text-slate-400 hover:text-slate-650 font-bold text-sm cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <div>
+                <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Unidad</span>
+                <p className="text-xs font-black text-slate-700 uppercase">{apuItem.unidad || 'Sin unidad'}</p>
+              </div>
+              <div>
+                <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Cantidad de Obra</span>
+                <p className="text-xs font-black text-slate-700">{apuItem.cantidad || 0}</p>
+              </div>
+              <div>
+                <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Costo Unitario Resultante</span>
+                <p className="text-sm font-black text-primary">{formatCLP(calculateApuCost())}</p>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              
+              {/* Selección de Metodología */}
+              <div>
+                <span className="block text-[9px] font-bold uppercase text-slate-450 mb-2">Metodología de Análisis</span>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="tipo_metodologia"
+                      value="Precio Unitario"
+                      checked={apuForm.tipo_metodologia === 'Precio Unitario'}
+                      onChange={(e) => setApuForm({ ...apuForm, tipo_metodologia: e.target.value })}
+                      className="text-primary focus:ring-primary w-4 h-4"
+                    />
+                    <span>Precio Unitario (APU Desglosado)</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="tipo_metodologia"
+                      value="Costo-Tiempo"
+                      checked={apuForm.tipo_metodologia === 'Costo-Tiempo'}
+                      onChange={(e) => setApuForm({ ...apuForm, tipo_metodologia: e.target.value })}
+                      className="text-primary focus:ring-primary w-4 h-4"
+                    />
+                    <span>Costo-Tiempo</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* METODOLOGÍA: COSTO-TIEMPO */}
+              {apuForm.tipo_metodologia === 'Costo-Tiempo' && (
+                <div className="space-y-4 p-4 border border-slate-200 rounded-2xl animate-in fade-in duration-150">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Rendimiento Meta (Unidades / Día)</label>
+                      <input
+                        type="number"
+                        value={apuForm.rendimiento_meta || ''}
+                        onChange={(e) => setApuForm({ ...apuForm, rendimiento_meta: parseFloat(e.target.value) || 0 })}
+                        placeholder="ej: 10"
+                        className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 focus:outline-none focus:border-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">Tiempo Estimado de Ejecución</label>
+                      <div className="bg-slate-100 p-2 rounded-lg text-xs font-extrabold text-slate-700 border border-slate-200 h-9 flex items-center">
+                        {apuForm.rendimiento_meta > 0 
+                          ? `${((parseFloat(apuItem.cantidad) || 0) / apuForm.rendimiento_meta).toFixed(1)} Días`
+                          : 'Indique rendimiento meta para calcular'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-slate-100 pt-3">
+                    <span className="block text-[9px] font-bold uppercase text-slate-450 mb-2">Desglose de Costos Unitarios Directos ($)</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">Costo Materiales</label>
+                        <input
+                          type="number"
+                          value={apuForm.costo_materiales || ''}
+                          onChange={(e) => setApuForm({ ...apuForm, costo_materiales: parseFloat(e.target.value) || 0 })}
+                          placeholder="0"
+                          className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 focus:outline-none focus:border-primary"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">Costo Mano de Obra</label>
+                        <input
+                          type="number"
+                          value={apuForm.costo_mano_obra || ''}
+                          onChange={(e) => setApuForm({ ...apuForm, costo_mano_obra: parseFloat(e.target.value) || 0 })}
+                          placeholder="0"
+                          className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 focus:outline-none focus:border-primary"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">Costo Maquinaria</label>
+                        <input
+                          type="number"
+                          value={apuForm.costo_maquinaria || ''}
+                          onChange={(e) => setApuForm({ ...apuForm, costo_maquinaria: parseFloat(e.target.value) || 0 })}
+                          placeholder="0"
+                          className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 focus:outline-none focus:border-primary"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* METODOLOGÍA: PRECIO UNITARIO (APU) */}
+              {apuForm.tipo_metodologia === 'Precio Unitario' && (
+                <div className="space-y-4 animate-in fade-in duration-150">
+                  
+                  {/* Selector para añadir recurso */}
+                  <div className="flex flex-col sm:flex-row items-end gap-3 bg-slate-50 p-4 border border-slate-200 rounded-2xl">
+                    <div className="flex-1">
+                      <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Asociar Insumo del Catálogo</label>
+                      <select
+                        value={selectedAddResourceId}
+                        onChange={(e) => setSelectedAddResourceId(e.target.value)}
+                        className="w-full border border-slate-250 rounded-lg p-2 text-xs font-semibold text-slate-700 bg-white"
+                      >
+                        <option value="">Selecciona un Recurso...</option>
+                        {recursos.map(r => (
+                          <option key={r.id} value={r.id}>{r.recurso} [{r.tipo}] - {formatCLP(r.costo_unitario)} / {r.unidad}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddResourceToApu}
+                      className="bg-primary text-white text-xs font-bold px-4 py-2.5 rounded-lg hover:bg-primary-hover transition cursor-pointer"
+                    >
+                      Asignar al APU
+                    </button>
+                  </div>
+
+                  {/* Tabla de análisis */}
+                  <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-655 font-bold text-[9px] uppercase tracking-wider select-none">
+                          <th className="p-3">Recurso / Insumo</th>
+                          <th className="p-3 w-28">Clasificación</th>
+                          <th className="p-3 w-20 text-center">Unidad</th>
+                          <th className="p-3 w-28 text-right">Costo Unit.</th>
+                          <th className="p-3 w-28 text-center">Consumo Unit.</th>
+                          <th className="p-3 w-28 text-center">Rend. / Coef</th>
+                          <th className="p-3 w-32 text-right">Subtotal</th>
+                          <th className="p-3 w-12 text-center"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-150">
+                        {apuResources.map((link) => {
+                          const res = recursos.find(r => r.id === link.recurso_id);
+                          if (!res) return null;
+                          const sub = (parseFloat(res.costo_unitario) || 0) * (parseFloat(link.cantidad_unidad) || 0) * (parseFloat(link.rendimiento) || 1);
+
+                          return (
+                            <tr key={link.id} className="hover:bg-slate-50/50 transition">
+                              <td className="p-2 font-bold text-slate-800 uppercase">{res.recurso}</td>
+                              <td className="p-2">
+                                <span className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${
+                                  res.tipo === 'Material' ? 'bg-blue-50 text-blue-700' :
+                                  res.tipo === 'Mano de Obra' ? 'bg-amber-50 text-amber-700' : 'bg-purple-50 text-purple-700'
+                                }`}>
+                                  {res.tipo}
+                                </span>
+                              </td>
+                              <td className="p-2 text-center uppercase text-slate-500 font-semibold">{res.unidad}</td>
+                              <td className="p-2 text-right font-medium text-slate-700">{formatCLP(res.costo_unitario)}</td>
+                              <td className="p-2">
+                                <input
+                                  type="number"
+                                  step="any"
+                                  value={link.cantidad_unidad ?? ''}
+                                  onChange={(e) => handleUpdateApuResourceField(link.id, 'cantidad_unidad', e.target.value)}
+                                  className="w-full bg-slate-50 border border-slate-200 rounded p-1 text-center text-xs text-slate-800"
+                                />
+                              </td>
+                              <td className="p-2">
+                                <input
+                                  type="number"
+                                  step="any"
+                                  value={link.rendimiento ?? ''}
+                                  onChange={(e) => handleUpdateApuResourceField(link.id, 'rendimiento', e.target.value)}
+                                  className="w-full bg-slate-50 border border-slate-200 rounded p-1 text-center text-xs text-slate-800"
+                                />
+                              </td>
+                              <td className="p-3.5 text-right font-bold text-slate-800">{formatCLP(sub)}</td>
+                              <td className="p-2 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteApuResource(link.id)}
+                                  className="p-1 text-red-655 hover:bg-red-50 rounded"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+
+                        {apuResources.length === 0 && (
+                          <tr>
+                            <td colSpan="8" className="p-8 text-center text-xs text-slate-400 italic">
+                              No has añadido insumos a este análisis. Selecciona uno arriba para empezar.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Factores e Incidencias */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-slate-50 p-4 border border-slate-200 rounded-2xl">
+                    <div>
+                      <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1 flex items-center gap-1">
+                        <Percent className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Leyes Sociales (%) — Aplica sobre Mano de Obra</span>
+                      </label>
+                      <input
+                        type="number"
+                        value={apuForm.leyes_sociales_pct ?? ''}
+                        onChange={(e) => setApuForm({ ...apuForm, leyes_sociales_pct: parseFloat(e.target.value) || 0 })}
+                        placeholder="ej: 35"
+                        className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 focus:outline-none focus:border-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1 flex items-center gap-1">
+                        <Percent className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Imponderables / Imprevistos (%) — Margen de partida</span>
+                      </label>
+                      <input
+                        type="number"
+                        value={apuForm.imponderables_pct ?? ''}
+                        onChange={(e) => setApuForm({ ...apuForm, imponderables_pct: parseFloat(e.target.value) || 0 })}
+                        placeholder="ej: 5"
+                        className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 focus:outline-none focus:border-primary"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6 border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                onClick={() => setShowApuModal(false)}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-4 py-2 rounded-xl transition cursor-pointer"
+              >
+                Cerrar
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveApu}
+                disabled={apuLoading}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-5 py-2 rounded-xl transition cursor-pointer flex items-center gap-1.5"
+              >
+                <Check className="w-4 h-4" />
+                <span>{apuLoading ? 'Guardando...' : 'Aplicar Análisis'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: COSTOS GENERALES / INDIRECTOS ================= */}
+      {showIndirectModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-xl p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100">
+              <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                <Sliders className="w-4.5 h-4.5 text-primary" />
+                <span>Configuración de Costos Indirectos</span>
+              </h3>
+              <button 
+                onClick={() => setShowIndirectModal(false)} 
+                className="text-slate-400 hover:text-slate-650 font-bold text-sm cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 leading-normal mb-4">
+              Añade costos indirectos del proyecto como gastos generales, utilidades e imprevistos globales que afecten al presupuesto total.
+            </p>
+
+            <div className="space-y-4 max-h-[350px] overflow-y-auto">
+              {indirectCosts.map((cost) => (
+                <div key={cost.id} className="flex items-center gap-2 bg-slate-50 p-2 border border-slate-200 rounded-xl">
+                  <input
+                    type="text"
+                    value={cost.concepto || ''}
+                    onChange={(e) => handleUpdateIndirectCostField(cost.id, 'concepto', e.target.value)}
+                    placeholder="ej: GASTOS GENERALES"
+                    className="flex-1 bg-white border border-slate-200 rounded-lg p-1.5 text-xs text-slate-850 focus:outline-none uppercase font-bold"
+                  />
+                  <select
+                    value={cost.tipo}
+                    onChange={(e) => handleUpdateIndirectCostField(cost.id, 'tipo', e.target.value)}
+                    className="w-28 border border-slate-200 rounded-lg p-1.5 text-xs bg-white focus:outline-none font-semibold text-slate-700"
+                  >
+                    <option value="Porcentaje">Porcentaje (%)</option>
+                    <option value="Monto Fijo">Monto Fijo ($)</option>
+                  </select>
+                  <input
+                    type="number"
+                    value={cost.valor ?? ''}
+                    onChange={(e) => handleUpdateIndirectCostField(cost.id, 'valor', e.target.value)}
+                    placeholder="0"
+                    className="w-24 bg-white border border-slate-200 rounded-lg p-1.5 text-xs text-slate-800 text-center font-bold"
+                  />
+                  <button
+                    onClick={() => handleDeleteIndirectCostRow(cost.id)}
+                    className="p-1.5 text-red-650 hover:bg-red-50 rounded transition"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+
+              {indirectCosts.length === 0 && (
+                <div className="p-8 text-center text-xs text-slate-400 italic">
+                  No hay costos indirectos. Añade uno con el botón de abajo.
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-between items-center mt-6 border-t border-slate-100 pt-4">
+              <button
+                onClick={handleAddIndirectCostRow}
+                className="flex items-center gap-1 bg-slate-50 border border-slate-250 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5 text-primary" />
+                <span>Añadir Fila</span>
+              </button>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowIndirectModal(false)}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-4 py-2 rounded-lg transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSaveIndirectCosts}
+                  disabled={indirectLoading}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>{indirectLoading ? 'Guardando...' : 'Guardar Cambios'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ================= MODAL: CREAR NUEVO PROYECTO CON INFO BÁSICA ================= */}
       {showCreateProjectModal && (
@@ -1610,7 +2418,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
               </h3>
               <button 
                 onClick={() => setShowCreateProjectModal(false)} 
-                className="text-slate-400 hover:text-slate-650 font-bold text-sm cursor-pointer"
+                className="text-slate-400 hover:text-slate-655 font-bold text-sm cursor-pointer"
               >
                 ✕
               </button>
@@ -1646,7 +2454,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                   <select
                     value={newProjectData.comuna}
                     onChange={(e) => setNewProjectData({ ...newProjectData, comuna: e.target.value })}
-                    className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-700 focus:outline-none focus:border-primary bg-white"
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-707 focus:outline-none focus:border-primary bg-white"
                   >
                     <option value="">Seleccione Comuna...</option>
                     {comunasChile.map((c, idx) => (
@@ -1655,7 +2463,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Dirección / Faena</label>
+                  <label className="block text-[9px] font-bold uppercase text-slate-455 mb-1">Dirección / Faena</label>
                   <input
                     type="text"
                     value={newProjectData.ubicacion}
@@ -1702,7 +2510,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
               </div>
 
               <div>
-                <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Descripción del Proyecto</label>
+                <label className="block text-[9px] font-bold uppercase text-slate-455 mb-1">Descripción del Proyecto</label>
                 <textarea
                   rows="2"
                   value={newProjectData.descripcion}
