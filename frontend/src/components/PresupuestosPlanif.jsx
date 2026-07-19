@@ -2,9 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { 
   ArrowLeft, FileSpreadsheet, Calendar, Plus, Save, Trash2, 
-  Layers, Upload, Check, AlertCircle, RefreshCw, LayoutGrid, HelpCircle, 
-  ChevronRight, ChevronDown, ListCollapse, ChevronLeft, CalendarDays,
-  FolderPlus, DollarSign, Hammer, Briefcase, FileText
+  Upload, Check, AlertCircle, RefreshCw, ChevronRight, CalendarDays,
+  FolderPlus, DollarSign, Hammer, Briefcase, FileText, MapPin, Clock, ChevronLeft
 } from 'lucide-react';
 
 export default function PresupuestosPlanif({ user, onBack }) {
@@ -13,10 +12,19 @@ export default function PresupuestosPlanif({ user, onBack }) {
   const [selectedProyectoId, setSelectedProyectoId] = useState('');
   const [loadingProyectos, setLoadingProyectos] = useState(true);
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
-  const [newProjectData, setNewProjectData] = useState({ nombre: '', descripcion: '' });
+  
+  // Datos del nuevo proyecto
+  const [newProjectData, setNewProjectData] = useState({ 
+    nombre: '', 
+    descripcion: '',
+    cliente: '',
+    ubicacion: '',
+    plazo_estimado: '',
+    presupuesto_estimado: ''
+  });
 
-  // Pestaña activa: 'crear', 'ingresar', 'planificacion', 'recursos'
-  const [activeTab, setActiveTab] = useState('crear');
+  // Apartado activo: '' (Menú principal de apartados), 'crear', 'ingresar', 'planificacion', 'recursos'
+  const [activeSection, setActiveSection] = useState('');
 
   // Estados del Presupuesto (Crear/Detalle)
   const [itemsPresupuesto, setItemsPresupuesto] = useState([]);
@@ -42,7 +50,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  // Cargar proyectos independientes al iniciar
+  // Cargar proyectos al iniciar
   useEffect(() => {
     fetchProyectos();
   }, []);
@@ -73,7 +81,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
         setSelectedProyectoId(data[0].id);
       }
     } catch (err) {
-      console.error('Error al cargar proyectos de presupuesto:', err.message);
+      console.error('Error al cargar proyectos:', err.message);
     } finally {
       setLoadingProyectos(false);
     }
@@ -88,7 +96,6 @@ export default function PresupuestosPlanif({ user, onBack }) {
         .eq('presupuesto_id', projId);
       if (error) throw error;
 
-      // Ordenar por código jerárquico de forma natural
       const sorted = (data || []).sort((a, b) => {
         const codA = a.codigo || '';
         const codB = b.codigo || '';
@@ -149,7 +156,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
     }
   };
 
-  // --- CREAR NUEVO PROYECTO DESDE CERO ---
+  // --- CREAR NUEVO PROYECTO ---
   const handleCreateProject = async (e) => {
     e.preventDefault();
     if (!newProjectData.nombre.trim()) return;
@@ -160,18 +167,29 @@ export default function PresupuestosPlanif({ user, onBack }) {
         .insert([
           {
             nombre: newProjectData.nombre.trim(),
-            descripcion: newProjectData.descripcion.trim()
+            descripcion: newProjectData.descripcion.trim(),
+            cliente: newProjectData.cliente.trim(),
+            ubicacion: newProjectData.ubicacion.trim(),
+            plazo_estimado: parseInt(newProjectData.plazo_estimado, 10) || 0,
+            presupuesto_estimado: parseFloat(newProjectData.presupuesto_estimado) || 0
           }
         ])
         .select();
 
       if (error) throw error;
 
-      setSuccessMsg('Proyecto de presupuesto creado con éxito.');
-      setNewProjectData({ nombre: '', descripcion: '' });
+      setSuccessMsg('Proyecto creado con éxito.');
+      setNewProjectData({ 
+        nombre: '', 
+        descripcion: '',
+        cliente: '',
+        ubicacion: '',
+        plazo_estimado: '',
+        presupuesto_estimado: ''
+      });
       setShowCreateProjectModal(false);
       
-      // Recargar lista y seleccionar el nuevo
+      // Recargar y seleccionar
       const { data: list } = await supabase
         .from('presupuestos_proyectos')
         .select('*')
@@ -207,7 +225,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
       }, 0);
   };
 
-  // --- TABS: ACCIONES PRESUPUESTO (CREAR) ---
+  // --- ACCIONES PRESUPUESTO (CREAR) ---
   const handleAddBudgetRow = () => {
     let nextCode = '01';
     if (itemsPresupuesto.length > 0) {
@@ -274,7 +292,6 @@ export default function PresupuestosPlanif({ user, onBack }) {
       const keepIds = toUpdate.map(x => x.id);
       const toDeleteIds = dbIds.filter(id => !keepIds.includes(id));
 
-      // 1. Eliminar
       if (toDeleteIds.length > 0) {
         const { error: delErr } = await supabase
           .from('presupuestos_items')
@@ -283,7 +300,6 @@ export default function PresupuestosPlanif({ user, onBack }) {
         if (delErr) throw delErr;
       }
 
-      // 2. Actualizar
       for (const item of toUpdate) {
         const { error: updErr } = await supabase
           .from('presupuestos_items')
@@ -299,7 +315,6 @@ export default function PresupuestosPlanif({ user, onBack }) {
         if (updErr) throw updErr;
       }
 
-      // 3. Insertar
       if (toInsert.length > 0) {
         const { error: insErr } = await supabase
           .from('presupuestos_items')
@@ -316,7 +331,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
     }
   };
 
-  // --- TAB: INGRESAR PRESUPUESTO (IMPORTAR MASIVO) ---
+  // --- TAB: INGRESAR PRESUPUESTO ---
   const handleImportCSV = async () => {
     if (!selectedProyectoId || !importText.trim()) return;
     setBudgetLoading(true);
@@ -331,7 +346,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
       if (!line) continue;
 
       const parts = line.split(',');
-      if (parts.length < 2) continue; // Al menos Código y Concepto
+      if (parts.length < 2) continue;
 
       records.push({
         presupuesto_id: selectedProyectoId,
@@ -359,7 +374,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
 
       setSuccessMsg(`Se ingresaron e importaron ${records.length} partidas al presupuesto.`);
       setImportText('');
-      setActiveTab('crear'); // Volver a la planilla principal
+      setActiveSection('crear'); // Redirigir a ver el presupuesto creado
       fetchBudgetItems(selectedProyectoId);
     } catch (err) {
       setErrorMsg('Error al importar: ' + err.message);
@@ -368,7 +383,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
     }
   };
 
-  // --- TAB: PLANIFICACIÓN (CRONOGRAMA GANTT) ---
+  // --- TAB: PLANIFICACIÓN ---
   const handleAddCronogramaRow = () => {
     let nextCode = '1';
     if (cronograma.length > 0) {
@@ -383,7 +398,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
       id: 'temp-' + Date.now() + Math.random(),
       presupuesto_id: selectedProyectoId,
       codigo: nextCode,
-      tarea: 'Nueva Etapa / Tarea',
+      tarea: 'Nueva Tarea',
       fecha_inicio: new Date().toISOString().split('T')[0],
       duracion: 5,
       fecha_fin: calculateEndDate(new Date().toISOString().split('T')[0], 5),
@@ -635,11 +650,15 @@ export default function PresupuestosPlanif({ user, onBack }) {
     };
   };
 
-  // Helpers de Formato e Importes Totales
+  // Helpers de Formato
   const formatCLP = (num) => {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(num);
   };
 
+  // Encontrar el proyecto activo actual
+  const currentProyecto = proyectos.find(p => p.id === parseInt(selectedProyectoId, 10));
+
+  // Totales
   const totalBudgetCost = itemsPresupuesto.reduce((acc, curr) => {
     if (isChapterRow(curr, itemsPresupuesto)) return acc;
     return acc + ((parseFloat(curr.cantidad) || 0) * (parseFloat(curr.costo_unitario) || 0));
@@ -649,7 +668,6 @@ export default function PresupuestosPlanif({ user, onBack }) {
     return acc + ((parseFloat(curr.cantidad_estimada) || 0) * (parseFloat(curr.costo_unitario) || 0));
   }, 0);
 
-  // Costos por Tipo de Recurso
   const materialCost = recursos.filter(r => r.tipo === 'Material').reduce((sum, r) => sum + (r.cantidad_estimada * r.costo_unitario), 0);
   const laborCost = recursos.filter(r => r.tipo === 'Mano de Obra').reduce((sum, r) => sum + (r.cantidad_estimada * r.costo_unitario), 0);
   const machineryCost = recursos.filter(r => r.tipo === 'Maquinaria').reduce((sum, r) => sum + (r.cantidad_estimada * r.costo_unitario), 0);
@@ -657,7 +675,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
   return (
     <div className="space-y-6">
       
-      {/* 1. Cabecera Principal e Independiente con Selector de Presupuesto/Proyecto */}
+      {/* 1. Cabecera Principal y selector de Proyecto */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white p-6 border border-slate-200 rounded-3xl shadow-xs">
         <div className="flex items-center gap-3">
           <button onClick={onBack} className="p-1.5 hover:bg-slate-100 rounded-lg transition cursor-pointer">
@@ -665,11 +683,11 @@ export default function PresupuestosPlanif({ user, onBack }) {
           </button>
           <div>
             <h2 className="text-xl font-bold text-slate-800 tracking-tight">Presupuesto y Planificación</h2>
-            <p className="text-[10px] text-slate-450 font-bold uppercase mt-0.5">Módulo de control de costos, cronograma y recursos independientes</p>
+            <p className="text-[10px] text-slate-450 font-bold uppercase mt-0.5">Control de costos, cronogramas y asignación de recursos independientes</p>
           </div>
         </div>
 
-        {/* Controles de Selección y Creación de Proyectos */}
+        {/* Controles de Selección */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full lg:w-auto">
           <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
             <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">Proyecto Activo:</span>
@@ -680,7 +698,10 @@ export default function PresupuestosPlanif({ user, onBack }) {
             ) : (
               <select
                 value={selectedProyectoId}
-                onChange={(e) => setSelectedProyectoId(e.target.value)}
+                onChange={(e) => {
+                  setSelectedProyectoId(e.target.value);
+                  setActiveSection(''); // Resetear al menú de apartados al cambiar de proyecto
+                }}
                 className="bg-transparent text-xs font-bold text-slate-850 focus:outline-none cursor-pointer uppercase border-0 p-0"
               >
                 {proyectos.map(p => (
@@ -700,90 +721,14 @@ export default function PresupuestosPlanif({ user, onBack }) {
         </div>
       </div>
 
-      {/* 2. Barra de Navegación de Sub-menús (Pestañas Independientes) */}
-      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 bg-white p-3 border border-slate-200 rounded-2xl shadow-xs">
-        <div className="flex flex-wrap bg-slate-100 p-1 rounded-xl border border-slate-150 gap-0.5">
-          <button
-            onClick={() => setActiveTab('crear')}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
-              activeTab === 'crear' ? 'bg-white text-primary shadow-xs' : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <FileSpreadsheet className="w-4 h-4" />
-            <span>Crear Presupuesto</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('ingresar')}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
-              activeTab === 'ingresar' ? 'bg-white text-primary shadow-xs' : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Upload className="w-4 h-4" />
-            <span>Ingresar Presupuesto</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('planificacion')}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
-              activeTab === 'planificacion' ? 'bg-white text-primary shadow-xs' : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <CalendarDays className="w-4 h-4" />
-            <span>Planificación</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('recursos')}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
-              activeTab === 'recursos' ? 'bg-white text-primary shadow-xs' : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Hammer className="w-4 h-4" />
-            <span>Recursos</span>
-          </button>
-        </div>
-
-        {/* Botón Guardar Dinámico */}
-        <div className="flex items-center">
-          {activeTab === 'crear' && (
-            <button
-              onClick={handleSaveBudget}
-              disabled={budgetLoading || !selectedProyectoId}
-              className="w-full sm:w-auto flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-4 py-2 rounded-xl transition cursor-pointer shadow-sm"
-            >
-              <Save className="w-4 h-4" />
-              <span>{budgetLoading ? 'Guardando...' : 'Guardar Presupuesto'}</span>
-            </button>
-          )}
-          {activeTab === 'planificacion' && (
-            <button
-              onClick={handleSaveCronograma}
-              disabled={tasksLoading || !selectedProyectoId}
-              className="w-full sm:w-auto flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-4 py-2 rounded-xl transition cursor-pointer shadow-sm"
-            >
-              <Save className="w-4 h-4" />
-              <span>{tasksLoading ? 'Guardando...' : 'Guardar Planificación'}</span>
-            </button>
-          )}
-          {activeTab === 'recursos' && (
-            <button
-              onClick={handleSaveResources}
-              disabled={resourcesLoading || !selectedProyectoId}
-              className="w-full sm:w-auto flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-4 py-2 rounded-xl transition cursor-pointer shadow-sm"
-            >
-              <Save className="w-4 h-4" />
-              <span>{resourcesLoading ? 'Guardando...' : 'Guardar Recursos'}</span>
-            </button>
-          )}
-        </div>
-      </div>
-
       {/* Alertas */}
       {successMsg && <div className="bg-emerald-50 text-emerald-700 p-3.5 rounded-xl text-xs font-semibold border border-emerald-250 animate-in fade-in duration-150">{successMsg}</div>}
       {errorMsg && <div className="bg-red-50 text-red-700 p-3.5 rounded-xl text-xs font-semibold border border-red-250 animate-in fade-in duration-150">{errorMsg}</div>}
 
+      {/* Si no hay proyectos creados */}
       {proyectos.length === 0 ? (
-        // Mensaje si no hay proyectos
-        <div className="bg-slate-50 border border-slate-200 p-8 rounded-3xl text-center space-y-4 shadow-xs">
-          <p className="text-xs text-slate-500 italic">No has creado ningún proyecto de presupuesto independiente todavía.</p>
+        <div className="bg-slate-50 border border-slate-200 p-10 rounded-3xl text-center space-y-4 shadow-xs">
+          <p className="text-xs text-slate-500 italic">No has creado ningún proyecto todavía. Crea uno para comenzar a presupuestar y planificar.</p>
           <button
             onClick={() => setShowCreateProjectModal(true)}
             className="inline-flex items-center gap-1.5 bg-primary text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-primary-hover transition cursor-pointer"
@@ -793,613 +738,692 @@ export default function PresupuestosPlanif({ user, onBack }) {
           </button>
         </div>
       ) : (
-        // Contenido del Tab Activo
         <div className="space-y-6">
           
-          {/* ================= TAB 1: CREAR PRESUPUESTO (PLANILLA EDITABLE) ================= */}
-          {activeTab === 'crear' && (
-            <div className="space-y-4">
-              
-              {/* Tarjeta resumen presupuesto */}
-              <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                  <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Costo Presupuestado Total</h4>
-                  <p className="text-2xl font-black text-slate-850 mt-1">{formatCLP(totalBudgetCost)}</p>
-                </div>
-                <button
-                  onClick={handleAddBudgetRow}
-                  className="flex items-center gap-1.5 bg-slate-50 border border-slate-250 text-slate-700 text-xs font-bold px-3.5 py-2 rounded-xl hover:bg-slate-100 transition cursor-pointer"
-                >
-                  <Plus className="w-4 h-4 text-primary" />
-                  <span>Añadir Ítem / Partida</span>
-                </button>
+          {/* Ficha Resumen de Información Básica del Proyecto Activo */}
+          {currentProyecto && (
+            <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <div className="space-y-1">
+                <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Cliente / Mandante</span>
+                <p className="text-xs font-extrabold text-slate-800 truncate uppercase">{currentProyecto.cliente || 'No asignado'}</p>
               </div>
-
-              {/* Grilla de Presupuesto */}
-              <div className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200 text-slate-650 font-bold text-[9px] uppercase tracking-wider select-none">
-                        <th className="p-3.5 w-24">Código</th>
-                        <th className="p-3.5">Concepto / Partida</th>
-                        <th className="p-3.5 w-20">Unidad</th>
-                        <th className="p-3.5 w-24">Cantidad</th>
-                        <th className="p-3.5 w-28">Precio Unit. ($)</th>
-                        <th className="p-3.5 w-32">Importe ($)</th>
-                        <th className="p-3.5 w-24">Rend. Meta</th>
-                        <th className="p-3.5 w-16 text-center"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-150">
-                      {itemsPresupuesto.map((item) => {
-                        const isChapter = isChapterRow(item, itemsPresupuesto);
-                        const importeVal = isChapter
-                          ? getChapterSum(item.codigo, itemsPresupuesto)
-                          : (parseFloat(item.cantidad) || 0) * (parseFloat(item.costo_unitario) || 0);
-
-                        const isIndent = item.codigo && item.codigo.includes('.');
-
-                        return (
-                          <tr 
-                            key={item.id}
-                            className={`transition ${isChapter ? 'bg-slate-50/70 font-bold' : 'hover:bg-slate-50/35'}`}
-                          >
-                            {/* Código */}
-                            <td className="p-2">
-                              <input
-                                type="text"
-                                value={item.codigo || ''}
-                                onChange={(e) => handleUpdateBudgetField(item.id, 'codigo', e.target.value)}
-                                placeholder="01.01"
-                                className={`w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-800 ${
-                                  isChapter ? 'font-black' : ''
-                                }`}
-                              />
-                            </td>
-
-                            {/* Concepto / Partida */}
-                            <td className="p-2">
-                              <div className="flex items-center gap-1">
-                                {isIndent && <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1.5" />}
-                                <input
-                                  type="text"
-                                  value={item.partida || ''}
-                                  onChange={(e) => handleUpdateBudgetField(item.id, 'partida', e.target.value)}
-                                  placeholder="ej: Fundación de concreto"
-                                  className={`w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-800 uppercase ${
-                                    isChapter ? 'font-extrabold text-slate-900' : 'text-slate-700'
-                                  }`}
-                                />
-                              </div>
-                            </td>
-
-                            {/* Unidad */}
-                            <td className="p-2">
-                              {!isChapter && (
-                                <input
-                                  type="text"
-                                  value={item.unidad || ''}
-                                  onChange={(e) => handleUpdateBudgetField(item.id, 'unidad', e.target.value)}
-                                  placeholder="m3"
-                                  className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-600 text-center uppercase"
-                                />
-                              )}
-                            </td>
-
-                            {/* Cantidad */}
-                            <td className="p-2">
-                              {!isChapter && (
-                                <input
-                                  type="number"
-                                  step="any"
-                                  value={item.cantidad ?? ''}
-                                  onChange={(e) => handleUpdateBudgetField(item.id, 'cantidad', e.target.value)}
-                                  placeholder="0"
-                                  className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-700 font-semibold"
-                                />
-                              )}
-                            </td>
-
-                            {/* Precio Unitario */}
-                            <td className="p-2">
-                              {!isChapter && (
-                                <input
-                                  type="number"
-                                  step="any"
-                                  value={item.costo_unitario ?? ''}
-                                  onChange={(e) => handleUpdateBudgetField(item.id, 'costo_unitario', e.target.value)}
-                                  placeholder="0"
-                                  className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-700"
-                                />
-                              )}
-                            </td>
-
-                            {/* Importe */}
-                            <td className="p-3.5 font-bold text-slate-800">
-                              {formatCLP(importeVal)}
-                            </td>
-
-                            {/* Rendimiento Meta */}
-                            <td className="p-2">
-                              {!isChapter && (
-                                <input
-                                  type="number"
-                                  step="any"
-                                  value={item.rendimiento_meta ?? ''}
-                                  onChange={(e) => handleUpdateBudgetField(item.id, 'rendimiento_meta', e.target.value)}
-                                  placeholder="0"
-                                  className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-650"
-                                />
-                              )}
-                            </td>
-
-                            {/* Eliminar */}
-                            <td className="p-2 text-center">
-                              <button
-                                onClick={() => handleDeleteBudgetRow(item.id)}
-                                className="p-1.5 text-red-650 hover:bg-red-50 rounded-lg transition cursor-pointer"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                {itemsPresupuesto.length === 0 && (
-                  <div className="p-8 text-center text-xs text-slate-400 italic">
-                    Presupuesto vacío. Comienza agregando partidas.
-                  </div>
-                )}
+              <div className="space-y-1">
+                <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Ubicación / Faena</span>
+                <p className="text-xs font-extrabold text-slate-800 truncate uppercase flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span>{currentProyecto.ubicacion || 'No asignada'}</span>
+                </p>
+              </div>
+              <div className="space-y-1">
+                <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Plazo de Entrega</span>
+                <p className="text-xs font-extrabold text-slate-800 truncate flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span>{currentProyecto.plazo_estimado ? `${currentProyecto.plazo_estimado} Días hábiles` : 'Sin límite'}</span>
+                </p>
+              </div>
+              <div className="space-y-1">
+                <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Presupuesto Inicial Límite</span>
+                <p className="text-xs font-extrabold text-slate-850 truncate">
+                  {currentProyecto.presupuesto_estimado ? formatCLP(currentProyecto.presupuesto_estimado) : 'Sin límite'}
+                </p>
               </div>
             </div>
           )}
 
-          {/* ================= TAB 2: INGRESAR PRESUPUESTO (CSV IMPORT) ================= */}
-          {activeTab === 'ingresar' && (
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
-              <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                <Upload className="w-5 h-5 text-primary" />
-                <h3 className="font-extrabold text-xs uppercase tracking-wider text-slate-800">Carga Masiva de Presupuestos</h3>
-              </div>
-
-              <p className="text-xs text-slate-500 leading-relaxed">
-                Ingresa o copia las partidas de presupuesto desde una hoja de cálculo o archivo externo. Formato de carga:
-              </p>
-
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-[10px] font-semibold text-slate-500 space-y-2">
-                <span className="font-bold text-slate-800 block">Formato requerido:</span>
-                <code className="bg-white px-2 py-1 rounded border font-mono block text-slate-800">
-                  Código, Concepto, Unidad, Cantidad, CostoUnitario, RendimientoMeta
-                </code>
-                <span className="font-bold text-slate-850 block mt-2">Ejemplo:</span>
-                <code className="bg-white px-2 py-1 rounded border font-mono block text-slate-800 whitespace-pre">
-                  01, Obras Preliminares, gl, 1, 500000, 0{"\n"}
-                  01.01, Limpieza de Terreno, m2, 450, 1500, 100{"\n"}
-                  01.02, Instalación de Faenas, un, 1, 250000, 0
-                </code>
-              </div>
-
-              <textarea
-                rows="8"
-                value={importText}
-                onChange={(e) => setImportText(e.target.value)}
-                placeholder="Pega las líneas separadas por coma aquí..."
-                className="w-full border border-slate-200 rounded-xl p-3 text-xs text-slate-800 focus:outline-none focus:border-primary font-mono bg-slate-50/50"
-              />
-
-              <div className="flex justify-end">
-                <button
-                  onClick={handleImportCSV}
-                  disabled={budgetLoading || !importText.trim()}
-                  className="flex items-center gap-1.5 bg-primary hover:bg-primary-hover text-white text-xs font-bold px-5 py-2.5 rounded-xl cursor-pointer transition shadow-xs disabled:opacity-50"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>Validar e Importar</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* ================= TAB 3: PLANIFICACIÓN (GANTT & CRONOGRAMA) ================= */}
-          {activeTab === 'planificacion' && (
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+          {/* ================= VISTA A: MENÚ PRINCIPAL DE APARTADOS (RECTÁNGULOS) ================= */}
+          {activeSection === '' ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               
-              {/* Hoja de Tareas (Tabla izquierda) */}
-              <div className="xl:col-span-6 space-y-4">
-                <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex justify-between items-center">
-                  <div>
-                    <h3 className="text-xs font-extrabold uppercase text-slate-800 tracking-wider">Hoja de Planificación</h3>
-                    <p className="text-[10px] text-slate-450 font-bold uppercase mt-0.5">Control de tareas y fechas</p>
-                  </div>
-                  <button
-                    onClick={handleAddCronogramaRow}
-                    className="flex items-center gap-1.5 bg-slate-50 border border-slate-250 text-slate-700 text-xs font-bold px-3 py-2 rounded-xl hover:bg-slate-100 transition cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4 text-primary" />
-                    <span>Agregar Tarea</span>
-                  </button>
+              {/* Card 1: Crear Presupuesto */}
+              <div 
+                onClick={() => { setActiveSection('crear'); setErrorMsg(''); setSuccessMsg(''); }}
+                className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex items-start gap-5 min-h-[140px]"
+              >
+                <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300 shrink-0">
+                  <FileSpreadsheet className="w-6 h-6" />
                 </div>
+                <div className="space-y-2">
+                  <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
+                    Crear Presupuesto
+                  </h3>
+                  <p className="text-xs text-slate-500 leading-normal">
+                    Estructura y edita en línea el listado de partidas, unidades, cantidades y precios unitarios. Soporta capítulos auto-calculados.
+                  </p>
+                </div>
+              </div>
 
-                <div className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold text-[9px] uppercase tracking-wider select-none">
-                          <th className="p-3 w-16 text-center">Código</th>
-                          <th className="p-3">Tarea</th>
-                          <th className="p-3 w-20">Inicio</th>
-                          <th className="p-3 w-16 text-center">Días</th>
-                          <th className="p-3 w-16 text-center">Pred.</th>
-                          <th className="p-3 w-20 text-center">Avance</th>
-                          <th className="p-3 w-12"></th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-150">
-                        {cronograma.map((task) => {
-                          let alertConflict = false;
-                          if (task.predecesora) {
-                            const pred = cronograma.find(x => x.codigo === task.predecesora.trim());
-                            if (pred && pred.fecha_fin && task.fecha_inicio) {
-                              alertConflict = task.fecha_inicio < pred.fecha_fin;
-                            }
-                          }
+              {/* Card 2: Ingresar Presupuesto */}
+              <div 
+                onClick={() => { setActiveSection('ingresar'); setErrorMsg(''); setSuccessMsg(''); }}
+                className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex items-start gap-5 min-h-[140px]"
+              >
+                <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300 shrink-0">
+                  <Upload className="w-6 h-6" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
+                    Ingresar Presupuesto (Carga Masiva)
+                  </h3>
+                  <p className="text-xs text-slate-500 leading-normal">
+                    Importa rápidamente tu presupuesto estructurado pegando textos y datos tabulados o separados por comas.
+                  </p>
+                </div>
+              </div>
 
-                          return (
-                            <tr key={task.id} className="hover:bg-slate-50/50 transition">
-                              {/* Código de Tarea */}
-                              <td className="p-2">
-                                <input
-                                  type="text"
-                                  value={task.codigo || ''}
-                                  onChange={(e) => handleUpdateCronogramaField(task.id, 'codigo', e.target.value)}
-                                  className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-800 font-bold text-center"
-                                />
-                              </td>
+              {/* Card 3: Planificación */}
+              <div 
+                onClick={() => { setActiveSection('planificacion'); setErrorMsg(''); setSuccessMsg(''); }}
+                className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex items-start gap-5 min-h-[140px]"
+              >
+                <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300 shrink-0">
+                  <Calendar className="w-6 h-6" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
+                    Planificación
+                  </h3>
+                  <p className="text-xs text-slate-500 leading-normal">
+                    Programa etapas de trabajo, asigna predecesoras para encadenamiento automático y visualiza el cronograma mediante diagrama Gantt.
+                  </p>
+                </div>
+              </div>
 
-                              {/* Tarea */}
-                              <td className="p-2">
-                                <input
-                                  type="text"
-                                  value={task.tarea || ''}
-                                  onChange={(e) => handleUpdateCronogramaField(task.id, 'tarea', e.target.value)}
-                                  placeholder="Nueva Tarea"
-                                  className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-800 uppercase font-semibold"
-                                />
-                              </td>
+              {/* Card 4: Recursos */}
+              <div 
+                onClick={() => { setActiveSection('recursos'); setErrorMsg(''); setSuccessMsg(''); }}
+                className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex items-start gap-5 min-h-[140px]"
+              >
+                <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300 shrink-0">
+                  <Hammer className="w-6 h-6" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
+                    Recursos
+                  </h3>
+                  <p className="text-xs text-slate-500 leading-normal">
+                    Controla y desglosa los insumos necesarios para el proyecto clasificados en Materiales, Mano de Obra y Maquinaria.
+                  </p>
+                </div>
+              </div>
 
-                              {/* Inicio */}
-                              <td className="p-2">
-                                <div className="relative flex items-center">
-                                  {alertConflict && (
-                                    <span className="absolute -left-2.5 text-amber-500 cursor-help" title="Conflicto: Inicia antes del término de la predecesora">⚠️</span>
-                                  )}
-                                  <input
-                                    type="date"
-                                    value={task.fecha_inicio || ''}
-                                    onChange={(e) => handleUpdateCronogramaField(task.id, 'fecha_inicio', e.target.value)}
-                                    className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-[11px] text-slate-700 font-medium"
-                                  />
-                                </div>
-                              </td>
+            </div>
+          ) : (
+            // ================= VISTA B: APARTADO INDIVIDUAL DETALLADO =================
+            <div className="space-y-6">
+              
+              {/* Barra superior de Apartado */}
+              <div className="flex justify-between items-center bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
+                <button
+                  onClick={() => { setActiveSection(''); setErrorMsg(''); setSuccessMsg(''); }}
+                  className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-slate-850 font-bold cursor-pointer transition"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span>Volver al menú de apartados</span>
+                </button>
 
-                              {/* Duración */}
-                              <td className="p-2">
-                                <input
-                                  type="number"
-                                  min="1"
-                                  value={task.duracion ?? ''}
-                                  onChange={(e) => handleUpdateCronogramaField(task.id, 'duracion', e.target.value)}
-                                  className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-700 font-bold text-center"
-                                />
-                              </td>
-
-                              {/* Predecesora */}
-                              <td className="p-2">
-                                <input
-                                  type="text"
-                                  value={task.predecesora || ''}
-                                  onChange={(e) => handleUpdateCronogramaField(task.id, 'predecesora', e.target.value)}
-                                  placeholder="nº"
-                                  className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-600 text-center font-bold"
-                                />
-                              </td>
-
-                              {/* Avance (%) */}
-                              <td className="p-2">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="100"
-                                  value={task.porcentaje_avance ?? ''}
-                                  onChange={(e) => handleUpdateCronogramaField(task.id, 'porcentaje_avance', e.target.value)}
-                                  className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-700 text-center font-semibold"
-                                />
-                              </td>
-
-                              {/* Eliminar */}
-                              <td className="p-2 text-center">
-                                <button
-                                  onClick={() => handleDeleteCronogramaRow(task.id)}
-                                  className="p-1 text-red-650 hover:bg-red-50 rounded-lg transition"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {cronograma.length === 0 && (
-                    <div className="p-8 text-center text-xs text-slate-400 italic">
-                      No hay tareas de planificación. Haz clic en "Agregar Tarea" para empezar.
-                    </div>
+                <div className="flex items-center gap-3">
+                  {activeSection === 'crear' && (
+                    <button
+                      onClick={handleSaveBudget}
+                      disabled={budgetLoading}
+                      className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-4 py-2 rounded-xl transition cursor-pointer"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>{budgetLoading ? 'Guardando...' : 'Guardar Presupuesto'}</span>
+                    </button>
+                  )}
+                  {activeSection === 'planificacion' && (
+                    <button
+                      onClick={handleSaveCronograma}
+                      disabled={tasksLoading}
+                      className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-4 py-2 rounded-xl transition cursor-pointer"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>{tasksLoading ? 'Guardando...' : 'Guardar Planificación'}</span>
+                    </button>
+                  )}
+                  {activeSection === 'recursos' && (
+                    <button
+                      onClick={handleSaveResources}
+                      disabled={resourcesLoading}
+                      className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-4 py-2 rounded-xl transition cursor-pointer"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>{resourcesLoading ? 'Guardando...' : 'Guardar Recursos'}</span>
+                    </button>
                   )}
                 </div>
               </div>
 
-              {/* Diagrama Gantt (Lado derecho) */}
-              <div className="xl:col-span-6 space-y-4">
-                
-                {/* Filtro Escala */}
-                <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex flex-wrap justify-between items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">Fecha Escala:</span>
-                    <input
-                      type="date"
-                      value={ganttStartDate}
-                      onChange={(e) => setGanttStartDate(e.target.value)}
-                      className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-800 focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">Límites:</span>
-                    <select
-                      value={ganttScale}
-                      onChange={(e) => setGanttScale(parseInt(e.target.value, 10))}
-                      className="border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-700 bg-white"
-                    >
-                      <option value={15}>15 días</option>
-                      <option value={30}>30 días (Mes)</option>
-                      <option value={60}>60 días (Trimestre)</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Gráfico Gantt */}
-                <div className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden">
-                  <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                    <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">Diagrama Gantt de Cronograma</span>
-                    <div className="flex gap-3 text-[9px] font-bold uppercase">
-                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 bg-yellow-500 rounded-xs" /> Pendiente</span>
-                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 bg-blue-600 rounded-xs" /> En Curso</span>
-                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 bg-emerald-600 rounded-xs" /> Completado</span>
+              {/* APARTADO: CREAR PRESUPUESTO */}
+              {activeSection === 'crear' && (
+                <div className="space-y-4 animate-in fade-in duration-200">
+                  <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                      <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Costo Presupuestado Total</h4>
+                      <p className="text-2xl font-black text-slate-850 mt-1">{formatCLP(totalBudgetCost)}</p>
                     </div>
-                  </div>
-
-                  <div className="p-4 overflow-x-auto">
-                    <div 
-                      className="grid border-r border-b border-slate-200 select-none min-w-[700px]"
-                      style={{ gridTemplateColumns: `repeat(${ganttScale}, minmax(28px, 1fr))` }}
+                    <button
+                      onClick={handleAddBudgetRow}
+                      className="flex items-center gap-1.5 bg-slate-50 border border-slate-250 text-slate-700 text-xs font-bold px-3.5 py-2 rounded-xl hover:bg-slate-100 transition cursor-pointer"
                     >
-                      {/* Cabeceras de Días */}
-                      {ganttDays.map((day, idx) => (
-                        <div 
-                          key={idx}
-                          className={`text-center py-2 border-t border-l border-slate-200 flex flex-col justify-center items-center ${
-                            day.isWeekend ? 'bg-slate-100 text-slate-400' : 'bg-slate-50 text-slate-650'
-                          }`}
-                        >
-                          <span className="text-[8px] font-bold uppercase tracking-wider">{day.monthStr}</span>
-                          <span className="text-[10px] font-black">{day.dayNum}</span>
-                        </div>
-                      ))}
-
-                      {/* Barras de Tareas */}
-                      {cronograma.map((task) => {
-                        const span = getGanttSpan(task.fecha_inicio, task.fecha_fin);
-                        let barColor = 'bg-yellow-500';
-                        if (task.estado === 'En Progreso') barColor = 'bg-blue-600';
-                        else if (task.estado === 'Completado') barColor = 'bg-emerald-600';
-
-                        return (
-                          <div 
-                            key={task.id}
-                            className="h-9 relative border-t border-l border-slate-200 flex items-center bg-slate-50/20"
-                            style={{ gridColumn: `1 / span ${ganttScale}` }}
-                          >
-                            <div 
-                              className="grid h-full w-full absolute top-0 left-0"
-                              style={{ gridTemplateColumns: `repeat(${ganttScale}, minmax(28px, 1fr))` }}
-                            >
-                              {span && (
-                                <div 
-                                  className="relative flex items-center h-full px-1"
-                                  style={{
-                                    gridColumnStart: span.gridColumnStart,
-                                    gridColumnEnd: span.gridColumnEnd
-                                  }}
-                                >
-                                  <div 
-                                    className={`w-full h-5 ${barColor} text-white rounded-lg flex items-center justify-between px-2 text-[9px] font-black shadow-xs transition-all truncate`}
-                                    title={`${task.tarea}: ${task.fecha_inicio} a ${task.fecha_fin}`}
-                                  >
-                                    <span className="truncate uppercase">{task.tarea}</span>
-                                    <span>{task.porcentaje_avance}%</span>
-                                  </div>
-                                </div>
-                              )}
-
-                              {ganttDays.map((day, idx) => (
-                                <div 
-                                  key={idx} 
-                                  className={`border-r border-slate-100/50 h-full pointer-events-none ${
-                                    day.isWeekend ? 'bg-slate-100/10' : ''
-                                  }`} 
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                      <Plus className="w-4 h-4 text-primary" />
+                      <span>Añadir Partida</span>
+                    </button>
                   </div>
-                </div>
-              </div>
 
-            </div>
-          )}
-
-          {/* ================= TAB 4: RECURSOS ================= */}
-          {activeTab === 'recursos' && (
-            <div className="space-y-4">
-              
-              {/* Tarjetas resumen de recursos */}
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
-                <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs">
-                  <h4 className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">Costo Estimado de Recursos</h4>
-                  <p className="text-xl font-black text-slate-850 mt-1">{formatCLP(totalResourceCost)}</p>
-                </div>
-                <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs">
-                  <h4 className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">Materiales</h4>
-                  <p className="text-xl font-bold text-slate-700 mt-1">{formatCLP(materialCost)}</p>
-                </div>
-                <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs">
-                  <h4 className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">Mano de Obra</h4>
-                  <p className="text-xl font-bold text-slate-700 mt-1">{formatCLP(laborCost)}</p>
-                </div>
-                <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs">
-                  <h4 className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">Maquinaria</h4>
-                  <p className="text-xl font-bold text-slate-700 mt-1">{formatCLP(machineryCost)}</p>
-                </div>
-              </div>
-
-              {/* Botón Añadir Recurso */}
-              <div className="flex justify-end">
-                <button
-                  onClick={handleAddResourceRow}
-                  className="flex items-center gap-1.5 bg-slate-50 border border-slate-250 text-slate-700 text-xs font-bold px-4 py-2 rounded-xl hover:bg-slate-100 transition cursor-pointer"
-                >
-                  <Plus className="w-4 h-4 text-primary" />
-                  <span>Añadir Recurso</span>
-                </button>
-              </div>
-
-              {/* Grilla Recursos */}
-              <div className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200 text-slate-655 font-bold text-[9px] uppercase tracking-wider select-none">
-                        <th className="p-3.5">Nombre Recurso</th>
-                        <th className="p-3.5 w-32">Tipo</th>
-                        <th className="p-3.5 w-24">Unidad</th>
-                        <th className="p-3.5 w-32">Costo Unit. ($)</th>
-                        <th className="p-3.5 w-32">Cant. Estimada</th>
-                        <th className="p-3.5 w-36">Costo Total ($)</th>
-                        <th className="p-3.5 w-16 text-center"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-150">
-                      {recursos.map((item) => {
-                        const totalRow = (parseFloat(item.cantidad_estimada) || 0) * (parseFloat(item.costo_unitario) || 0);
-
-                        return (
-                          <tr key={item.id} className="hover:bg-slate-50/50 transition">
-                            {/* Nombre */}
-                            <td className="p-2">
-                              <input
-                                type="text"
-                                value={item.recurso || ''}
-                                onChange={(e) => handleUpdateResourceField(item.id, 'recurso', e.target.value)}
-                                placeholder="ej: Cemento Gris"
-                                className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-800 uppercase font-semibold"
-                              />
-                            </td>
-
-                            {/* Tipo */}
-                            <td className="p-2">
-                              <select
-                                value={item.tipo || 'Material'}
-                                onChange={(e) => handleUpdateResourceField(item.id, 'tipo', e.target.value)}
-                                className="w-full border-0 bg-transparent focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-700"
-                              >
-                                <option value="Material">Material</option>
-                                <option value="Mano de Obra">Mano de Obra</option>
-                                <option value="Maquinaria">Maquinaria</option>
-                              </select>
-                            </td>
-
-                            {/* Unidad */}
-                            <td className="p-2">
-                              <input
-                                type="text"
-                                value={item.unidad || ''}
-                                onChange={(e) => handleUpdateResourceField(item.id, 'unidad', e.target.value)}
-                                placeholder="bolsas"
-                                className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-600 text-center uppercase"
-                              />
-                            </td>
-
-                            {/* Costo Unitario */}
-                            <td className="p-2">
-                              <input
-                                type="number"
-                                step="any"
-                                value={item.costo_unitario ?? ''}
-                                onChange={(e) => handleUpdateResourceField(item.id, 'costo_unitario', e.target.value)}
-                                placeholder="0"
-                                className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-700"
-                              />
-                            </td>
-
-                            {/* Cantidad Estimada */}
-                            <td className="p-2">
-                              <input
-                                type="number"
-                                step="any"
-                                value={item.cantidad_estimada ?? ''}
-                                onChange={(e) => handleUpdateResourceField(item.id, 'cantidad_estimada', e.target.value)}
-                                placeholder="0"
-                                className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-700 font-semibold"
-                              />
-                            </td>
-
-                            {/* Costo Total */}
-                            <td className="p-3.5 font-bold text-slate-800">
-                              {formatCLP(totalRow)}
-                            </td>
-
-                            {/* Eliminar */}
-                            <td className="p-2 text-center">
-                              <button
-                                onClick={() => handleDeleteResourceRow(item.id)}
-                                className="p-1.5 text-red-650 hover:bg-red-50 rounded-lg transition cursor-pointer"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </td>
+                  <div className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-slate-655 font-bold text-[9px] uppercase tracking-wider select-none">
+                            <th className="p-3.5 w-24">Código</th>
+                            <th className="p-3.5">Concepto / Partida</th>
+                            <th className="p-3.5 w-20">Unidad</th>
+                            <th className="p-3.5 w-24">Cantidad</th>
+                            <th className="p-3.5 w-28">Precio Unit. ($)</th>
+                            <th className="p-3.5 w-32">Importe ($)</th>
+                            <th className="p-3.5 w-24">Rend. Meta</th>
+                            <th className="p-3.5 w-16 text-center"></th>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                        </thead>
+                        <tbody className="divide-y divide-slate-150">
+                          {itemsPresupuesto.map((item) => {
+                            const isChapter = isChapterRow(item, itemsPresupuesto);
+                            const importeVal = isChapter
+                              ? getChapterSum(item.codigo, itemsPresupuesto)
+                              : (parseFloat(item.cantidad) || 0) * (parseFloat(item.costo_unitario) || 0);
+                            const isIndent = item.codigo && item.codigo.includes('.');
 
-                {recursos.length === 0 && (
-                  <div className="p-8 text-center text-xs text-slate-400 italic">
-                    No se han registrado recursos. Haz clic en "Añadir Recurso" para comenzar.
+                            return (
+                              <tr 
+                                key={item.id}
+                                className={`transition ${isChapter ? 'bg-slate-50/70 font-bold' : 'hover:bg-slate-50/35'}`}
+                              >
+                                <td className="p-2">
+                                  <input
+                                    type="text"
+                                    value={item.codigo || ''}
+                                    onChange={(e) => handleUpdateBudgetField(item.id, 'codigo', e.target.value)}
+                                    placeholder="01.01"
+                                    className={`w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-800 ${isChapter ? 'font-black' : ''}`}
+                                  />
+                                </td>
+                                <td className="p-2">
+                                  <div className="flex items-center gap-1">
+                                    {isIndent && <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1.5" />}
+                                    <input
+                                      type="text"
+                                      value={item.partida || ''}
+                                      onChange={(e) => handleUpdateBudgetField(item.id, 'partida', e.target.value)}
+                                      placeholder="ej: Fundaciones"
+                                      className={`w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-800 uppercase ${isChapter ? 'font-extrabold text-slate-900' : 'text-slate-700'}`}
+                                    />
+                                  </div>
+                                </td>
+                                <td className="p-2">
+                                  {!isChapter && (
+                                    <input
+                                      type="text"
+                                      value={item.unidad || ''}
+                                      onChange={(e) => handleUpdateBudgetField(item.id, 'unidad', e.target.value)}
+                                      placeholder="m3"
+                                      className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-600 text-center uppercase"
+                                    />
+                                  )}
+                                </td>
+                                <td className="p-2">
+                                  {!isChapter && (
+                                    <input
+                                      type="number"
+                                      step="any"
+                                      value={item.cantidad ?? ''}
+                                      onChange={(e) => handleUpdateBudgetField(item.id, 'cantidad', e.target.value)}
+                                      placeholder="0"
+                                      className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-700 font-semibold"
+                                    />
+                                  )}
+                                </td>
+                                <td className="p-2">
+                                  {!isChapter && (
+                                    <input
+                                      type="number"
+                                      step="any"
+                                      value={item.costo_unitario ?? ''}
+                                      onChange={(e) => handleUpdateBudgetField(item.id, 'costo_unitario', e.target.value)}
+                                      placeholder="0"
+                                      className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-700"
+                                    />
+                                  )}
+                                </td>
+                                <td className="p-3.5 font-bold text-slate-800">
+                                  {formatCLP(importeVal)}
+                                </td>
+                                <td className="p-2">
+                                  {!isChapter && (
+                                    <input
+                                      type="number"
+                                      step="any"
+                                      value={item.rendimiento_meta ?? ''}
+                                      onChange={(e) => handleUpdateBudgetField(item.id, 'rendimiento_meta', e.target.value)}
+                                      placeholder="0"
+                                      className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-650"
+                                    />
+                                  )}
+                                </td>
+                                <td className="p-2 text-center">
+                                  <button
+                                    onClick={() => handleDeleteBudgetRow(item.id)}
+                                    className="p-1.5 text-red-650 hover:bg-red-50 rounded-lg transition"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
+
+              {/* APARTADO: INGRESAR PRESUPUESTO */}
+              {activeSection === 'ingresar' && (
+                <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4 animate-in fade-in duration-200">
+                  <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                    <Upload className="w-5 h-5 text-primary" />
+                    <h3 className="font-extrabold text-xs uppercase tracking-wider text-slate-800">Ingresar Presupuesto (Carga Masiva)</h3>
+                  </div>
+
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Copia y pega partidas directamente desde otro sistema o planilla de cálculo en el cuadro de texto.
+                  </p>
+
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-[10px] font-semibold text-slate-500 space-y-2">
+                    <span className="font-bold text-slate-850 block">Formato aceptado:</span>
+                    <code className="bg-white px-2 py-1 rounded border font-mono block text-slate-800">
+                      Código, Concepto, Unidad, Cantidad, CostoUnitario, RendimientoMeta
+                    </code>
+                    <span className="font-bold text-slate-850 block mt-2">Ejemplo:</span>
+                    <code className="bg-white px-2 py-1 rounded border font-mono block text-slate-800 whitespace-pre">
+                      01, Obras Preliminares, gl, 1, 600000, 0{"\n"}
+                      01.01, Trazados y niveles, m2, 350, 1200, 150
+                    </code>
+                  </div>
+
+                  <textarea
+                    rows="8"
+                    value={importText}
+                    onChange={(e) => setImportText(e.target.value)}
+                    placeholder="Pega las líneas aquí..."
+                    className="w-full border border-slate-200 rounded-xl p-3 text-xs text-slate-800 focus:outline-none focus:border-primary font-mono bg-slate-50/50"
+                  />
+
+                  <div className="flex justify-end">
+                    <button
+                      onClick={handleImportCSV}
+                      disabled={budgetLoading || !importText.trim()}
+                      className="flex items-center gap-1.5 bg-primary hover:bg-primary-hover text-white text-xs font-bold px-5 py-2.5 rounded-xl transition cursor-pointer shadow-xs disabled:opacity-50"
+                    >
+                      <Check className="w-4 h-4" />
+                      <span>Procesar e Importar</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* APARTADO: PLANIFICACIÓN */}
+              {activeSection === 'planificacion' && (
+                <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start animate-in fade-in duration-200">
+                  
+                  {/* Hoja de Planificación (Izquierda) */}
+                  <div className="xl:col-span-6 space-y-4">
+                    <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex justify-between items-center">
+                      <div>
+                        <h3 className="text-xs font-extrabold uppercase text-slate-800 tracking-wider">Hoja de Planificación</h3>
+                        <p className="text-[10px] text-slate-450 font-bold uppercase mt-0.5">Listado de etapas y plazos</p>
+                      </div>
+                      <button
+                        onClick={handleAddCronogramaRow}
+                        className="flex items-center gap-1.5 bg-slate-50 border border-slate-250 text-slate-700 text-xs font-bold px-3 py-2 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4 text-primary" />
+                        <span>Agregar Tarea</span>
+                      </button>
+                    </div>
+
+                    <div className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold text-[9px] uppercase tracking-wider select-none">
+                              <th className="p-3 w-16 text-center">Código</th>
+                              <th className="p-3">Tarea</th>
+                              <th className="p-3 w-20">Inicio</th>
+                              <th className="p-3 w-16 text-center">Días</th>
+                              <th className="p-3 w-16 text-center">Pred.</th>
+                              <th className="p-3 w-20 text-center">Avance</th>
+                              <th className="p-3 w-12"></th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-150">
+                            {cronograma.map((task) => {
+                              let alertConflict = false;
+                              if (task.predecesora) {
+                                const pred = cronograma.find(x => x.codigo === task.predecesora.trim());
+                                if (pred && pred.fecha_fin && task.fecha_inicio) {
+                                  alertConflict = task.fecha_inicio < pred.fecha_fin;
+                                }
+                              }
+
+                              return (
+                                <tr key={task.id} className="hover:bg-slate-50/50 transition">
+                                  <td className="p-2">
+                                    <input
+                                      type="text"
+                                      value={task.codigo || ''}
+                                      onChange={(e) => handleUpdateCronogramaField(task.id, 'codigo', e.target.value)}
+                                      className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-800 font-bold text-center"
+                                    />
+                                  </td>
+                                  <td className="p-2">
+                                    <input
+                                      type="text"
+                                      value={task.tarea || ''}
+                                      onChange={(e) => handleUpdateCronogramaField(task.id, 'tarea', e.target.value)}
+                                      placeholder="Nueva Tarea"
+                                      className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-800 uppercase font-semibold"
+                                    />
+                                  </td>
+                                  <td className="p-2">
+                                    <div className="relative flex items-center">
+                                      {alertConflict && (
+                                        <span className="absolute -left-2.5 text-amber-500 cursor-help" title="Conflicto: Inicia antes del término de la predecesora">⚠️</span>
+                                      )}
+                                      <input
+                                        type="date"
+                                        value={task.fecha_inicio || ''}
+                                        onChange={(e) => handleUpdateCronogramaField(task.id, 'fecha_inicio', e.target.value)}
+                                        className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-[11px] text-slate-700 font-medium"
+                                      />
+                                    </div>
+                                  </td>
+                                  <td className="p-2">
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={task.duracion ?? ''}
+                                      onChange={(e) => handleUpdateCronogramaField(task.id, 'duracion', e.target.value)}
+                                      className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-700 font-bold text-center"
+                                    />
+                                  </td>
+                                  <td className="p-2">
+                                    <input
+                                      type="text"
+                                      value={task.predecesora || ''}
+                                      onChange={(e) => handleUpdateCronogramaField(task.id, 'predecesora', e.target.value)}
+                                      placeholder="nº"
+                                      className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-600 text-center font-bold"
+                                    />
+                                  </td>
+                                  <td className="p-2">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="100"
+                                      value={task.porcentaje_avance ?? ''}
+                                      onChange={(e) => handleUpdateCronogramaField(task.id, 'porcentaje_avance', e.target.value)}
+                                      className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-700 text-center font-semibold"
+                                    />
+                                  </td>
+                                  <td className="p-2 text-center">
+                                    <button
+                                      onClick={() => handleDeleteCronogramaRow(task.id)}
+                                      className="p-1 text-red-650 hover:bg-red-50 rounded-lg transition"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Diagrama Gantt (Derecha) */}
+                  <div className="xl:col-span-6 space-y-4">
+                    <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex flex-wrap justify-between items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">Fecha Escala:</span>
+                        <input
+                          type="date"
+                          value={ganttStartDate}
+                          onChange={(e) => setGanttStartDate(e.target.value)}
+                          className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-800 focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">Límites:</span>
+                        <select
+                          value={ganttScale}
+                          onChange={(e) => setGanttScale(parseInt(e.target.value, 10))}
+                          className="border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-700 bg-white"
+                        >
+                          <option value={15}>15 días</option>
+                          <option value={30}>30 días (Mes)</option>
+                          <option value={60}>60 días (Trimestre)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden">
+                      <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                        <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">Diagrama Gantt de Actividades</span>
+                        <div className="flex gap-3 text-[9px] font-bold uppercase">
+                          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 bg-yellow-500 rounded-xs" /> Pendiente</span>
+                          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 bg-blue-600 rounded-xs" /> En Curso</span>
+                          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 bg-emerald-600 rounded-xs" /> Completado</span>
+                        </div>
+                      </div>
+
+                      <div className="p-4 overflow-x-auto">
+                        <div 
+                          className="grid border-r border-b border-slate-200 select-none min-w-[650px]"
+                          style={{ gridTemplateColumns: `repeat(${ganttScale}, minmax(26px, 1fr))` }}
+                        >
+                          {ganttDays.map((day, idx) => (
+                            <div 
+                              key={idx}
+                              className={`text-center py-2 border-t border-l border-slate-200 flex flex-col justify-center items-center ${
+                                day.isWeekend ? 'bg-slate-100/70 text-slate-400' : 'bg-slate-50 text-slate-650'
+                              }`}
+                            >
+                              <span className="text-[7.5px] font-bold uppercase tracking-wider">{day.monthStr}</span>
+                              <span className="text-[10px] font-black">{day.dayNum}</span>
+                            </div>
+                          ))}
+
+                          {cronograma.map((task) => {
+                            const span = getGanttSpan(task.fecha_inicio, task.fecha_fin);
+                            let barColor = 'bg-yellow-500';
+                            if (task.estado === 'En Progreso') barColor = 'bg-blue-600';
+                            else if (task.estado === 'Completado') barColor = 'bg-emerald-600';
+
+                            return (
+                              <div 
+                                key={task.id}
+                                className="h-9 relative border-t border-l border-slate-200 flex items-center bg-slate-50/20"
+                                style={{ gridColumn: `1 / span ${ganttScale}` }}
+                              >
+                                <div 
+                                  className="grid h-full w-full absolute top-0 left-0"
+                                  style={{ gridTemplateColumns: `repeat(${ganttScale}, minmax(26px, 1fr))` }}
+                                >
+                                  {span && (
+                                    <div 
+                                      className="relative flex items-center h-full px-1"
+                                      style={{
+                                        gridColumnStart: span.gridColumnStart,
+                                        gridColumnEnd: span.gridColumnEnd
+                                      }}
+                                    >
+                                      <div 
+                                        className={`w-full h-5 ${barColor} text-white rounded-lg flex items-center justify-between px-2 text-[9px] font-bold shadow-xs truncate`}
+                                        title={`${task.tarea}: ${task.fecha_inicio} a ${task.fecha_fin}`}
+                                      >
+                                        <span className="truncate uppercase">{task.tarea}</span>
+                                        <span>{task.porcentaje_avance}%</span>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {ganttDays.map((day, idx) => (
+                                    <div 
+                                      key={idx} 
+                                      className={`border-r border-slate-100/50 h-full pointer-events-none ${
+                                        day.isWeekend ? 'bg-slate-100/10' : ''
+                                      }`} 
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              )}
+
+              {/* APARTADO: RECURSOS */}
+              {activeSection === 'recursos' && (
+                <div className="space-y-4 animate-in fade-in duration-200">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
+                    <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs">
+                      <h4 className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">Costo Estimado de Recursos</h4>
+                      <p className="text-xl font-black text-slate-850 mt-1">{formatCLP(totalResourceCost)}</p>
+                    </div>
+                    <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs">
+                      <h4 className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">Materiales</h4>
+                      <p className="text-xl font-bold text-slate-700 mt-1">{formatCLP(materialCost)}</p>
+                    </div>
+                    <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs">
+                      <h4 className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">Mano de Obra</h4>
+                      <p className="text-xl font-bold text-slate-700 mt-1">{formatCLP(laborCost)}</p>
+                    </div>
+                    <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs">
+                      <h4 className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">Maquinaria</h4>
+                      <p className="text-xl font-bold text-slate-700 mt-1">{formatCLP(machineryCost)}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <button
+                      onClick={handleAddResourceRow}
+                      className="flex items-center gap-1.5 bg-slate-50 border border-slate-250 text-slate-700 text-xs font-bold px-4 py-2 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4 text-primary" />
+                      <span>Añadir Recurso</span>
+                    </button>
+                  </div>
+
+                  <div className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-slate-650 font-bold text-[9px] uppercase tracking-wider select-none">
+                            <th className="p-3.5">Nombre Recurso</th>
+                            <th className="p-3.5 w-32">Tipo</th>
+                            <th className="p-3.5 w-24">Unidad</th>
+                            <th className="p-3.5 w-32">Costo Unit. ($)</th>
+                            <th className="p-3.5 w-32">Cant. Estimada</th>
+                            <th className="p-3.5 w-36">Costo Total ($)</th>
+                            <th className="p-3.5 w-16 text-center"></th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-150">
+                          {recursos.map((item) => {
+                            const totalRow = (parseFloat(item.cantidad_estimada) || 0) * (parseFloat(item.costo_unitario) || 0);
+
+                            return (
+                              <tr key={item.id} className="hover:bg-slate-50/50 transition">
+                                <td className="p-2">
+                                  <input
+                                    type="text"
+                                    value={item.recurso || ''}
+                                    onChange={(e) => handleUpdateResourceField(item.id, 'recurso', e.target.value)}
+                                    placeholder="ej: Cemento Gris"
+                                    className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-800 uppercase font-semibold"
+                                  />
+                                </td>
+                                <td className="p-2">
+                                  <select
+                                    value={item.tipo || 'Material'}
+                                    onChange={(e) => handleUpdateResourceField(item.id, 'tipo', e.target.value)}
+                                    className="w-full border-0 bg-transparent focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-705"
+                                  >
+                                    <option value="Material">Material</option>
+                                    <option value="Mano de Obra">Mano de Obra</option>
+                                    <option value="Maquinaria">Maquinaria</option>
+                                  </select>
+                                </td>
+                                <td className="p-2">
+                                  <input
+                                    type="text"
+                                    value={item.unidad || ''}
+                                    onChange={(e) => handleUpdateResourceField(item.id, 'unidad', e.target.value)}
+                                    placeholder="bolsas"
+                                    className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-600 text-center uppercase"
+                                  />
+                                </td>
+                                <td className="p-2">
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    value={item.costo_unitario ?? ''}
+                                    onChange={(e) => handleUpdateResourceField(item.id, 'costo_unitario', e.target.value)}
+                                    placeholder="0"
+                                    className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-700"
+                                  />
+                                </td>
+                                <td className="p-2">
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    value={item.cantidad_estimada ?? ''}
+                                    onChange={(e) => handleUpdateResourceField(item.id, 'cantidad_estimada', e.target.value)}
+                                    placeholder="0"
+                                    className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-700 font-semibold"
+                                  />
+                                </td>
+                                <td className="p-3.5 font-bold text-slate-800">
+                                  {formatCLP(totalRow)}
+                                </td>
+                                <td className="p-2 text-center">
+                                  <button
+                                    onClick={() => handleDeleteResourceRow(item.id)}
+                                    className="p-1.5 text-red-650 hover:bg-red-50 rounded-lg transition cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
 
             </div>
           )}
@@ -1407,10 +1431,10 @@ export default function PresupuestosPlanif({ user, onBack }) {
         </div>
       )}
 
-      {/* ================= MODAL: CREAR NUEVO PROYECTO ================= */}
+      {/* ================= MODAL: CREAR NUEVO PROYECTO CON INFO BÁSICA ================= */}
       {showCreateProjectModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
             <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100">
               <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
                 <FolderPlus className="w-4.5 h-4.5 text-primary" />
@@ -1426,24 +1450,69 @@ export default function PresupuestosPlanif({ user, onBack }) {
 
             <form onSubmit={handleCreateProject} className="space-y-4">
               <div>
-                <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Nombre del Proyecto</label>
+                <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Nombre del Proyecto / Faena *</label>
                 <input
                   type="text"
                   required
                   value={newProjectData.nombre}
                   onChange={(e) => setNewProjectData({ ...newProjectData, nombre: e.target.value })}
-                  placeholder="ej: Edificio Costanera Norte"
+                  placeholder="ej: Edificio Costanera"
                   className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary uppercase"
                 />
               </div>
 
               <div>
-                <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Descripción / Notas</label>
+                <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Cliente / Mandante</label>
+                <input
+                  type="text"
+                  value={newProjectData.cliente}
+                  onChange={(e) => setNewProjectData({ ...newProjectData, cliente: e.target.value })}
+                  placeholder="ej: Constructora Alerce Ltda."
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary uppercase"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Ubicación / Ciudad</label>
+                  <input
+                    type="text"
+                    value={newProjectData.ubicacion}
+                    onChange={(e) => setNewProjectData({ ...newProjectData, ubicacion: e.target.value })}
+                    placeholder="ej: Santiago"
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary uppercase"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Plazo de Entrega (Días)</label>
+                  <input
+                    type="number"
+                    value={newProjectData.plazo_estimado}
+                    onChange={(e) => setNewProjectData({ ...newProjectData, plazo_estimado: e.target.value })}
+                    placeholder="ej: 120"
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Presupuesto Inicial Límite ($)</label>
+                <input
+                  type="number"
+                  value={newProjectData.presupuesto_estimado}
+                  onChange={(e) => setNewProjectData({ ...newProjectData, presupuesto_estimado: e.target.value })}
+                  placeholder="ej: 150000000"
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Descripción del Proyecto</label>
                 <textarea
-                  rows="3"
+                  rows="2"
                   value={newProjectData.descripcion}
                   onChange={(e) => setNewProjectData({ ...newProjectData, descripcion: e.target.value })}
-                  placeholder="ej: Planificación de costos para licitación"
+                  placeholder="ej: Planificación para licitación de fundaciones"
                   className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
                 />
               </div>
@@ -1454,7 +1523,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                 className="w-full bg-primary hover:bg-primary-hover text-white font-semibold py-2.5 rounded-lg shadow-sm text-xs cursor-pointer disabled:opacity-70 flex items-center justify-center gap-1.5 transition"
               >
                 <Check className="w-4 h-4" />
-                <span>Crear e Iniciar Presupuesto</span>
+                <span>Crear Proyecto e Iniciar</span>
               </button>
             </form>
           </div>
