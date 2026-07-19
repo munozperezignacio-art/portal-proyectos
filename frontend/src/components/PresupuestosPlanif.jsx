@@ -21,7 +21,9 @@ export default function PresupuestosPlanif({ user, onBack }) {
     cliente: '',
     ubicacion: '',
     plazo_estimado: '',
-    presupuesto_estimado: ''
+    presupuesto_estimado: '',
+    tipo_proyecto: 'Privado',
+    comuna: ''
   });
 
   // Apartado activo: '' (Menú principal de apartados), 'crear', 'ingresar', 'gantt', 'recursos'
@@ -172,7 +174,9 @@ export default function PresupuestosPlanif({ user, onBack }) {
             cliente: newProjectData.cliente.trim(),
             ubicacion: newProjectData.ubicacion.trim(),
             plazo_estimado: parseInt(newProjectData.plazo_estimado, 10) || 0,
-            presupuesto_estimado: parseFloat(newProjectData.presupuesto_estimado) || 0
+            presupuesto_estimado: parseFloat(newProjectData.presupuesto_estimado) || 0,
+            tipo_proyecto: newProjectData.tipo_proyecto,
+            comuna: newProjectData.comuna
           }
         ])
         .select();
@@ -186,7 +190,9 @@ export default function PresupuestosPlanif({ user, onBack }) {
         cliente: '',
         ubicacion: '',
         plazo_estimado: '',
-        presupuesto_estimado: ''
+        presupuesto_estimado: '',
+        tipo_proyecto: 'Privado',
+        comuna: ''
       });
       setShowCreateProjectModal(false);
       
@@ -747,27 +753,38 @@ export default function PresupuestosPlanif({ user, onBack }) {
         
         {/* Ficha Resumen de Información Básica del Proyecto Activo */}
         {currentProyecto && (
-          <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs grid grid-cols-2 md:grid-cols-6 gap-4">
             <div className="space-y-1">
               <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Cliente / Mandante</span>
               <p className="text-xs font-extrabold text-slate-800 truncate uppercase">{currentProyecto.cliente || 'No asignado'}</p>
             </div>
             <div className="space-y-1">
-              <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Ubicación / Faena</span>
+              <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Dirección / Faena</span>
               <p className="text-xs font-extrabold text-slate-800 truncate uppercase flex items-center gap-1">
                 <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                 <span>{currentProyecto.ubicacion || 'No asignada'}</span>
               </p>
             </div>
             <div className="space-y-1">
-              <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Plazo de Entrega</span>
-              <p className="text-xs font-extrabold text-slate-800 truncate flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                <span>{currentProyecto.plazo_estimado ? `${currentProyecto.plazo_estimado} Días hábiles` : 'Sin límite'}</span>
+              <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Comuna (Chile)</span>
+              <p className="text-xs font-extrabold text-slate-850 uppercase">{currentProyecto.comuna || 'No asignada'}</p>
+            </div>
+            <div className="space-y-1">
+              <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Tipo Proyecto</span>
+              <p className="text-xs font-extrabold text-slate-850 uppercase flex items-center gap-1">
+                <span className={`w-2 h-2 rounded-full ${currentProyecto.tipo_proyecto === 'Público' ? 'bg-blue-650' : 'bg-emerald-650'}`} />
+                <span>{currentProyecto.tipo_proyecto || 'Privado'}</span>
               </p>
             </div>
             <div className="space-y-1">
-              <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Presupuesto Inicial Límite</span>
+              <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Plazo de Entrega</span>
+              <p className="text-xs font-extrabold text-slate-800 truncate flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span>{currentProyecto.plazo_estimado ? `${currentProyecto.plazo_estimado} Días` : 'Sin límite'}</span>
+              </p>
+            </div>
+            <div className="space-y-1">
+              <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Presupuesto Límite</span>
               <p className="text-xs font-extrabold text-slate-850 truncate">
                 {currentProyecto.presupuesto_estimado ? formatCLP(currentProyecto.presupuesto_estimado) : 'Sin límite'}
               </p>
@@ -1489,14 +1506,22 @@ export default function PresupuestosPlanif({ user, onBack }) {
                             return (
                               <tr key={p.id} className={`hover:bg-slate-50/50 transition ${isActive ? 'bg-primary/5' : ''}`}>
                                 <td className="p-3.5 font-bold text-slate-800 uppercase">
-                                  {p.nombre}
+                                  <div className="flex items-center gap-1.5">
+                                    <span>{p.nombre}</span>
+                                    <span className={`text-[8.5px] px-1.5 py-0.5 rounded-md font-extrabold ${p.tipo_proyecto === 'Público' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-50 text-slate-600 border border-slate-200'}`}>
+                                      {p.tipo_proyecto || 'Privado'}
+                                    </span>
+                                  </div>
                                   {p.descripcion && (
                                     <span className="block text-[10px] text-slate-450 font-normal normal-case mt-0.5">{p.descripcion}</span>
                                   )}
                                 </td>
                                 <td className="p-3.5 text-slate-650 uppercase font-semibold">{p.cliente || '-'}</td>
                                 <td className="p-3.5 text-slate-600 uppercase font-semibold">
-                                  {p.ubicacion || '-'}
+                                  <span>{p.comuna || '-'}</span>
+                                  {p.ubicacion && (
+                                    <span className="block text-[10px] text-slate-450 font-normal normal-case mt-0.5">{p.ubicacion}</span>
+                                  )}
                                 </td>
                                 <td className="p-3.5 text-center font-bold text-slate-700">{p.plazo_estimado ? `${p.plazo_estimado} días` : '-'}</td>
                                 <td className="p-3.5 text-right font-bold text-slate-850">
@@ -1617,14 +1642,41 @@ export default function PresupuestosPlanif({ user, onBack }) {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Ubicación / Ciudad</label>
+                  <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Comuna (Chile)</label>
+                  <select
+                    value={newProjectData.comuna}
+                    onChange={(e) => setNewProjectData({ ...newProjectData, comuna: e.target.value })}
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-700 focus:outline-none focus:border-primary bg-white"
+                  >
+                    <option value="">Seleccione Comuna...</option>
+                    {comunasChile.map((c, idx) => (
+                      <option key={idx} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Dirección / Faena</label>
                   <input
                     type="text"
                     value={newProjectData.ubicacion}
                     onChange={(e) => setNewProjectData({ ...newProjectData, ubicacion: e.target.value })}
-                    placeholder="ej: Santiago"
+                    placeholder="ej: Av. Ossa 235"
                     className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary uppercase"
                   />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Tipo de Proyecto</label>
+                  <select
+                    value={newProjectData.tipo_proyecto}
+                    onChange={(e) => setNewProjectData({ ...newProjectData, tipo_proyecto: e.target.value })}
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-705 focus:outline-none focus:border-primary bg-white"
+                  >
+                    <option value="Privado">Privado</option>
+                    <option value="Público">Público</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Plazo de Entrega (Días)</label>
