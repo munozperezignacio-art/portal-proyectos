@@ -6,7 +6,7 @@ import {
   FolderPlus, DollarSign, Hammer, Briefcase, FileText, MapPin, Clock, ChevronLeft
 } from 'lucide-react';
 
-export default function PresupuestosPlanif({ user, onBack }) {
+export default function PresupuestosPlanif({ user, onBack, section }) {
   // Lista de proyectos/presupuestos independientes
   const [proyectos, setProyectos] = useState([]);
   const [selectedProyectoId, setSelectedProyectoId] = useState('');
@@ -24,7 +24,14 @@ export default function PresupuestosPlanif({ user, onBack }) {
   });
 
   // Apartado activo: '' (Menú principal de apartados), 'crear', 'ingresar', 'planificacion', 'recursos'
-  const [activeSection, setActiveSection] = useState('');
+  const [activeSection, setActiveSection] = useState(section || '');
+
+  // Sincronizar sección activa si cambia la prop
+  useEffect(() => {
+    if (section) {
+      setActiveSection(section);
+    }
+  }, [section]);
 
   // Estados del Presupuesto (Crear/Detalle)
   const [itemsPresupuesto, setItemsPresupuesto] = useState([]);
@@ -854,11 +861,19 @@ export default function PresupuestosPlanif({ user, onBack }) {
               {/* Barra superior de Apartado */}
               <div className="flex justify-between items-center bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
                 <button
-                  onClick={() => { setActiveSection(''); setErrorMsg(''); setSuccessMsg(''); }}
+                  onClick={() => {
+                    if (section) {
+                      onBack();
+                    } else {
+                      setActiveSection('');
+                      setErrorMsg('');
+                      setSuccessMsg('');
+                    }
+                  }}
                   className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-slate-850 font-bold cursor-pointer transition"
                 >
                   <ChevronLeft className="w-4 h-4" />
-                  <span>Volver al menú de apartados</span>
+                  <span>{section ? "Volver al Dashboard" : "Volver al menú de apartados"}</span>
                 </button>
 
                 <div className="flex items-center gap-3">

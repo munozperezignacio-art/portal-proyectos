@@ -7,7 +7,8 @@ import ConfigCorreos from './components/ConfigCorreos';
 import PresupuestosPlanif from './components/PresupuestosPlanif';
 import { 
   LogOut, LayoutDashboard, Building2, Users, Truck, ShieldAlert, Settings, Info, Menu, X, Loader2,
-  Layers, Handshake, Receipt, Coins, ClipboardCheck, Boxes, BadgeCheck
+  Layers, Handshake, Receipt, Coins, ClipboardCheck, Boxes, BadgeCheck,
+  FileSpreadsheet, Upload, CalendarDays, Hammer
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 
@@ -204,12 +205,36 @@ function App() {
       action: () => { setSelectedObraName(null); setCurrentModule('bodega'); }
     },
     {
-      id: 'presupuestos',
-      title: 'Presupuestos y Planificación',
-      description: 'Planificación de tareas, presupuestos y control de costes en tiempo real.',
-      icon: <Layers className="w-5 h-5" />,
-      sidebarIcon: <Layers className="w-4 h-4" />,
-      action: () => { setSelectedObraName(null); setCurrentModule('presupuestos'); }
+      id: 'crear_presupuesto',
+      title: 'Crear Presupuesto',
+      description: 'Configura la planilla de partidas, cantidades y costos unitarios del proyecto.',
+      icon: <FileSpreadsheet className="w-5 h-5" />,
+      sidebarIcon: <FileSpreadsheet className="w-4 h-4" />,
+      action: () => { setSelectedObraName(null); setCurrentModule('crear_presupuesto'); }
+    },
+    {
+      id: 'ingresar_presupuesto',
+      title: 'Ingresar Presupuesto',
+      description: 'Realiza cargas masivas pegando datos de presupuestos estructurados en formato CSV.',
+      icon: <Upload className="w-5 h-5" />,
+      sidebarIcon: <Upload className="w-4 h-4" />,
+      action: () => { setSelectedObraName(null); setCurrentModule('ingresar_presupuesto'); }
+    },
+    {
+      id: 'planificacion',
+      title: 'Planificación',
+      description: 'Define la carta Gantt del proyecto, controla el avance de tareas y dependencias.',
+      icon: <CalendarDays className="w-5 h-5" />,
+      sidebarIcon: <CalendarDays className="w-4 h-4" />,
+      action: () => { setSelectedObraName(null); setCurrentModule('planificacion'); }
+    },
+    {
+      id: 'recursos',
+      title: 'Recursos',
+      description: 'Gestiona el listado y costos estimados de materiales, mano de obra y maquinaria.',
+      icon: <Hammer className="w-5 h-5" />,
+      sidebarIcon: <Hammer className="w-4 h-4" />,
+      action: () => { setSelectedObraName(null); setCurrentModule('recursos'); }
     },
     {
       id: 'clientes',
@@ -544,8 +569,23 @@ function App() {
               setSelectedObraName(null);
               setCurrentModule('dashboard');
             }} />
-          ) : currentModule === 'presupuestos' ? (
-            <PresupuestosPlanif user={user} onBack={() => {
+          ) : currentModule === 'crear_presupuesto' ? (
+            <PresupuestosPlanif section="crear" user={user} onBack={() => {
+              setSelectedObraName(null);
+              setCurrentModule('dashboard');
+            }} />
+          ) : currentModule === 'ingresar_presupuesto' ? (
+            <PresupuestosPlanif section="ingresar" user={user} onBack={() => {
+              setSelectedObraName(null);
+              setCurrentModule('dashboard');
+            }} />
+          ) : currentModule === 'planificacion' ? (
+            <PresupuestosPlanif section="planificacion" user={user} onBack={() => {
+              setSelectedObraName(null);
+              setCurrentModule('dashboard');
+            }} />
+          ) : currentModule === 'recursos' ? (
+            <PresupuestosPlanif section="recursos" user={user} onBack={() => {
               setSelectedObraName(null);
               setCurrentModule('dashboard');
             }} />

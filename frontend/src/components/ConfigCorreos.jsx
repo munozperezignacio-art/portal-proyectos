@@ -532,7 +532,7 @@ function ConfigCorreos({ user, onBack }) {
   });
 
   const tiposReporte = ['Produccion Diaria', 'Uso Maquinaria', 'Asistencia Personal'];
-  const modulosDisponibles = ['obras', 'rrhh', 'maquinaria', 'prevencion', 'acreditaciones', 'calidad', 'bodega', 'presupuestos', 'clientes', 'facturacion', 'gastos', 'admin'];
+  const modulosDisponibles = ['obras', 'rrhh', 'maquinaria', 'prevencion', 'acreditaciones', 'calidad', 'bodega', 'crear_presupuesto', 'ingresar_presupuesto', 'planificacion', 'recursos', 'clientes', 'facturacion', 'gastos', 'admin'];
 
   return (
     <div className="space-y-4">
