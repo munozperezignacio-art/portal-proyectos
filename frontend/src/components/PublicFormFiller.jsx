@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { 
-  ShieldAlert, Send, CheckCircle2, Camera, PenTool, AlertCircle, Loader2, Check 
+  ShieldAlert, Send, CheckCircle2, Camera, PenTool, AlertCircle, Loader2, Check, Plus 
 } from 'lucide-react';
 
 export default function PublicFormFiller({ formToken }) {
@@ -17,10 +17,12 @@ export default function PublicFormFiller({ formToken }) {
   const [submitting, setSubmitting] = useState(false);
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
 
-  // Firma Digital (Canvas)
-  const canvasRef = useRef(null);
+  // Firmas Canvas
+  const mainCanvasRef = useRef(null);
+  const repeaterCanvasRefs = useRef({});
   const [isDrawing, setIsDrawing] = useState(false);
-  const [signatureDataUrl, setSignatureDataUrl] = useState('');
+  const [mainSignatureDataUrl, setMainSignatureDataUrl] = useState('');
+  const [repeaterSignatures, setRepeaterSignatures] = useState({});
 
   useEffect(() => {
     if (formToken) {
@@ -48,6 +50,15 @@ export default function PublicFormFiller({ formToken }) {
         setError('El formulario solicitado no existe o no se encuentra disponible.');
       } else {
         setForm(data);
+        
+        // Inicializar respuestas para bloques repetibles con 1 elemento por defecto
+        const initial = {};
+        (data.campos || []).forEach(f => {
+          if (f.type === 'repeater') {
+            initial[f.id] = [{}];
+          }
+        });
+        setFillAnswers(initial);
       }
     } catch (err) {
       setError('Error cargando formulario: ' + err.message);
@@ -56,9 +67,35 @@ export default function PublicFormFiller({ formToken }) {
     }
   };
 
+  // Manejo de bloques repetibles
+  const handleAddRepeaterInstance = (fieldId) => {
+    setFillAnswers(prev => ({
+      ...prev,
+      [fieldId]: [...(prev[fieldId] || []), {}]
+    }));
+  };
+
+  const handleDeleteRepeaterInstance = (fieldId, index) => {
+    setFillAnswers(prev => ({
+      ...prev,
+      [fieldId]: (prev[fieldId] || []).filter((_, idx) => idx !== index)
+    }));
+  };
+
+  const handleUpdateRepeaterAnswer = (fieldId, instanceIndex, subFieldId, value) => {
+    setFillAnswers(prev => {
+      const instances = [...(prev[fieldId] || [])];
+      instances[instanceIndex] = {
+        ...(instances[instanceIndex] || {}),
+        [subFieldId]: value
+      };
+      return { ...prev, [fieldId]: instances };
+    });
+  };
+
   // Lógica de dibujo de firma
-  const startDrawing = (e) => {
-    const canvas = canvasRef.current;
+  const startDrawing = (e, keyRef = 'main') => {
+    const canvas = keyRef === 'main' ? mainCanvasRef.current : repeaterCanvasRefs.current[keyRef];
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const rect = canvas.getBoundingClientRect();
@@ -67,12 +104,12 @@ export default function PublicFormFiller({ formToken }) {
 
     ctx.beginPath();
     ctx.moveTo(x, y);
-    setIsDrawing(true);
+    setIsDrawing(keyRef);
   };
 
-  const draw = (e) => {
-    if (!isDrawing) return;
-    const canvas = canvasRef.current;
+  const draw = (e, keyRef = 'main') => {
+    if (isDrawing !== keyRef) return;
+    const canvas = keyRef === 'main' ? mainCanvasRef.current : repeaterCanvasRefs.current[keyRef];
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const rect = canvas.getBoundingClientRect();
@@ -86,22 +123,29 @@ export default function PublicFormFiller({ formToken }) {
     ctx.stroke();
   };
 
-  const stopDrawing = () => {
-    if (isDrawing) {
+  const stopDrawing = (keyRef = 'main') => {
+    if (isDrawing === keyRef) {
       setIsDrawing(false);
-      const canvas = canvasRef.current;
+      const canvas = keyRef === 'main' ? mainCanvasRef.current : repeaterCanvasRefs.current[keyRef];
       if (canvas) {
-        setSignatureDataUrl(canvas.toDataURL());
+        const url = canvas.toDataURL();
+        if (keyRef === 'main') setMainSignatureDataUrl(url);
+        else {
+          setRepeaterSignatures(prev => ({ ...prev, [keyRef]: url }));
+        }
       }
     }
   };
 
-  const clearSignature = () => {
-    const canvas = canvasRef.current;
+  const clearSignature = (keyRef = 'main') => {
+    const canvas = keyRef === 'main' ? mainCanvasRef.current : repeaterCanvasRefs.current[keyRef];
     if (canvas) {
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      setSignatureDataUrl('');
+      if (keyRef === 'main') setMainSignatureDataUrl('');
+      else {
+        setRepeaterSignatures(prev => ({ ...prev, [keyRef]: '' }));
+      }
     }
   };
 
@@ -113,6 +157,14 @@ export default function PublicFormFiller({ formToken }) {
     setError('');
 
     try {
+      const finalAnswers = JSON.parse(JSON.stringify(fillAnswers));
+      Object.entries(repeaterSignatures).forEach(([key, sigUrl]) => {
+        const [fId, idx, subId] = key.split('_instance_');
+        if (finalAnswers[fId] && finalAnswers[fId][idx]) {
+          finalAnswers[fId][idx][subId] = sigUrl;
+        }
+      });
+
       const { error: insErr } = await supabase
         .from('prevencion_respuestas')
         .insert([
@@ -120,8 +172,8 @@ export default function PublicFormFiller({ formToken }) {
             formulario_id: form.id,
             proyecto_nombre: fillMetadata.proyecto_nombre.trim() || 'Terreno',
             inspector: fillMetadata.inspector.trim() || 'Trabajador Terreno',
-            respuestas: fillAnswers,
-            firma_url: signatureDataUrl
+            respuestas: finalAnswers,
+            firma_url: mainSignatureDataUrl
           }
         ]);
 
@@ -176,7 +228,8 @@ export default function PublicFormFiller({ formToken }) {
             onClick={() => {
               setSubmittedSuccess(false);
               setFillAnswers({});
-              setSignatureDataUrl('');
+              setMainSignatureDataUrl('');
+              setRepeaterSignatures({});
               setFillMetadata({ proyecto_nombre: '', inspector: '' });
             }}
             className="mt-2 bg-primary hover:bg-primary-hover text-white text-xs font-bold px-5 py-2.5 rounded-xl transition cursor-pointer"
@@ -238,158 +291,251 @@ export default function PublicFormFiller({ formToken }) {
 
           {/* Preguntas Dinámicas */}
           <div className="space-y-6">
-            {(form.campos || []).map((f, index) => (
-              <div key={f.id} className="space-y-2 border-b border-slate-100 pb-5">
-                <label className="block text-xs font-extrabold text-slate-800 uppercase">
-                  {index + 1}. {f.label} {f.required && <span className="text-red-500">*</span>}
-                </label>
+            {(form.campos || []).map((f, index) => {
+              const isRepeater = f.type === 'repeater';
 
-                {f.type === 'text' && (
-                  <input
-                    type="text"
-                    required={f.required}
-                    value={fillAnswers[f.id] || ''}
-                    onChange={(e) => setFillAnswers({ ...fillAnswers, [f.id]: e.target.value })}
-                    placeholder="Escriba aquí..."
-                    className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
-                  />
-                )}
+              if (isRepeater) {
+                const instances = fillAnswers[f.id] || [{}];
 
-                {f.type === 'textarea' && (
-                  <textarea
-                    rows="3"
-                    required={f.required}
-                    value={fillAnswers[f.id] || ''}
-                    onChange={(e) => setFillAnswers({ ...fillAnswers, [f.id]: e.target.value })}
-                    placeholder="Escriba observaciones..."
-                    className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
-                  />
-                )}
+                return (
+                  <div key={f.id} className="space-y-4 border-2 border-amber-200 rounded-3xl p-5 bg-amber-50/20">
+                    <div className="flex justify-between items-center border-b border-amber-200 pb-2">
+                      <h4 className="text-xs font-black text-amber-900 uppercase">{index + 1}. {f.label}</h4>
+                      <span className="text-[10px] font-bold text-amber-700 uppercase bg-amber-100 px-2 py-0.5 rounded-full">
+                        {instances.length} registrados
+                      </span>
+                    </div>
 
-                {f.type === 'number' && (
-                  <input
-                    type="number"
-                    required={f.required}
-                    value={fillAnswers[f.id] || ''}
-                    onChange={(e) => setFillAnswers({ ...fillAnswers, [f.id]: e.target.value })}
-                    className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
-                  />
-                )}
+                    {instances.map((inst, instIdx) => (
+                      <div key={instIdx} className="bg-white border border-amber-200 rounded-2xl p-4 space-y-3 relative shadow-2xs">
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-1">
+                          <span className="text-[10px] font-extrabold text-amber-800 uppercase">
+                            #{instIdx + 1} {f.label}
+                          </span>
+                          {instances.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteRepeaterInstance(f.id, instIdx)}
+                              className="text-red-500 hover:bg-red-50 text-[10px] font-bold px-2 py-0.5 rounded"
+                            >
+                              Eliminar
+                            </button>
+                          )}
+                        </div>
 
-                {f.type === 'date' && (
-                  <input
-                    type="date"
-                    required={f.required}
-                    value={fillAnswers[f.id] || ''}
-                    onChange={(e) => setFillAnswers({ ...fillAnswers, [f.id]: e.target.value })}
-                    className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
-                  />
-                )}
+                        {(f.subFields || []).map((sub) => (
+                          <div key={sub.id} className="space-y-1">
+                            <label className="block text-[11px] font-bold text-slate-700 uppercase">
+                              {sub.label}
+                            </label>
 
-                {f.type === 'status_switch' && (
-                  <div className="flex gap-3">
-                    {['Cumple', 'No Cumple', 'N/A'].map((st) => (
-                      <button
-                        key={st}
-                        type="button"
-                        onClick={() => setFillAnswers({ ...fillAnswers, [f.id]: st })}
-                        className={`px-4 py-2 rounded-xl text-xs font-extrabold border transition cursor-pointer ${
-                          fillAnswers[f.id] === st
-                            ? st === 'Cumple' ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' :
-                              st === 'No Cumple' ? 'bg-red-650 text-white border-red-650 shadow-xs' : 'bg-slate-700 text-white border-slate-700 shadow-xs'
-                            : 'bg-slate-50 text-slate-700 border-slate-250'
-                        }`}
-                      >
-                        {st}
-                      </button>
+                            {sub.type === 'text' && (
+                              <input
+                                type="text"
+                                value={inst[sub.id] || ''}
+                                onChange={(e) => handleUpdateRepeaterAnswer(f.id, instIdx, sub.id, e.target.value)}
+                                placeholder="Escriba aquí..."
+                                className="w-full border border-slate-200 rounded-xl p-2 text-xs text-slate-800"
+                              />
+                            )}
+
+                            {sub.type === 'status_switch' && (
+                              <div className="flex gap-2">
+                                {['Cumple', 'No Cumple', 'N/A'].map(st => (
+                                  <button
+                                    key={st}
+                                    type="button"
+                                    onClick={() => handleUpdateRepeaterAnswer(f.id, instIdx, sub.id, st)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${
+                                      inst[sub.id] === st
+                                        ? st === 'Cumple' ? 'bg-emerald-600 text-white' :
+                                          st === 'No Cumple' ? 'bg-red-650 text-white' : 'bg-slate-700 text-white'
+                                        : 'bg-slate-50 text-slate-700 border-slate-200'
+                                    }`}
+                                  >
+                                    {st}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+
+                            {sub.type === 'signature' && (
+                              <div className="space-y-1">
+                                <div className="border border-slate-200 rounded-xl p-1 bg-slate-50">
+                                  <canvas
+                                    ref={el => { repeaterCanvasRefs.current[`${f.id}_instance_${instIdx}_${sub.id}`] = el; }}
+                                    width={450}
+                                    height={120}
+                                    onMouseDown={(e) => startDrawing(e, `${f.id}_instance_${instIdx}_${sub.id}`)}
+                                    onMouseMove={(e) => draw(e, `${f.id}_instance_${instIdx}_${sub.id}`)}
+                                    onMouseUp={() => stopDrawing(`${f.id}_instance_${instIdx}_${sub.id}`)}
+                                    onTouchStart={(e) => startDrawing(e, `${f.id}_instance_${instIdx}_${sub.id}`)}
+                                    onTouchMove={(e) => draw(e, `${f.id}_instance_${instIdx}_${sub.id}`)}
+                                    onTouchEnd={() => stopDrawing(`${f.id}_instance_${instIdx}_${sub.id}`)}
+                                    className="w-full h-28 bg-white rounded-lg touch-none cursor-crosshair"
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => clearSignature(`${f.id}_instance_${instIdx}_${sub.id}`)}
+                                  className="text-[10px] text-red-650 font-bold hover:underline"
+                                >
+                                  Limpiar Firma
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+
+                      </div>
                     ))}
-                  </div>
-                )}
 
-                {(f.type === 'radio' || f.type === 'checkbox') && (
-                  <div className="space-y-1.5 pl-2">
-                    {(f.options || []).map((opt, oIdx) => (
-                      <label key={oIdx} className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
-                        <input
-                          type={f.type === 'radio' ? 'radio' : 'checkbox'}
-                          name={f.id}
-                          checked={
-                            f.type === 'radio'
-                              ? fillAnswers[f.id] === opt
-                              : (fillAnswers[f.id] || []).includes(opt)
-                          }
-                          onChange={(e) => {
-                            if (f.type === 'radio') {
-                              setFillAnswers({ ...fillAnswers, [f.id]: opt });
-                            } else {
-                              const currentArr = fillAnswers[f.id] || [];
-                              const updated = e.target.checked
-                                ? [...currentArr, opt]
-                                : currentArr.filter(x => x !== opt);
-                              setFillAnswers({ ...fillAnswers, [f.id]: updated });
+                    <button
+                      type="button"
+                      onClick={() => handleAddRepeaterInstance(f.id)}
+                      className="w-full bg-amber-600 hover:bg-amber-700 text-white font-extrabold py-2.5 rounded-2xl text-xs transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>{f.buttonText || '+ Agregar Otro'}</span>
+                    </button>
+                  </div>
+                );
+              }
+
+              // CAMPOS ESTÁNDAR
+              return (
+                <div key={f.id} className="space-y-2 border-b border-slate-100 pb-5">
+                  <label className="block text-xs font-extrabold text-slate-800 uppercase">
+                    {index + 1}. {f.label} {f.required && <span className="text-red-500">*</span>}
+                  </label>
+
+                  {f.type === 'text' && (
+                    <input
+                      type="text"
+                      required={f.required}
+                      value={fillAnswers[f.id] || ''}
+                      onChange={(e) => setFillAnswers({ ...fillAnswers, [f.id]: e.target.value })}
+                      placeholder="Escriba aquí..."
+                      className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800"
+                    />
+                  )}
+
+                  {f.type === 'textarea' && (
+                    <textarea
+                      rows="3"
+                      required={f.required}
+                      value={fillAnswers[f.id] || ''}
+                      onChange={(e) => setFillAnswers({ ...fillAnswers, [f.id]: e.target.value })}
+                      placeholder="Escriba observaciones..."
+                      className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800"
+                    />
+                  )}
+
+                  {f.type === 'status_switch' && (
+                    <div className="flex gap-3">
+                      {['Cumple', 'No Cumple', 'N/A'].map((st) => (
+                        <button
+                          key={st}
+                          type="button"
+                          onClick={() => setFillAnswers({ ...fillAnswers, [f.id]: st })}
+                          className={`px-4 py-2 rounded-xl text-xs font-extrabold border transition cursor-pointer ${
+                            fillAnswers[f.id] === st
+                              ? st === 'Cumple' ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' :
+                                st === 'No Cumple' ? 'bg-red-650 text-white border-red-650 shadow-xs' : 'bg-slate-700 text-white border-slate-700 shadow-xs'
+                              : 'bg-slate-50 text-slate-700 border-slate-250'
+                          }`}
+                        >
+                          {st}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {(f.type === 'radio' || f.type === 'checkbox') && (
+                    <div className="space-y-1.5 pl-2">
+                      {(f.options || []).map((opt, oIdx) => (
+                        <label key={oIdx} className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                          <input
+                            type={f.type === 'radio' ? 'radio' : 'checkbox'}
+                            name={f.id}
+                            checked={
+                              f.type === 'radio'
+                                ? fillAnswers[f.id] === opt
+                                : (fillAnswers[f.id] || []).includes(opt)
                             }
-                          }}
-                          className="text-primary focus:ring-primary"
-                        />
-                        <span>{opt}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
+                            onChange={(e) => {
+                              if (f.type === 'radio') {
+                                setFillAnswers({ ...fillAnswers, [f.id]: opt });
+                              } else {
+                                const currentArr = fillAnswers[f.id] || [];
+                                const updated = e.target.checked
+                                  ? [...currentArr, opt]
+                                  : currentArr.filter(x => x !== opt);
+                                setFillAnswers({ ...fillAnswers, [f.id]: updated });
+                              }
+                            }}
+                            className="text-primary focus:ring-primary"
+                          />
+                          <span>{opt}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
 
-                {f.type === 'signature' && (
-                  <div className="space-y-2">
-                    <div className="border-2 border-slate-200 rounded-2xl p-1 bg-slate-50/50">
-                      <canvas
-                        ref={canvasRef}
-                        width={500}
-                        height={150}
-                        onMouseDown={startDrawing}
-                        onMouseMove={draw}
-                        onMouseUp={stopDrawing}
-                        onTouchStart={startDrawing}
-                        onTouchMove={draw}
-                        onTouchEnd={stopDrawing}
-                        className="w-full h-32 bg-white rounded-xl touch-none border border-slate-200 cursor-crosshair"
+                  {f.type === 'signature' && (
+                    <div className="space-y-2">
+                      <div className="border-2 border-slate-200 rounded-2xl p-1 bg-slate-50/50">
+                        <canvas
+                          ref={mainCanvasRef}
+                          width={500}
+                          height={150}
+                          onMouseDown={(e) => startDrawing(e, 'main')}
+                          onMouseMove={(e) => draw(e, 'main')}
+                          onMouseUp={() => stopDrawing('main')}
+                          onTouchStart={(e) => startDrawing(e, 'main')}
+                          onTouchMove={(e) => draw(e, 'main')}
+                          onTouchEnd={() => stopDrawing('main')}
+                          className="w-full h-32 bg-white rounded-xl touch-none border border-slate-200 cursor-crosshair"
+                        />
+                      </div>
+                      <div className="flex justify-between items-center text-[10px]">
+                        <span className="text-slate-450 font-bold">Dibuja tu firma en el recuadro con el dedo</span>
+                        <button
+                          type="button"
+                          onClick={() => clearSignature('main')}
+                          className="text-red-650 hover:underline font-bold"
+                        >
+                          Limpiar Firma
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {f.type === 'photo' && (
+                    <div className="border-2 border-dashed border-slate-200 rounded-2xl p-4 text-center bg-slate-50">
+                      <Camera className="w-6 h-6 text-slate-400 mx-auto mb-1" />
+                      <span className="text-xs font-bold text-slate-600 block">Cargar o Tomar Foto de Evidencia</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setFillAnswers({ ...fillAnswers, [f.id]: reader.result });
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        className="mt-2 text-xs text-slate-500 file:bg-primary file:text-white file:border-0 file:px-3 file:py-1 file:rounded-lg"
                       />
                     </div>
-                    <div className="flex justify-between items-center text-[10px]">
-                      <span className="text-slate-450 font-bold">Dibuja tu firma en el recuadro con el dedo</span>
-                      <button
-                        type="button"
-                        onClick={clearSignature}
-                        className="text-red-650 hover:underline font-bold"
-                      >
-                        Limpiar Firma
-                      </button>
-                    </div>
-                  </div>
-                )}
+                  )}
 
-                {f.type === 'photo' && (
-                  <div className="border-2 border-dashed border-slate-200 rounded-2xl p-4 text-center bg-slate-50">
-                    <Camera className="w-6 h-6 text-slate-400 mx-auto mb-1" />
-                    <span className="text-xs font-bold text-slate-600 block">Cargar o Tomar Foto de Evidencia</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onloadend = () => {
-                            setFillAnswers({ ...fillAnswers, [f.id]: reader.result });
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                      className="mt-2 text-xs text-slate-500 file:bg-primary file:text-white file:border-0 file:px-3 file:py-1 file:rounded-lg"
-                    />
-                  </div>
-                )}
-
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
 
           <button
