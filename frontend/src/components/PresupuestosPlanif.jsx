@@ -873,6 +873,9 @@ export default function PresupuestosPlanif({ user, onBack }) {
     });
 
     try {
+      if (selectedProyectoId) {
+        await fetchRecursos(selectedProyectoId);
+      }
       const { data, error } = await supabase
         .from('presupuestos_items_recursos')
         .select('*')

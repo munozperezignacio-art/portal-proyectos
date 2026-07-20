@@ -5,6 +5,7 @@ import Personal from './components/Personal';
 import Maquinaria from './components/Maquinaria';
 import ConfigCorreos from './components/ConfigCorreos';
 import PresupuestosPlanif from './components/PresupuestosPlanif';
+import Prevencion from './components/Prevencion';
 import { 
   LogOut, LayoutDashboard, Building2, Users, Truck, ShieldAlert, Settings, Info, Menu, X, Loader2,
   Layers, Handshake, Receipt, Coins, ClipboardCheck, Boxes, BadgeCheck,
@@ -547,6 +548,11 @@ function App() {
             }} />
           ) : currentModule === 'presupuestos' ? (
             <PresupuestosPlanif user={user} onBack={() => {
+              setSelectedObraName(null);
+              setCurrentModule('dashboard');
+            }} />
+          ) : currentModule === 'prevencion' ? (
+            <Prevencion user={user} onBack={() => {
               setSelectedObraName(null);
               setCurrentModule('dashboard');
             }} />
