@@ -4,7 +4,7 @@ import {
   ArrowLeft, FileSpreadsheet, Calendar, Plus, Save, Trash2, 
   Upload, Check, AlertCircle, RefreshCw, ChevronRight, CalendarDays,
   FolderPlus, DollarSign, Hammer, Briefcase, FileText, MapPin, Clock, ChevronLeft,
-  Settings, Percent, Coins, Sliders, Info
+  Settings, Percent, Coins, Sliders, Info, Store, Building2
 } from 'lucide-react';
 import { comunasChile } from '../utils/comunas';
 
@@ -55,12 +55,24 @@ export default function PresupuestosPlanif({ user, onBack }) {
   const [indirectLoading, setIndirectLoading] = useState(false);
   const [showIndirectModal, setShowIndirectModal] = useState(false);
 
-  // Estados de APU (Análisis de Precios Unitarios)
+  // Estados de APU / Análisis de Partida
   const [showApuModal, setShowApuModal] = useState(false);
   const [apuItem, setApuItem] = useState(null);
   const [apuResources, setApuResources] = useState([]);
   const [apuLoading, setApuLoading] = useState(false);
   const [selectedAddResourceId, setSelectedAddResourceId] = useState('');
+  
+  // Tab interna para añadir recursos en APU: 'existente' o 'nuevo'
+  const [addResourceMode, setAddResourceMode] = useState('existente');
+  const [newResourceForm, setNewResourceForm] = useState({
+    recurso: '',
+    tipo: 'Material',
+    unidad: 'un',
+    costo_unitario: '',
+    ciudad: '',
+    proveedor: ''
+  });
+
   const [apuForm, setApuForm] = useState({
     tipo_metodologia: 'Precio Unitario',
     leyes_sociales_pct: 0,
@@ -588,7 +600,9 @@ export default function PresupuestosPlanif({ user, onBack }) {
       tipo: 'Material',
       unidad: 'un',
       costo_unitario: 0,
-      cantidad_estimada: 0
+      cantidad_estimada: 0,
+      ciudad: '',
+      proveedor: ''
     };
     setRecursos([...recursos, newRow]);
   };
@@ -648,7 +662,9 @@ export default function PresupuestosPlanif({ user, onBack }) {
             tipo: item.tipo,
             unidad: item.unidad,
             costo_unitario: parseFloat(item.costo_unitario) || 0,
-            cantidad_estimada: parseFloat(item.cantidad_estimada) || 0
+            cantidad_estimada: parseFloat(item.cantidad_estimada) || 0,
+            ciudad: item.ciudad,
+            proveedor: item.proveedor
           })
           .eq('id', item.id);
         if (updErr) throw updErr;
@@ -792,7 +808,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
 
   // Helpers de Formato
   const formatCLP = (num) => {
-    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(num);
+    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(num || 0);
   };
 
   // Encontrar el proyecto activo actual
@@ -834,7 +850,16 @@ export default function PresupuestosPlanif({ user, onBack }) {
     setApuItem(item);
     setApuLoading(true);
     setShowApuModal(true);
-    
+    setAddResourceMode('existente');
+    setNewResourceForm({
+      recurso: '',
+      tipo: 'Material',
+      unidad: 'un',
+      costo_unitario: '',
+      ciudad: '',
+      proveedor: ''
+    });
+
     // Rellenar formulario APU
     setApuForm({
       tipo_metodologia: item.tipo_metodologia || 'Precio Unitario',
@@ -880,6 +905,64 @@ export default function PresupuestosPlanif({ user, onBack }) {
     setSelectedAddResourceId('');
   };
 
+  // CREACIÓN RÁPIDA DE RECURSO CON CIUDAD Y PROVEEDOR
+  const handleCreateAndLinkNewResource = async (e) => {
+    e.preventDefault();
+    if (!newResourceForm.recurso.trim() || !selectedProyectoId) return;
+    setApuLoading(true);
+
+    try {
+      const { data, error } = await supabase
+        .from('recursos_presupuesto')
+        .insert([
+          {
+            presupuesto_id: selectedProyectoId,
+            recurso: newResourceForm.recurso.trim(),
+            tipo: newResourceForm.tipo,
+            unidad: newResourceForm.unidad.trim() || 'un',
+            costo_unitario: parseFloat(newResourceForm.costo_unitario) || 0,
+            cantidad_estimada: 1,
+            ciudad: newResourceForm.ciudad,
+            proveedor: newResourceForm.proveedor.trim()
+          }
+        ])
+        .select();
+
+      if (error) throw error;
+
+      // Recargar la lista global de recursos del proyecto
+      await fetchRecursos(selectedProyectoId);
+
+      if (data && data.length > 0) {
+        const createdRes = data[0];
+        // Vincular de inmediato al APU de la partida
+        const newLink = {
+          id: 'temp-apu-' + Date.now() + Math.random(),
+          item_id: apuItem.id,
+          recurso_id: createdRes.id,
+          cantidad_unidad: 1,
+          rendimiento: 1
+        };
+        setApuResources([...apuResources, newLink]);
+      }
+
+      setNewResourceForm({
+        recurso: '',
+        tipo: 'Material',
+        unidad: 'un',
+        costo_unitario: '',
+        ciudad: '',
+        proveedor: ''
+      });
+      setAddResourceMode('existente');
+      setSuccessMsg('Nuevo recurso registrado y vinculado al presupuesto.');
+    } catch (err) {
+      alert('Error creando recurso: ' + err.message);
+    } finally {
+      setApuLoading(false);
+    }
+  };
+
   const handleUpdateApuResourceField = (id, field, value) => {
     setApuResources(prev => prev.map(item => {
       if (item.id === id) {
@@ -893,12 +976,30 @@ export default function PresupuestosPlanif({ user, onBack }) {
     setApuResources(prev => prev.filter(r => r.id !== id));
   };
 
+  // CÁLCULO DE COSTO UNITARIO / ARRIENDO DE LA PARTIDA
   const calculateApuCost = () => {
     if (apuForm.tipo_metodologia === 'Costo-Tiempo') {
-      return (parseFloat(apuForm.costo_materiales) || 0) + 
-             (parseFloat(apuForm.costo_mano_obra) || 0) + 
-             (parseFloat(apuForm.costo_maquinaria) || 0);
+      // Costo-Tiempo: Cobro por tiempo (arriendo/tarifa).
+      // Se suman los costos directos de recursos sin factor de rendimiento.
+      let totalTimeCost = 0;
+      apuResources.forEach(link => {
+        const res = recursos.find(r => r.id === link.recurso_id);
+        if (res) {
+          const qty = parseFloat(link.cantidad_unidad) || 0;
+          const cost = parseFloat(res.costo_unitario) || 0;
+          totalTimeCost += cost * qty;
+        }
+      });
+
+      // Si además ingresaron montos directos manuales:
+      const manualCost = (parseFloat(apuForm.costo_materiales) || 0) + 
+                         (parseFloat(apuForm.costo_mano_obra) || 0) + 
+                         (parseFloat(apuForm.costo_maquinaria) || 0);
+      
+      return totalTimeCost + manualCost;
     } else {
+      // Precio Unitario (APU): Cobra por cantidad de obra.
+      // El precio es factor de rendimiento.
       let matSum = 0;
       let laborSum = 0;
       let machSum = 0;
@@ -930,7 +1031,6 @@ export default function PresupuestosPlanif({ user, onBack }) {
     try {
       const finalUnitCost = calculateApuCost();
       
-      // Auto-calcular tiempo si es Costo-Tiempo
       let autoTiempo = apuForm.tiempo_estimado;
       if (apuForm.tipo_metodologia === 'Costo-Tiempo' && apuForm.rendimiento_meta > 0) {
         autoTiempo = (parseFloat(apuItem.cantidad) || 0) / parseFloat(apuForm.rendimiento_meta);
@@ -953,59 +1053,51 @@ export default function PresupuestosPlanif({ user, onBack }) {
         .eq('id', apuItem.id);
       if (itemErr) throw itemErr;
 
-      // 2. Guardar recursos vinculados (APU)
-      if (apuForm.tipo_metodologia === 'Precio Unitario') {
-        const toUpdate = apuResources.filter(r => typeof r.id === 'number');
-        const toInsert = apuResources
-          .filter(r => typeof r.id === 'string' && r.id.startsWith('temp-apu-'))
-          .map(r => ({
-            item_id: apuItem.id,
-            recurso_id: r.recurso_id,
-            cantidad_unidad: parseFloat(r.cantidad_unidad) || 0,
-            rendimiento: parseFloat(r.rendimiento) || 1
-          }));
+      // 2. Guardar recursos vinculados
+      const toUpdate = apuResources.filter(r => typeof r.id === 'number');
+      const toInsert = apuResources
+        .filter(r => typeof r.id === 'string' && r.id.startsWith('temp-apu-'))
+        .map(r => ({
+          item_id: apuItem.id,
+          recurso_id: r.recurso_id,
+          cantidad_unidad: parseFloat(r.cantidad_unidad) || 0,
+          rendimiento: apuForm.tipo_metodologia === 'Costo-Tiempo' ? 1 : (parseFloat(r.rendimiento) || 1)
+        }));
 
-        const { data: dbCurrent, error: dbErr } = await supabase
-          .from('presupuestos_items_recursos')
-          .select('id')
-          .eq('item_id', apuItem.id);
-        if (dbErr) throw dbErr;
+      const { data: dbCurrent, error: dbErr } = await supabase
+        .from('presupuestos_items_recursos')
+        .select('id')
+        .eq('item_id', apuItem.id);
+      if (dbErr) throw dbErr;
 
-        const dbIds = (dbCurrent || []).map(x => x.id);
-        const keepIds = toUpdate.map(x => x.id);
-        const toDeleteIds = dbIds.filter(id => !keepIds.includes(id));
+      const dbIds = (dbCurrent || []).map(x => x.id);
+      const keepIds = toUpdate.map(x => x.id);
+      const toDeleteIds = dbIds.filter(id => !keepIds.includes(id));
 
-        if (toDeleteIds.length > 0) {
-          const { error: delErr } = await supabase
-            .from('presupuestos_items_recursos')
-            .delete()
-            .in('id', toDeleteIds);
-          if (delErr) throw delErr;
-        }
-
-        for (const item of toUpdate) {
-          const { error: updErr } = await supabase
-            .from('presupuestos_items_recursos')
-            .update({
-              cantidad_unidad: parseFloat(item.cantidad_unidad) || 0,
-              rendimiento: parseFloat(item.rendimiento) || 1
-            })
-            .eq('id', item.id);
-          if (updErr) throw updErr;
-        }
-
-        if (toInsert.length > 0) {
-          const { error: insErr } = await supabase
-            .from('presupuestos_items_recursos')
-            .insert(toInsert);
-          if (insErr) throw insErr;
-        }
-      } else {
-        // Si cambia a costo-tiempo, eliminamos los vínculos de recursos
-        await supabase
+      if (toDeleteIds.length > 0) {
+        const { error: delErr } = await supabase
           .from('presupuestos_items_recursos')
           .delete()
-          .eq('item_id', apuItem.id);
+          .in('id', toDeleteIds);
+        if (delErr) throw delErr;
+      }
+
+      for (const item of toUpdate) {
+        const { error: updErr } = await supabase
+          .from('presupuestos_items_recursos')
+          .update({
+            cantidad_unidad: parseFloat(item.cantidad_unidad) || 0,
+            rendimiento: apuForm.tipo_metodologia === 'Costo-Tiempo' ? 1 : (parseFloat(item.rendimiento) || 1)
+          })
+          .eq('id', item.id);
+        if (updErr) throw updErr;
+      }
+
+      if (toInsert.length > 0) {
+        const { error: insErr } = await supabase
+          .from('presupuestos_items_recursos')
+          .insert(toInsert);
+        if (insErr) throw insErr;
       }
 
       setSuccessMsg('Análisis de partida guardado correctamente.');
@@ -1191,7 +1283,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                       Crear Presupuesto
                     </h3>
                     <p className="text-xs text-slate-500 leading-normal">
-                      Estructura y edita en línea el listado de partidas, unidades, cantidades y precios unitarios. Soporta capítulos auto-calculados.
+                      Estructura y edita la planilla de partidas bajo metodologías de Precio Unitario (con rendimientos) o Costo-Tiempo (arriendos).
                     </p>
                   </div>
                 </div>
@@ -1245,7 +1337,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                       Recursos
                     </h3>
                     <p className="text-xs text-slate-500 leading-normal">
-                      Controla y desglosa los insumos necesarios para el proyecto clasificados en Materiales, Mano de Obra y Maquinaria.
+                      Controla y desglosa los insumos necesarios para el proyecto clasificados con su Comuna/Ciudad y Proveedor.
                     </p>
                   </div>
                 </div>
@@ -1333,12 +1425,11 @@ export default function PresupuestosPlanif({ user, onBack }) {
                               <th className="p-3.5 w-24">Código</th>
                               <th className="p-3.5">Concepto / Partida</th>
                               <th className="p-3.5 w-20">Unidad</th>
-                              <th className="p-3.5 w-24">Cantidad</th>
-                              <th className="p-3.5 w-28">Precio Unit. ($)</th>
-                              <th className="p-3.5 w-32">Importe ($)</th>
-                              <th className="p-3.5 w-24">Rend. Meta</th>
-                              <th className="p-3.5 w-28 text-center">Método</th>
-                              <th className="p-3.5 w-28 text-center"></th>
+                              <th className="p-3.5 w-28">Cant. / Tiempo</th>
+                              <th className="p-3.5 w-32">Precio / Tarifa ($)</th>
+                              <th className="p-3.5 w-36">Importe ($)</th>
+                              <th className="p-3.5 w-36 text-center">Metodología</th>
+                              <th className="p-3.5 w-24 text-center">Acciones</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-150">
@@ -1348,11 +1439,12 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                 ? getChapterSum(item.codigo, itemsPresupuesto)
                                 : (parseFloat(item.cantidad) || 0) * (parseFloat(item.costo_unitario) || 0);
                               const isIndent = item.codigo && item.codigo.includes('.');
+                              const isCostoTiempo = item.tipo_metodologia === 'Costo-Tiempo';
 
                               return (
                                 <tr 
                                   key={item.id}
-                                  className={`transition ${isChapter ? 'bg-slate-50/70 font-bold' : 'hover:bg-slate-50/35'}`}
+                                  className={`transition ${isChapter ? 'bg-slate-100/80 font-bold' : 'hover:bg-slate-50/40'}`}
                                 >
                                   <td className="p-2">
                                     <input
@@ -1381,7 +1473,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                         type="text"
                                         value={item.unidad || ''}
                                         onChange={(e) => handleUpdateBudgetField(item.id, 'unidad', e.target.value)}
-                                        placeholder="m3"
+                                        placeholder={isCostoTiempo ? 'días' : 'm3'}
                                         className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-600 text-center uppercase"
                                       />
                                     )}
@@ -1406,31 +1498,22 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                         value={item.costo_unitario ?? ''}
                                         onChange={(e) => handleUpdateBudgetField(item.id, 'costo_unitario', e.target.value)}
                                         placeholder="0"
-                                        disabled={item.tipo_metodologia === 'Precio Unitario' && typeof item.id === 'number'}
-                                        className={`w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs font-semibold ${item.tipo_metodologia === 'Precio Unitario' && typeof item.id === 'number' ? 'text-slate-500 cursor-not-allowed bg-slate-50/50' : 'text-slate-700'}`}
+                                        disabled={typeof item.id === 'number'}
+                                        className={`w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs font-semibold ${typeof item.id === 'number' ? 'text-slate-500 cursor-not-allowed bg-slate-50/50' : 'text-slate-700'}`}
                                       />
                                     )}
                                   </td>
                                   <td className="p-3.5 font-bold text-slate-800">
                                     {formatCLP(importeVal)}
                                   </td>
-                                  <td className="p-2">
-                                    {!isChapter && (
-                                      <input
-                                        type="number"
-                                        step="any"
-                                        value={item.rendimiento_meta ?? ''}
-                                        onChange={(e) => handleUpdateBudgetField(item.id, 'rendimiento_meta', e.target.value)}
-                                        placeholder="0"
-                                        disabled={item.tipo_metodologia === 'Precio Unitario' && typeof item.id === 'number'}
-                                        className={`w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs ${item.tipo_metodologia === 'Precio Unitario' && typeof item.id === 'number' ? 'text-slate-500 cursor-not-allowed' : 'text-slate-650'}`}
-                                      />
-                                    )}
-                                  </td>
                                   <td className="p-2 text-center">
                                     {!isChapter && (
-                                      <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded border uppercase">
-                                        {item.tipo_metodologia || 'Precio Unitario'}
+                                      <span className={`inline-flex items-center gap-1 text-[9.5px] font-extrabold px-2.5 py-1 rounded-full border uppercase ${
+                                        isCostoTiempo 
+                                          ? 'bg-purple-50 text-purple-700 border-purple-200' 
+                                          : 'bg-blue-50 text-blue-700 border-blue-200'
+                                      }`}>
+                                        {isCostoTiempo ? 'Costo-Tiempo' : 'Precio Unitario'}
                                       </span>
                                     )}
                                   </td>
@@ -1439,17 +1522,17 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                       {!isChapter && (
                                         <button
                                           onClick={() => openApuModal(item)}
-                                          className="p-1.5 text-primary hover:bg-primary/5 rounded-lg transition"
-                                          title="Análisis de Partida (APU)"
+                                          className="p-1.5 text-primary hover:bg-primary/10 rounded-lg transition"
+                                          title="Análisis de Partida / Recursos"
                                         >
-                                          <Settings className="w-3.5 h-3.5" />
+                                          <Settings className="w-4 h-4" />
                                         </button>
                                       )}
                                       <button
                                         onClick={() => handleDeleteBudgetRow(item.id)}
                                         className="p-1.5 text-red-650 hover:bg-red-50 rounded-lg transition"
                                       >
-                                        <Trash2 className="w-3.5 h-3.5" />
+                                        <Trash2 className="w-4 h-4" />
                                       </button>
                                     </div>
                                   </td>
@@ -1463,7 +1546,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                 <tr className="bg-slate-50/50 font-bold border-t-2 border-slate-300">
                                   <td colSpan="5" className="p-3.5 text-right uppercase text-[10px] text-slate-500 font-extrabold tracking-wider">Costo Directo Total:</td>
                                   <td className="p-3.5 text-slate-850 font-black text-sm">{formatCLP(totalDirectCost)}</td>
-                                  <td colSpan="3"></td>
+                                  <td colSpan="2"></td>
                                 </tr>
                                 
                                 {indirectCosts.map((cost) => {
@@ -1474,7 +1557,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                         {cost.concepto} ({cost.tipo === 'Porcentaje' ? `${cost.valor}%` : 'Monto Fijo'}):
                                       </td>
                                       <td className="p-3 text-slate-800 font-bold">{formatCLP(costVal)}</td>
-                                      <td colSpan="3"></td>
+                                      <td colSpan="2"></td>
                                     </tr>
                                   );
                                 })}
@@ -1482,7 +1565,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                 <tr className="bg-slate-100 font-black border-t-2 border-slate-400">
                                   <td colSpan="5" className="p-3.5 text-right uppercase text-xs text-slate-700 tracking-wider">Total General del Presupuesto:</td>
                                   <td className="p-3.5 text-primary font-black text-base">{formatCLP(totalProjectCost)}</td>
-                                  <td colSpan="3"></td>
+                                  <td colSpan="2"></td>
                                 </tr>
                               </>
                             )}
@@ -1813,11 +1896,13 @@ export default function PresupuestosPlanif({ user, onBack }) {
                             <tr className="bg-slate-50 border-b border-slate-200 text-slate-650 font-bold text-[9px] uppercase tracking-wider select-none">
                               <th className="p-3.5">Nombre Recurso</th>
                               <th className="p-3.5 w-32">Tipo</th>
-                              <th className="p-3.5 w-24">Unidad</th>
-                              <th className="p-3.5 w-32">Costo Unit. ($)</th>
-                              <th className="p-3.5 w-32">Cant. Estimada</th>
-                              <th className="p-3.5 w-36">Costo Total ($)</th>
-                              <th className="p-3.5 w-16 text-center"></th>
+                              <th className="p-3.5 w-20">Unidad</th>
+                              <th className="p-3.5 w-28">Costo Unit. ($)</th>
+                              <th className="p-3.5 w-24">Cant. Est.</th>
+                              <th className="p-3.5 w-36">Comuna / Ciudad</th>
+                              <th className="p-3.5 w-36">Proveedor</th>
+                              <th className="p-3.5 w-32">Costo Total ($)</th>
+                              <th className="p-3.5 w-14 text-center"></th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-150">
@@ -1872,7 +1957,28 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                       value={item.cantidad_estimada ?? ''}
                                       onChange={(e) => handleUpdateResourceField(item.id, 'cantidad_estimada', e.target.value)}
                                       placeholder="0"
-                                      className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-700 font-semibold"
+                                      className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-700 font-semibold text-center"
+                                    />
+                                  </td>
+                                  <td className="p-2">
+                                    <select
+                                      value={item.ciudad || ''}
+                                      onChange={(e) => handleUpdateResourceField(item.id, 'ciudad', e.target.value)}
+                                      className="w-full border-0 bg-transparent focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-700 uppercase"
+                                    >
+                                      <option value="">Seleccione Ciudad...</option>
+                                      {comunasChile.map((c, idx) => (
+                                        <option key={idx} value={c}>{c}</option>
+                                      ))}
+                                    </select>
+                                  </td>
+                                  <td className="p-2">
+                                    <input
+                                      type="text"
+                                      value={item.proveedor || ''}
+                                      onChange={(e) => handleUpdateResourceField(item.id, 'proveedor', e.target.value)}
+                                      placeholder="ej: Sodimac"
+                                      className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-700 uppercase"
                                     />
                                   </td>
                                   <td className="p-3.5 font-bold text-slate-800">
@@ -2000,27 +2106,27 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                               } catch (err) {
                                                 setErrorMsg('Error al eliminar: ' + err.message);
                                               }
-                                        }
-                                      }}
-                                      className="p-1.5 text-red-650 hover:bg-red-50 rounded-lg transition cursor-pointer"
-                                      title="Eliminar Proyecto"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                                            }
+                                          }}
+                                          className="p-1.5 text-red-650 hover:bg-red-50 rounded-lg transition cursor-pointer"
+                                          title="Eliminar Proyecto"
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             )}
-          </div>
-          )}
           </>
         )}
 
@@ -2034,9 +2140,9 @@ export default function PresupuestosPlanif({ user, onBack }) {
               <div>
                 <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
                   <Settings className="w-4.5 h-4.5 text-primary" />
-                  <span>Análisis Unitario de Partida</span>
+                  <span>Análisis de Partida: {apuItem.partida}</span>
                 </h3>
-                <p className="text-[10px] text-slate-500 font-bold uppercase mt-1">Partida: {apuItem.codigo} - {apuItem.partida}</p>
+                <p className="text-[10px] text-slate-500 font-bold uppercase mt-1">Código: {apuItem.codigo || 'S/N'}</p>
               </div>
               <button 
                 onClick={() => setShowApuModal(false)} 
@@ -2052,11 +2158,11 @@ export default function PresupuestosPlanif({ user, onBack }) {
                 <p className="text-xs font-black text-slate-700 uppercase">{apuItem.unidad || 'Sin unidad'}</p>
               </div>
               <div>
-                <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Cantidad de Obra</span>
+                <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Cantidad de Obra / Tiempo</span>
                 <p className="text-xs font-black text-slate-700">{apuItem.cantidad || 0}</p>
               </div>
               <div>
-                <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Costo Unitario Resultante</span>
+                <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Precio / Tarifa Resultante</span>
                 <p className="text-sm font-black text-primary">{formatCLP(calculateApuCost())}</p>
               </div>
             </div>
@@ -2065,9 +2171,11 @@ export default function PresupuestosPlanif({ user, onBack }) {
               
               {/* Selección de Metodología */}
               <div>
-                <span className="block text-[9px] font-bold uppercase text-slate-450 mb-2">Metodología de Análisis</span>
-                <div className="flex gap-4">
-                  <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                <span className="block text-[9px] font-bold uppercase text-slate-450 mb-2">Metodología de Presupuestación</span>
+                <div className="flex flex-wrap gap-4">
+                  <label className={`flex items-center gap-2 text-xs font-bold px-4 py-2.5 rounded-xl border cursor-pointer transition ${
+                    apuForm.tipo_metodologia === 'Precio Unitario' ? 'bg-blue-50 text-blue-700 border-blue-300 shadow-xs' : 'bg-slate-50 text-slate-600 border-slate-200'
+                  }`}>
                     <input
                       type="radio"
                       name="tipo_metodologia"
@@ -2076,9 +2184,11 @@ export default function PresupuestosPlanif({ user, onBack }) {
                       onChange={(e) => setApuForm({ ...apuForm, tipo_metodologia: e.target.value })}
                       className="text-primary focus:ring-primary w-4 h-4"
                     />
-                    <span>Precio Unitario (APU Desglosado)</span>
+                    <span>Precio Unitario (Cobra por Cantidad + Factor Rendimiento)</span>
                   </label>
-                  <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                  <label className={`flex items-center gap-2 text-xs font-bold px-4 py-2.5 rounded-xl border cursor-pointer transition ${
+                    apuForm.tipo_metodologia === 'Costo-Tiempo' ? 'bg-purple-50 text-purple-700 border-purple-300 shadow-xs' : 'bg-slate-50 text-slate-600 border-slate-200'
+                  }`}>
                     <input
                       type="radio"
                       name="tipo_metodologia"
@@ -2087,81 +2197,38 @@ export default function PresupuestosPlanif({ user, onBack }) {
                       onChange={(e) => setApuForm({ ...apuForm, tipo_metodologia: e.target.value })}
                       className="text-primary focus:ring-primary w-4 h-4"
                     />
-                    <span>Costo-Tiempo</span>
+                    <span>Costo-Tiempo (Arriendo / Tarifa por Tiempo sin Rendimiento)</span>
                   </label>
                 </div>
               </div>
 
-              {/* METODOLOGÍA: COSTO-TIEMPO */}
-              {apuForm.tipo_metodologia === 'Costo-Tiempo' && (
-                <div className="space-y-4 p-4 border border-slate-200 rounded-2xl animate-in fade-in duration-150">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Rendimiento Meta (Unidades / Día)</label>
-                      <input
-                        type="number"
-                        value={apuForm.rendimiento_meta || ''}
-                        onChange={(e) => setApuForm({ ...apuForm, rendimiento_meta: parseFloat(e.target.value) || 0 })}
-                        placeholder="ej: 10"
-                        className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 focus:outline-none focus:border-primary"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">Tiempo Estimado de Ejecución</label>
-                      <div className="bg-slate-100 p-2 rounded-lg text-xs font-extrabold text-slate-700 border border-slate-200 h-9 flex items-center">
-                        {apuForm.rendimiento_meta > 0 
-                          ? `${((parseFloat(apuItem.cantidad) || 0) / apuForm.rendimiento_meta).toFixed(1)} Días`
-                          : 'Indique rendimiento meta para calcular'}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="border-t border-slate-100 pt-3">
-                    <span className="block text-[9px] font-bold uppercase text-slate-450 mb-2">Desglose de Costos Unitarios Directos ($)</span>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">Costo Materiales</label>
-                        <input
-                          type="number"
-                          value={apuForm.costo_materiales || ''}
-                          onChange={(e) => setApuForm({ ...apuForm, costo_materiales: parseFloat(e.target.value) || 0 })}
-                          placeholder="0"
-                          className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 focus:outline-none focus:border-primary"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">Costo Mano de Obra</label>
-                        <input
-                          type="number"
-                          value={apuForm.costo_mano_obra || ''}
-                          onChange={(e) => setApuForm({ ...apuForm, costo_mano_obra: parseFloat(e.target.value) || 0 })}
-                          placeholder="0"
-                          className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 focus:outline-none focus:border-primary"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">Costo Maquinaria</label>
-                        <input
-                          type="number"
-                          value={apuForm.costo_maquinaria || ''}
-                          onChange={(e) => setApuForm({ ...apuForm, costo_maquinaria: parseFloat(e.target.value) || 0 })}
-                          placeholder="0"
-                          className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 focus:outline-none focus:border-primary"
-                        />
-                      </div>
-                    </div>
+              {/* MODO ADICIÓN DE RECURSOS (SELECCIONAR O CREAR AL INSTANTE) */}
+              <div className="bg-slate-50 p-4 border border-slate-200 rounded-2xl space-y-3">
+                <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                  <span className="text-[10px] font-extrabold uppercase text-slate-700 tracking-wider">Insumos y Recursos de la Partida</span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAddResourceMode('existente')}
+                      className={`text-[10px] font-extrabold px-3 py-1 rounded-lg transition ${addResourceMode === 'existente' ? 'bg-white text-primary shadow-xs border border-slate-200' : 'text-slate-500'}`}
+                    >
+                      Seleccionar Existente
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAddResourceMode('nuevo')}
+                      className={`text-[10px] font-extrabold px-3 py-1 rounded-lg transition ${addResourceMode === 'nuevo' ? 'bg-primary text-white shadow-xs' : 'text-slate-500'}`}
+                    >
+                      ➕ Crear Nuevo Recurso
+                    </button>
                   </div>
                 </div>
-              )}
 
-              {/* METODOLOGÍA: PRECIO UNITARIO (APU) */}
-              {apuForm.tipo_metodologia === 'Precio Unitario' && (
-                <div className="space-y-4 animate-in fade-in duration-150">
-                  
-                  {/* Selector para añadir recurso */}
-                  <div className="flex flex-col sm:flex-row items-end gap-3 bg-slate-50 p-4 border border-slate-200 rounded-2xl">
+                {/* OPCIÓN 1: SELECCIONAR EXISTENTE */}
+                {addResourceMode === 'existente' && (
+                  <div className="flex flex-col sm:flex-row items-end gap-3 pt-1">
                     <div className="flex-1">
-                      <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Asociar Insumo del Catálogo</label>
+                      <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Catálogo de Recursos del Proyecto</label>
                       <select
                         value={selectedAddResourceId}
                         onChange={(e) => setSelectedAddResourceId(e.target.value)}
@@ -2169,124 +2236,226 @@ export default function PresupuestosPlanif({ user, onBack }) {
                       >
                         <option value="">Selecciona un Recurso...</option>
                         {recursos.map(r => (
-                          <option key={r.id} value={r.id}>{r.recurso} [{r.tipo}] - {formatCLP(r.costo_unitario)} / {r.unidad}</option>
+                          <option key={r.id} value={r.id}>
+                            {r.recurso} [{r.tipo}] - {formatCLP(r.costo_unitario)} / {r.unidad} {r.ciudad ? `(${r.ciudad})` : ''} {r.proveedor ? `- Prov: ${r.proveedor}` : ''}
+                          </option>
                         ))}
                       </select>
                     </div>
                     <button
                       type="button"
                       onClick={handleAddResourceToApu}
-                      className="bg-primary text-white text-xs font-bold px-4 py-2.5 rounded-lg hover:bg-primary-hover transition cursor-pointer"
+                      className="bg-primary text-white text-xs font-bold px-4 py-2 rounded-lg hover:bg-primary-hover transition cursor-pointer shrink-0"
                     >
-                      Asignar al APU
+                      Vincular Recurso
                     </button>
                   </div>
+                )}
 
-                  {/* Tabla de análisis */}
-                  <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-655 font-bold text-[9px] uppercase tracking-wider select-none">
-                          <th className="p-3">Recurso / Insumo</th>
-                          <th className="p-3 w-28">Clasificación</th>
-                          <th className="p-3 w-20 text-center">Unidad</th>
-                          <th className="p-3 w-28 text-right">Costo Unit.</th>
-                          <th className="p-3 w-28 text-center">Consumo Unit.</th>
-                          <th className="p-3 w-28 text-center">Rend. / Coef</th>
-                          <th className="p-3 w-32 text-right">Subtotal</th>
-                          <th className="p-3 w-12 text-center"></th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-150">
-                        {apuResources.map((link) => {
-                          const res = recursos.find(r => r.id === link.recurso_id);
-                          if (!res) return null;
-                          const sub = (parseFloat(res.costo_unitario) || 0) * (parseFloat(link.cantidad_unidad) || 0) * (parseFloat(link.rendimiento) || 1);
+                {/* OPCIÓN 2: CREAR NUEVO RECURSO DESDE PRESUPUESTO */}
+                {addResourceMode === 'nuevo' && (
+                  <form onSubmit={handleCreateAndLinkNewResource} className="space-y-3 pt-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Nombre Recurso / Insumo *</label>
+                        <input
+                          type="text"
+                          required
+                          value={newResourceForm.recurso}
+                          onChange={(e) => setNewResourceForm({ ...newResourceForm, recurso: e.target.value })}
+                          placeholder="ej: Arriendo Retroexcavadora CAT"
+                          className="w-full border border-slate-200 rounded-lg p-1.5 text-xs text-slate-800 focus:outline-none focus:border-primary uppercase bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Tipo de Recurso</label>
+                        <select
+                          value={newResourceForm.tipo}
+                          onChange={(e) => setNewResourceForm({ ...newResourceForm, tipo: e.target.value })}
+                          className="w-full border border-slate-200 rounded-lg p-1.5 text-xs text-slate-700 bg-white"
+                        >
+                          <option value="Material">Material</option>
+                          <option value="Mano de Obra">Mano de Obra</option>
+                          <option value="Maquinaria">Maquinaria</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Unidad de Medida / Tiempo</label>
+                        <input
+                          type="text"
+                          value={newResourceForm.unidad}
+                          onChange={(e) => setNewResourceForm({ ...newResourceForm, unidad: e.target.value })}
+                          placeholder="ej: día, mes, m3"
+                          className="w-full border border-slate-200 rounded-lg p-1.5 text-xs text-slate-800 uppercase bg-white"
+                        />
+                      </div>
+                    </div>
 
-                          return (
-                            <tr key={link.id} className="hover:bg-slate-50/50 transition">
-                              <td className="p-2 font-bold text-slate-800 uppercase">{res.recurso}</td>
-                              <td className="p-2">
-                                <span className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${
-                                  res.tipo === 'Material' ? 'bg-blue-50 text-blue-700' :
-                                  res.tipo === 'Mano de Obra' ? 'bg-amber-50 text-amber-700' : 'bg-purple-50 text-purple-700'
-                                }`}>
-                                  {res.tipo}
-                                </span>
-                              </td>
-                              <td className="p-2 text-center uppercase text-slate-500 font-semibold">{res.unidad}</td>
-                              <td className="p-2 text-right font-medium text-slate-700">{formatCLP(res.costo_unitario)}</td>
-                              <td className="p-2">
-                                <input
-                                  type="number"
-                                  step="any"
-                                  value={link.cantidad_unidad ?? ''}
-                                  onChange={(e) => handleUpdateApuResourceField(link.id, 'cantidad_unidad', e.target.value)}
-                                  className="w-full bg-slate-50 border border-slate-200 rounded p-1 text-center text-xs text-slate-800"
-                                />
-                              </td>
-                              <td className="p-2">
-                                <input
-                                  type="number"
-                                  step="any"
-                                  value={link.rendimiento ?? ''}
-                                  onChange={(e) => handleUpdateApuResourceField(link.id, 'rendimiento', e.target.value)}
-                                  className="w-full bg-slate-50 border border-slate-200 rounded p-1 text-center text-xs text-slate-800"
-                                />
-                              </td>
-                              <td className="p-3.5 text-right font-bold text-slate-800">{formatCLP(sub)}</td>
-                              <td className="p-2 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteApuResource(link.id)}
-                                  className="p-1 text-red-655 hover:bg-red-50 rounded"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Costo / Tarifa ($) *</label>
+                        <input
+                          type="number"
+                          step="any"
+                          required
+                          value={newResourceForm.costo_unitario}
+                          onChange={(e) => setNewResourceForm({ ...newResourceForm, costo_unitario: e.target.value })}
+                          placeholder="ej: 120000"
+                          className="w-full border border-slate-200 rounded-lg p-1.5 text-xs text-slate-800 bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Comuna / Ciudad origen</label>
+                        <select
+                          value={newResourceForm.ciudad}
+                          onChange={(e) => setNewResourceForm({ ...newResourceForm, ciudad: e.target.value })}
+                          className="w-full border border-slate-200 rounded-lg p-1.5 text-xs text-slate-700 uppercase bg-white"
+                        >
+                          <option value="">Seleccione Ciudad...</option>
+                          {comunasChile.map((c, idx) => (
+                            <option key={idx} value={c}>{c}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Proveedor / Contratista</label>
+                        <input
+                          type="text"
+                          value={newResourceForm.proveedor}
+                          onChange={(e) => setNewResourceForm({ ...newResourceForm, proveedor: e.target.value })}
+                          placeholder="ej: Caterpillar Chile"
+                          className="w-full border border-slate-200 rounded-lg p-1.5 text-xs text-slate-800 uppercase bg-white"
+                        />
+                      </div>
+                    </div>
 
-                        {apuResources.length === 0 && (
-                          <tr>
-                            <td colSpan="8" className="p-8 text-center text-xs text-slate-400 italic">
-                              No has añadido insumos a este análisis. Selecciona uno arriba para empezar.
+                    <div className="flex justify-end">
+                      <button
+                        type="submit"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition cursor-pointer flex items-center gap-1"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Guardar en Recursos y Vincular</span>
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+
+              {/* TABLA DE ANÁLISIS DE RECURSOS VINCULADOS */}
+              <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-655 font-bold text-[9px] uppercase tracking-wider select-none">
+                      <th className="p-3">Recurso / Insumo</th>
+                      <th className="p-3 w-28">Tipo</th>
+                      <th className="p-3 w-32">Ciudad & Proveedor</th>
+                      <th className="p-3 w-24 text-right">Tarifa ($)</th>
+                      <th className="p-3 w-24 text-center">Cantidad</th>
+                      {apuForm.tipo_metodologia === 'Precio Unitario' && (
+                        <th className="p-3 w-24 text-center">Rendimiento</th>
+                      )}
+                      <th className="p-3 w-32 text-right">Subtotal ($)</th>
+                      <th className="p-3 w-12 text-center"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-150">
+                    {apuResources.map((link) => {
+                      const res = recursos.find(r => r.id === link.recurso_id);
+                      if (!res) return null;
+                      const isPU = apuForm.tipo_metodologia === 'Precio Unitario';
+                      const rendVal = isPU ? (parseFloat(link.rendimiento) || 1) : 1;
+                      const sub = (parseFloat(res.costo_unitario) || 0) * (parseFloat(link.cantidad_unidad) || 0) * rendVal;
+
+                      return (
+                        <tr key={link.id} className="hover:bg-slate-50/50 transition">
+                          <td className="p-2 font-bold text-slate-800 uppercase">{res.recurso}</td>
+                          <td className="p-2">
+                            <span className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${
+                              res.tipo === 'Material' ? 'bg-blue-50 text-blue-700' :
+                              res.tipo === 'Mano de Obra' ? 'bg-amber-50 text-amber-700' : 'bg-purple-50 text-purple-700'
+                            }`}>
+                              {res.tipo}
+                            </span>
+                          </td>
+                          <td className="p-2 text-[10px] text-slate-600 uppercase">
+                            <span className="font-bold text-slate-800 block">{res.ciudad || '-'}</span>
+                            <span className="text-slate-450 block">{res.proveedor || '-'}</span>
+                          </td>
+                          <td className="p-2 text-right font-medium text-slate-700">{formatCLP(res.costo_unitario)}</td>
+                          <td className="p-2">
+                            <input
+                              type="number"
+                              step="any"
+                              value={link.cantidad_unidad ?? ''}
+                              onChange={(e) => handleUpdateApuResourceField(link.id, 'cantidad_unidad', e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded p-1 text-center text-xs text-slate-800 font-semibold"
+                            />
+                          </td>
+                          {isPU && (
+                            <td className="p-2">
+                              <input
+                                type="number"
+                                step="any"
+                                value={link.rendimiento ?? ''}
+                                onChange={(e) => handleUpdateApuResourceField(link.id, 'rendimiento', e.target.value)}
+                                className="w-full bg-slate-50 border border-slate-200 rounded p-1 text-center text-xs text-slate-800 font-semibold"
+                              />
                             </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                          )}
+                          <td className="p-3.5 text-right font-bold text-slate-800">{formatCLP(sub)}</td>
+                          <td className="p-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteApuResource(link.id)}
+                              className="p-1 text-red-655 hover:bg-red-50 rounded"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
 
-                  {/* Factores e Incidencias */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-slate-50 p-4 border border-slate-200 rounded-2xl">
-                    <div>
-                      <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1 flex items-center gap-1">
-                        <Percent className="w-3.5 h-3.5 text-slate-500" />
-                        <span>Leyes Sociales (%) — Aplica sobre Mano de Obra</span>
-                      </label>
-                      <input
-                        type="number"
-                        value={apuForm.leyes_sociales_pct ?? ''}
-                        onChange={(e) => setApuForm({ ...apuForm, leyes_sociales_pct: parseFloat(e.target.value) || 0 })}
-                        placeholder="ej: 35"
-                        className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 focus:outline-none focus:border-primary"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1 flex items-center gap-1">
-                        <Percent className="w-3.5 h-3.5 text-slate-500" />
-                        <span>Imponderables / Imprevistos (%) — Margen de partida</span>
-                      </label>
-                      <input
-                        type="number"
-                        value={apuForm.imponderables_pct ?? ''}
-                        onChange={(e) => setApuForm({ ...apuForm, imponderables_pct: parseFloat(e.target.value) || 0 })}
-                        placeholder="ej: 5"
-                        className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 focus:outline-none focus:border-primary"
-                      />
-                    </div>
+                    {apuResources.length === 0 && (
+                      <tr>
+                        <td colSpan={apuForm.tipo_metodologia === 'Precio Unitario' ? 8 : 7} className="p-8 text-center text-xs text-slate-400 italic">
+                          No has vinculado recursos a esta partida. Selecciona uno del catálogo o crea uno nuevo arriba.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* FACTORES ADICIONALES PARA PRECIO UNITARIO */}
+              {apuForm.tipo_metodologia === 'Precio Unitario' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-slate-50 p-4 border border-slate-200 rounded-2xl">
+                  <div>
+                    <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1 flex items-center gap-1">
+                      <Percent className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Leyes Sociales (%) — Aplica sobre Mano de Obra</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={apuForm.leyes_sociales_pct ?? ''}
+                      onChange={(e) => setApuForm({ ...apuForm, leyes_sociales_pct: parseFloat(e.target.value) || 0 })}
+                      placeholder="ej: 35"
+                      className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 focus:outline-none focus:border-primary bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1 flex items-center gap-1">
+                      <Percent className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Imponderables / Margen (%) — Aplica sobre subtotal</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={apuForm.imponderables_pct ?? ''}
+                      onChange={(e) => setApuForm({ ...apuForm, imponderables_pct: parseFloat(e.target.value) || 0 })}
+                      placeholder="ej: 5"
+                      className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 focus:outline-none focus:border-primary bg-white"
+                    />
                   </div>
                 </div>
               )}
@@ -2308,7 +2477,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                 className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-5 py-2 rounded-xl transition cursor-pointer flex items-center gap-1.5"
               >
                 <Check className="w-4 h-4" />
-                <span>{apuLoading ? 'Guardando...' : 'Aplicar Análisis'}</span>
+                <span>{apuLoading ? 'Guardando...' : 'Aplicar Análisis de Partida'}</span>
               </button>
             </div>
           </div>
