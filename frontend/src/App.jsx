@@ -6,6 +6,7 @@ import Maquinaria from './components/Maquinaria';
 import ConfigCorreos from './components/ConfigCorreos';
 import PresupuestosPlanif from './components/PresupuestosPlanif';
 import Prevencion from './components/Prevencion';
+import PublicFormFiller from './components/PublicFormFiller';
 import { 
   LogOut, LayoutDashboard, Building2, Users, Truck, ShieldAlert, Settings, Info, Menu, X, Loader2,
   Layers, Handshake, Receipt, Coins, ClipboardCheck, Boxes, BadgeCheck,
@@ -132,6 +133,13 @@ function App() {
     setCurrentModule('dashboard');
     setSelectedObraName(null);
   };
+
+  // Detectar si se está accediendo a un formulario público de prevención a través de la URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const publicFormToken = urlParams.get('prevencion_form');
+  if (publicFormToken) {
+    return <PublicFormFiller formToken={publicFormToken} />;
+  }
 
   // Si no está autenticado, mostramos la pantalla de Login
   if (!user) {
