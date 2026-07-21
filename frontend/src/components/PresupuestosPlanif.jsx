@@ -4,7 +4,7 @@ import {
   ArrowLeft, FileSpreadsheet, Calendar, Plus, Save, Trash2, 
   Upload, Check, AlertCircle, RefreshCw, ChevronRight, CalendarDays,
   FolderPlus, DollarSign, Hammer, Briefcase, FileText, MapPin, Clock, ChevronLeft,
-  Settings, Percent, Coins, Sliders, Info, Store, Building2, ChevronDown, ChevronUp, Calculator
+  Settings, Percent, Coins, Sliders, Info, Store, Building2, ChevronDown, ChevronUp, Calculator, Fuel
 } from 'lucide-react';
 import { comunasChile } from '../utils/comunas';
 
@@ -79,6 +79,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
     rendimiento_meta: 25,
     dias_habiles_mes: 22,
     horas_jornada: 9,
+    precio_combustible: 1050,
     leyes_sociales_pct: 35,
     herramientas_menores_pct: 5,
     imponderables_pct: 5,
@@ -316,6 +317,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
       rendimiento_meta: 25,
       dias_habiles_mes: 22,
       horas_jornada: 9,
+      precio_combustible: 1050,
       tipo_metodologia: 'Precio Unitario',
       leyes_sociales_pct: 35,
       herramientas_menores_pct: 5,
@@ -875,6 +877,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
       rendimiento_meta: item.rendimiento_meta || 25,
       dias_habiles_mes: item.dias_habiles_mes || 22,
       horas_jornada: item.horas_jornada || 9,
+      precio_combustible: item.precio_combustible || 1050,
       leyes_sociales_pct: item.leyes_sociales_pct !== undefined ? item.leyes_sociales_pct : 35,
       herramientas_menores_pct: item.herramientas_menores_pct !== undefined ? item.herramientas_menores_pct : 5,
       imponderables_pct: item.imponderables_pct !== undefined ? item.imponderables_pct : 5,
@@ -915,7 +918,8 @@ export default function PresupuestosPlanif({ user, onBack }) {
       item_id: apuItem.id,
       recurso_id: resourceId,
       cantidad_unidad: 1,
-      rendimiento: 1
+      rendimiento: 1,
+      consumo_combustible_lh: 0
     };
     setApuResources([...apuResources, newLink]);
     setSelectedAddResourceId('');
@@ -954,7 +958,8 @@ export default function PresupuestosPlanif({ user, onBack }) {
           item_id: apuItem.id,
           recurso_id: createdRes.id,
           cantidad_unidad: 1,
-          rendimiento: 1
+          rendimiento: 1,
+          consumo_combustible_lh: 0
         };
         setApuResources([...apuResources, newLink]);
       }
@@ -989,11 +994,12 @@ export default function PresupuestosPlanif({ user, onBack }) {
     setApuResources(prev => prev.filter(r => r.id !== id));
   };
 
-  // CÁLCULO Y UNIFICACIÓN DE COSTOS DE APU
+  // CÁLCULO Y UNIFICACIÓN DE COSTOS DE APU (INCLUYENDO COMBUSTIBLE MAQUINARIA)
   const calculateApuCost = () => {
     const rend = parseFloat(apuForm.rendimiento_meta) || 1;
     const diasMes = parseFloat(apuForm.dias_habiles_mes) || 22;
     const hrsJornada = parseFloat(apuForm.horas_jornada) || 9;
+    const precioDiesel = parseFloat(apuForm.precio_combustible) || 1050;
     const lsPct = parseFloat(apuForm.leyes_sociales_pct) || 0;
     const hmPct = parseFloat(apuForm.herramientas_menores_pct) || 0;
     const impPct = parseFloat(apuForm.imponderables_pct) || 0;
@@ -1011,6 +1017,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
       const resRend = parseFloat(link.rendimiento) || 1;
       const unitCost = parseFloat(res.costo_unitario) || 0;
       const unitStr = (res.unidad || '').toLowerCase().trim();
+      const consumoLh = parseFloat(link.consumo_combustible_lh) || 0;
 
       if (apuForm.tipo_metodologia === 'Costo-Tiempo') {
         let dailyCost = unitCost;
@@ -1019,32 +1026,55 @@ export default function PresupuestosPlanif({ user, onBack }) {
         } else if (unitStr.includes('hr') || unitStr.includes('hora')) {
           dailyCost = unitCost * hrsJornada;
         }
-        const sub = dailyCost * qty;
+
+        let fuelDaily = 0;
+        if (res.tipo === 'Maquinaria' && consumoLh > 0) {
+          fuelDaily = consumoLh * hrsJornada * precioDiesel;
+        }
+
+        const sub = (dailyCost + fuelDaily) * qty;
+
         if (res.tipo === 'Material') matSum += sub;
         else if (res.tipo === 'Mano de Obra') laborSum += sub;
         else if (res.tipo === 'Maquinaria') machSum += sub;
         else otrosSum += sub;
       } else {
         // PRECIO UNITARIO
-        if (res.tipo === 'Mano de Obra' || res.tipo === 'Maquinaria') {
+        if (res.tipo === 'Maquinaria') {
+          let dailyRate = unitCost;
+          if (unitStr.includes('mes') || unitStr.includes('mensual')) {
+            dailyRate = unitCost / diasMes;
+          } else if (unitStr.includes('hr') || unitStr.includes('hora')) {
+            dailyRate = unitCost * hrsJornada;
+          } else if (unitStr.includes('día') || unitStr.includes('dia') || unitStr.includes('jornada')) {
+            dailyRate = unitCost;
+          } else {
+            dailyRate = unitCost;
+          }
+
+          // Costo diario del combustible (L/hr * hrsJornada * precioDiesel)
+          const fuelDaily = consumoLh * hrsJornada * precioDiesel;
+          // Costo diario operativo total por máquina (Arriendo + Diesel)
+          const totalDailyMachineCost = dailyRate + fuelDaily;
+
+          // Convertir a costo por unidad de obra ($/m3) dividiendo entre Rendimiento
+          const unitSub = (totalDailyMachineCost * qty) / rend;
+          machSum += unitSub;
+        } else if (res.tipo === 'Mano de Obra') {
           if (unitStr.includes('mes') || unitStr.includes('mensual')) {
             const dailyRate = unitCost / diasMes;
             const unitSub = (dailyRate * qty) / rend;
-            if (res.tipo === 'Mano de Obra') laborSum += unitSub;
-            else machSum += unitSub;
+            laborSum += unitSub;
           } else if (unitStr.includes('hr') || unitStr.includes('hora')) {
             const dailyRate = unitCost * hrsJornada;
             const unitSub = (dailyRate * qty) / rend;
-            if (res.tipo === 'Mano de Obra') laborSum += unitSub;
-            else machSum += unitSub;
+            laborSum += unitSub;
           } else if (unitStr.includes('día') || unitStr.includes('dia') || unitStr.includes('jornada')) {
             const unitSub = (unitCost * qty) / rend;
-            if (res.tipo === 'Mano de Obra') laborSum += unitSub;
-            else machSum += unitSub;
+            laborSum += unitSub;
           } else {
             const unitSub = unitCost * qty * resRend;
-            if (res.tipo === 'Mano de Obra') laborSum += unitSub;
-            else machSum += unitSub;
+            laborSum += unitSub;
           }
         } else if (res.tipo === 'Otros') {
           const unitSub = unitCost * qty * resRend;
@@ -1092,6 +1122,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
           rendimiento_meta: parseFloat(apuForm.rendimiento_meta) || 0,
           dias_habiles_mes: parseFloat(apuForm.dias_habiles_mes) || 22,
           horas_jornada: parseFloat(apuForm.horas_jornada) || 9,
+          precio_combustible: parseFloat(apuForm.precio_combustible) || 1050,
           leyes_sociales_pct: parseFloat(apuForm.leyes_sociales_pct) || 0,
           herramientas_menores_pct: parseFloat(apuForm.herramientas_menores_pct) || 0,
           imponderables_pct: parseFloat(apuForm.imponderables_pct) || 0,
@@ -1117,7 +1148,8 @@ export default function PresupuestosPlanif({ user, onBack }) {
           item_id: apuItem.id,
           recurso_id: parseInt(r.recurso_id, 10),
           cantidad_unidad: parseFloat(r.cantidad_unidad) || 0,
-          rendimiento: apuForm.tipo_metodologia === 'Costo-Tiempo' ? 1 : (parseFloat(r.rendimiento) || 1)
+          rendimiento: apuForm.tipo_metodologia === 'Costo-Tiempo' ? 1 : (parseFloat(r.rendimiento) || 1),
+          consumo_combustible_lh: parseFloat(r.consumo_combustible_lh) || 0
         }));
 
         const { error: insErr } = await supabase
@@ -1308,7 +1340,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                       Crear Presupuesto
                     </h3>
                     <p className="text-xs text-slate-500 leading-normal">
-                      Estructura y edita la planilla de partidas bajo metodologías de Precio Unitario (con rendimientos) o Costo-Tiempo (arriendos).
+                      Estructura y edita la planilla de partidas bajo metodologías de Precio Unitario (con rendimiento) o Costo-Tiempo (arriendos).
                     </p>
                   </div>
                 </div>
@@ -1617,7 +1649,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                     <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-[10px] font-semibold text-slate-500 space-y-2">
                       <span className="font-bold text-slate-850 block">Formato aceptado:</span>
                       <code className="bg-white px-2 py-1 rounded border font-mono block text-slate-800">
-                        Código, Concepto, Unidad, Cantidad, CostoUnitario, RendimientoMeta
+                        Código, Concepto, Unidad, Cantidad, CostoUnitario, Rendimiento
                       </code>
                     </div>
 
@@ -2158,7 +2190,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                 >
                   <div className="flex items-center gap-2">
                     <Sliders className="w-4 h-4 text-primary" />
-                    <span>⚙️ Configuración y Parámetros de Rendimiento del APU</span>
+                    <span>⚙️ Configuración y Parámetros del APU</span>
                   </div>
                   {showApuConfigAccordion ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
                 </button>
@@ -2197,10 +2229,10 @@ export default function PresupuestosPlanif({ user, onBack }) {
                     </div>
 
                     {/* Fila de Inputs de Parámetros de Unificación */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-3">
                       <div>
                         <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">
-                          Rendimiento Diario Meta
+                          Rendimiento
                         </label>
                         <input
                           type="number"
@@ -2242,6 +2274,21 @@ export default function PresupuestosPlanif({ user, onBack }) {
                       </div>
 
                       <div>
+                        <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1 flex items-center gap-1">
+                          <Fuel className="w-3 h-3 text-amber-600" />
+                          <span>Diesel ($/L)</span>
+                        </label>
+                        <input
+                          type="number"
+                          value={apuForm.precio_combustible ?? ''}
+                          onChange={(e) => setApuForm({ ...apuForm, precio_combustible: parseFloat(e.target.value) || 0 })}
+                          placeholder="1050"
+                          className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 font-bold focus:outline-none focus:border-primary"
+                        />
+                        <span className="text-[8px] text-slate-400 block mt-0.5">Precio/Litro</span>
+                      </div>
+
+                      <div>
                         <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">
                           Leyes Sociales (%)
                         </label>
@@ -2252,12 +2299,12 @@ export default function PresupuestosPlanif({ user, onBack }) {
                           placeholder="35"
                           className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 font-bold focus:outline-none focus:border-primary"
                         />
-                        <span className="text-[8px] text-slate-400 block mt-0.5">Sobre Mano de Obra</span>
+                        <span className="text-[8px] text-slate-400 block mt-0.5">Mano de Obra</span>
                       </div>
 
                       <div>
                         <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">
-                          Herramientas Menores (%)
+                          Herramientas (%)
                         </label>
                         <input
                           type="number"
@@ -2266,7 +2313,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                           placeholder="5"
                           className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 font-bold focus:outline-none focus:border-primary"
                         />
-                        <span className="text-[8px] text-slate-400 block mt-0.5">Sobre Mano de Obra</span>
+                        <span className="text-[8px] text-slate-400 block mt-0.5">Mano de Obra</span>
                       </div>
 
                       <div>
@@ -2429,7 +2476,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                 )}
               </div>
 
-              {/* TABLA DE INSUMOS VINCULADOS CON UNIFICACIÓN */}
+              {/* TABLA DE INSUMOS VINCULADOS CON UNIFICACIÓN Y DIESEL MAQUINARIA */}
               <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs mb-6">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
@@ -2438,6 +2485,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                       <th className="p-3 w-28">Tipo</th>
                       <th className="p-3 w-24 text-right">Tarifa ($) / Unidad</th>
                       <th className="p-3 w-24 text-center">Consumo / Cant.</th>
+                      <th className="p-3 w-28 text-center">Consumo Diesel (L/hr)</th>
                       {apuForm.tipo_metodologia === 'Precio Unitario' && (
                         <th className="p-3 w-24 text-center">Rend. Coef.</th>
                       )}
@@ -2457,13 +2505,33 @@ export default function PresupuestosPlanif({ user, onBack }) {
                       const rendMeta = parseFloat(apuForm.rendimiento_meta) || 1;
                       const diasMes = parseFloat(apuForm.dias_habiles_mes) || 22;
                       const hrsJornada = parseFloat(apuForm.horas_jornada) || 9;
+                      const precioDiesel = parseFloat(apuForm.precio_combustible) || 1050;
+                      const consumoLh = parseFloat(link.consumo_combustible_lh) || 0;
 
                       let itemSub = 0;
-                      if (res.tipo === 'Mano de Obra' || res.tipo === 'Maquinaria') {
+                      if (res.tipo === 'Maquinaria') {
+                        let dailyRate = unitCost;
                         if (unitStr.includes('mes') || unitStr.includes('mensual')) {
-                          itemSub = ((unitCost / diasMes) * qty) / rendMeta;
+                          dailyRate = unitCost / diasMes;
                         } else if (unitStr.includes('hr') || unitStr.includes('hora')) {
-                          itemSub = ((unitCost * hrsJornada) * qty) / rendMeta;
+                          dailyRate = unitCost * hrsJornada;
+                        }
+
+                        const fuelDaily = consumoLh * hrsJornada * precioDiesel;
+                        const totalDailyMachine = dailyRate + fuelDaily;
+
+                        if (apuForm.tipo_metodologia === 'Costo-Tiempo') {
+                          itemSub = totalDailyMachine * qty;
+                        } else {
+                          itemSub = (totalDailyMachine * qty) / rendMeta;
+                        }
+                      } else if (res.tipo === 'Mano de Obra') {
+                        if (unitStr.includes('mes') || unitStr.includes('mensual')) {
+                          const dailyRate = unitCost / diasMes;
+                          itemSub = ((dailyRate * qty) / rendMeta);
+                        } else if (unitStr.includes('hr') || unitStr.includes('hora')) {
+                          const dailyRate = unitCost * hrsJornada;
+                          itemSub = ((dailyRate * qty) / rendMeta);
                         } else if (unitStr.includes('día') || unitStr.includes('dia')) {
                           itemSub = (unitCost * qty) / rendMeta;
                         } else {
@@ -2472,6 +2540,8 @@ export default function PresupuestosPlanif({ user, onBack }) {
                       } else {
                         itemSub = unitCost * qty * resRend;
                       }
+
+                      const isMach = res.tipo === 'Maquinaria';
 
                       return (
                         <tr key={link.id} className="hover:bg-slate-50/50 transition">
@@ -2502,6 +2572,23 @@ export default function PresupuestosPlanif({ user, onBack }) {
                               className="w-full bg-slate-50 border border-slate-200 rounded p-1 text-center text-xs text-slate-800 font-semibold"
                             />
                           </td>
+                          <td className="p-2 text-center">
+                            {isMach ? (
+                              <div className="relative flex items-center justify-center">
+                                <input
+                                  type="number"
+                                  step="any"
+                                  value={link.consumo_combustible_lh ?? ''}
+                                  onChange={(e) => handleUpdateApuResourceField(link.id, 'consumo_combustible_lh', e.target.value)}
+                                  placeholder="0"
+                                  className="w-20 bg-amber-50/70 border border-amber-200 rounded p-1 text-center text-xs font-bold text-amber-900 focus:outline-none focus:border-amber-400"
+                                />
+                                <span className="text-[9px] font-bold text-amber-700 ml-1">L/hr</span>
+                              </div>
+                            ) : (
+                              <span className="text-slate-300 text-[10px]">-</span>
+                            )}
+                          </td>
                           {apuForm.tipo_metodologia === 'Precio Unitario' && (
                             <td className="p-2">
                               <input
@@ -2529,7 +2616,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
 
                     {apuResources.length === 0 && (
                       <tr>
-                        <td colSpan={apuForm.tipo_metodologia === 'Precio Unitario' ? 7 : 6} className="p-8 text-center text-xs text-slate-400 italic">
+                        <td colSpan={apuForm.tipo_metodologia === 'Precio Unitario' ? 8 : 7} className="p-8 text-center text-xs text-slate-400 italic">
                           No has vinculado recursos a esta partida. Selecciona uno del catálogo o crea uno nuevo arriba.
                         </td>
                       </tr>
@@ -2551,7 +2638,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                     <span className="text-amber-800 font-bold">{formatCLP(apuCalc.laborTotal)}</span>
                   </div>
                   <div>
-                    <span className="text-[9px] uppercase text-slate-400 block">Maquinaria / Equipos:</span>
+                    <span className="text-[9px] uppercase text-slate-400 block">Maquinaria (+Diesel Combust.):</span>
                     <span className="text-purple-800 font-bold">{formatCLP(apuCalc.machSum)}</span>
                   </div>
                   <div>
@@ -2620,7 +2707,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                     value={cost.concepto || ''}
                     onChange={(e) => handleUpdateIndirectCostField(cost.id, 'concepto', e.target.value)}
                     placeholder="ej: GASTOS GENERALES"
-                    className="flex-1 bg-white border border-slate-200 rounded-lg p-1.5 text-xs text-slate-850 focus:outline-none uppercase font-bold"
+                    className="flex-1 bg-white border border-slate-200 rounded-lg p-1.5 text-xs text-slate-855 focus:outline-none uppercase font-bold"
                   />
                   <select
                     value={cost.tipo}
