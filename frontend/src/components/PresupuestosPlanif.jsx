@@ -892,7 +892,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
   const handleAddResourceToApu = () => {
     if (!selectedAddResourceId) return;
     const resourceId = parseInt(selectedAddResourceId, 10);
-    if (apuResources.some(r => r.recurso_id === resourceId)) {
+    if (apuResources.some(r => String(r.recurso_id) === String(resourceId))) {
       alert("Este recurso ya está añadido en el análisis de esta partida.");
       return;
     }
@@ -986,7 +986,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
       // Se suman los costos directos de recursos sin factor de rendimiento.
       let totalTimeCost = 0;
       apuResources.forEach(link => {
-        const res = recursos.find(r => r.id === link.recurso_id);
+        const res = recursos.find(r => String(r.id) === String(link.recurso_id));
         if (res) {
           const qty = parseFloat(link.cantidad_unidad) || 0;
           const cost = parseFloat(res.costo_unitario) || 0;
@@ -1008,7 +1008,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
       let machSum = 0;
       
       apuResources.forEach(link => {
-        const res = recursos.find(r => r.id === link.recurso_id);
+        const res = recursos.find(r => String(r.id) === String(link.recurso_id));
         if (res) {
           const qty = parseFloat(link.cantidad_unidad) || 0;
           const rend = parseFloat(link.rendimiento) || 1;
@@ -2364,7 +2364,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                   </thead>
                   <tbody className="divide-y divide-slate-150">
                     {apuResources.map((link) => {
-                      const res = recursos.find(r => r.id === link.recurso_id);
+                      const res = recursos.find(r => String(r.id) === String(link.recurso_id));
                       if (!res) return null;
                       const isPU = apuForm.tipo_metodologia === 'Precio Unitario';
                       const rendVal = isPU ? (parseFloat(link.rendimiento) || 1) : 1;
