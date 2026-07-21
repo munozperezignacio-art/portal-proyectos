@@ -420,13 +420,23 @@ export default function Prevencion({ user, onBack }) {
     return `${base}?prevencion_form=${form.publico_token || form.id}`;
   };
 
+  const handleHeaderBack = () => {
+    if (activeSection !== '') {
+      setActiveSection('');
+      setErrorMsg('');
+      setSuccessMsg('');
+    } else {
+      onBack();
+    }
+  };
+
   return (
     <div className="space-y-6 font-sans">
 
       {/* 1. Cabecera Principal */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 border border-slate-200 rounded-3xl shadow-xs">
         <div className="flex items-center gap-3">
-          <button onClick={onBack} className="p-1.5 hover:bg-slate-100 rounded-lg transition cursor-pointer">
+          <button onClick={handleHeaderBack} className="p-1.5 hover:bg-slate-100 rounded-lg transition cursor-pointer" title="Volver">
             <ArrowLeft className="w-5 h-5 text-slate-600" />
           </button>
           <div>

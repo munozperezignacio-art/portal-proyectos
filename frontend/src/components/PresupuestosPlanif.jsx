@@ -1216,6 +1216,16 @@ export default function PresupuestosPlanif({ user, onBack }) {
     }
   };
 
+  const handleHeaderBack = () => {
+    if (activeSection !== '') {
+      setActiveSection('');
+      setErrorMsg('');
+      setSuccessMsg('');
+    } else {
+      onBack();
+    }
+  };
+
   const isWorkspaceActive = activeSection !== '' && activeSection !== 'mis_presupuestos';
   const showBlockerGate = isWorkspaceActive && !selectedProyectoId;
 
@@ -1225,7 +1235,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
       {/* 1. Cabecera Principal */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white p-6 border border-slate-200 rounded-3xl shadow-xs">
         <div className="flex items-center gap-3">
-          <button onClick={onBack} className="p-1.5 hover:bg-slate-100 rounded-lg transition cursor-pointer">
+          <button onClick={handleHeaderBack} className="p-1.5 hover:bg-slate-100 rounded-lg transition cursor-pointer" title="Volver">
             <ArrowLeft className="w-5 h-5 text-slate-600" />
           </button>
           <div>
