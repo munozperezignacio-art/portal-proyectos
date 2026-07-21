@@ -34,9 +34,6 @@ export default function PresupuestosPlanif({ user, onBack }) {
   const [itemsPresupuesto, setItemsPresupuesto] = useState([]);
   const [budgetLoading, setBudgetLoading] = useState(false);
 
-  // Estado para Prorrateo de Costos Generales/Indirectos en Precios Unitarios
-  const [prorratearIndirectos, setProrratearIndirectos] = useState(false);
-
   // Estados de Planificación
   const [cronograma, setCronograma] = useState([]);
   const [tasksLoading, setTasksLoading] = useState(false);
@@ -702,14 +699,15 @@ export default function PresupuestosPlanif({ user, onBack }) {
     }
   };
 
-  // --- LÓGICA DE COSTOS INDIRECTOS ---
+  // --- LÓGICA DE COSTOS INDIRECTOS (CON OPCIÓN PRORRATEAR UNO A UNO) ---
   const handleAddIndirectCostRow = () => {
     const newRow = {
       id: 'temp-' + Date.now() + Math.random(),
       presupuesto_id: selectedProyectoId,
-      concepto: 'NUEVO COSTO INDIRECTO',
+      concepto: 'GASTOS GENERALES',
       tipo: 'Porcentaje',
-      valor: 0
+      valor: 10,
+      prorratear: true
     };
     setIndirectCosts([...indirectCosts, newRow]);
   };
@@ -736,7 +734,11 @@ export default function PresupuestosPlanif({ user, onBack }) {
         .filter(c => typeof c.id === 'string' && c.id.startsWith('temp-'))
         .map(c => {
           const { id, ...rest } = c;
-          return { ...rest, presupuesto_id: selectedProyectoId };
+          return { 
+            ...rest, 
+            presupuesto_id: selectedProyectoId,
+            prorratear: !!c.prorratear
+          };
         });
 
       const { data: dbCurrent, error: dbErr } = await supabase
@@ -758,22 +760,45 @@ export default function PresupuestosPlanif({ user, onBack }) {
       }
 
       for (const item of toUpdate) {
-        const { error: updErr } = await supabase
+        let { error: updErr } = await supabase
           .from('presupuestos_costos_indirectos')
           .update({
             concepto: item.concepto,
             tipo: item.tipo,
-            valor: parseFloat(item.valor) || 0
+            valor: parseFloat(item.valor) || 0,
+            prorratear: !!item.prorratear
           })
           .eq('id', item.id);
-        if (updErr) throw updErr;
+
+        if (updErr && updErr.message.includes('prorratear')) {
+          const { error: fallbackErr } = await supabase
+            .from('presupuestos_costos_indirectos')
+            .update({
+              concepto: item.concepto,
+              tipo: item.tipo,
+              valor: parseFloat(item.valor) || 0
+            })
+            .eq('id', item.id);
+          if (fallbackErr) throw fallbackErr;
+        } else if (updErr) {
+          throw updErr;
+        }
       }
 
       if (toInsert.length > 0) {
-        const { error: insErr } = await supabase
+        let { error: insErr } = await supabase
           .from('presupuestos_costos_indirectos')
           .insert(toInsert);
-        if (insErr) throw insErr;
+
+        if (insErr && insErr.message.includes('prorratear')) {
+          const cleanInsert = toInsert.map(({ prorratear, ...rest }) => rest);
+          const { error: fallbackIns } = await supabase
+            .from('presupuestos_costos_indirectos')
+            .insert(cleanInsert);
+          if (fallbackIns) throw fallbackIns;
+        } else if (insErr) {
+          throw insErr;
+        }
       }
 
       setSuccessMsg('Costos indirectos actualizados correctamente.');
@@ -842,18 +867,27 @@ export default function PresupuestosPlanif({ user, onBack }) {
     return parseFloat(cost.valor) || 0;
   };
 
-  const totalIndirectCostValue = indirectCosts.reduce((acc, curr) => {
+  // SEPARACIÓN DE COSTOS INDIRECTOS PRORRATEADOS VS NO PRORRATEADOS
+  const proratedIndirectCosts = indirectCosts.filter(c => c.prorratear);
+  const nonProratedIndirectCosts = indirectCosts.filter(c => !c.prorratear);
+
+  const totalProratedIndirectValue = proratedIndirectCosts.reduce((acc, curr) => {
     return acc + calculateIndirectCostValue(curr);
   }, 0);
 
+  const totalNonProratedIndirectValue = nonProratedIndirectCosts.reduce((acc, curr) => {
+    return acc + calculateIndirectCostValue(curr);
+  }, 0);
+
+  const totalIndirectCostValue = totalProratedIndirectValue + totalNonProratedIndirectValue;
   const totalProjectCost = totalDirectCost + totalIndirectCostValue;
 
-  // CÁLCULO DE FACTOR DE PRORRATEO PONDERADO (Costos Generales en Precios Unitarios)
-  const indirectFactor = (totalDirectCost > 0 && totalIndirectCostValue > 0)
-    ? 1 + (totalIndirectCostValue / totalDirectCost)
+  // CÁLCULO DE FACTOR DE PRORRATEO PONDERADO (Solo para items marcados con prorratear = true)
+  const prorateFactor = (totalDirectCost > 0 && totalProratedIndirectValue > 0)
+    ? 1 + (totalProratedIndirectValue / totalDirectCost)
     : 1;
 
-  const indirectPctIncrement = ((indirectFactor - 1) * 100).toFixed(1);
+  const proratePctIncrement = ((prorateFactor - 1) * 100).toFixed(1);
 
   const totalResourceCost = recursos.reduce((acc, curr) => {
     return acc + ((parseFloat(curr.cantidad_estimada) || 0) * (parseFloat(curr.costo_unitario) || 0));
@@ -1486,27 +1520,12 @@ export default function PresupuestosPlanif({ user, onBack }) {
                   <div className="flex flex-wrap items-center gap-2.5">
                     {activeSection === 'crear' && (
                       <>
-                        {/* TOGGLE PRORRATEAR COSTOS GENERALES */}
-                        <label className={`flex items-center gap-2 text-xs font-extrabold px-3.5 py-2 rounded-xl border cursor-pointer transition select-none ${
-                          prorratearIndirectos 
-                            ? 'bg-purple-100 text-purple-900 border-purple-300 shadow-xs' 
-                            : 'bg-slate-50 text-slate-600 border-slate-250 hover:bg-slate-100'
-                        }`}>
-                          <input
-                            type="checkbox"
-                            checked={prorratearIndirectos}
-                            onChange={(e) => setProrratearIndirectos(e.target.checked)}
-                            className="w-4 h-4 text-primary focus:ring-primary rounded border-slate-300 cursor-pointer"
-                          />
-                          <span>Prorratear Costos Generales {totalIndirectCostValue > 0 ? `(+${indirectPctIncrement}%)` : ''}</span>
-                        </label>
-
                         <button
                           onClick={() => setShowIndirectModal(true)}
                           className="flex items-center gap-1.5 bg-slate-50 border border-slate-250 text-slate-700 text-xs font-bold px-3.5 py-2 rounded-xl hover:bg-slate-100 transition cursor-pointer"
                         >
                           <Sliders className="w-4 h-4 text-primary" />
-                          <span>Costos Generales</span>
+                          <span>Costos Generales {proratedIndirectCosts.length > 0 ? `(+${proratePctIncrement}% Prorrateado)` : ''}</span>
                         </button>
 
                         <button
@@ -1551,13 +1570,13 @@ export default function PresupuestosPlanif({ user, onBack }) {
                           <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Costo Directo Subtotal</h4>
                           <p className="text-xl font-black text-slate-850 mt-0.5">{formatCLP(totalDirectCost)}</p>
                         </div>
-                        {prorratearIndirectos && totalIndirectCostValue > 0 && (
+                        {proratedIndirectCosts.length > 0 && (
                           <div className="border-l border-slate-200 pl-6">
                             <h4 className="text-[10px] text-purple-700 font-bold uppercase tracking-wider flex items-center gap-1">
                               <PieChart className="w-3 h-3 text-purple-600" />
                               <span>Factor Prorrateo Ponderado</span>
                             </h4>
-                            <p className="text-xl font-black text-purple-900 mt-0.5">+{indirectPctIncrement}%</p>
+                            <p className="text-xl font-black text-purple-900 mt-0.5">+{proratePctIncrement}%</p>
                           </div>
                         )}
                         <div className="border-l border-slate-200 pl-6">
@@ -1585,7 +1604,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                               <th className="p-3.5 w-20">Unidad</th>
                               <th className="p-3.5 w-28">Cant. / Tiempo</th>
                               <th className="p-3.5 w-36">
-                                {prorratearIndirectos ? 'Precio Unit. Prorrateado ($)' : 'Precio / Tarifa ($)'}
+                                {proratedIndirectCosts.length > 0 ? 'Precio Unit. Prorrateado ($)' : 'Precio / Tarifa ($)'}
                               </th>
                               <th className="p-3.5 w-36">Importe ($)</th>
                               <th className="p-3.5 w-36 text-center">Metodología</th>
@@ -1596,10 +1615,11 @@ export default function PresupuestosPlanif({ user, onBack }) {
                             {itemsPresupuesto.map((item) => {
                               const isChapter = isChapterRow(item, itemsPresupuesto);
                               const directPrice = parseFloat(item.costo_unitario) || 0;
-                              const effectivePrice = prorratearIndirectos ? Math.round(directPrice * indirectFactor) : directPrice;
+                              const isProratedActive = prorateFactor > 1;
+                              const effectivePrice = isProratedActive ? Math.round(directPrice * prorateFactor) : directPrice;
 
                               const importeVal = isChapter
-                                ? getChapterSum(item.codigo, itemsPresupuesto, prorratearIndirectos, indirectFactor)
+                                ? getChapterSum(item.codigo, itemsPresupuesto, isProratedActive, prorateFactor)
                                 : (parseFloat(item.cantidad) || 0) * effectivePrice;
                               const isIndent = item.codigo && item.codigo.includes('.');
                               const isCostoTiempo = item.tipo_metodologia === 'Costo-Tiempo';
@@ -1661,23 +1681,23 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                           step="any"
                                           value={item.costo_unitario !== undefined && item.costo_unitario !== null && item.costo_unitario !== '' ? Math.round(effectivePrice) : ''}
                                           onChange={(e) => {
-                                            if (!prorratearIndirectos) {
+                                            if (!isProratedActive) {
                                               handleUpdateBudgetField(item.id, 'costo_unitario', e.target.value);
                                             }
                                           }}
                                           placeholder="0"
-                                          disabled={typeof item.id === 'number' || prorratearIndirectos}
+                                          disabled={typeof item.id === 'number' || isProratedActive}
                                           className={`w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs font-bold ${
-                                            prorratearIndirectos 
+                                            isProratedActive 
                                               ? 'text-purple-900 bg-purple-50/60 rounded px-1.5 font-black' 
                                               : typeof item.id === 'number' 
                                                 ? 'text-slate-500 cursor-not-allowed bg-slate-50/50' 
                                                 : 'text-slate-700'
                                           }`}
                                         />
-                                        {prorratearIndirectos && totalIndirectCostValue > 0 && (
+                                        {isProratedActive && (
                                           <span className="text-[8.5px] font-black text-purple-700 bg-purple-100 px-1 py-0.5 rounded ml-1 shrink-0" title={`Precio Directo: ${formatCLP(directPrice)}`}>
-                                            +{indirectPctIncrement}%
+                                            +{proratePctIncrement}%
                                           </span>
                                         )}
                                       </div>
@@ -1710,7 +1730,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                       )}
                                       <button
                                         onClick={() => handleDeleteBudgetRow(item.id)}
-                                        className="p-1.5 text-red-650 hover:bg-red-50 rounded-lg transition"
+                                        className="p-1.5 text-red-655 hover:bg-red-50 rounded-lg transition"
                                       >
                                         <Trash2 className="w-4 h-4" />
                                       </button>
@@ -1729,29 +1749,29 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                   <td colSpan="2"></td>
                                 </tr>
                                 
-                                {!prorratearIndirectos ? (
-                                  indirectCosts.map((cost) => {
-                                    const costVal = calculateIndirectCostValue(cost);
-                                    return (
-                                      <tr key={cost.id} className="bg-slate-50/30 text-slate-600 font-semibold border-t border-slate-200">
-                                        <td colSpan="5" className="p-3 text-right uppercase text-[9px] font-bold text-slate-450 tracking-wider">
-                                          {cost.concepto} ({cost.tipo === 'Porcentaje' ? `${cost.valor}%` : 'Monto Fijo'}):
-                                        </td>
-                                        <td className="p-3 text-slate-800 font-bold">{formatCLP(costVal)}</td>
-                                        <td colSpan="2"></td>
-                                      </tr>
-                                    );
-                                  })
-                                ) : (
+                                {proratedIndirectCosts.length > 0 && (
                                   <tr className="bg-purple-50/40 border-t border-purple-200 text-purple-900 font-bold">
                                     <td colSpan="8" className="p-3 text-center text-xs">
                                       <span className="inline-flex items-center gap-1.5 font-extrabold">
                                         <PieChart className="w-4 h-4 text-purple-600" />
-                                        <span>Los Costos Generales de {formatCLP(totalIndirectCostValue)} (+{indirectPctIncrement}%) han sido Prorrateados Ponderadamente en los Precios Unitarios de cada partida arriba.</span>
+                                        <span>Costos Generales Prorrateados en Precios Unitarios (+{proratePctIncrement}% = {formatCLP(totalProratedIndirectValue)}): {proratedIndirectCosts.map(c => c.concepto).join(', ')}</span>
                                       </span>
                                     </td>
                                   </tr>
                                 )}
+
+                                {nonProratedIndirectCosts.map((cost) => {
+                                  const costVal = calculateIndirectCostValue(cost);
+                                  return (
+                                    <tr key={cost.id} className="bg-slate-50/30 text-slate-600 font-semibold border-t border-slate-200">
+                                      <td colSpan="5" className="p-3 text-right uppercase text-[9px] font-bold text-slate-450 tracking-wider">
+                                        {cost.concepto} ({cost.tipo === 'Porcentaje' ? `${cost.valor}%` : 'Monto Fijo'}):
+                                      </td>
+                                      <td className="p-3 text-slate-800 font-bold">{formatCLP(costVal)}</td>
+                                      <td colSpan="2"></td>
+                                    </tr>
+                                  );
+                                })}
 
                                 <tr className="bg-slate-100 font-black border-t-2 border-slate-400">
                                   <td colSpan="5" className="p-3.5 text-right uppercase text-xs text-slate-700 tracking-wider">Total General del Presupuesto:</td>
@@ -2870,10 +2890,10 @@ export default function PresupuestosPlanif({ user, onBack }) {
         );
       })()}
 
-      {/* COSTOS INDIRECTOS MODAL (INCLUYE OPCIÓN DE PRORRATEO) */}
+      {/* COSTOS INDIRECTOS MODAL (SELECCIÓN INDIVIDUAL UNO A UNO SI SE PRORRATEA O NO) */}
       {showIndirectModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-xl p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 space-y-4">
+          <div className="bg-white rounded-3xl w-full max-w-2xl p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 space-y-4">
             <div className="flex justify-between items-center border-b border-slate-100 pb-2">
               <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
                 <Sliders className="w-4.5 h-4.5 text-primary" />
@@ -2888,40 +2908,23 @@ export default function PresupuestosPlanif({ user, onBack }) {
             </div>
 
             <p className="text-xs text-slate-500 leading-normal">
-              Añade costos indirectos del proyecto como gastos generales, utilidades e imprevistos globales que afecten al presupuesto total.
+              Añade costos indirectos (gastos generales, utilidades, imprevistos). Marca la casilla <strong className="text-purple-900 font-extrabold">[x] Prorratear</strong> en cada fila si deseas absorber ese costo específico directamente dentro de los precios unitarios.
             </p>
 
-            {/* CHECKBOX PRORRATEO DE COSTOS GENERALES */}
-            <div className="bg-purple-50/80 border border-purple-200 rounded-2xl p-4 flex items-start gap-3">
-              <input
-                type="checkbox"
-                id="chk-prorratear-modal"
-                checked={prorratearIndirectos}
-                onChange={(e) => setProrratearIndirectos(e.target.checked)}
-                className="w-4 h-4 text-primary focus:ring-primary rounded border-slate-300 mt-0.5 cursor-pointer"
-              />
-              <label htmlFor="chk-prorratear-modal" className="cursor-pointer space-y-0.5">
-                <span className="text-xs font-extrabold text-purple-900 block uppercase">Prorratear Costos Generales en Precios Unitarios</span>
-                <span className="text-[11px] text-purple-700 block leading-snug">
-                  Incrementa ponderadamente el precio unitario de cada partida en <strong className="text-purple-950 font-black">+{indirectPctIncrement}%</strong> ({formatCLP(totalIndirectCostValue)}) según su participación en el costo total.
-                </span>
-              </label>
-            </div>
-
-            <div className="space-y-3 max-h-[280px] overflow-y-auto">
+            <div className="space-y-3 max-h-[350px] overflow-y-auto">
               {indirectCosts.map((cost) => (
-                <div key={cost.id} className="flex items-center gap-2 bg-slate-50 p-2 border border-slate-200 rounded-xl">
+                <div key={cost.id} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-slate-50 p-2.5 border border-slate-200 rounded-2xl">
                   <input
                     type="text"
                     value={cost.concepto || ''}
                     onChange={(e) => handleUpdateIndirectCostField(cost.id, 'concepto', e.target.value)}
                     placeholder="ej: GASTOS GENERALES"
-                    className="flex-1 bg-white border border-slate-200 rounded-lg p-1.5 text-xs text-slate-855 focus:outline-none uppercase font-bold"
+                    className="flex-1 bg-white border border-slate-200 rounded-xl p-2 text-xs text-slate-850 focus:outline-none uppercase font-extrabold"
                   />
                   <select
                     value={cost.tipo}
                     onChange={(e) => handleUpdateIndirectCostField(cost.id, 'tipo', e.target.value)}
-                    className="w-28 border border-slate-200 rounded-lg p-1.5 text-xs bg-white focus:outline-none font-semibold text-slate-700"
+                    className="w-32 border border-slate-200 rounded-xl p-2 text-xs bg-white focus:outline-none font-bold text-slate-700"
                   >
                     <option value="Porcentaje">Porcentaje (%)</option>
                     <option value="Monto Fijo">Monto Fijo ($)</option>
@@ -2931,11 +2934,27 @@ export default function PresupuestosPlanif({ user, onBack }) {
                     value={cost.valor ?? ''}
                     onChange={(e) => handleUpdateIndirectCostField(cost.id, 'valor', e.target.value)}
                     placeholder="0"
-                    className="w-24 bg-white border border-slate-200 rounded-lg p-1.5 text-xs text-slate-800 text-center font-bold"
+                    className="w-24 bg-white border border-slate-200 rounded-xl p-2 text-xs text-slate-800 text-center font-bold"
                   />
+
+                  {/* CHECKBOX PRORRATEAR INDIVIDUAL UNO A UNO */}
+                  <label className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[10px] font-extrabold cursor-pointer transition select-none ${
+                    cost.prorratear 
+                      ? 'bg-purple-100 text-purple-900 border-purple-300 shadow-xs' 
+                      : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100'
+                  }`}>
+                    <input
+                      type="checkbox"
+                      checked={!!cost.prorratear}
+                      onChange={(e) => handleUpdateIndirectCostField(cost.id, 'prorratear', e.target.checked)}
+                      className="w-3.5 h-3.5 text-primary focus:ring-primary rounded border-slate-300 cursor-pointer"
+                    />
+                    <span>Prorratear</span>
+                  </label>
+
                   <button
                     onClick={() => handleDeleteIndirectCostRow(cost.id)}
-                    className="p-1.5 text-red-655 hover:bg-red-50 rounded transition"
+                    className="p-2 text-red-655 hover:bg-red-50 rounded-xl transition cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -2943,26 +2962,35 @@ export default function PresupuestosPlanif({ user, onBack }) {
               ))}
             </div>
 
+            {proratedIndirectCosts.length > 0 && (
+              <div className="bg-purple-50 p-3 rounded-2xl border border-purple-200 text-xs text-purple-900 flex items-center gap-2">
+                <PieChart className="w-4 h-4 text-purple-600 shrink-0" />
+                <span className="leading-snug">
+                  Los costos seleccionados ({proratedIndirectCosts.map(c => c.concepto).join(', ')}) incrementarán ponderadamente los Precios Unitarios en un <strong className="font-black text-purple-950">+{proratePctIncrement}%</strong> ({formatCLP(totalProratedIndirectValue)}).
+                </span>
+              </div>
+            )}
+
             <div className="flex justify-between items-center border-t border-slate-100 pt-4">
               <button
                 onClick={handleAddIndirectCostRow}
-                className="flex items-center gap-1 bg-slate-50 border border-slate-250 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+                className="flex items-center gap-1 bg-slate-50 border border-slate-250 text-slate-700 text-xs font-bold px-3.5 py-2 rounded-xl hover:bg-slate-100 transition cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5 text-primary" />
-                <span>Añadir Fila</span>
+                <span>Añadir Fila de Costo Indirecto</span>
               </button>
 
               <div className="flex gap-2">
                 <button
                   onClick={() => setShowIndirectModal(false)}
-                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-4 py-2 rounded-lg transition cursor-pointer"
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-4 py-2 rounded-xl transition cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={handleSaveIndirectCosts}
                   disabled={indirectLoading}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition cursor-pointer flex items-center gap-1.5"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition cursor-pointer flex items-center gap-1.5"
                 >
                   <Check className="w-4 h-4" />
                   <span>{indirectLoading ? 'Guardando...' : 'Guardar Cambios'}</span>
