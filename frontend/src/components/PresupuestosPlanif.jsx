@@ -1056,50 +1056,24 @@ export default function PresupuestosPlanif({ user, onBack }) {
         .eq('id', apuItem.id);
       if (itemErr) throw itemErr;
 
-      // 2. Guardar recursos vinculados
-      const toUpdate = apuResources.filter(r => typeof r.id === 'number');
-      const toInsert = apuResources
-        .filter(r => typeof r.id === 'string' && r.id.startsWith('temp-apu-'))
-        .map(r => ({
+      // 2. Guardar recursos vinculados (Limpiar viejos e insertar lista actual)
+      const { error: delErr } = await supabase
+        .from('presupuestos_items_recursos')
+        .delete()
+        .eq('item_id', apuItem.id);
+      if (delErr) throw delErr;
+
+      if (apuResources.length > 0) {
+        const recordsToInsert = apuResources.map(r => ({
           item_id: apuItem.id,
-          recurso_id: r.recurso_id,
+          recurso_id: parseInt(r.recurso_id, 10),
           cantidad_unidad: parseFloat(r.cantidad_unidad) || 0,
           rendimiento: apuForm.tipo_metodologia === 'Costo-Tiempo' ? 1 : (parseFloat(r.rendimiento) || 1)
         }));
 
-      const { data: dbCurrent, error: dbErr } = await supabase
-        .from('presupuestos_items_recursos')
-        .select('id')
-        .eq('item_id', apuItem.id);
-      if (dbErr) throw dbErr;
-
-      const dbIds = (dbCurrent || []).map(x => x.id);
-      const keepIds = toUpdate.map(x => x.id);
-      const toDeleteIds = dbIds.filter(id => !keepIds.includes(id));
-
-      if (toDeleteIds.length > 0) {
-        const { error: delErr } = await supabase
-          .from('presupuestos_items_recursos')
-          .delete()
-          .in('id', toDeleteIds);
-        if (delErr) throw delErr;
-      }
-
-      for (const item of toUpdate) {
-        const { error: updErr } = await supabase
-          .from('presupuestos_items_recursos')
-          .update({
-            cantidad_unidad: parseFloat(item.cantidad_unidad) || 0,
-            rendimiento: apuForm.tipo_metodologia === 'Costo-Tiempo' ? 1 : (parseFloat(item.rendimiento) || 1)
-          })
-          .eq('id', item.id);
-        if (updErr) throw updErr;
-      }
-
-      if (toInsert.length > 0) {
         const { error: insErr } = await supabase
           .from('presupuestos_items_recursos')
-          .insert(toInsert);
+          .insert(recordsToInsert);
         if (insErr) throw insErr;
       }
 
