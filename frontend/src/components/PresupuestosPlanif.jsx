@@ -1041,25 +1041,31 @@ export default function PresupuestosPlanif({ user, onBack }) {
       } else {
         // PRECIO UNITARIO
         if (res.tipo === 'Maquinaria') {
-          let dailyRate = unitCost;
-          if (unitStr.includes('mes') || unitStr.includes('mensual')) {
-            dailyRate = unitCost / diasMes;
-          } else if (unitStr.includes('hr') || unitStr.includes('hora')) {
-            dailyRate = unitCost * hrsJornada;
-          } else if (unitStr.includes('día') || unitStr.includes('dia') || unitStr.includes('jornada')) {
-            dailyRate = unitCost;
+          const isTimeUnit = unitStr.includes('mes') || unitStr.includes('mensual') || 
+                             unitStr.includes('hr') || unitStr.includes('hora') || 
+                             unitStr.includes('día') || unitStr.includes('dia') || unitStr.includes('jornada');
+
+          if (isTimeUnit) {
+            let dailyRate = unitCost;
+            if (unitStr.includes('mes') || unitStr.includes('mensual')) {
+              dailyRate = unitCost / diasMes;
+            } else if (unitStr.includes('hr') || unitStr.includes('hora')) {
+              dailyRate = unitCost * hrsJornada;
+            } else {
+              dailyRate = unitCost;
+            }
+
+            const fuelDaily = consumoLh * hrsJornada * precioDiesel;
+            const totalDailyMachineCost = dailyRate + fuelDaily;
+            const unitSub = (totalDailyMachineCost * qty) / rend;
+            machSum += unitSub;
           } else {
-            dailyRate = unitCost;
+            // Unidad directa (ej: m3, m2, un, ton, kg)
+            const fuelDaily = consumoLh * hrsJornada * precioDiesel;
+            const fuelPerUnit = rend > 0 ? (fuelDaily * qty) / rend : 0;
+            const unitSub = (unitCost * qty * resRend) + fuelPerUnit;
+            machSum += unitSub;
           }
-
-          // Costo diario del combustible (L/hr * hrsJornada * precioDiesel)
-          const fuelDaily = consumoLh * hrsJornada * precioDiesel;
-          // Costo diario operativo total por máquina (Arriendo + Diesel)
-          const totalDailyMachineCost = dailyRate + fuelDaily;
-
-          // Convertir a costo por unidad de obra ($/m3) dividiendo entre Rendimiento
-          const unitSub = (totalDailyMachineCost * qty) / rend;
-          machSum += unitSub;
         } else if (res.tipo === 'Mano de Obra') {
           if (unitStr.includes('mes') || unitStr.includes('mensual')) {
             const dailyRate = unitCost / diasMes;
@@ -2510,20 +2516,31 @@ export default function PresupuestosPlanif({ user, onBack }) {
 
                       let itemSub = 0;
                       if (res.tipo === 'Maquinaria') {
-                        let dailyRate = unitCost;
-                        if (unitStr.includes('mes') || unitStr.includes('mensual')) {
-                          dailyRate = unitCost / diasMes;
-                        } else if (unitStr.includes('hr') || unitStr.includes('hora')) {
-                          dailyRate = unitCost * hrsJornada;
-                        }
+                        const isTimeUnit = unitStr.includes('mes') || unitStr.includes('mensual') || 
+                                           unitStr.includes('hr') || unitStr.includes('hora') || 
+                                           unitStr.includes('día') || unitStr.includes('dia') || unitStr.includes('jornada');
 
-                        const fuelDaily = consumoLh * hrsJornada * precioDiesel;
-                        const totalDailyMachine = dailyRate + fuelDaily;
+                        if (isTimeUnit) {
+                          let dailyRate = unitCost;
+                          if (unitStr.includes('mes') || unitStr.includes('mensual')) {
+                            dailyRate = unitCost / diasMes;
+                          } else if (unitStr.includes('hr') || unitStr.includes('hora')) {
+                            dailyRate = unitCost * hrsJornada;
+                          }
 
-                        if (apuForm.tipo_metodologia === 'Costo-Tiempo') {
-                          itemSub = totalDailyMachine * qty;
+                          const fuelDaily = consumoLh * hrsJornada * precioDiesel;
+                          const totalDailyMachine = dailyRate + fuelDaily;
+
+                          if (apuForm.tipo_metodologia === 'Costo-Tiempo') {
+                            itemSub = totalDailyMachine * qty;
+                          } else {
+                            itemSub = (totalDailyMachine * qty) / rendMeta;
+                          }
                         } else {
-                          itemSub = (totalDailyMachine * qty) / rendMeta;
+                          // Unidad directa (ej: m3, m2, un, ton, kg)
+                          const fuelDaily = consumoLh * hrsJornada * precioDiesel;
+                          const fuelPerUnit = rendMeta > 0 ? (fuelDaily * qty) / rendMeta : 0;
+                          itemSub = (unitCost * qty * resRend) + fuelPerUnit;
                         }
                       } else if (res.tipo === 'Mano de Obra') {
                         if (unitStr.includes('mes') || unitStr.includes('mensual')) {
