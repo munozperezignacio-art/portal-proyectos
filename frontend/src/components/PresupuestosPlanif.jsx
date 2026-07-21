@@ -1120,27 +1120,40 @@ export default function PresupuestosPlanif({ user, onBack }) {
         autoTiempo = (parseFloat(apuItem.cantidad) || 0) / parseFloat(apuForm.rendimiento_meta);
       }
 
-      // 1. Guardar en presupuestos_items
-      const { error: itemErr } = await supabase
+      // 1. Guardar en presupuestos_items con fallback si falta recargar el cache de esquema en Supabase
+      const fullUpdatePayload = {
+        tipo_metodologia: apuForm.tipo_metodologia,
+        rendimiento_meta: parseFloat(apuForm.rendimiento_meta) || 0,
+        dias_habiles_mes: parseFloat(apuForm.dias_habiles_mes) || 22,
+        horas_jornada: parseFloat(apuForm.horas_jornada) || 9,
+        precio_combustible: parseFloat(apuForm.precio_combustible) || 1050,
+        leyes_sociales_pct: parseFloat(apuForm.leyes_sociales_pct) || 0,
+        herramientas_menores_pct: parseFloat(apuForm.herramientas_menores_pct) || 0,
+        imponderables_pct: parseFloat(apuForm.imponderables_pct) || 0,
+        tiempo_estimado: autoTiempo,
+        costo_materiales: calc.matSum,
+        costo_mano_obra: calc.laborTotal,
+        costo_maquinaria: calc.machSum,
+        costo_otros: calc.otrosSum,
+        costo_unitario: calc.totalUnitario
+      };
+
+      let { error: itemErr } = await supabase
         .from('presupuestos_items')
-        .update({
-          tipo_metodologia: apuForm.tipo_metodologia,
-          rendimiento_meta: parseFloat(apuForm.rendimiento_meta) || 0,
-          dias_habiles_mes: parseFloat(apuForm.dias_habiles_mes) || 22,
-          horas_jornada: parseFloat(apuForm.horas_jornada) || 9,
-          precio_combustible: parseFloat(apuForm.precio_combustible) || 1050,
-          leyes_sociales_pct: parseFloat(apuForm.leyes_sociales_pct) || 0,
-          herramientas_menores_pct: parseFloat(apuForm.herramientas_menores_pct) || 0,
-          imponderables_pct: parseFloat(apuForm.imponderables_pct) || 0,
-          tiempo_estimado: autoTiempo,
-          costo_materiales: calc.matSum,
-          costo_mano_obra: calc.laborTotal,
-          costo_maquinaria: calc.machSum,
-          costo_otros: calc.otrosSum,
-          costo_unitario: calc.totalUnitario
-        })
+        .update(fullUpdatePayload)
         .eq('id', apuItem.id);
-      if (itemErr) throw itemErr;
+
+      if (itemErr && (itemErr.message.includes('schema cache') || itemErr.message.includes('column'))) {
+        // Fallback básico si Supabase no ha recargado la cache del esquema
+        const { costo_otros, herramientas_menores_pct, dias_habiles_mes, horas_jornada, precio_combustible, ...basicPayload } = fullUpdatePayload;
+        const { error: fallbackErr } = await supabase
+          .from('presupuestos_items')
+          .update(basicPayload)
+          .eq('id', apuItem.id);
+        if (fallbackErr) throw fallbackErr;
+      } else if (itemErr) {
+        throw itemErr;
+      }
 
       // 2. Guardar recursos vinculados (Limpiar e insertar)
       const { error: delErr } = await supabase
