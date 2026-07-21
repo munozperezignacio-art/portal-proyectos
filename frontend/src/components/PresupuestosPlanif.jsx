@@ -4,7 +4,7 @@ import {
   ArrowLeft, FileSpreadsheet, Calendar, Plus, Save, Trash2, 
   Upload, Check, AlertCircle, RefreshCw, ChevronRight, CalendarDays,
   FolderPlus, DollarSign, Hammer, Briefcase, FileText, MapPin, Clock, ChevronLeft,
-  Settings, Percent, Coins, Sliders, Info, Store, Building2, ChevronDown, ChevronUp, Calculator, Fuel
+  Settings, Percent, Coins, Sliders, Info, Store, Building2, ChevronDown, ChevronUp, Calculator, Fuel, Wrench
 } from 'lucide-react';
 import { comunasChile } from '../utils/comunas';
 
@@ -87,6 +87,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
     costo_materiales: 0,
     costo_mano_obra: 0,
     costo_maquinaria: 0,
+    costo_herramientas: 0,
     costo_otros: 0
   });
 
@@ -326,6 +327,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
       costo_materiales: 0,
       costo_mano_obra: 0,
       costo_maquinaria: 0,
+      costo_herramientas: 0,
       costo_otros: 0
     };
     setItemsPresupuesto([...itemsPresupuesto, newRow]);
@@ -849,6 +851,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
   const materialCost = recursos.filter(r => r.tipo === 'Material').reduce((sum, r) => sum + (r.cantidad_estimada * r.costo_unitario), 0);
   const laborCost = recursos.filter(r => r.tipo === 'Mano de Obra').reduce((sum, r) => sum + (r.cantidad_estimada * r.costo_unitario), 0);
   const machineryCost = recursos.filter(r => r.tipo === 'Maquinaria').reduce((sum, r) => sum + (r.cantidad_estimada * r.costo_unitario), 0);
+  const herramientasCost = recursos.filter(r => r.tipo === 'Herramientas').reduce((sum, r) => sum + (r.cantidad_estimada * r.costo_unitario), 0);
   const otrosCost = recursos.filter(r => r.tipo === 'Otros').reduce((sum, r) => sum + (r.cantidad_estimada * r.costo_unitario), 0);
 
   // --- ACCIONES DE APU MODAL ---
@@ -885,6 +888,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
       costo_materiales: item.costo_materiales || 0,
       costo_mano_obra: item.costo_mano_obra || 0,
       costo_maquinaria: item.costo_maquinaria || 0,
+      costo_herramientas: item.costo_herramientas || 0,
       costo_otros: item.costo_otros || 0
     });
 
@@ -994,9 +998,10 @@ export default function PresupuestosPlanif({ user, onBack }) {
     setApuResources(prev => prev.filter(r => r.id !== id));
   };
 
-  // CÁLCULO Y UNIFICACIÓN DE COSTOS DE APU (INCLUYENDO COMBUSTIBLE MAQUINARIA)
+  // CÁLCULO Y UNIFICACIÓN DE COSTOS DE APU (SOPORTE COSTO-TIEMPO & PRECIO UNITARIO)
   const calculateApuCost = () => {
-    const rend = parseFloat(apuForm.rendimiento_meta) || 1;
+    const isPU = apuForm.tipo_metodologia === 'Precio Unitario';
+    const rend = isPU ? (parseFloat(apuForm.rendimiento_meta) || 1) : 1;
     const diasMes = parseFloat(apuForm.dias_habiles_mes) || 22;
     const hrsJornada = parseFloat(apuForm.horas_jornada) || 9;
     const precioDiesel = parseFloat(apuForm.precio_combustible) || 1050;
@@ -1007,6 +1012,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
     let matSum = 0;
     let laborSum = 0;
     let machSum = 0;
+    let herrSum = 0;
     let otrosSum = 0;
 
     apuResources.forEach(link => {
@@ -1019,7 +1025,8 @@ export default function PresupuestosPlanif({ user, onBack }) {
       const unitStr = (res.unidad || '').toLowerCase().trim();
       const consumoLh = parseFloat(link.consumo_combustible_lh) || 0;
 
-      if (apuForm.tipo_metodologia === 'Costo-Tiempo') {
+      if (!isPU) {
+        // COSTO-TIEMPO (Cobro directo por tiempo de recuros sin rendimiento de obra)
         let dailyCost = unitCost;
         if (unitStr.includes('mes') || unitStr.includes('mensual')) {
           dailyCost = unitCost / diasMes;
@@ -1037,6 +1044,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
         if (res.tipo === 'Material') matSum += sub;
         else if (res.tipo === 'Mano de Obra') laborSum += sub;
         else if (res.tipo === 'Maquinaria') machSum += sub;
+        else if (res.tipo === 'Herramientas') herrSum += sub;
         else otrosSum += sub;
       } else {
         // PRECIO UNITARIO
@@ -1060,11 +1068,31 @@ export default function PresupuestosPlanif({ user, onBack }) {
             const unitSub = (totalDailyMachineCost * qty) / rend;
             machSum += unitSub;
           } else {
-            // Unidad directa (ej: m3, m2, un, ton, kg)
+            // Tarifa directa por unidad de obra (ej: $10.200 / M3)
             const fuelDaily = consumoLh * hrsJornada * precioDiesel;
             const fuelPerUnit = rend > 0 ? (fuelDaily * qty) / rend : 0;
             const unitSub = (unitCost * qty * resRend) + fuelPerUnit;
             machSum += unitSub;
+          }
+        } else if (res.tipo === 'Herramientas') {
+          const isTimeUnit = unitStr.includes('mes') || unitStr.includes('mensual') || 
+                             unitStr.includes('hr') || unitStr.includes('hora') || 
+                             unitStr.includes('día') || unitStr.includes('dia') || unitStr.includes('jornada');
+
+          if (isTimeUnit) {
+            let dailyRate = unitCost;
+            if (unitStr.includes('mes') || unitStr.includes('mensual')) {
+              dailyRate = unitCost / diasMes;
+            } else if (unitStr.includes('hr') || unitStr.includes('hora')) {
+              dailyRate = unitCost * hrsJornada;
+            } else {
+              dailyRate = unitCost;
+            }
+            const unitSub = (dailyRate * qty) / rend;
+            herrSum += unitSub;
+          } else {
+            const unitSub = unitCost * qty * resRend;
+            herrSum += unitSub;
           }
         } else if (res.tipo === 'Mano de Obra') {
           if (unitStr.includes('mes') || unitStr.includes('mensual')) {
@@ -1094,7 +1122,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
     });
 
     const laborTotal = laborSum * (1 + (lsPct + hmPct) / 100);
-    const subtotalDirecto = matSum + machSum + laborTotal + otrosSum;
+    const subtotalDirecto = matSum + machSum + laborTotal + herrSum + otrosSum;
     const totalUnitario = subtotalDirecto * (1 + impPct / 100);
 
     return {
@@ -1103,6 +1131,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
       laborSum: Math.round(laborSum),
       laborTotal: Math.round(laborTotal),
       machSum: Math.round(machSum),
+      herrSum: Math.round(herrSum),
       otrosSum: Math.round(otrosSum),
       subtotalDirecto: Math.round(subtotalDirecto),
       impValue: Math.round(subtotalDirecto * (impPct / 100))
@@ -1120,7 +1149,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
         autoTiempo = (parseFloat(apuItem.cantidad) || 0) / parseFloat(apuForm.rendimiento_meta);
       }
 
-      // 1. Guardar en presupuestos_items con fallback si falta recargar el cache de esquema en Supabase
+      // 1. Guardar en presupuestos_items con fallback
       const fullUpdatePayload = {
         tipo_metodologia: apuForm.tipo_metodologia,
         rendimiento_meta: parseFloat(apuForm.rendimiento_meta) || 0,
@@ -1134,6 +1163,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
         costo_materiales: calc.matSum,
         costo_mano_obra: calc.laborTotal,
         costo_maquinaria: calc.machSum,
+        costo_herramientas: calc.herrSum,
         costo_otros: calc.otrosSum,
         costo_unitario: calc.totalUnitario
       };
@@ -1144,8 +1174,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
         .eq('id', apuItem.id);
 
       if (itemErr && (itemErr.message.includes('schema cache') || itemErr.message.includes('column'))) {
-        // Fallback básico si Supabase no ha recargado la cache del esquema
-        const { costo_otros, herramientas_menores_pct, dias_habiles_mes, horas_jornada, precio_combustible, ...basicPayload } = fullUpdatePayload;
+        const { costo_otros, costo_herramientas, herramientas_menores_pct, dias_habiles_mes, horas_jornada, precio_combustible, ...basicPayload } = fullUpdatePayload;
         const { error: fallbackErr } = await supabase
           .from('presupuestos_items')
           .update(basicPayload)
@@ -1413,7 +1442,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                       Recursos
                     </h3>
                     <p className="text-xs text-slate-500 leading-normal">
-                      Controla y desglosa los insumos necesarios clasificados en Materiales, Mano de Obra, Maquinaria y Otros con su Comuna y Proveedor.
+                      Controla y desglosa los insumos necesarios clasificados en Materiales, Mano de Obra, Maquinaria, Herramientas y Otros con su Comuna y Proveedor.
                     </p>
                   </div>
                 </div>
@@ -1900,26 +1929,30 @@ export default function PresupuestosPlanif({ user, onBack }) {
                 {/* RECURSOS */}
                 {activeSection === 'recursos' && (
                   <div className="space-y-4 animate-in fade-in duration-200">
-                    <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-6 gap-3">
                       <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
                         <h4 className="text-[10px] text-slate-455 font-bold uppercase tracking-wider">Costo Estimado Total</h4>
-                        <p className="text-lg font-black text-slate-850 mt-1">{formatCLP(totalResourceCost)}</p>
+                        <p className="text-base font-black text-slate-850 mt-1">{formatCLP(totalResourceCost)}</p>
                       </div>
                       <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
                         <h4 className="text-[10px] text-slate-455 font-bold uppercase tracking-wider">Materiales</h4>
-                        <p className="text-lg font-bold text-blue-700 mt-1">{formatCLP(materialCost)}</p>
+                        <p className="text-base font-bold text-blue-700 mt-1">{formatCLP(materialCost)}</p>
                       </div>
                       <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
                         <h4 className="text-[10px] text-slate-455 font-bold uppercase tracking-wider">Mano de Obra</h4>
-                        <p className="text-lg font-bold text-amber-700 mt-1">{formatCLP(laborCost)}</p>
+                        <p className="text-base font-bold text-amber-700 mt-1">{formatCLP(laborCost)}</p>
                       </div>
                       <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
                         <h4 className="text-[10px] text-slate-455 font-bold uppercase tracking-wider">Maquinaria</h4>
-                        <p className="text-lg font-bold text-purple-700 mt-1">{formatCLP(machineryCost)}</p>
+                        <p className="text-base font-bold text-purple-700 mt-1">{formatCLP(machineryCost)}</p>
+                      </div>
+                      <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
+                        <h4 className="text-[10px] text-slate-455 font-bold uppercase tracking-wider">Herramientas</h4>
+                        <p className="text-base font-bold text-rose-700 mt-1">{formatCLP(herramientasCost)}</p>
                       </div>
                       <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
                         <h4 className="text-[10px] text-slate-455 font-bold uppercase tracking-wider">Otros Insumos</h4>
-                        <p className="text-lg font-bold text-teal-700 mt-1">{formatCLP(otrosCost)}</p>
+                        <p className="text-base font-bold text-teal-700 mt-1">{formatCLP(otrosCost)}</p>
                       </div>
                     </div>
 
@@ -1939,7 +1972,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                           <thead>
                             <tr className="bg-slate-50 border-b border-slate-200 text-slate-650 font-bold text-[9px] uppercase tracking-wider select-none">
                               <th className="p-3.5">Nombre Recurso</th>
-                              <th className="p-3.5 w-32">Tipo</th>
+                              <th className="p-3.5 w-36">Tipo</th>
                               <th className="p-3.5 w-20">Unidad</th>
                               <th className="p-3.5 w-28">Costo Unit. ($)</th>
                               <th className="p-3.5 w-24">Cant. Est.</th>
@@ -1960,7 +1993,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                       type="text"
                                       value={item.recurso || ''}
                                       onChange={(e) => handleUpdateResourceField(item.id, 'recurso', e.target.value)}
-                                      placeholder="ej: Cemento Gris"
+                                      placeholder="ej: Cemento Gris / Martillo Demoledor"
                                       className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-800 uppercase font-semibold"
                                     />
                                   </td>
@@ -1973,6 +2006,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                       <option value="Material">Material</option>
                                       <option value="Mano de Obra">Mano de Obra</option>
                                       <option value="Maquinaria">Maquinaria</option>
+                                      <option value="Herramientas">Herramientas</option>
                                       <option value="Otros">Otros</option>
                                     </select>
                                   </td>
@@ -2154,6 +2188,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
       {/* ================= MODAL: ANÁLISIS DE PARTIDA (APU AVANZADO) ================= */}
       {showApuModal && apuItem && (() => {
         const apuCalc = calculateApuCost();
+        const isCostoTiempoMode = apuForm.tipo_metodologia === 'Costo-Tiempo';
 
         return (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -2183,19 +2218,19 @@ export default function PresupuestosPlanif({ user, onBack }) {
                   <p className="text-xs font-black text-slate-700 uppercase">{apuItem.unidad || 'Sin unidad'}</p>
                 </div>
                 <div>
-                  <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Cantidad de Obra</span>
+                  <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Cantidad / Tiempo</span>
                   <p className="text-xs font-black text-slate-700">{apuItem.cantidad || 0}</p>
                 </div>
                 <div>
                   <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Metodología</span>
                   <span className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase mt-1 ${
-                    apuForm.tipo_metodologia === 'Costo-Tiempo' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
+                    isCostoTiempoMode ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
                   }`}>
                     {apuForm.tipo_metodologia}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Precio Unitario Resultante</span>
+                  <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Precio / Tarifa Resultante</span>
                   <p className="text-sm font-black text-primary">{formatCLP(apuCalc.totalUnitario)}</p>
                 </div>
               </div>
@@ -2243,26 +2278,33 @@ export default function PresupuestosPlanif({ user, onBack }) {
                           onChange={(e) => setApuForm({ ...apuForm, tipo_metodologia: e.target.value })}
                           className="text-primary focus:ring-primary w-4 h-4"
                         />
-                        <span>Costo-Tiempo (Arriendo por Tiempo)</span>
+                        <span>Costo-Tiempo (Arriendo / Recursos en Tiempo)</span>
                       </label>
                     </div>
 
-                    {/* Fila de Inputs de Parámetros de Unificación */}
+                    {/* Fila de Inputs de Parámetros */}
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-3">
-                      <div>
-                        <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">
-                          Rendimiento
-                        </label>
-                        <input
-                          type="number"
-                          step="any"
-                          value={apuForm.rendimiento_meta ?? ''}
-                          onChange={(e) => setApuForm({ ...apuForm, rendimiento_meta: parseFloat(e.target.value) || 0 })}
-                          placeholder="25"
-                          className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 font-bold focus:outline-none focus:border-primary"
-                        />
-                        <span className="text-[8px] text-slate-400 block mt-0.5">Unidades/Día</span>
-                      </div>
+                      {!isCostoTiempoMode ? (
+                        <div>
+                          <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">
+                            Rendimiento
+                          </label>
+                          <input
+                            type="number"
+                            step="any"
+                            value={apuForm.rendimiento_meta ?? ''}
+                            onChange={(e) => setApuForm({ ...apuForm, rendimiento_meta: parseFloat(e.target.value) || 0 })}
+                            placeholder="25"
+                            className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 font-bold focus:outline-none focus:border-primary"
+                          />
+                          <span className="text-[8px] text-slate-400 block mt-0.5">Unidades/Día</span>
+                        </div>
+                      ) : (
+                        <div className="col-span-1 bg-purple-50 p-2 rounded-xl border border-purple-200 flex flex-col justify-center">
+                          <span className="text-[9px] font-extrabold text-purple-800 uppercase">Sin Rendimiento</span>
+                          <span className="text-[8px] font-semibold text-purple-650">Metodología en Tiempo</span>
+                        </div>
+                      )}
 
                       <div>
                         <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">
@@ -2404,7 +2446,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                   </div>
                 )}
 
-                {/* OPCIÓN 2: NUEVO (INCLUYE "Otros") */}
+                {/* OPCIÓN 2: NUEVO (INCLUYE "Herramientas" y "Otros") */}
                 {addResourceMode === 'nuevo' && (
                   <form onSubmit={handleCreateAndLinkNewResource} className="space-y-3 pt-1">
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -2415,7 +2457,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                           required
                           value={newResourceForm.recurso}
                           onChange={(e) => setNewResourceForm({ ...newResourceForm, recurso: e.target.value })}
-                          placeholder="ej: Arriendo Andamios / Flete"
+                          placeholder="ej: Martillo Demoledor / Andamios"
                           className="w-full border border-slate-200 rounded-lg p-1.5 text-xs text-slate-800 focus:outline-none focus:border-primary uppercase bg-white"
                         />
                       </div>
@@ -2429,6 +2471,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                           <option value="Material">Material</option>
                           <option value="Mano de Obra">Mano de Obra</option>
                           <option value="Maquinaria">Maquinaria</option>
+                          <option value="Herramientas">Herramientas</option>
                           <option value="Otros">Otros</option>
                         </select>
                       </div>
@@ -2495,7 +2538,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                 )}
               </div>
 
-              {/* TABLA DE INSUMOS VINCULADOS CON UNIFICACIÓN Y DIESEL MAQUINARIA */}
+              {/* TABLA DE INSUMOS VINCULADOS CON UNIFICACIÓN */}
               <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs mb-6">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
@@ -2505,7 +2548,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                       <th className="p-3 w-24 text-right">Tarifa ($) / Unidad</th>
                       <th className="p-3 w-24 text-center">Consumo / Cant.</th>
                       <th className="p-3 w-28 text-center">Consumo Diesel (L/hr)</th>
-                      {apuForm.tipo_metodologia === 'Precio Unitario' && (
+                      {!isCostoTiempoMode && (
                         <th className="p-3 w-24 text-center">Rend. Coef.</th>
                       )}
                       <th className="p-3 w-32 text-right">Costo Unit. Partida ($)</th>
@@ -2528,47 +2571,75 @@ export default function PresupuestosPlanif({ user, onBack }) {
                       const consumoLh = parseFloat(link.consumo_combustible_lh) || 0;
 
                       let itemSub = 0;
-                      if (res.tipo === 'Maquinaria') {
-                        const isTimeUnit = unitStr.includes('mes') || unitStr.includes('mensual') || 
-                                           unitStr.includes('hr') || unitStr.includes('hora') || 
-                                           unitStr.includes('día') || unitStr.includes('dia') || unitStr.includes('jornada');
+                      if (!isCostoTiempoMode) {
+                        // PRECIO UNITARIO
+                        if (res.tipo === 'Maquinaria') {
+                          const isTimeUnit = unitStr.includes('mes') || unitStr.includes('mensual') || 
+                                             unitStr.includes('hr') || unitStr.includes('hora') || 
+                                             unitStr.includes('día') || unitStr.includes('dia') || unitStr.includes('jornada');
 
-                        if (isTimeUnit) {
-                          let dailyRate = unitCost;
-                          if (unitStr.includes('mes') || unitStr.includes('mensual')) {
-                            dailyRate = unitCost / diasMes;
-                          } else if (unitStr.includes('hr') || unitStr.includes('hora')) {
-                            dailyRate = unitCost * hrsJornada;
-                          }
+                          if (isTimeUnit) {
+                            let dailyRate = unitCost;
+                            if (unitStr.includes('mes') || unitStr.includes('mensual')) {
+                              dailyRate = unitCost / diasMes;
+                            } else if (unitStr.includes('hr') || unitStr.includes('hora')) {
+                              dailyRate = unitCost * hrsJornada;
+                            }
 
-                          const fuelDaily = consumoLh * hrsJornada * precioDiesel;
-                          const totalDailyMachine = dailyRate + fuelDaily;
-
-                          if (apuForm.tipo_metodologia === 'Costo-Tiempo') {
-                            itemSub = totalDailyMachine * qty;
-                          } else {
+                            const fuelDaily = consumoLh * hrsJornada * precioDiesel;
+                            const totalDailyMachine = dailyRate + fuelDaily;
                             itemSub = (totalDailyMachine * qty) / rendMeta;
+                          } else {
+                            const fuelDaily = consumoLh * hrsJornada * precioDiesel;
+                            const fuelPerUnit = rendMeta > 0 ? (fuelDaily * qty) / rendMeta : 0;
+                            itemSub = (unitCost * qty * resRend) + fuelPerUnit;
                           }
-                        } else {
-                          // Unidad directa (ej: m3, m2, un, ton, kg)
-                          const fuelDaily = consumoLh * hrsJornada * precioDiesel;
-                          const fuelPerUnit = rendMeta > 0 ? (fuelDaily * qty) / rendMeta : 0;
-                          itemSub = (unitCost * qty * resRend) + fuelPerUnit;
-                        }
-                      } else if (res.tipo === 'Mano de Obra') {
-                        if (unitStr.includes('mes') || unitStr.includes('mensual')) {
-                          const dailyRate = unitCost / diasMes;
-                          itemSub = ((dailyRate * qty) / rendMeta);
-                        } else if (unitStr.includes('hr') || unitStr.includes('hora')) {
-                          const dailyRate = unitCost * hrsJornada;
-                          itemSub = ((dailyRate * qty) / rendMeta);
-                        } else if (unitStr.includes('día') || unitStr.includes('dia')) {
-                          itemSub = (unitCost * qty) / rendMeta;
+                        } else if (res.tipo === 'Herramientas') {
+                          const isTimeUnit = unitStr.includes('mes') || unitStr.includes('mensual') || 
+                                             unitStr.includes('hr') || unitStr.includes('hora') || 
+                                             unitStr.includes('día') || unitStr.includes('dia') || unitStr.includes('jornada');
+
+                          if (isTimeUnit) {
+                            let dailyRate = unitCost;
+                            if (unitStr.includes('mes') || unitStr.includes('mensual')) {
+                              dailyRate = unitCost / diasMes;
+                            } else if (unitStr.includes('hr') || unitStr.includes('hora')) {
+                              dailyRate = unitCost * hrsJornada;
+                            }
+                            itemSub = (dailyRate * qty) / rendMeta;
+                          } else {
+                            itemSub = unitCost * qty * resRend;
+                          }
+                        } else if (res.tipo === 'Mano de Obra') {
+                          if (unitStr.includes('mes') || unitStr.includes('mensual')) {
+                            const dailyRate = unitCost / diasMes;
+                            itemSub = ((dailyRate * qty) / rendMeta);
+                          } else if (unitStr.includes('hr') || unitStr.includes('hora')) {
+                            const dailyRate = unitCost * hrsJornada;
+                            itemSub = ((dailyRate * qty) / rendMeta);
+                          } else if (unitStr.includes('día') || unitStr.includes('dia')) {
+                            itemSub = (unitCost * qty) / rendMeta;
+                          } else {
+                            itemSub = unitCost * qty * resRend;
+                          }
                         } else {
                           itemSub = unitCost * qty * resRend;
                         }
                       } else {
-                        itemSub = unitCost * qty * resRend;
+                        // COSTO-TIEMPO (Cobro directo en tiempo sin rendimiento)
+                        let dailyCost = unitCost;
+                        if (unitStr.includes('mes') || unitStr.includes('mensual')) {
+                          dailyCost = unitCost / diasMes;
+                        } else if (unitStr.includes('hr') || unitStr.includes('hora')) {
+                          dailyCost = unitCost * hrsJornada;
+                        }
+
+                        let fuelDaily = 0;
+                        if (res.tipo === 'Maquinaria' && consumoLh > 0) {
+                          fuelDaily = consumoLh * hrsJornada * precioDiesel;
+                        }
+
+                        itemSub = (dailyCost + fuelDaily) * qty;
                       }
 
                       const isMach = res.tipo === 'Maquinaria';
@@ -2585,7 +2656,8 @@ export default function PresupuestosPlanif({ user, onBack }) {
                             <span className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${
                               res.tipo === 'Material' ? 'bg-blue-50 text-blue-700' :
                               res.tipo === 'Mano de Obra' ? 'bg-amber-50 text-amber-700' : 
-                              res.tipo === 'Maquinaria' ? 'bg-purple-50 text-purple-700' : 'bg-teal-50 text-teal-700'
+                              res.tipo === 'Maquinaria' ? 'bg-purple-50 text-purple-700' : 
+                              res.tipo === 'Herramientas' ? 'bg-rose-50 text-rose-700' : 'bg-teal-50 text-teal-700'
                             }`}>
                               {res.tipo}
                             </span>
@@ -2619,7 +2691,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                               <span className="text-slate-300 text-[10px]">-</span>
                             )}
                           </td>
-                          {apuForm.tipo_metodologia === 'Precio Unitario' && (
+                          {!isCostoTiempoMode && (
                             <td className="p-2">
                               <input
                                 type="number"
@@ -2630,7 +2702,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                               />
                             </td>
                           )}
-                          <td className="p-3.5 text-right font-bold text-slate-800">{formatCLP(itemSub)}</td>
+                          <td className="p-3.5 text-right font-bold text-slate-800">{formatCLP(Math.round(itemSub))}</td>
                           <td className="p-2 text-center">
                             <button
                               type="button"
@@ -2646,7 +2718,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
 
                     {apuResources.length === 0 && (
                       <tr>
-                        <td colSpan={apuForm.tipo_metodologia === 'Precio Unitario' ? 8 : 7} className="p-8 text-center text-xs text-slate-400 italic">
+                        <td colSpan={!isCostoTiempoMode ? 8 : 7} className="p-8 text-center text-xs text-slate-400 italic">
                           No has vinculado recursos a esta partida. Selecciona uno del catálogo o crea uno nuevo arriba.
                         </td>
                       </tr>
@@ -2657,19 +2729,23 @@ export default function PresupuestosPlanif({ user, onBack }) {
 
               {/* RESUMEN DE SUB-TOTALES POR CATEGORÍA DE RECURSOS */}
               <div className="bg-slate-50 p-4 border border-slate-200 rounded-2xl space-y-2 text-xs">
-                <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block mb-2">Desglose de Costos de la Partida ($/Unidad de Obra):</span>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 font-semibold text-slate-700">
+                <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block mb-2">Desglose de Costos de la Partida ($/Unidad):</span>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 font-semibold text-slate-700">
                   <div>
                     <span className="text-[9px] uppercase text-slate-400 block">Materiales:</span>
                     <span className="text-slate-850 font-bold">{formatCLP(apuCalc.matSum)}</span>
                   </div>
                   <div>
-                    <span className="text-[9px] uppercase text-slate-400 block">Mano de Obra (+Leyes/Herram):</span>
+                    <span className="text-[9px] uppercase text-slate-400 block">Mano Obra (+Leyes):</span>
                     <span className="text-amber-800 font-bold">{formatCLP(apuCalc.laborTotal)}</span>
                   </div>
                   <div>
-                    <span className="text-[9px] uppercase text-slate-400 block">Maquinaria (+Diesel Combust.):</span>
+                    <span className="text-[9px] uppercase text-slate-400 block">Maquinaria (+Diesel):</span>
                     <span className="text-purple-800 font-bold">{formatCLP(apuCalc.machSum)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] uppercase text-slate-400 block">Herramientas:</span>
+                    <span className="text-rose-800 font-bold">{formatCLP(apuCalc.herrSum)}</span>
                   </div>
                   <div>
                     <span className="text-[9px] uppercase text-slate-400 block">Otros Insumos:</span>
@@ -2678,7 +2754,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                 </div>
 
                 <div className="border-t border-slate-200 pt-2.5 flex justify-between items-center font-bold">
-                  <span className="uppercase text-slate-600 text-[10px]">Subtotal Costo Directo + Imponderables ({apuForm.imponderables_pct}%):</span>
+                  <span className="uppercase text-slate-600 text-[10px]">Subtotal Directo + Imponderables ({apuForm.imponderables_pct}%):</span>
                   <span className="text-primary font-black text-sm">{formatCLP(apuCalc.totalUnitario)}</span>
                 </div>
               </div>
