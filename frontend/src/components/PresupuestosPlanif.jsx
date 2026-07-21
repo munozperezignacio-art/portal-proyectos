@@ -1098,14 +1098,14 @@ export default function PresupuestosPlanif({ user, onBack }) {
     const totalUnitario = subtotalDirecto * (1 + impPct / 100);
 
     return {
-      totalUnitario,
-      matSum,
-      laborSum,
-      laborTotal,
-      machSum,
-      otrosSum,
-      subtotalDirecto,
-      impValue: subtotalDirecto * (impPct / 100)
+      totalUnitario: Math.round(totalUnitario),
+      matSum: Math.round(matSum),
+      laborSum: Math.round(laborSum),
+      laborTotal: Math.round(laborTotal),
+      machSum: Math.round(machSum),
+      otrosSum: Math.round(otrosSum),
+      subtotalDirecto: Math.round(subtotalDirecto),
+      impValue: Math.round(subtotalDirecto * (impPct / 100))
     };
   };
 
@@ -1571,7 +1571,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                       <input
                                         type="number"
                                         step="any"
-                                        value={item.costo_unitario ?? ''}
+                                        value={item.costo_unitario !== undefined && item.costo_unitario !== null && item.costo_unitario !== '' ? Math.round(parseFloat(item.costo_unitario)) : ''}
                                         onChange={(e) => handleUpdateBudgetField(item.id, 'costo_unitario', e.target.value)}
                                         placeholder="0"
                                         disabled={typeof item.id === 'number'}
