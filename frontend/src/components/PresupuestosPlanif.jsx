@@ -4,8 +4,9 @@ import {
   ArrowLeft, FileSpreadsheet, Calendar, Plus, Save, Trash2, 
   Upload, Check, AlertCircle, RefreshCw, ChevronRight, CalendarDays,
   FolderPlus, DollarSign, Hammer, Briefcase, FileText, MapPin, Clock, ChevronLeft,
-  Settings, Percent, Coins, Sliders, Info, Store, Building2, ChevronDown, ChevronUp, Calculator, Fuel, Wrench, PieChart
+  Settings, Percent, Coins, Sliders, Info, Store, Building2, ChevronDown, ChevronUp, Calculator, Fuel, Wrench, PieChart, Download
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { comunasChile } from '../utils/comunas';
 
 export default function PresupuestosPlanif({ user, onBack }) {
@@ -14,6 +15,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
   const [selectedProyectoId, setSelectedProyectoId] = useState('');
   const [loadingProyectos, setLoadingProyectos] = useState(true);
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
   
   // Datos del nuevo proyecto
   const [newProjectData, setNewProjectData] = useState({ 
@@ -409,6 +411,305 @@ export default function PresupuestosPlanif({ user, onBack }) {
       setErrorMsg('Error al guardar presupuesto: ' + err.message);
     } finally {
       setBudgetLoading(false);
+    }
+  };
+
+  // --- EXPORTAR PRESUPUESTO EN EXCEL (HOJA 1 RESUMEN, HOJAS 2+ APUs) ---
+  const makeSheetName = (code, title, usedSet) => {
+    let raw = `${code ? code + ' ' : ''}${title || 'Partida'}`.replace(/[:\\/?*\[\]]/g, '');
+    if (raw.length > 30) {
+      raw = raw.substring(0, 30).trim();
+    }
+    let finalName = raw;
+    let counter = 1;
+    while (usedSet.has(finalName.toLowerCase())) {
+      const suffix = `_${counter}`;
+      const baseLen = 30 - suffix.length;
+      finalName = raw.substring(0, baseLen) + suffix;
+      counter++;
+    }
+    usedSet.add(finalName.toLowerCase());
+    return finalName;
+  };
+
+  const handleExportExcel = async () => {
+    if (!selectedProyectoId || itemsPresupuesto.length === 0) {
+      alert("No hay partidas registradas en el presupuesto actual para exportar.");
+      return;
+    }
+
+    setExportingExcel(true);
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    try {
+      const itemIds = itemsPresupuesto.filter(i => typeof i.id === 'number').map(i => i.id);
+      let allApuLinks = [];
+      if (itemIds.length > 0) {
+        const { data, error } = await supabase
+          .from('presupuestos_items_recursos')
+          .select('*')
+          .in('item_id', itemIds);
+        if (!error && data) {
+          allApuLinks = data;
+        }
+      }
+
+      const wb = XLSX.utils.book_new();
+
+      // -------------------------------------------------------------
+      // HOJA 1: RESUMEN DE PRESUPUESTO
+      // -------------------------------------------------------------
+      const sheet1Data = [];
+      const projName = currentProyecto?.nombre || 'Presupuesto de Obra';
+      
+      sheet1Data.push(['PRESUPUESTO DE OBRA', projName]);
+      sheet1Data.push(['Cliente / Mandante:', currentProyecto?.cliente || 'N/A']);
+      sheet1Data.push(['Ubicación / Comuna:', `${currentProyecto?.ubicacion || ''} - ${currentProyecto?.comuna || ''}`]);
+      sheet1Data.push(['Tipo de Proyecto:', currentProyecto?.tipo_proyecto || 'Privado']);
+      sheet1Data.push(['Fecha Exportación:', new Date().toLocaleDateString('es-CL')]);
+      sheet1Data.push([]); // Línea en blanco
+
+      // Encabezados Tabla
+      sheet1Data.push(['CÓDIGO', 'ITEM / PARTIDA', 'UNIDAD', 'CANTIDAD', 'PRECIO UNITARIO ($)', 'PRECIO PARTIDA ($)']);
+
+      itemsPresupuesto.forEach(item => {
+        const isChapter = isChapterRow(item, itemsPresupuesto);
+        const directPrice = parseFloat(item.costo_unitario) || 0;
+        const isProratedActive = prorateFactor > 1;
+        const effectivePrice = isProratedActive ? Math.round(directPrice * prorateFactor) : directPrice;
+
+        const importeVal = isChapter
+          ? getChapterSum(item.codigo, itemsPresupuesto, isProratedActive, prorateFactor)
+          : (parseFloat(item.cantidad) || 0) * effectivePrice;
+
+        if (isChapter) {
+          sheet1Data.push([
+            item.codigo || '',
+            (item.partida || '').toUpperCase(),
+            '',
+            '',
+            '',
+            Math.round(importeVal)
+          ]);
+        } else {
+          sheet1Data.push([
+            item.codigo || '',
+            item.partida || '',
+            item.unidad || '',
+            parseFloat(item.cantidad) || 0,
+            Math.round(effectivePrice),
+            Math.round(importeVal)
+          ]);
+        }
+      });
+
+      sheet1Data.push([]); // Línea vacía
+      sheet1Data.push(['', 'COSTO DIRECTO TOTAL', '', '', '', Math.round(totalDirectCost)]);
+
+      if (proratedIndirectCosts.length > 0) {
+        sheet1Data.push([
+          '',
+          `COSTOS GENERALES PRORRATEADOS (+${proratePctIncrement}%): ${proratedIndirectCosts.map(c => c.concepto).join(', ')}`,
+          '',
+          '',
+          '',
+          Math.round(totalProratedIndirectValue)
+        ]);
+      }
+
+      nonProratedIndirectCosts.forEach(cost => {
+        const costVal = calculateIndirectCostValue(cost);
+        sheet1Data.push([
+          '',
+          `${cost.concepto} (${cost.tipo === 'Porcentaje' ? `${cost.valor}%` : 'Monto Fijo'})`,
+          '',
+          '',
+          '',
+          Math.round(costVal)
+        ]);
+      });
+
+      sheet1Data.push(['', 'TOTAL GENERAL DEL PRESUPUESTO', '', '', '', Math.round(totalProjectCost)]);
+
+      const ws1 = XLSX.utils.aoa_to_sheet(sheet1Data);
+      ws1['!cols'] = [
+        { wch: 12 },
+        { wch: 48 },
+        { wch: 10 },
+        { wch: 14 },
+        { wch: 22 },
+        { wch: 22 }
+      ];
+
+      XLSX.utils.book_append_sheet(wb, ws1, 'Resumen Presupuesto');
+
+      // -------------------------------------------------------------
+      // HOJAS 2 EN ADELANTE: 1 HOJA POR CADA APU / PARTIDA
+      // -------------------------------------------------------------
+      const usedSheetNames = new Set(['resumen presupuesto']);
+
+      itemsPresupuesto.forEach(item => {
+        const isChapter = isChapterRow(item, itemsPresupuesto);
+        if (isChapter) return;
+
+        const itemLinks = allApuLinks.filter(l => l.item_id === item.id);
+        const sheetName = makeSheetName(item.codigo, item.partida, usedSheetNames);
+
+        const apuSheetData = [];
+        apuSheetData.push(['ANÁLISIS DE PRECIOS UNITARIOS (APU)', item.partida || 'PARTIDA']);
+        apuSheetData.push(['Código Partida:', item.codigo || 'S/N']);
+        apuSheetData.push(['Unidad de Medida:', item.unidad || 'un']);
+        apuSheetData.push(['Cantidad de Partida:', parseFloat(item.cantidad) || 0]);
+        apuSheetData.push(['Metodología:', item.tipo_metodologia || 'Precio Unitario']);
+        apuSheetData.push([]);
+
+        apuSheetData.push(['PARÁMETROS DE CONFIGURACIÓN APU']);
+        apuSheetData.push(['Rendimiento Meta:', item.rendimiento_meta || 25, 'Días Hábiles Mes:', item.dias_habiles_mes || 22]);
+        apuSheetData.push(['Horas por Jornada:', item.horas_jornada || 9, 'Diesel ($/L):', item.precio_combustible || 1050]);
+        apuSheetData.push(['Leyes Sociales (%):', item.leyes_sociales_pct || 35, 'Herramientas Menores (%):', item.herramientas_menores_pct || 5]);
+        apuSheetData.push(['Imponderables (%):', item.imponderables_pct || 5]);
+        apuSheetData.push([]);
+
+        apuSheetData.push(['RECURSO / INSUMO', 'TIPO', 'TARIFA BASE ($)', 'UNIDAD', 'CANTIDAD / CONSUMO', 'DIESEL (L/hr)', 'REND. COEF.', 'COSTO UNIT. PARTIDA ($)']);
+
+        let matSum = 0;
+        let laborSum = 0;
+        let machSum = 0;
+        let herrSum = 0;
+        let otrosSum = 0;
+
+        const isPU = (item.tipo_metodologia || 'Precio Unitario') === 'Precio Unitario';
+        const rendMeta = item.rendimiento_meta || 25;
+        const diasMes = item.dias_habiles_mes || 22;
+        const hrsJornada = item.horas_jornada || 9;
+        const precioDiesel = item.precio_combustible || 1050;
+        const lsPct = item.leyes_sociales_pct !== undefined ? item.leyes_sociales_pct : 35;
+        const hmPct = item.herramientas_menores_pct !== undefined ? item.herramientas_menores_pct : 5;
+        const impPct = item.imponderables_pct !== undefined ? item.imponderables_pct : 5;
+
+        itemLinks.forEach(link => {
+          const res = recursos.find(r => String(r.id) === String(link.recurso_id));
+          if (!res) return;
+
+          const qty = parseFloat(link.cantidad_unidad) || 0;
+          const resRend = parseFloat(link.rendimiento) || 1;
+          const unitCost = parseFloat(res.costo_unitario) || 0;
+          const unitStr = (res.unidad || '').toLowerCase().trim();
+          const consumoLh = parseFloat(link.consumo_combustible_lh) || 0;
+
+          let itemSub = 0;
+          if (isPU) {
+            if (res.tipo === 'Maquinaria') {
+              const isTimeUnit = unitStr.includes('mes') || unitStr.includes('mensual') || unitStr.includes('hr') || unitStr.includes('hora') || unitStr.includes('día') || unitStr.includes('dia');
+              if (isTimeUnit) {
+                let dailyRate = unitCost;
+                if (unitStr.includes('mes') || unitStr.includes('mensual')) dailyRate = unitCost / diasMes;
+                else if (unitStr.includes('hr') || unitStr.includes('hora')) dailyRate = unitCost * hrsJornada;
+                const fuelDaily = consumoLh * hrsJornada * precioDiesel;
+                itemSub = ((dailyRate + fuelDaily) * qty) / rendMeta;
+              } else {
+                const fuelDaily = consumoLh * hrsJornada * precioDiesel;
+                const fuelPerUnit = rendMeta > 0 ? (fuelDaily * qty) / rendMeta : 0;
+                itemSub = (unitCost * qty * resRend) + fuelPerUnit;
+              }
+              machSum += itemSub;
+            } else if (res.tipo === 'Herramientas') {
+              const isTimeUnit = unitStr.includes('mes') || unitStr.includes('mensual') || unitStr.includes('hr') || unitStr.includes('hora') || unitStr.includes('día') || unitStr.includes('dia');
+              if (isTimeUnit) {
+                let dailyRate = unitCost;
+                if (unitStr.includes('mes') || unitStr.includes('mensual')) dailyRate = unitCost / diasMes;
+                else if (unitStr.includes('hr') || unitStr.includes('hora')) dailyRate = unitCost * hrsJornada;
+                itemSub = (dailyRate * qty) / rendMeta;
+              } else {
+                itemSub = unitCost * qty * resRend;
+              }
+              herrSum += itemSub;
+            } else if (res.tipo === 'Mano de Obra') {
+              if (unitStr.includes('mes') || unitStr.includes('mensual')) {
+                itemSub = ((unitCost / diasMes) * qty) / rendMeta;
+              } else if (unitStr.includes('hr') || unitStr.includes('hora')) {
+                itemSub = ((unitCost * hrsJornada) * qty) / rendMeta;
+              } else if (unitStr.includes('día') || unitStr.includes('dia')) {
+                itemSub = (unitCost * qty) / rendMeta;
+              } else {
+                itemSub = unitCost * qty * resRend;
+              }
+              laborSum += itemSub;
+            } else if (res.tipo === 'Otros') {
+              itemSub = unitCost * qty * resRend;
+              otrosSum += itemSub;
+            } else {
+              itemSub = unitCost * qty * resRend;
+              matSum += itemSub;
+            }
+          } else {
+            let dailyCost = unitCost;
+            if (unitStr.includes('mes') || unitStr.includes('mensual')) dailyCost = unitCost / diasMes;
+            else if (unitStr.includes('hr') || unitStr.includes('hora')) dailyCost = unitCost * hrsJornada;
+
+            let fuelDaily = 0;
+            if (res.tipo === 'Maquinaria' && consumoLh > 0) fuelDaily = consumoLh * hrsJornada * precioDiesel;
+            itemSub = (dailyCost + fuelDaily) * qty;
+
+            if (res.tipo === 'Material') matSum += itemSub;
+            else if (res.tipo === 'Mano de Obra') laborSum += itemSub;
+            else if (res.tipo === 'Maquinaria') machSum += itemSub;
+            else if (res.tipo === 'Herramientas') herrSum += itemSub;
+            else otrosSum += itemSub;
+          }
+
+          apuSheetData.push([
+            res.recurso || '',
+            res.tipo || '',
+            Math.round(unitCost),
+            res.unidad || '',
+            qty,
+            consumoLh || 0,
+            resRend || 1,
+            Math.round(itemSub)
+          ]);
+        });
+
+        if (itemLinks.length === 0) {
+          apuSheetData.push(['(Sin recursos vinculados en APU)', '', '', '', '', '', '', 0]);
+        }
+
+        apuSheetData.push([]);
+        
+        const laborTotal = laborSum * (1 + (lsPct + hmPct) / 100);
+        const subtotalDirecto = matSum + machSum + laborTotal + herrSum + otrosSum;
+        const totalUnitario = subtotalDirecto * (1 + impPct / 100);
+
+        apuSheetData.push(['DESGLOSE DE COSTOS Y RESULTADO FINAL']);
+        apuSheetData.push(['Materiales:', Math.round(matSum), 'Mano de Obra (+Leyes):', Math.round(laborTotal)]);
+        apuSheetData.push(['Maquinaria (+Diesel):', Math.round(machSum), 'Herramientas:', Math.round(herrSum)]);
+        apuSheetData.push(['Otros Insumos:', Math.round(otrosSum), `Imponderables (${impPct}%):`, Math.round(subtotalDirecto * (impPct / 100))]);
+        apuSheetData.push(['SUBTOTAL DIRECTO:', Math.round(subtotalDirecto), 'PRECIO UNITARIO FINAL ($):', Math.round(totalUnitario)]);
+
+        const wsApu = XLSX.utils.aoa_to_sheet(apuSheetData);
+        wsApu['!cols'] = [
+          { wch: 32 },
+          { wch: 16 },
+          { wch: 18 },
+          { wch: 10 },
+          { wch: 20 },
+          { wch: 16 },
+          { wch: 12 },
+          { wch: 22 }
+        ];
+
+        XLSX.utils.book_append_sheet(wb, wsApu, sheetName);
+      });
+
+      const safeProjName = projName.replace(/[^a-zA-Z0-9_-]/g, '_');
+      XLSX.writeFile(wb, `Presupuesto_${safeProjName}.xlsx`);
+      setSuccessMsg('Presupuesto y APUs exportados exitosamente a Excel.');
+    } catch (err) {
+      console.error('Error al exportar Excel:', err);
+      setErrorMsg('Error al generar Excel: ' + err.message);
+    } finally {
+      setExportingExcel(false);
     }
   };
 
@@ -1313,6 +1614,18 @@ export default function PresupuestosPlanif({ user, onBack }) {
             )}
           </div>
 
+          {selectedProyectoId && itemsPresupuesto.length > 0 && (
+            <button
+              onClick={handleExportExcel}
+              disabled={exportingExcel}
+              className="flex items-center justify-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition cursor-pointer shadow-sm disabled:opacity-50"
+              title="Descargar Presupuesto y APUs en Excel multi-hoja"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
+              <span>{exportingExcel ? 'Generando Excel...' : 'Descargar Excel'}</span>
+            </button>
+          )}
+
           <button
             onClick={() => setShowCreateProjectModal(true)}
             className="flex items-center justify-center gap-1.5 bg-primary text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-primary-hover transition cursor-pointer shadow-sm"
@@ -1520,6 +1833,16 @@ export default function PresupuestosPlanif({ user, onBack }) {
                   <div className="flex flex-wrap items-center gap-2.5">
                     {activeSection === 'crear' && (
                       <>
+                        <button
+                          onClick={handleExportExcel}
+                          disabled={exportingExcel}
+                          className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition cursor-pointer shadow-xs disabled:opacity-50"
+                          title="Descargar Presupuesto y APUs en Excel multi-hoja"
+                        >
+                          <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
+                          <span>{exportingExcel ? 'Generando Excel...' : 'Descargar Excel'}</span>
+                        </button>
+
                         <button
                           onClick={() => setShowIndirectModal(true)}
                           className="flex items-center gap-1.5 bg-slate-50 border border-slate-250 text-slate-700 text-xs font-bold px-3.5 py-2 rounded-xl hover:bg-slate-100 transition cursor-pointer"
@@ -1764,7 +2087,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                   const costVal = calculateIndirectCostValue(cost);
                                   return (
                                     <tr key={cost.id} className="bg-slate-50/30 text-slate-600 font-semibold border-t border-slate-200">
-                                      <td colSpan="5" className="p-3 text-right uppercase text-[9px] font-bold text-slate-450 tracking-wider">
+                                      <td colSpan="5" className="p-3 text-right uppercase text-[9px] font-bold text-slate-455 tracking-wider">
                                         {cost.concepto} ({cost.tipo === 'Porcentaje' ? `${cost.valor}%` : 'Monto Fijo'}):
                                       </td>
                                       <td className="p-3 text-slate-800 font-bold">{formatCLP(costVal)}</td>
