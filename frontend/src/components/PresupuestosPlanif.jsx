@@ -34,6 +34,13 @@ const serializeProjectTipoAndCurrency = (tipo, monedaBase) => {
   return `${tipo || 'Privado'} | ${monedaBase || 'CLP'}`;
 };
 
+const calculateEndDate = (startDateStr, durationDays) => {
+  if (!startDateStr || !durationDays) return '';
+  const date = new Date(startDateStr + 'T00:00:00');
+  date.setDate(date.getDate() + parseInt(durationDays, 10) - 1);
+  return date.toISOString().split('T')[0];
+};
+
 export default function PresupuestosPlanif({ user, onBack }) {
   // Tipo de cambio del día (UF, USD, UTM, CLP)
   const [exchangeRates, setExchangeRates] = useState({
@@ -266,28 +273,77 @@ export default function PresupuestosPlanif({ user, onBack }) {
   const fetchCronograma = async (projId) => {
     setTasksLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data: cronoData, error: cronoErr } = await supabase
         .from('planificacion_cronogramas')
         .select('*')
         .eq('presupuesto_id', projId);
-      if (error) throw error;
+      if (cronoErr) throw cronoErr;
 
-      const sorted = (data || []).sort((a, b) => {
+      const { data: budgetData, error: budgetErr } = await supabase
+        .from('presupuestos_items')
+        .select('*')
+        .eq('presupuesto_id', projId);
+      if (budgetErr) throw budgetErr;
+
+      const sortedItems = (budgetData || []).sort((a, b) => {
         const codA = a.codigo || '';
         const codB = b.codigo || '';
         return codA.localeCompare(codB, undefined, { numeric: true, sensitivity: 'base' });
       });
-      setCronograma(sorted);
 
-      if (sorted.length > 0) {
-        const startDates = sorted.map(t => t.fecha_inicio).filter(Boolean);
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      // Fusionar partidas de presupuesto
+      const mergedList = sortedItems.map(item => {
+        const existing = (cronoData || []).find(c => c.codigo === item.codigo);
+        
+        const defaultDuration = Math.max(1, Math.ceil(parseFloat(item.tiempo_estimado) || 1));
+        const defaultStart = todayStr;
+        const defaultEnd = calculateEndDate(defaultStart, defaultDuration);
+
+        return {
+          id: existing ? existing.id : 'temp-crono-' + item.codigo,
+          presupuesto_id: projId,
+          codigo: item.codigo,
+          tarea: item.partida, // Sincronizado siempre con el nombre actual de la partida
+          fecha_inicio: existing ? existing.fecha_inicio : defaultStart,
+          fecha_fin: existing ? existing.fecha_fin : defaultEnd,
+          duracion: existing ? (parseInt(existing.duracion, 10) || 1) : defaultDuration,
+          predecesora: existing ? (existing.predecesora || '') : '',
+          porcentaje_avance: existing ? (parseFloat(existing.porcentaje_avance) || 0) : 0,
+          responsable: existing ? (existing.responsable || '') : '',
+          estado: existing ? (existing.estado || 'Pendiente') : 'Pendiente',
+          is_partida: true
+        };
+      });
+
+      // Agregar cualquier tarea personalizada extra de la tabla cronograma
+      (cronoData || []).forEach(c => {
+        if (!mergedList.some(m => m.codigo === c.codigo)) {
+          mergedList.push({
+            ...c,
+            is_partida: false
+          });
+        }
+      });
+
+      const sortedMergedList = mergedList.sort((a, b) => {
+        const codA = a.codigo || '';
+        const codB = b.codigo || '';
+        return codA.localeCompare(codB, undefined, { numeric: true, sensitivity: 'base' });
+      });
+
+      setCronograma(sortedMergedList);
+
+      if (sortedMergedList.length > 0) {
+        const startDates = sortedMergedList.map(t => t.fecha_inicio).filter(Boolean);
         if (startDates.length > 0) {
           const minDate = startDates.reduce((min, d) => d < min ? d : min, startDates[0]);
           setGanttStartDate(minDate);
         }
       }
     } catch (err) {
-      console.error('Error cargando cronograma:', err.message);
+      console.error('Error cargando cronograma unificado:', err.message);
     } finally {
       setTasksLoading(false);
     }
@@ -931,12 +987,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
     setCronograma([...cronograma, newRow]);
   };
 
-  const calculateEndDate = (startDateStr, durationDays) => {
-    if (!startDateStr || !durationDays) return '';
-    const date = new Date(startDateStr + 'T00:00:00');
-    date.setDate(date.getDate() + parseInt(durationDays, 10) - 1);
-    return date.toISOString().split('T')[0];
-  };
+
 
   const handleUpdateCronogramaField = (id, field, value) => {
     setCronograma(prev => prev.map(task => {
@@ -983,11 +1034,61 @@ export default function PresupuestosPlanif({ user, onBack }) {
     setSuccessMsg('');
 
     try {
-      const toUpdate = cronograma.filter(t => typeof t.id === 'number');
-      const toInsert = cronograma
+      const resolveChapterTask = (chapter, list) => {
+        const children = list.filter(t => t.codigo && t.codigo !== chapter.codigo && t.codigo.startsWith(chapter.codigo + '.'));
+        if (children.length === 0) return { ...chapter, is_chapter: true };
+        
+        let minStart = null;
+        let maxEnd = null;
+        let totalAvance = 0;
+        let childrenCount = 0;
+
+        children.forEach(c => {
+          if (c.fecha_inicio) {
+            if (!minStart || c.fecha_inicio < minStart) minStart = c.fecha_inicio;
+          }
+          if (c.fecha_fin) {
+            if (!maxEnd || c.fecha_fin > maxEnd) maxEnd = c.fecha_fin;
+          }
+          totalAvance += parseFloat(c.porcentaje_avance) || 0;
+          childrenCount++;
+        });
+
+        const calculatedStart = minStart || chapter.fecha_inicio;
+        const calculatedEnd = maxEnd || chapter.fecha_fin;
+        
+        let calculatedDuration = chapter.duracion;
+        if (minStart && maxEnd) {
+          const s = new Date(minStart + 'T00:00:00');
+          const e = new Date(maxEnd + 'T00:00:00');
+          calculatedDuration = Math.round((e - s) / (1000 * 60 * 60 * 24)) + 1;
+        }
+
+        const calculatedAvance = childrenCount > 0 ? Math.round(totalAvance / childrenCount) : 0;
+
+        return {
+          ...chapter,
+          fecha_inicio: calculatedStart,
+          fecha_fin: calculatedEnd,
+          duracion: calculatedDuration,
+          porcentaje_avance: calculatedAvance,
+          is_chapter: true
+        };
+      };
+
+      const resolvedList = cronograma.map(task => {
+        const isChapter = isChapterRow(task, cronograma);
+        if (isChapter) {
+          return resolveChapterTask(task, cronograma);
+        }
+        return { ...task, is_chapter: false };
+      });
+
+      const toUpdate = resolvedList.filter(t => typeof t.id === 'number');
+      const toInsert = resolvedList
         .filter(t => typeof t.id === 'string' && t.id.startsWith('temp-'))
         .map(t => {
-          const { id, ...rest } = t;
+          const { id, is_partida, is_chapter, ...rest } = t;
           return { ...rest, presupuesto_id: selectedProyectoId };
         });
 
@@ -2384,208 +2485,280 @@ export default function PresupuestosPlanif({ user, onBack }) {
                 )}
 
                 {/* DIAGRAMA GANTT */}
-                {activeSection === 'gantt' && (
-                  <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start animate-in fade-in duration-200">
-                    <div className="xl:col-span-6 space-y-4">
-                      <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex justify-between items-center">
-                        <div>
-                          <h3 className="text-xs font-extrabold uppercase text-slate-800 tracking-wider">Hoja de Planificación</h3>
-                          <p className="text-[10px] text-slate-455 font-bold uppercase mt-0.5">Listado de etapas y plazos</p>
-                        </div>
-                        <button
-                          onClick={handleAddCronogramaRow}
-                          className="flex items-center gap-1.5 bg-slate-50 border border-slate-250 text-slate-700 text-xs font-bold px-3 py-2 rounded-xl hover:bg-slate-100 transition cursor-pointer"
-                        >
-                          <Plus className="w-4 h-4 text-primary" />
-                          <span>Agregar Tarea</span>
-                        </button>
-                      </div>
+                {activeSection === 'gantt' && (() => {
+                  const resolveChapterTask = (chapter, list) => {
+                    const children = list.filter(t => t.codigo && t.codigo !== chapter.codigo && t.codigo.startsWith(chapter.codigo + '.'));
+                    if (children.length === 0) return { ...chapter, is_chapter: true };
+                    
+                    let minStart = null;
+                    let maxEnd = null;
+                    let totalAvance = 0;
+                    let childrenCount = 0;
 
-                      <div className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden">
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-left text-xs border-collapse">
-                            <thead>
-                              <tr className="bg-slate-50 border-b border-slate-200 text-slate-660 font-bold text-[9px] uppercase tracking-wider select-none">
-                                <th className="p-3 w-16 text-center">Código</th>
-                                <th className="p-3">Tarea</th>
-                                <th className="p-3 w-20">Inicio</th>
-                                <th className="p-3 w-16 text-center">Días</th>
-                                <th className="p-3 w-16 text-center">Pred.</th>
-                                <th className="p-3 w-20 text-center">Avance</th>
-                                <th className="p-3 w-12"></th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-150">
-                              {cronograma.map((task) => (
-                                <tr key={task.id} className="hover:bg-slate-50/50 transition">
-                                  <td className="p-2">
-                                    <input
-                                      type="text"
-                                      value={task.codigo || ''}
-                                      onChange={(e) => handleUpdateCronogramaField(task.id, 'codigo', e.target.value)}
-                                      className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-800 font-bold text-center"
-                                    />
-                                  </td>
-                                  <td className="p-2">
-                                    <input
-                                      type="text"
-                                      value={task.tarea || ''}
-                                      onChange={(e) => handleUpdateCronogramaField(task.id, 'tarea', e.target.value)}
-                                      placeholder="Nueva Tarea"
-                                      className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-800 uppercase font-semibold"
-                                    />
-                                  </td>
-                                  <td className="p-2">
-                                    <input
-                                      type="date"
-                                      value={task.fecha_inicio || ''}
-                                      onChange={(e) => handleUpdateCronogramaField(task.id, 'fecha_inicio', e.target.value)}
-                                      className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-[11px] text-slate-700 font-medium"
-                                    />
-                                  </td>
-                                  <td className="p-2">
-                                    <input
-                                      type="number"
-                                      min="1"
-                                      value={task.duracion ?? ''}
-                                      onChange={(e) => handleUpdateCronogramaField(task.id, 'duracion', e.target.value)}
-                                      className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-700 font-bold text-center"
-                                    />
-                                  </td>
-                                  <td className="p-2">
-                                    <input
-                                      type="text"
-                                      value={task.predecesora || ''}
-                                      onChange={(e) => handleUpdateCronogramaField(task.id, 'predecesora', e.target.value)}
-                                      placeholder="nº"
-                                      className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-655 text-center font-bold"
-                                    />
-                                  </td>
-                                  <td className="p-2">
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      max="100"
-                                      value={task.porcentaje_avance ?? ''}
-                                      onChange={(e) => handleUpdateCronogramaField(task.id, 'porcentaje_avance', e.target.value)}
-                                      className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-700 text-center font-semibold"
-                                    />
-                                  </td>
-                                  <td className="p-2 text-center">
-                                    <button
-                                      onClick={() => handleDeleteCronogramaRow(task.id)}
-                                      className="p-1 text-red-655 hover:bg-red-50 rounded-lg transition"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  </td>
+                    children.forEach(c => {
+                      if (c.fecha_inicio) {
+                        if (!minStart || c.fecha_inicio < minStart) minStart = c.fecha_inicio;
+                      }
+                      if (c.fecha_fin) {
+                        if (!maxEnd || c.fecha_fin > maxEnd) maxEnd = c.fecha_fin;
+                      }
+                      totalAvance += parseFloat(c.porcentaje_avance) || 0;
+                      childrenCount++;
+                    });
+
+                    const calculatedStart = minStart || chapter.fecha_inicio;
+                    const calculatedEnd = maxEnd || chapter.fecha_fin;
+                    
+                    let calculatedDuration = chapter.duracion;
+                    if (minStart && maxEnd) {
+                      const s = new Date(minStart + 'T00:00:00');
+                      const e = new Date(maxEnd + 'T00:00:00');
+                      calculatedDuration = Math.round((e - s) / (1000 * 60 * 60 * 24)) + 1;
+                    }
+
+                    const calculatedAvance = childrenCount > 0 ? Math.round(totalAvance / childrenCount) : 0;
+
+                    return {
+                      ...chapter,
+                      fecha_inicio: calculatedStart,
+                      fecha_fin: calculatedEnd,
+                      duracion: calculatedDuration,
+                      porcentaje_avance: calculatedAvance,
+                      is_chapter: true
+                    };
+                  };
+
+                  const resolvedCronograma = cronograma.map(task => {
+                    const isChapter = isChapterRow(task, cronograma);
+                    if (isChapter) {
+                      return resolveChapterTask(task, cronograma);
+                    }
+                    return { ...task, is_chapter: false };
+                  });
+
+                  return (
+                    <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start animate-in fade-in duration-200">
+                      <div className="xl:col-span-6 space-y-4">
+                        <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex justify-between items-center">
+                          <div>
+                            <h3 className="text-xs font-extrabold uppercase text-slate-800 tracking-wider">Hoja de Planificación</h3>
+                            <p className="text-[10px] text-slate-455 font-bold uppercase mt-0.5">Listado de etapas y plazos</p>
+                          </div>
+                          <button
+                            onClick={handleAddCronogramaRow}
+                            className="flex items-center gap-1.5 bg-slate-50 border border-slate-250 text-slate-700 text-xs font-bold px-3 py-2 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+                          >
+                            <Plus className="w-4 h-4 text-primary" />
+                            <span>Agregar Tarea</span>
+                          </button>
+                        </div>
+
+                        <div className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden">
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs border-collapse">
+                              <thead>
+                                <tr className="bg-slate-50 border-b border-slate-200 text-slate-660 font-bold text-[9px] uppercase tracking-wider select-none">
+                                  <th className="p-3 w-16 text-center">Código</th>
+                                  <th className="p-3">Tarea</th>
+                                  <th className="p-3 w-20">Inicio</th>
+                                  <th className="p-3 w-16 text-center">Días</th>
+                                  <th className="p-3 w-16 text-center">Pred.</th>
+                                  <th className="p-3 w-20 text-center">Avance</th>
+                                  <th className="p-3 w-12"></th>
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                              </thead>
+                              <tbody className="divide-y divide-slate-150">
+                                {resolvedCronograma.map((task) => {
+                                  const isChapter = task.is_chapter;
+                                  return (
+                                    <tr key={task.id} className={`hover:bg-slate-50/50 transition ${isChapter ? 'bg-slate-100/80 font-bold' : ''}`}>
+                                      <td className="p-2">
+                                        <input
+                                          type="text"
+                                          value={task.codigo || ''}
+                                          onChange={(e) => !isChapter && handleUpdateCronogramaField(task.id, 'codigo', e.target.value)}
+                                          disabled={isChapter}
+                                          className={`w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-center ${isChapter ? 'font-black text-slate-800' : 'text-slate-800'}`}
+                                        />
+                                      </td>
+                                      <td className="p-2">
+                                        <input
+                                          type="text"
+                                          value={task.tarea || ''}
+                                          onChange={(e) => !isChapter && handleUpdateCronogramaField(task.id, 'tarea', e.target.value)}
+                                          disabled={isChapter}
+                                          className={`w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs uppercase ${isChapter ? 'font-black text-slate-900' : 'text-slate-800 font-semibold'}`}
+                                        />
+                                      </td>
+                                      <td className="p-2">
+                                        {isChapter ? (
+                                          <span className="p-1 text-[11px] text-slate-500 font-bold block text-center select-none">{task.fecha_inicio}</span>
+                                        ) : (
+                                          <input
+                                            type="date"
+                                            value={task.fecha_inicio || ''}
+                                            onChange={(e) => handleUpdateCronogramaField(task.id, 'fecha_inicio', e.target.value)}
+                                            className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-[11px] text-slate-700 font-medium"
+                                          />
+                                        )}
+                                      </td>
+                                      <td className="p-2">
+                                        {isChapter ? (
+                                          <span className="p-1 text-xs text-slate-500 font-bold block text-center select-none">{task.duracion}</span>
+                                        ) : (
+                                          <input
+                                            type="number"
+                                            min="1"
+                                            value={task.duracion ?? ''}
+                                            onChange={(e) => handleUpdateCronogramaField(task.id, 'duracion', e.target.value)}
+                                            className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-700 font-bold text-center"
+                                          />
+                                        )}
+                                      </td>
+                                      <td className="p-2">
+                                        <input
+                                          type="text"
+                                          value={task.predecesora || ''}
+                                          onChange={(e) => !isChapter && handleUpdateCronogramaField(task.id, 'predecesora', e.target.value)}
+                                          disabled={isChapter}
+                                          placeholder={isChapter ? '' : 'nº'}
+                                          className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-655 text-center font-bold"
+                                        />
+                                      </td>
+                                      <td className="p-2">
+                                        {isChapter ? (
+                                          <span className="p-1 text-xs text-slate-500 font-bold block text-center select-none">{task.porcentaje_avance}%</span>
+                                        ) : (
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            max="100"
+                                            value={task.porcentaje_avance ?? ''}
+                                            onChange={(e) => handleUpdateCronogramaField(task.id, 'porcentaje_avance', e.target.value)}
+                                            className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-700 text-center font-semibold"
+                                          />
+                                        )}
+                                      </td>
+                                      <td className="p-2 text-center">
+                                        {!isChapter && (
+                                          <button
+                                            onClick={() => handleDeleteCronogramaRow(task.id)}
+                                            className="p-1 text-red-655 hover:bg-red-50 rounded-lg transition"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="xl:col-span-6 space-y-4">
-                      <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex flex-wrap justify-between items-center gap-4">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">Fecha Escala:</span>
-                          <input
-                            type="date"
-                            value={ganttStartDate}
-                            onChange={(e) => setGanttStartDate(e.target.value)}
-                            className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-800 focus:outline-none"
-                          />
+                      <div className="xl:col-span-6 space-y-4">
+                        <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex flex-wrap justify-between items-center gap-4">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">Fecha Escala:</span>
+                            <input
+                              type="date"
+                              value={ganttStartDate}
+                              onChange={(e) => setGanttStartDate(e.target.value)}
+                              className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-800 focus:outline-none"
+                            />
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">Límites:</span>
+                            <select
+                              value={ganttScale}
+                              onChange={(e) => setGanttScale(parseInt(e.target.value, 10))}
+                              className="border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-700 bg-white"
+                            >
+                              <option value={15}>15 días</option>
+                              <option value={30}>30 días (Mes)</option>
+                              <option value={60}>60 días (Trimestre)</option>
+                            </select>
+                          </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">Límites:</span>
-                          <select
-                            value={ganttScale}
-                            onChange={(e) => setGanttScale(parseInt(e.target.value, 10))}
-                            className="border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-700 bg-white"
-                          >
-                            <option value={15}>15 días</option>
-                            <option value={30}>30 días (Mes)</option>
-                            <option value={60}>60 días (Trimestre)</option>
-                          </select>
-                        </div>
-                      </div>
+                        <div className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden">
+                          <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                            <span className="text-[10px] font-extrabold uppercase text-slate-555 tracking-wider">Diagrama Gantt</span>
+                          </div>
 
-                      <div className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden">
-                        <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                          <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">Diagrama Gantt</span>
-                        </div>
-
-                        <div className="p-4 overflow-x-auto">
-                          <div 
-                            className="grid border-r border-b border-slate-200 select-none min-w-[650px]"
-                            style={{ gridTemplateColumns: `repeat(${ganttScale}, minmax(26px, 1fr))` }}
-                          >
-                            {ganttDays.map((day, idx) => (
-                              <div 
-                                key={idx}
-                                className={`text-center py-2 border-t border-l border-slate-200 flex flex-col justify-center items-center ${
-                                  day.isWeekend ? 'bg-slate-100/70 text-slate-400' : 'bg-slate-50 text-slate-655'
-                                }`}
-                              >
-                                <span className="text-[7.5px] font-bold uppercase tracking-wider">{day.monthStr}</span>
-                                <span className="text-[10px] font-black">{day.dayNum}</span>
-                              </div>
-                            ))}
-
-                            {cronograma.map((task) => {
-                              const span = getGanttSpan(task.fecha_inicio, task.fecha_fin);
-                              let barColor = 'bg-yellow-500';
-                              if (task.estado === 'En Progreso') barColor = 'bg-blue-600';
-                              else if (task.estado === 'Completado') barColor = 'bg-emerald-600';
-
-                              return (
+                          <div className="p-4 overflow-x-auto">
+                            <div 
+                              className="grid border-r border-b border-slate-200 select-none min-w-[650px]"
+                              style={{ gridTemplateColumns: `repeat(${ganttScale}, minmax(26px, 1fr))` }}
+                            >
+                              {ganttDays.map((day, idx) => (
                                 <div 
-                                  key={task.id}
-                                  className="h-9 relative border-t border-l border-slate-200 flex items-center bg-slate-50/20"
-                                  style={{ gridColumn: `1 / span ${ganttScale}` }}
+                                  key={idx}
+                                  className={`text-center py-2 border-t border-l border-slate-200 flex flex-col justify-center items-center ${
+                                    day.isWeekend ? 'bg-slate-100/70 text-slate-400' : 'bg-slate-50 text-slate-655'
+                                  }`}
                                 >
-                                  <div 
-                                    className="grid h-full w-full absolute top-0 left-0"
-                                    style={{ gridTemplateColumns: `repeat(${ganttScale}, minmax(26px, 1fr))` }}
-                                  >
-                                    {span && (
-                                      <div 
-                                        className="relative flex items-center h-full px-1"
-                                        style={{
-                                          gridColumnStart: span.gridColumnStart,
-                                          gridColumnEnd: span.gridColumnEnd
-                                        }}
-                                      >
-                                        <div 
-                                          className={`w-full h-5 ${barColor} text-white rounded-lg flex items-center justify-between px-2 text-[9px] font-bold shadow-xs truncate`}
-                                        >
-                                          <span className="truncate uppercase">{task.tarea}</span>
-                                          <span>{task.porcentaje_avance}%</span>
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    {ganttDays.map((day, idx) => (
-                                      <div 
-                                        key={idx} 
-                                        className={`border-r border-slate-100/50 h-full pointer-events-none ${
-                                          day.isWeekend ? 'bg-slate-100/10' : ''
-                                        }`} 
-                                      />
-                                    ))}
-                                  </div>
+                                  <span className="text-[7.5px] font-bold uppercase tracking-wider">{day.monthStr}</span>
+                                  <span className="text-[10px] font-black">{day.dayNum}</span>
                                 </div>
-                              );
-                            })}
+                              ))}
+
+                              {resolvedCronograma.map((task) => {
+                                const span = getGanttSpan(task.fecha_inicio, task.fecha_fin);
+                                let barColor = 'bg-yellow-500';
+                                if (task.is_chapter) barColor = 'bg-slate-800';
+                                else if (task.estado === 'En Progreso') barColor = 'bg-blue-600';
+                                else if (task.estado === 'Completado') barColor = 'bg-emerald-600';
+
+                                return (
+                                  <div 
+                                    key={task.id}
+                                    className="h-9 relative border-t border-l border-slate-200 flex items-center bg-slate-50/20"
+                                    style={{ gridColumn: `1 / span ${ganttScale}` }}
+                                  >
+                                    <div 
+                                      className="grid h-full w-full absolute top-0 left-0"
+                                      style={{ gridTemplateColumns: `repeat(${ganttScale}, minmax(26px, 1fr))` }}
+                                    >
+                                      {span && (
+                                        <div 
+                                          className="relative flex items-center h-full px-1"
+                                          style={{
+                                            gridColumnStart: span.gridColumnStart,
+                                            gridColumnEnd: span.gridColumnEnd
+                                          }}
+                                        >
+                                          <div 
+                                            className={`w-full h-5 ${barColor} text-white rounded-lg flex items-center justify-between px-2 text-[9px] font-bold shadow-xs truncate`}
+                                          >
+                                            <span className="truncate uppercase">{task.tarea}</span>
+                                            <span>{task.porcentaje_avance}%</span>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {ganttDays.map((day, idx) => (
+                                        <div 
+                                          key={idx} 
+                                          className={`border-r border-slate-100/50 h-full pointer-events-none ${
+                                            day.isWeekend ? 'bg-slate-100/10' : ''
+                                          }`} 
+                                        />
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* RECURSOS */}
                 {activeSection === 'recursos' && (
