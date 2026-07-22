@@ -4120,19 +4120,45 @@ export default function PresupuestosPlanif({ user, onBack }) {
                             {resInfo.moneda}
                           </td>
                           <td className="p-2 text-center">
-                            <span className="font-semibold text-slate-800">{qty}</span>
-                            <span className="text-[10px] text-slate-450 uppercase ml-1">{resInfo.unidad}</span>
+                            <div className="flex items-center gap-1 justify-center">
+                              <input
+                                type="number"
+                                step="any"
+                                min="0"
+                                value={qty}
+                                onChange={(e) => handleUpdateApuResourceField(link.id, 'cantidad_unidad', parseFloat(e.target.value) || 0)}
+                                className="w-16 border border-slate-200 focus:ring-1 focus:ring-primary rounded px-1.5 py-0.5 text-xs text-center font-bold text-slate-800 bg-white"
+                              />
+                              <span className="text-[10px] text-slate-450 uppercase">{resInfo.unidad}</span>
+                            </div>
                           </td>
                           <td className="p-2 text-center">
                             {isMach ? (
-                              <span className="font-bold text-amber-900 bg-amber-50 px-2 py-0.5 rounded">{consumoLh} L/hr</span>
+                              <div className="flex items-center gap-1 justify-center">
+                                <input
+                                  type="number"
+                                  step="any"
+                                  min="0"
+                                  value={consumoLh}
+                                  onChange={(e) => handleUpdateApuResourceField(link.id, 'consumo_combustible_lh', parseFloat(e.target.value) || 0)}
+                                  className="w-14 border border-slate-200 focus:ring-1 focus:ring-primary rounded px-1.5 py-0.5 text-xs text-center font-bold text-slate-800 bg-white"
+                                />
+                                <span className="text-[9px] text-slate-450 uppercase">L/hr</span>
+                              </div>
                             ) : (
                               <span className="text-slate-300 text-[10px]">-</span>
                             )}
                           </td>
                           {!isCostoTiempoMode && (
-                            <td className="p-2 text-center font-semibold text-slate-700">
-                              {resRend}
+                            <td className="p-2 text-center">
+                              <input
+                                type="number"
+                                step="any"
+                                min="0"
+                                value={resRend}
+                                onChange={(e) => handleUpdateApuResourceField(link.id, 'rendimiento', parseFloat(e.target.value) || 0)}
+                                className="w-14 border border-slate-200 focus:ring-1 focus:ring-primary rounded px-1.5 py-0.5 text-xs text-center font-bold text-slate-800 bg-white"
+                              />
                             </td>
                           )}
                           <td className="p-3.5 text-right font-black text-slate-800">
