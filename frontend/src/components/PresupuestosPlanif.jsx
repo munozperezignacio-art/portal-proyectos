@@ -4,7 +4,7 @@ import {
   ArrowLeft, FileSpreadsheet, Calendar, Plus, Save, Trash2, 
   Upload, Check, AlertCircle, RefreshCw, ChevronRight, CalendarDays,
   FolderPlus, DollarSign, Hammer, Briefcase, FileText, MapPin, Clock, ChevronLeft,
-  Settings, Percent, Coins, Sliders, Info, Store, Building2, ChevronDown, ChevronUp, Calculator, Fuel, Wrench, PieChart, Download, Globe
+  Settings, Percent, Coins, Sliders, Info, Store, Building2, ChevronDown, ChevronUp, Calculator, Fuel, Wrench, PieChart, Download, Globe, TrendingUp
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { comunasChile } from '../utils/comunas';
@@ -173,6 +173,27 @@ export default function PresupuestosPlanif({ user, onBack }) {
   // Estado para el selector de color flotante en las barras del Gantt
   const [showColorPickerTaskId, setShowColorPickerTaskId] = useState(null);
 
+  // Parametrización del Flujo de Caja
+  const [cajaAnticipoPct, setCajaAnticipoPct] = useState(10); // % de Anticipo
+  const [cajaRetencionPct, setCajaRetencionPct] = useState(5); // % de Retención
+  const [cajaRetencionDevoluMes, setCajaRetencionDevoluMes] = useState(1); // Meses tras fin de proyecto para devolución
+  const [cajaCobroClientesDias, setCajaCobroClientesDias] = useState(30); // Días de pago de clientes
+  
+  // Plazos de pago a proveedores por categoría de recursos
+  const [cajaPagoMaterialesDias, setCajaPagoMaterialesDias] = useState(30);
+  const [cajaPagoManoObraDias, setCajaPagoManoObraDias] = useState(0); // Mano de obra al contado/mismo mes
+  const [cajaPagoMaquinariaDias, setCajaPagoMaquinariaDias] = useState(30);
+  const [cajaPagoHerramientasDias, setCajaPagoHerramientasDias] = useState(30);
+  const [cajaPagoOtrosDias, setCajaPagoOtrosDias] = useState(30);
+  const [cajaPagoIndirectosDias, setCajaPagoIndirectosDias] = useState(30);
+
+  // Tab activo de análisis
+  const [analisisTab, setAnalisisTab] = useState('distribucion');
+
+  // Enlaces de APU de todo el proyecto para el análisis financiero
+  const [allApuLinks, setAllApuLinks] = useState([]);
+  const [allApuLinksLoading, setAllApuLinksLoading] = useState(false);
+
   // Configuración del calendario laboral del proyecto
   const [calendarConfig, setCalendarConfig] = useState({
     trabajaSabado: false,
@@ -322,6 +343,34 @@ export default function PresupuestosPlanif({ user, onBack }) {
       setCalendarConfig(parsed.calendar);
     }
   }, [selectedProyectoId, proyectos]);
+
+  const fetchProjectApuLinks = async () => {
+    if (!selectedProyectoId || itemsPresupuesto.length === 0) return;
+    setAllApuLinksLoading(true);
+    try {
+      const itemIds = itemsPresupuesto.filter(i => typeof i.id === 'number').map(i => i.id);
+      if (itemIds.length > 0) {
+        const { data, error } = await supabase
+          .from('presupuestos_items_recursos')
+          .select('*')
+          .in('item_id', itemIds);
+        if (error) throw error;
+        setAllApuLinks(data || []);
+      } else {
+        setAllApuLinks([]);
+      }
+    } catch (err) {
+      console.error("Error fetching all APU links: ", err);
+    } finally {
+      setAllApuLinksLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeSection === 'analisis') {
+      fetchProjectApuLinks();
+    }
+  }, [activeSection, selectedProyectoId, itemsPresupuesto]);
 
   // Conversión de Divisas Matemáticas
   const convertCurrency = (amount, from, to) => {
@@ -2397,6 +2446,24 @@ export default function PresupuestosPlanif({ user, onBack }) {
                   </div>
                 </div>
 
+                {/* Card 6: Análisis de Presupuestos */}
+                <div 
+                  onClick={() => { setActiveSection('analisis'); setErrorMsg(''); setSuccessMsg(''); }}
+                  className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex items-start gap-5 min-h-[140px]"
+                >
+                  <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300 shrink-0">
+                    <TrendingUp className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
+                      Análisis de presupuestos
+                    </h3>
+                    <p className="text-xs text-slate-500 leading-normal">
+                      Revisa la distribución de costos por categorías, simula flujos de caja con anticipos y retenciones, y visualiza curvas S financieras del proyecto.
+                    </p>
+                  </div>
+                </div>
+
               </div>
             ) : (
               /* VISTA B: APARTADO INDIVIDUAL */
@@ -3540,6 +3607,1278 @@ export default function PresupuestosPlanif({ user, onBack }) {
                     </div>
                   </div>
                 )}
+
+                {/* ANÁLISIS DE PRESUPUESTO */}
+                {activeSection === 'analisis' && (() => {
+                  // 1. Obtener el desglose unitario de una partida en base a sus recursos APU
+                  const getItemApuBreakdown = (item, apuLinks) => {
+                    const isPU = item.tipo_metodologia !== 'Costo-Tiempo';
+                    const rend = isPU ? (parseFloat(item.rendimiento_meta) || 1) : 1;
+                    const diasMes = parseFloat(item.dias_habiles_mes) || 22;
+                    const hrsJornada = parseFloat(item.horas_jornada) || 9;
+                    const precioDiesel = parseFloat(item.precio_combustible) || 1050;
+                    const lsPct = parseFloat(item.leyes_sociales_pct) || 0;
+                    const hmPct = parseFloat(item.herramientas_menores_pct) || 0;
+                    const impPct = parseFloat(item.imponderables_pct) || 0;
+
+                    let matSum = 0;
+                    let laborSum = 0;
+                    let machSum = 0;
+                    let herrSum = 0;
+                    let otrosSum = 0;
+
+                    const links = apuLinks.filter(l => String(l.item_id) === String(item.id));
+
+                    links.forEach(link => {
+                      const res = recursos.find(r => String(r.id) === String(link.recurso_id));
+                      if (!res) return;
+
+                      const qty = parseFloat(link.cantidad_unidad) || 0;
+                      const resRend = parseFloat(link.rendimiento) || 1;
+                      const originalCost = parseFloat(res.costo_unitario) || 0;
+                      
+                      const resInfo = parseResourceUnitAndCurrency(res.unidad);
+                      const unitCost = convertCurrency(originalCost, resInfo.moneda, projectBaseCurrency);
+                      
+                      const unitStr = resInfo.unidad.toLowerCase().trim();
+                      const consumoLh = parseFloat(link.consumo_combustible_lh) || 0;
+
+                      if (!isPU) {
+                        // COSTO-TIEMPO
+                        let fuelCost = 0;
+                        if (res.tipo === 'Maquinaria' && consumoLh > 0) {
+                          if (unitStr.includes('mes') || unitStr.includes('mensual')) {
+                            fuelCost = (consumoLh * hrsJornada * diasMes * precioDiesel) * qty;
+                          } else if (unitStr.includes('hr') || unitStr.includes('hora')) {
+                            fuelCost = (consumoLh * precioDiesel) * qty;
+                          } else {
+                            fuelCost = (consumoLh * hrsJornada * precioDiesel) * qty;
+                          }
+                        }
+                        
+                        const sub = (unitCost * qty) + fuelCost;
+
+                        if (res.tipo === 'Material') matSum += sub;
+                        else if (res.tipo === 'Mano de Obra') laborSum += sub;
+                        else if (res.tipo === 'Maquinaria') machSum += sub;
+                        else if (res.tipo === 'Herramientas') herrSum += sub;
+                        else otrosSum += sub;
+                      } else {
+                        // PRECIO UNITARIO
+                        if (res.tipo === 'Maquinaria') {
+                          const isTimeUnit = unitStr.includes('mes') || unitStr.includes('mensual') || 
+                                             unitStr.includes('hr') || unitStr.includes('hora') || 
+                                             unitStr.includes('día') || unitStr.includes('dia') || unitStr.includes('jornada');
+
+                          if (isTimeUnit) {
+                            let dailyRate = unitCost;
+                            if (unitStr.includes('mes') || unitStr.includes('mensual')) {
+                              dailyRate = unitCost / diasMes;
+                            } else if (unitStr.includes('hr') || unitStr.includes('hora')) {
+                              dailyRate = unitCost * hrsJornada;
+                            }
+
+                            const fuelDaily = consumoLh * hrsJornada * precioDiesel;
+                            const totalDailyMachineCost = dailyRate + fuelDaily;
+                            const unitSub = (totalDailyMachineCost * qty) / rend;
+                            machSum += unitSub;
+                          } else {
+                            const fuelDaily = consumoLh * hrsJornada * precioDiesel;
+                            const fuelPerUnit = rend > 0 ? (fuelDaily * qty) / rend : 0;
+                            const unitSub = (unitCost * qty * resRend) + fuelPerUnit;
+                            machSum += unitSub;
+                          }
+                        } else if (res.tipo === 'Herramientas') {
+                          const isTimeUnit = unitStr.includes('mes') || unitStr.includes('mensual') || 
+                                             unitStr.includes('hr') || unitStr.includes('hora') || 
+                                             unitStr.includes('día') || unitStr.includes('dia') || unitStr.includes('jornada');
+
+                          if (isTimeUnit) {
+                            let dailyRate = unitCost;
+                            if (unitStr.includes('mes') || unitStr.includes('mensual')) {
+                              dailyRate = unitCost / diasMes;
+                            } else if (unitStr.includes('hr') || unitStr.includes('hora')) {
+                              dailyRate = unitCost * hrsJornada;
+                            }
+                            const unitSub = (dailyRate * qty) / rend;
+                            herrSum += unitSub;
+                          } else {
+                            const unitSub = unitCost * qty * resRend;
+                            herrSum += unitSub;
+                          }
+                        } else if (res.tipo === 'Mano de Obra') {
+                          if (unitStr.includes('mes') || unitStr.includes('mensual')) {
+                            const dailyRate = unitCost / diasMes;
+                            const unitSub = (dailyRate * qty) / rend;
+                            laborSum += unitSub;
+                          } else if (unitStr.includes('hr') || unitStr.includes('hora')) {
+                            const dailyRate = unitCost * hrsJornada;
+                            const unitSub = (dailyRate * qty) / rend;
+                            laborSum += unitSub;
+                          } else if (unitStr.includes('día') || unitStr.includes('dia') || unitStr.includes('jornada')) {
+                            const unitSub = (unitCost * qty) / rend;
+                            laborSum += unitSub;
+                          } else {
+                            const unitSub = unitCost * qty * resRend;
+                            laborSum += unitSub;
+                          }
+                        } else if (res.tipo === 'Otros') {
+                          const unitSub = unitCost * qty * resRend;
+                          otrosSum += unitSub;
+                        } else {
+                          // Materiales
+                          const unitSub = unitCost * qty * resRend;
+                          matSum += unitSub;
+                        }
+                      }
+                    });
+
+                    const laborTotal = laborSum * (1 + (lsPct + hmPct) / 100);
+                    const subtotalDirecto = matSum + machSum + laborTotal + herrSum + otrosSum;
+                    const totalUnitario = subtotalDirecto * (1 + impPct / 100);
+
+                    return {
+                      matUnit: matSum * (1 + impPct / 100),
+                      laborUnit: laborTotal * (1 + impPct / 100),
+                      machUnit: machSum * (1 + impPct / 100),
+                      herrUnit: herrSum * (1 + impPct / 100),
+                      otrosUnit: otrosSum * (1 + impPct / 100),
+                      totalUnitario: totalUnitario
+                    };
+                  };
+
+                  // 2. Calcular la distribución de costos directa
+                  const costDist = (() => {
+                    let mat = 0, labor = 0, mach = 0, herr = 0, otros = 0;
+                    
+                    itemsPresupuesto.forEach(item => {
+                      if (isChapterRow(item, itemsPresupuesto)) return;
+                      const qty = parseFloat(item.cantidad) || 0;
+                      const links = allApuLinks.filter(l => String(l.item_id) === String(item.id));
+                      
+                      if (links.length > 0) {
+                        const breakdown = getItemApuBreakdown(item, allApuLinks);
+                        mat += breakdown.matUnit * qty;
+                        labor += breakdown.laborUnit * qty;
+                        mach += breakdown.machUnit * qty;
+                        herr += breakdown.herrUnit * qty;
+                        otros += breakdown.otrosUnit * qty;
+                      } else {
+                        const manualCost = (parseFloat(item.costo_unitario) || 0) * qty;
+                        otros += manualCost;
+                      }
+                    });
+
+                    const directSum = mat + labor + mach + herr + otros;
+                    return { mat, labor, mach, herr, otros, directSum };
+                  })();
+
+                  // 3. Flujo Financiero mensual devengado
+                  const finFlow = (() => {
+                    const tasks = cronograma.filter(t => !isChapterRow(t, cronograma));
+                    if (tasks.length === 0) return { months: [], data: [], totals: { revenue: 0, cost: 0, margin: 0, marginPct: 0 } };
+
+                    let minDate = null;
+                    let maxDate = null;
+                    tasks.forEach(t => {
+                      const start = t.fecha_inicio ? new Date(t.fecha_inicio + 'T00:00:00') : new Date();
+                      const end = t.fecha_fin ? new Date(t.fecha_fin + 'T00:00:00') : start;
+                      if (!minDate || start < minDate) minDate = start;
+                      if (!maxDate || end > maxDate) maxDate = end;
+                    });
+
+                    if (!minDate) minDate = new Date();
+                    if (!maxDate) maxDate = minDate;
+
+                    const months = [];
+                    let cur = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+                    const endLimit = new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
+                    while (cur <= endLimit) {
+                      const year = cur.getFullYear();
+                      const month = String(cur.getMonth() + 1).padStart(2, '0');
+                      const label = cur.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' });
+                      months.push({ key: `${year}-${month}`, label: label.charAt(0).toUpperCase() + label.slice(1) });
+                      cur.setMonth(cur.getMonth() + 1);
+                    }
+
+                    const revMap = {};
+                    const costMap = {};
+                    const catMap = { Material: {}, 'Mano de Obra': {}, Maquinaria: {}, Herramientas: {}, Otros: {} };
+                    
+                    months.forEach(m => {
+                      revMap[m.key] = 0;
+                      costMap[m.key] = 0;
+                      Object.keys(catMap).forEach(cat => {
+                        catMap[cat][m.key] = 0;
+                      });
+                    });
+
+                    tasks.forEach(task => {
+                      const item = itemsPresupuesto.find(i => i.codigo === task.codigo);
+                      if (!item) return;
+
+                      const start = task.fecha_inicio ? new Date(task.fecha_inicio + 'T00:00:00') : new Date();
+                      const end = task.fecha_fin ? new Date(task.fecha_fin + 'T00:00:00') : start;
+                      const dur = Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
+
+                      const qty = parseFloat(item.cantidad) || 0;
+                      const unitCost = parseFloat(item.costo_unitario) || 0;
+                      const isProratedActive = prorateFactor > 1;
+                      const salesPrice = isProratedActive ? unitCost * prorateFactor : unitCost;
+
+                      const totalCost = unitCost * qty;
+                      const totalRevenue = salesPrice * qty;
+
+                      const dailyCost = totalCost / dur;
+                      const dailyRevenue = totalRevenue / dur;
+
+                      const breakdown = getItemApuBreakdown(item, allApuLinks);
+                      const dailyCat = {
+                        Material: (breakdown.matUnit * qty) / dur,
+                        'Mano de Obra': (breakdown.laborUnit * qty) / dur,
+                        Maquinaria: (breakdown.machUnit * qty) / dur,
+                        Herramientas: (breakdown.herrUnit * qty) / dur,
+                        Otros: ((breakdown.otrosUnit * qty) || ((allApuLinks.filter(l => String(l.item_id) === String(item.id)).length === 0) ? totalCost : 0)) / dur
+                      };
+
+                      let dayCur = new Date(start);
+                      for (let d = 0; d < dur; d++) {
+                        const year = dayCur.getFullYear();
+                        const month = String(dayCur.getMonth() + 1).padStart(2, '0');
+                        const key = `${year}-${month}`;
+                        if (revMap[key] !== undefined) {
+                          revMap[key] += dailyRevenue;
+                          costMap[key] += dailyCost;
+                          Object.keys(catMap).forEach(cat => {
+                            catMap[cat][key] += dailyCat[cat];
+                          });
+                        }
+                        dayCur.setDate(dayCur.getDate() + 1);
+                      }
+                    });
+
+                    // Distribuir costos indirectos no prorrateados
+                    const indirectMonthly = months.length > 0 ? totalNonProratedIndirectValue / months.length : 0;
+                    months.forEach(m => {
+                      costMap[m.key] += indirectMonthly;
+                      catMap['Otros'][m.key] += indirectMonthly;
+                    });
+
+                    let accRev = 0;
+                    let accCost = 0;
+                    const data = months.map(m => {
+                      const rev = revMap[m.key];
+                      const cost = costMap[m.key];
+                      const margin = rev - cost;
+                      const marginPct = rev > 0 ? (margin / rev) * 100 : 0;
+                      accRev += rev;
+                      accCost += cost;
+
+                      return {
+                        month: m.label,
+                        key: m.key,
+                        revenue: Math.round(rev),
+                        cost: Math.round(cost),
+                        margin: Math.round(margin),
+                        marginPct: parseFloat(marginPct.toFixed(1)),
+                        cumRevenue: Math.round(accRev),
+                        cumCost: Math.round(accCost),
+                        cumMargin: Math.round(accRev - accCost),
+                        cats: {
+                          Material: Math.round(catMap['Material'][m.key]),
+                          Labor: Math.round(catMap['Mano de Obra'][m.key]),
+                          Machinery: Math.round(catMap['Maquinaria'][m.key]),
+                          Tools: Math.round(catMap['Herramientas'][m.key]),
+                          Others: Math.round(catMap['Otros'][m.key])
+                        }
+                      };
+                    });
+
+                    const totals = {
+                      revenue: Math.round(accRev),
+                      cost: Math.round(accCost),
+                      margin: Math.round(accRev - accCost),
+                      marginPct: accRev > 0 ? parseFloat(((accRev - accCost) / accRev * 100).toFixed(1)) : 0
+                    };
+
+                    return { months, data, totals };
+                  })();
+
+                  // 4. Flujo de Caja mensual simulado
+                  const cashFlow = (() => {
+                    if (finFlow.data.length === 0) return { months: [], data: [], minCum: 0 };
+                    
+                    const { data: finData, months: finMonths, totals: finTotals } = finFlow;
+
+                    const maxDelay = Math.max(
+                      Math.round(cajaCobroClientesDias / 30),
+                      Math.round(cajaPagoMaterialesDias / 30),
+                      Math.round(cajaPagoMaquinariaDias / 30),
+                      Math.round(cajaPagoHerramientasDias / 30),
+                      Math.round(cajaPagoOtrosDias / 30),
+                      Math.round(cajaPagoIndirectosDias / 30),
+                      cajaRetencionDevoluMes
+                    ) + 1;
+
+                    const totalCFMonths = finMonths.length + maxDelay;
+                    const cfMonths = [];
+
+                    let cur = new Date(new Date(finMonths[0].key + '-15T00:00:00'));
+                    for (let i = 0; i < totalCFMonths; i++) {
+                      const year = cur.getFullYear();
+                      const month = String(cur.getMonth() + 1).padStart(2, '0');
+                      const label = cur.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' });
+                      cfMonths.push({ key: `${year}-${month}`, label: label.charAt(0).toUpperCase() + label.slice(1) });
+                      cur.setMonth(cur.getMonth() + 1);
+                    }
+
+                    const cashInMap = {};
+                    const cashOutMap = {};
+                    const cashInDetails = { Anticipo: {}, EstadosPago: {}, DevolucionRetencion: {} };
+                    const cashOutDetails = { Material: {}, Labor: {}, Machinery: {}, Tools: {}, Others: {} };
+
+                    cfMonths.forEach(m => {
+                      cashInMap[m.key] = 0;
+                      cashOutMap[m.key] = 0;
+                      Object.keys(cashInDetails).forEach(k => cashInDetails[k][m.key] = 0);
+                      Object.keys(cashOutDetails).forEach(k => cashOutDetails[k][m.key] = 0);
+                    });
+
+                    const totalVentas = finTotals.revenue;
+                    const anticipoTotal = totalVentas * (cajaAnticipoPct / 100);
+                    let totalRetained = 0;
+
+                    if (cfMonths.length > 0) {
+                      const m1 = cfMonths[0].key;
+                      cashInDetails.Anticipo[m1] = anticipoTotal;
+                      cashInMap[m1] += anticipoTotal;
+                    }
+
+                    finData.forEach((fd, i) => {
+                      const amortizacion = fd.revenue * (cajaAnticipoPct / 100);
+                      const facturado = fd.revenue - amortizacion;
+                      const retencion = facturado * (cajaRetencionPct / 100);
+                      const cobroNeto = facturado - retencion;
+                      totalRetained += retencion;
+
+                      const clientDelay = Math.round(cajaCobroClientesDias / 30);
+                      const targetIdx = i + clientDelay;
+                      if (targetIdx < cfMonths.length) {
+                        const targetKey = cfMonths[targetIdx].key;
+                        cashInDetails.EstadosPago[targetKey] += cobroNeto;
+                        cashInMap[targetKey] += cobroNeto;
+                      }
+                    });
+
+                    const lastFinMonthIdx = finData.length - 1;
+                    const targetRetIdx = lastFinMonthIdx + cajaRetencionDevoluMes;
+                    if (targetRetIdx < cfMonths.length) {
+                      const targetKey = cfMonths[targetRetIdx].key;
+                      cashInDetails.DevolucionRetencion[targetKey] = totalRetained;
+                      cashInMap[targetKey] += totalRetained;
+                    }
+
+                    finData.forEach((fd, i) => {
+                      const cats = fd.cats;
+                      const delays = {
+                        Material: Math.round(cajaPagoMaterialesDias / 30),
+                        Labor: Math.round(cajaPagoManoObraDias / 30),
+                        Machinery: Math.round(cajaPagoMaquinariaDias / 30),
+                        Tools: Math.round(cajaPagoHerramientasDias / 30),
+                        Others: Math.round(cajaPagoOtrosDias / 30)
+                      };
+
+                      Object.keys(delays).forEach(cat => {
+                        const delay = delays[cat];
+                        const targetIdx = i + delay;
+                        if (targetIdx < cfMonths.length) {
+                          const targetKey = cfMonths[targetIdx].key;
+                          const amt = cats[cat];
+                          cashOutDetails[cat][targetKey] += amt;
+                          cashOutMap[targetKey] += amt;
+                        }
+                      });
+                    });
+
+                    let accCash = 0;
+                    let minCum = 0;
+
+                    const data = cfMonths.map(m => {
+                      const inc = cashInMap[m.key] || 0;
+                      const out = cashOutMap[m.key] || 0;
+                      const net = inc - out;
+                      accCash += net;
+                      if (accCash < minCum) {
+                        minCum = accCash;
+                      }
+
+                      return {
+                        month: m.label,
+                        key: m.key,
+                        inflow: Math.round(inc),
+                        outflow: Math.round(out),
+                        netFlow: Math.round(net),
+                        cumFlow: Math.round(accCash),
+                        inflowDetails: {
+                          Anticipo: Math.round(cashInDetails.Anticipo[m.key]),
+                          EstadosPago: Math.round(cashInDetails.EstadosPago[m.key]),
+                          Retencion: Math.round(cashInDetails.DevolucionRetencion[m.key])
+                        },
+                        outflowDetails: {
+                          Material: Math.round(cashOutDetails.Material[m.key]),
+                          Labor: Math.round(cashOutDetails.Labor[m.key]),
+                          Machinery: Math.round(cashOutDetails.Machinery[m.key]),
+                          Tools: Math.round(cashOutDetails.Tools[m.key]),
+                          Others: Math.round(cashOutDetails.Others[m.key])
+                        }
+                      };
+                    });
+
+                    return { months: cfMonths, data, minCum: Math.round(minCum) };
+                  })();
+
+                  // Solver de TIR
+                  const getIRR = (flows) => {
+                    if (flows.length === 0) return null;
+                    const hasPositive = flows.some(f => f > 0);
+                    const hasNegative = flows.some(f => f < 0);
+                    if (!hasPositive || !hasNegative) return null;
+
+                    let guess = 0.05; // 5%
+                    for (let i = 0; i < 100; i++) {
+                      let npvValue = 0;
+                      let dNpvValue = 0;
+                      for (let t = 0; t < flows.length; t++) {
+                        npvValue += flows[t] / Math.pow(1 + guess, t);
+                        dNpvValue -= t * flows[t] / Math.pow(1 + guess, t + 1);
+                      }
+                      if (Math.abs(dNpvValue) < 1e-10) break;
+                      const nextGuess = guess - npvValue / dNpvValue;
+                      if (Math.abs(nextGuess - guess) < 1e-7) {
+                        return parseFloat((nextGuess * 100).toFixed(2));
+                      }
+                      guess = nextGuess;
+                    }
+                    return null;
+                  };
+
+                  // Valor Actual Neto (NPV) con tasa de descuento de 1% mensual
+                  const getNPV = (flows, ratePct = 1) => {
+                    const r = ratePct / 100;
+                    return flows.reduce((acc, val, t) => acc + val / Math.pow(1 + r, t), 0);
+                  };
+
+                  const cashFlowList = cashFlow.data.map(d => d.netFlow);
+                  const projectIRR = getIRR(cashFlowList);
+                  const projectNPV = getNPV(cashFlowList, 1);
+
+                  // 5. Renderizar interfaz
+                  return (
+                    <div className="space-y-6 animate-in fade-in duration-250">
+                      
+                      {/* Sub-Tabs de navegación interna */}
+                      <div className="flex border-b border-slate-200 bg-white p-2 rounded-2xl shadow-xs gap-1.5 overflow-x-auto">
+                        <button
+                          onClick={() => setAnalisisTab('distribucion')}
+                          className={`text-xs font-black uppercase tracking-wider px-4 py-2.5 rounded-xl cursor-pointer transition ${analisisTab === 'distribucion' ? 'bg-primary text-white shadow-xs' : 'text-slate-550 hover:bg-slate-100'}`}
+                        >
+                          PieChart & Distribución
+                        </button>
+                        <button
+                          onClick={() => setAnalisisTab('flujo_fin')}
+                          className={`text-xs font-black uppercase tracking-wider px-4 py-2.5 rounded-xl cursor-pointer transition ${analisisTab === 'flujo_fin' ? 'bg-primary text-white shadow-xs' : 'text-slate-550 hover:bg-slate-100'}`}
+                        >
+                          Flujo Financiero (Devengado)
+                        </button>
+                        <button
+                          onClick={() => setAnalisisTab('flujo_caja')}
+                          className={`text-xs font-black uppercase tracking-wider px-4 py-2.5 rounded-xl cursor-pointer transition ${analisisTab === 'flujo_caja' ? 'bg-primary text-white shadow-xs' : 'text-slate-550 hover:bg-slate-100'}`}
+                        >
+                          Flujo de Caja (Efectivo)
+                        </button>
+                        <button
+                          onClick={() => setAnalisisTab('config')}
+                          className={`text-xs font-black uppercase tracking-wider px-4 py-2.5 rounded-xl cursor-pointer transition ${analisisTab === 'config' ? 'bg-primary text-white shadow-xs' : 'text-slate-550 hover:bg-slate-100'}`}
+                        >
+                          ⚙️ Configurar Flujos
+                        </button>
+                      </div>
+
+                      {allApuLinksLoading ? (
+                        <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center shadow-xs">
+                          <RefreshCw className="w-8 h-8 text-primary animate-spin mx-auto mb-3" />
+                          <p className="text-xs text-slate-500 font-extrabold uppercase">Cargando desglose financiero del proyecto...</p>
+                        </div>
+                      ) : (
+                        <>
+                          {/* TAB 1: DISTRIBUCIÓN DE COSTOS */}
+                          {analisisTab === 'distribucion' && (
+                            <div className="space-y-6">
+                              {/* Tarjetas Ejecutivas */}
+                              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                                <div className="bg-white p-5 border border-slate-200 rounded-3xl shadow-xs">
+                                  <h4 className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">Venta Presupuestada (Ingreso)</h4>
+                                  <p className="text-lg font-black text-slate-850 mt-1">{formatCurrencyValue(totalProjectCost, projectBaseCurrency)}</p>
+                                </div>
+                                <div className="bg-white p-5 border border-slate-200 rounded-3xl shadow-xs">
+                                  <h4 className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">Costo Directo (Insumos APU)</h4>
+                                  <p className="text-lg font-bold text-slate-700 mt-1">{formatCurrencyValue(costDist.directSum, projectBaseCurrency)}</p>
+                                </div>
+                                <div className="bg-white p-5 border border-slate-200 rounded-3xl shadow-xs">
+                                  <h4 className="text-[10px] text-slate-455 font-bold uppercase tracking-wider">Costos Indirectos (Gastos Gral.)</h4>
+                                  <p className="text-lg font-bold text-purple-700 mt-1">{formatCurrencyValue(totalIndirectCostValue, projectBaseCurrency)}</p>
+                                </div>
+                                <div className="bg-white p-5 border border-slate-200 rounded-3xl shadow-xs">
+                                  <h4 className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">Margen Operacional Neto</h4>
+                                  <p className="text-lg font-extrabold text-emerald-600 mt-1">
+                                    {formatCurrencyValue(totalProjectCost - costDist.directSum - totalIndirectCostValue, projectBaseCurrency)}
+                                    <span className="text-xs font-normal text-slate-455 ml-1.5">({totalProjectCost > 0 ? ((totalProjectCost - costDist.directSum - totalIndirectCostValue) / totalProjectCost * 100).toFixed(1) : 0}%)</span>
+                                  </p>
+                                </div>
+                                <div className="bg-white p-5 border border-slate-200 rounded-3xl shadow-xs">
+                                  <h4 className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">Financiamiento Requerido</h4>
+                                  <p className="text-lg font-extrabold text-rose-600 mt-1">{formatCurrencyValue(Math.abs(cashFlow.minCum), projectBaseCurrency)}</p>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                                {/* Tabla de distribución */}
+                                <div className="lg:col-span-8 bg-white border border-slate-200 rounded-3xl p-5 shadow-xs">
+                                  <div className="border-b border-slate-100 pb-3 mb-4">
+                                    <h4 className="text-xs font-black uppercase text-slate-800 tracking-wider">Distribución de Costos Directos e Indirectos</h4>
+                                  </div>
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-xs border-collapse">
+                                      <thead>
+                                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-550 font-bold text-[9px] uppercase tracking-wider select-none">
+                                          <th className="p-3">Categoría de Costo</th>
+                                          <th className="p-3 text-right">Monto Unitario Ponderado ({projectBaseCurrency})</th>
+                                          <th className="p-3 text-center w-24">% Participación</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-150 font-semibold text-slate-700">
+                                        <tr>
+                                          <td className="p-3 flex items-center gap-2">
+                                            <span className="w-3 h-3 rounded-full bg-blue-500" />
+                                            <span>Materiales</span>
+                                          </td>
+                                          <td className="p-3 text-right">{formatCurrencyValue(costDist.mat, projectBaseCurrency)}</td>
+                                          <td className="p-3 text-center">{costDist.directSum > 0 ? (costDist.mat / costDist.directSum * 100).toFixed(1) : 0}%</td>
+                                        </tr>
+                                        <tr>
+                                          <td className="p-3 flex items-center gap-2">
+                                            <span className="w-3 h-3 rounded-full bg-amber-500" />
+                                            <span>Mano de Obra (+Leyes)</span>
+                                          </td>
+                                          <td className="p-3 text-right">{formatCurrencyValue(costDist.labor, projectBaseCurrency)}</td>
+                                          <td className="p-3 text-center">{costDist.directSum > 0 ? (costDist.labor / costDist.directSum * 100).toFixed(1) : 0}%</td>
+                                        </tr>
+                                        <tr>
+                                          <td className="p-3 flex items-center gap-2">
+                                            <span className="w-3 h-3 rounded-full bg-purple-500" />
+                                            <span>Maquinaria (+Diesel)</span>
+                                          </td>
+                                          <td className="p-3 text-right">{formatCurrencyValue(costDist.mach, projectBaseCurrency)}</td>
+                                          <td className="p-3 text-center">{costDist.directSum > 0 ? (costDist.mach / costDist.directSum * 100).toFixed(1) : 0}%</td>
+                                        </tr>
+                                        <tr>
+                                          <td className="p-3 flex items-center gap-2">
+                                            <span className="w-3 h-3 rounded-full bg-rose-500" />
+                                            <span>Herramientas</span>
+                                          </td>
+                                          <td className="p-3 text-right">{formatCurrencyValue(costDist.herr, projectBaseCurrency)}</td>
+                                          <td className="p-3 text-center">{costDist.directSum > 0 ? (costDist.herr / costDist.directSum * 100).toFixed(1) : 0}%</td>
+                                        </tr>
+                                        <tr>
+                                          <td className="p-3 flex items-center gap-2">
+                                            <span className="w-3 h-3 rounded-full bg-slate-500" />
+                                            <span>Otros Insumos / Manuales</span>
+                                          </td>
+                                          <td className="p-3 text-right">{formatCurrencyValue(costDist.otros, projectBaseCurrency)}</td>
+                                          <td className="p-3 text-center">{costDist.directSum > 0 ? (costDist.otros / costDist.directSum * 100).toFixed(1) : 0}%</td>
+                                        </tr>
+                                        <tr className="bg-slate-50 border-t border-slate-200 font-extrabold text-slate-850">
+                                          <td className="p-3 uppercase">Total Costos Directos</td>
+                                          <td className="p-3 text-right">{formatCurrencyValue(costDist.directSum, projectBaseCurrency)}</td>
+                                          <td className="p-3 text-center">100.0%</td>
+                                        </tr>
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+
+                                {/* Donut Chart Representación con barras apiladas o CSS */}
+                                <div className="lg:col-span-4 bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex flex-col justify-between">
+                                  <div className="border-b border-slate-100 pb-3">
+                                    <h4 className="text-xs font-black uppercase text-slate-800 tracking-wider">Desglose Relativo</h4>
+                                  </div>
+                                  <div className="flex-1 flex flex-col justify-center py-6 space-y-4">
+                                    {/* Materiales */}
+                                    <div className="space-y-1">
+                                      <div className="flex justify-between text-xs font-semibold text-slate-700">
+                                        <span>Materiales</span>
+                                        <span>{costDist.directSum > 0 ? (costDist.mat / costDist.directSum * 100).toFixed(1) : 0}%</span>
+                                      </div>
+                                      <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                                        <div className="bg-blue-500 h-full rounded-full" style={{ width: `${costDist.directSum > 0 ? (costDist.mat / costDist.directSum * 100) : 0}%` }} />
+                                      </div>
+                                    </div>
+                                    {/* Mano de obra */}
+                                    <div className="space-y-1">
+                                      <div className="flex justify-between text-xs font-semibold text-slate-700">
+                                        <span>Mano de Obra</span>
+                                        <span>{costDist.directSum > 0 ? (costDist.labor / costDist.directSum * 100).toFixed(1) : 0}%</span>
+                                      </div>
+                                      <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                                        <div className="bg-amber-500 h-full rounded-full" style={{ width: `${costDist.directSum > 0 ? (costDist.labor / costDist.directSum * 100) : 0}%` }} />
+                                      </div>
+                                    </div>
+                                    {/* Maquinaria */}
+                                    <div className="space-y-1">
+                                      <div className="flex justify-between text-xs font-semibold text-slate-700">
+                                        <span>Maquinaria</span>
+                                        <span>{costDist.directSum > 0 ? (costDist.mach / costDist.directSum * 100).toFixed(1) : 0}%</span>
+                                      </div>
+                                      <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                                        <div className="bg-purple-500 h-full rounded-full" style={{ width: `${costDist.directSum > 0 ? (costDist.mach / costDist.directSum * 100) : 0}%` }} />
+                                      </div>
+                                    </div>
+                                    {/* Herramientas */}
+                                    <div className="space-y-1">
+                                      <div className="flex justify-between text-xs font-semibold text-slate-700">
+                                        <span>Herramientas</span>
+                                        <span>{costDist.directSum > 0 ? (costDist.herr / costDist.directSum * 100).toFixed(1) : 0}%</span>
+                                      </div>
+                                      <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                                        <div className="bg-rose-500 h-full rounded-full" style={{ width: `${costDist.directSum > 0 ? (costDist.herr / costDist.directSum * 100) : 0}%` }} />
+                                      </div>
+                                    </div>
+                                    {/* Otros */}
+                                    <div className="space-y-1">
+                                      <div className="flex justify-between text-xs font-semibold text-slate-700">
+                                        <span>Otros / Sin APU</span>
+                                        <span>{costDist.directSum > 0 ? (costDist.otros / costDist.directSum * 100).toFixed(1) : 0}%</span>
+                                      </div>
+                                      <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                                        <div className="bg-slate-500 h-full rounded-full" style={{ width: `${costDist.directSum > 0 ? (costDist.otros / costDist.directSum * 100) : 0}%` }} />
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* TAB 2: FLUJO FINANCIERO (DEVENGADO) */}
+                          {analisisTab === 'flujo_fin' && (
+                            <div className="space-y-6">
+                              <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs space-y-4">
+                                <div className="border-b border-slate-100 pb-3 flex justify-between items-center">
+                                  <h4 className="text-xs font-black uppercase text-slate-800 tracking-wider">Flujo Financiero Programado (Criterio Devengado)</h4>
+                                  <span className="text-[9px] bg-blue-50 text-blue-700 font-extrabold uppercase px-2 py-0.5 rounded border border-blue-200">
+                                    Base Gantt
+                                  </span>
+                                </div>
+                                <div className="bg-blue-50/50 p-3 rounded-2xl text-[11px] text-blue-800 font-semibold border border-blue-150">
+                                  💡 <strong>Nota sobre devengado</strong>: Distribuye de forma proporcional diaria los costos e ingresos a lo largo de las fechas programadas de inicio y fin de las tareas en el Diagrama Gantt. No considera los plazos de cobro ni crédito de caja.
+                                </div>
+
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-left text-xs border-collapse">
+                                    <thead>
+                                      <tr className="bg-slate-50 border-b border-slate-200 text-slate-550 font-bold text-[9px] uppercase tracking-wider select-none">
+                                        <th className="p-3 w-48">Concepto</th>
+                                        {finFlow.months.map(m => (
+                                          <th key={m.key} className="p-3 text-right">{m.month}</th>
+                                        ))}
+                                        <th className="p-3 text-right bg-slate-100/50">Total</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-150 font-semibold text-slate-700">
+                                      {/* Ingresos devengados */}
+                                      <tr>
+                                        <td className="p-3 font-bold text-slate-800">Ingresos Devengados (Ventas)</td>
+                                        {finFlow.data.map(fd => (
+                                          <td key={fd.key} className="p-3 text-right text-emerald-700">{formatCurrencyValue(fd.revenue, projectBaseCurrency)}</td>
+                                        ))}
+                                        <td className="p-3 text-right bg-slate-100/50 text-emerald-800 font-bold">{formatCurrencyValue(finFlow.totals.revenue, projectBaseCurrency)}</td>
+                                      </tr>
+                                      {/* Egresos devengados */}
+                                      <tr>
+                                        <td className="p-3 font-bold text-slate-800">Egresos Devengados (Costos)</td>
+                                        {finFlow.data.map(fd => (
+                                          <td key={fd.key} className="p-3 text-right text-rose-700">{formatCurrencyValue(fd.cost, projectBaseCurrency)}</td>
+                                        ))}
+                                        <td className="p-3 text-right bg-slate-100/50 text-rose-800 font-bold">{formatCurrencyValue(finFlow.totals.cost, projectBaseCurrency)}</td>
+                                      </tr>
+                                      {/* Margen mensual */}
+                                      <tr className="bg-slate-50/50 font-bold">
+                                        <td className="p-3">Margen Mensual</td>
+                                        {finFlow.data.map(fd => (
+                                          <td key={fd.key} className={`p-3 text-right ${fd.margin >= 0 ? 'text-emerald-600' : 'text-red-655'}`}>
+                                            {formatCurrencyValue(fd.margin, projectBaseCurrency)} ({fd.marginPct}%)
+                                          </td>
+                                        ))}
+                                        <td className={`p-3 text-right bg-slate-100 font-extrabold ${finFlow.totals.margin >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                                          {formatCurrencyValue(finFlow.totals.margin, projectBaseCurrency)} ({finFlow.totals.marginPct}%)
+                                        </td>
+                                      </tr>
+                                      {/* Acumulados */}
+                                      <tr className="text-slate-500 font-medium">
+                                        <td className="p-3 italic">Ingreso Acumulado</td>
+                                        {finFlow.data.map(fd => (
+                                          <td key={fd.key} className="p-3 text-right">{formatCurrencyValue(fd.cumRevenue, projectBaseCurrency)}</td>
+                                        ))}
+                                        <td className="p-3 text-right bg-slate-100/50">-</td>
+                                      </tr>
+                                      <tr className="text-slate-500 font-medium">
+                                        <td className="p-3 italic">Egreso Acumulado</td>
+                                        {finFlow.data.map(fd => (
+                                          <td key={fd.key} className="p-3 text-right">{formatCurrencyValue(fd.cumCost, projectBaseCurrency)}</td>
+                                        ))}
+                                        <td className="p-3 text-right bg-slate-100/50">-</td>
+                                      </tr>
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* TAB 3: FLUJO DE CAJA (EFECTIVO) */}
+                          {analisisTab === 'flujo_caja' && (
+                            <div className="space-y-6">
+                              {/* Indicadores Financieros de Caja */}
+                              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                                <div className="bg-white p-5 border border-slate-200 rounded-3xl shadow-xs">
+                                  <h4 className="text-[10px] text-slate-455 font-bold uppercase tracking-wider">NPV / VAN Caja (Tasa 1% mensual)</h4>
+                                  <p className={`text-base font-black mt-1 ${projectNPV >= 0 ? 'text-emerald-700' : 'text-red-655'}`}>
+                                    {formatCurrencyValue(projectNPV, projectBaseCurrency)}
+                                  </p>
+                                </div>
+                                <div className="bg-white p-5 border border-slate-200 rounded-3xl shadow-xs">
+                                  <h4 className="text-[10px] text-slate-455 font-bold uppercase tracking-wider">IRR / TIR Caja Mensual</h4>
+                                  <p className="text-base font-black text-slate-800 mt-1">
+                                    {projectIRR !== null ? `${projectIRR}% mensual` : 'N/D (No calculable)'}
+                                  </p>
+                                </div>
+                                <div className="bg-white p-5 border border-slate-200 rounded-3xl shadow-xs">
+                                  <h4 className="text-[10px] text-slate-455 font-bold uppercase tracking-wider">Máximo Déficit Acumulado</h4>
+                                  <p className="text-base font-black text-rose-600 mt-1">
+                                    {formatCurrencyValue(cashFlow.minCum, projectBaseCurrency)}
+                                  </p>
+                                </div>
+                                <div className="bg-white p-5 border border-slate-200 rounded-3xl shadow-xs">
+                                  <h4 className="text-[10px] text-slate-455 font-bold uppercase tracking-wider">Capital Trabajo Mínimo Recomendado</h4>
+                                  <p className="text-base font-black text-blue-700 mt-1">
+                                    {formatCurrencyValue(Math.abs(cashFlow.minCum) * 1.15, projectBaseCurrency)}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs space-y-4">
+                                <div className="border-b border-slate-100 pb-3 flex justify-between items-center">
+                                  <h4 className="text-xs font-black uppercase text-slate-800 tracking-wider">Proyección de Flujo de Caja Mensual (Caja)</h4>
+                                  <span className="text-[9px] bg-emerald-50 text-emerald-700 font-extrabold uppercase px-2 py-0.5 rounded border border-emerald-200">
+                                    Simulación Efectivo
+                                  </span>
+                                </div>
+
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-left text-xs border-collapse">
+                                    <thead>
+                                      <tr className="bg-slate-50 border-b border-slate-200 text-slate-550 font-bold text-[9px] uppercase tracking-wider select-none">
+                                        <th className="p-3 w-52">Concepto Financiero</th>
+                                        {cashFlow.months.map(m => (
+                                          <th key={m.key} className="p-3 text-right">{m.month}</th>
+                                        ))}
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-150 font-semibold text-slate-700">
+                                      {/* INGRESOS DE CAJA */}
+                                      <tr className="bg-slate-50/50 font-black text-slate-850">
+                                        <td className="p-3 uppercase tracking-wider text-[9px]">A. Ingresos de Caja (Cobros)</td>
+                                        {cashFlow.data.map(cd => (
+                                          <td key={cd.key} className="p-3 text-right text-emerald-700">{formatCurrencyValue(cd.inflow, projectBaseCurrency)}</td>
+                                        ))}
+                                      </tr>
+                                      <tr className="text-slate-500 font-medium">
+                                        <td className="p-2.5 pl-6 font-semibold">1. Anticipo Recibido</td>
+                                        {cashFlow.data.map(cd => (
+                                          <td key={cd.key} className="p-2.5 text-right">{cd.inflowDetails.Anticipo > 0 ? formatCurrencyValue(cd.inflowDetails.Anticipo, projectBaseCurrency) : '-'}</td>
+                                        ))}
+                                      </tr>
+                                      <tr className="text-slate-500 font-medium">
+                                        <td className="p-2.5 pl-6 font-semibold">2. Estados de Pago Cobrados</td>
+                                        {cashFlow.data.map(cd => (
+                                          <td key={cd.key} className="p-2.5 text-right">{cd.inflowDetails.EstadosPago > 0 ? formatCurrencyValue(cd.inflowDetails.EstadosPago, projectBaseCurrency) : '-'}</td>
+                                        ))}
+                                      </tr>
+                                      <tr className="text-slate-500 font-medium border-b border-slate-200">
+                                        <td className="p-2.5 pl-6 font-semibold">3. Devolución de Retenciones</td>
+                                        {cashFlow.data.map(cd => (
+                                          <td key={cd.key} className="p-2.5 text-right">{cd.inflowDetails.Retencion > 0 ? formatCurrencyValue(cd.inflowDetails.Retencion, projectBaseCurrency) : '-'}</td>
+                                        ))}
+                                      </tr>
+
+                                      {/* EGRESOS DE CAJA */}
+                                      <tr className="bg-slate-50/50 font-black text-slate-850">
+                                        <td className="p-3 uppercase tracking-wider text-[9px]">B. Egresos de Caja (Pagos)</td>
+                                        {cashFlow.data.map(cd => (
+                                          <td key={cd.key} className="p-3 text-right text-rose-700">{formatCurrencyValue(cd.outflow, projectBaseCurrency)}</td>
+                                        ))}
+                                      </tr>
+                                      <tr className="text-slate-500 font-medium">
+                                        <td className="p-2.5 pl-6 font-semibold">1. Pagos Proveedores Materiales</td>
+                                        {cashFlow.data.map(cd => (
+                                          <td key={cd.key} className="p-2.5 text-right">{cd.outflowDetails.Material > 0 ? formatCurrencyValue(cd.outflowDetails.Material, projectBaseCurrency) : '-'}</td>
+                                        ))}
+                                      </tr>
+                                      <tr className="text-slate-500 font-medium">
+                                        <td className="p-2.5 pl-6 font-semibold">2. Pagos Mano de Obra (+Leyes)</td>
+                                        {cashFlow.data.map(cd => (
+                                          <td key={cd.key} className="p-2.5 text-right">{cd.outflowDetails.Labor > 0 ? formatCurrencyValue(cd.outflowDetails.Labor, projectBaseCurrency) : '-'}</td>
+                                        ))}
+                                      </tr>
+                                      <tr className="text-slate-500 font-medium">
+                                        <td className="p-2.5 pl-6 font-semibold">3. Pagos Proveedores Maquinaria</td>
+                                        {cashFlow.data.map(cd => (
+                                          <td key={cd.key} className="p-2.5 text-right">{cd.outflowDetails.Machinery > 0 ? formatCurrencyValue(cd.outflowDetails.Machinery, projectBaseCurrency) : '-'}</td>
+                                        ))}
+                                      </tr>
+                                      <tr className="text-slate-500 font-medium">
+                                        <td className="p-2.5 pl-6 font-semibold">4. Pagos Proveedores Herramientas</td>
+                                        {cashFlow.data.map(cd => (
+                                          <td key={cd.key} className="p-2.5 text-right">{cd.outflowDetails.Tools > 0 ? formatCurrencyValue(cd.outflowDetails.Tools, projectBaseCurrency) : '-'}</td>
+                                        ))}
+                                      </tr>
+                                      <tr className="text-slate-500 font-medium border-b border-slate-200">
+                                        <td className="p-2.5 pl-6 font-semibold">5. Pagos Otros / Indirectos</td>
+                                        {cashFlow.data.map(cd => (
+                                          <td key={cd.key} className="p-2.5 text-right">{cd.outflowDetails.Others > 0 ? formatCurrencyValue(cd.outflowDetails.Others, projectBaseCurrency) : '-'}</td>
+                                        ))}
+                                      </tr>
+
+                                      {/* NETOS */}
+                                      <tr className="bg-slate-50 font-black text-slate-900 border-t border-slate-255">
+                                        <td className="p-3">Flujo Neto Mensual (A - B)</td>
+                                        {cashFlow.data.map(cd => (
+                                          <td key={cd.key} className={`p-3 text-right ${cd.netFlow >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                                            {formatCurrencyValue(cd.netFlow, projectBaseCurrency)}
+                                          </td>
+                                        ))}
+                                      </tr>
+                                      <tr className="bg-slate-100 font-black text-slate-955 border-t-2 border-slate-300">
+                                        <td className="p-3.5">Saldo de Caja Acumulado</td>
+                                        {cashFlow.data.map(cd => (
+                                          <td key={cd.key} className={`p-3.5 text-right ${cd.cumFlow >= 0 ? 'text-blue-700' : 'text-rose-600 bg-rose-50/50'}`}>
+                                            {formatCurrencyValue(cd.cumFlow, projectBaseCurrency)}
+                                          </td>
+                                        ))}
+                                      </tr>
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+
+                              {/* GRÁFICO INTERACTIVO CURVA S EN SVG */}
+                              <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs space-y-4">
+                                <div className="border-b border-slate-100 pb-3">
+                                  <h4 className="text-xs font-black uppercase text-slate-800 tracking-wider">Curva S de Proyección Financiera</h4>
+                                </div>
+
+                                {cashFlow.data.length > 0 && (() => {
+                                  // Generar coordenadas para SVG
+                                  const width = 800;
+                                  const height = 350;
+                                  const paddingLeft = 90;
+                                  const paddingRight = 30;
+                                  const paddingTop = 40;
+                                  const paddingBottom = 50;
+
+                                  const graphWidth = width - paddingLeft - paddingRight;
+                                  const graphHeight = height - paddingTop - paddingBottom;
+
+                                  const n = cashFlow.data.length;
+                                  
+                                  // Encontrar máximos y mínimos para escalar el eje Y
+                                  const maxVal = Math.max(
+                                    ...finFlow.data.map(d => d.cumRevenue),
+                                    ...finFlow.data.map(d => d.cumCost),
+                                    ...cashFlow.data.map(d => d.cumFlow),
+                                    100000
+                                  );
+
+                                  const minVal = Math.min(
+                                    ...cashFlow.data.map(d => d.cumFlow),
+                                    0
+                                  );
+
+                                  const range = maxVal - minVal;
+
+                                  const getX = (i) => paddingLeft + (i * graphWidth) / (n - 1);
+                                  const getY = (val) => paddingTop + graphHeight - ((val - minVal) * graphHeight) / range;
+
+                                  // Crear paths
+                                  let revenuePath = "";
+                                  let costPath = "";
+                                  let cashPath = "";
+
+                                  finFlow.data.forEach((fd, i) => {
+                                    const x = getX(i);
+                                    const y = getY(fd.cumRevenue);
+                                    revenuePath += `${i === 0 ? 'M' : 'L'} ${x} ${y} `;
+                                  });
+
+                                  finFlow.data.forEach((fd, i) => {
+                                    const x = getX(i);
+                                    const y = getY(fd.cumCost);
+                                    costPath += `${i === 0 ? 'M' : 'L'} ${x} ${y} `;
+                                  });
+
+                                  cashFlow.data.forEach((cd, i) => {
+                                    const x = getX(i);
+                                    const y = getY(cd.cumFlow);
+                                    cashPath += `${i === 0 ? 'M' : 'L'} ${x} ${y} `;
+                                  });
+
+                                  // Crear polígono de gradiente para la caja acumulada
+                                  let cashAreaPath = `M ${getX(0)} ${getY(0)} `;
+                                  cashFlow.data.forEach((cd, i) => {
+                                    cashAreaPath += `L ${getX(i)} ${getY(cd.cumFlow)} `;
+                                  });
+                                  cashAreaPath += `L ${getX(n-1)} ${getY(0)} Z`;
+
+                                  // Eje Y etiquetas
+                                  const yTicks = 5;
+                                  const yLabels = [];
+                                  for (let i = 0; i <= yTicks; i++) {
+                                    const val = minVal + (i * range) / yTicks;
+                                    yLabels.push({ val: val, y: getY(val) });
+                                  }
+
+                                  return (
+                                    <div className="relative">
+                                      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto select-none font-bold text-[9px] fill-slate-500">
+                                        <defs>
+                                          <linearGradient id="cashAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.25" />
+                                            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.0" />
+                                          </linearGradient>
+                                        </defs>
+
+                                        {/* Grid horizontal */}
+                                        {yLabels.map((tick, idx) => (
+                                          <g key={idx}>
+                                            <line 
+                                              x1={paddingLeft} 
+                                              y1={tick.y} 
+                                              x2={width - paddingRight} 
+                                              y2={tick.y} 
+                                              stroke="#e2e8f0" 
+                                              strokeWidth="1" 
+                                              strokeDasharray="4 4"
+                                            />
+                                            <text x={paddingLeft - 10} y={tick.y + 3} textAnchor="end" className="fill-slate-400 font-extrabold text-[8.5px]">
+                                              {formatCurrencyValue(tick.val, projectBaseCurrency)}
+                                            </text>
+                                          </g>
+                                        ))}
+
+                                        {/* Grid vertical y etiquetas X */}
+                                        {cashFlow.data.map((cd, i) => {
+                                          const x = getX(i);
+                                          return (
+                                            <g key={i}>
+                                              <line 
+                                                x1={x} 
+                                                y1={paddingTop} 
+                                                x2={x} 
+                                                y2={paddingTop + graphHeight} 
+                                                stroke="#f1f5f9" 
+                                                strokeWidth="1.5"
+                                              />
+                                              <text 
+                                                x={x} 
+                                                y={paddingTop + graphHeight + 18} 
+                                                textAnchor="middle" 
+                                                className="fill-slate-500 font-bold text-[8px]"
+                                              >
+                                                {cd.month.split(' ')[0]}
+                                              </text>
+                                            </g>
+                                          );
+                                        })}
+
+                                        {/* Línea cero */}
+                                        {minVal < 0 && (
+                                          <line 
+                                            x1={paddingLeft} 
+                                            y1={getY(0)} 
+                                            x2={width - paddingRight} 
+                                            y2={getY(0)} 
+                                            stroke="#ef4444" 
+                                            strokeWidth="1.5" 
+                                            strokeDasharray="2 2"
+                                            title="Línea de Caja Cero"
+                                          />
+                                        )}
+
+                                        {/* Área sombreada de caja acumulada */}
+                                        <path d={cashAreaPath} fill="url(#cashAreaGradient)" />
+
+                                        {/* Dibujar líneas principales */}
+                                        {revenuePath && (
+                                          <path 
+                                            d={revenuePath} 
+                                            fill="none" 
+                                            stroke="#10b981" 
+                                            strokeWidth="3.5" 
+                                            strokeLinecap="round" 
+                                            strokeLinejoin="round" 
+                                          />
+                                        )}
+                                        {costPath && (
+                                          <path 
+                                            d={costPath} 
+                                            fill="none" 
+                                            stroke="#f43f5e" 
+                                            strokeWidth="3" 
+                                            strokeLinecap="round" 
+                                            strokeLinejoin="round" 
+                                          />
+                                        )}
+                                        {cashPath && (
+                                          <path 
+                                            d={cashPath} 
+                                            fill="none" 
+                                            stroke="#3b82f6" 
+                                            strokeWidth="3" 
+                                            strokeLinecap="round" 
+                                            strokeLinejoin="round" 
+                                          />
+                                        )}
+
+                                        {/* Marcadores de puntos */}
+                                        {finFlow.data.map((fd, i) => (
+                                          <circle 
+                                            key={`rev-${i}`} 
+                                            cx={getX(i)} 
+                                            cy={getY(fd.cumRevenue)} 
+                                            r="4" 
+                                            fill="#10b981" 
+                                            stroke="white" 
+                                            strokeWidth="1.5" 
+                                            className="hover:scale-150 transition cursor-pointer"
+                                          />
+                                        ))}
+
+                                        {finFlow.data.map((fd, i) => (
+                                          <circle 
+                                            key={`cost-${i}`} 
+                                            cx={getX(i)} 
+                                            cy={getY(fd.cumCost)} 
+                                            r="3.5" 
+                                            fill="#f43f5e" 
+                                            stroke="white" 
+                                            strokeWidth="1.5" 
+                                            className="hover:scale-150 transition cursor-pointer"
+                                          />
+                                        ))}
+
+                                        {cashFlow.data.map((cd, i) => (
+                                          <circle 
+                                            key={`cash-${i}`} 
+                                            cx={getX(i)} 
+                                            cy={getY(cd.cumFlow)} 
+                                            r="4" 
+                                            fill="#3b82f6" 
+                                            stroke="white" 
+                                            strokeWidth="1.5" 
+                                            className="hover:scale-150 transition cursor-pointer"
+                                          />
+                                        ))}
+                                      </svg>
+
+                                      {/* Leyenda Gráfico */}
+                                      <div className="flex justify-center items-center gap-6 mt-3 text-[10px] font-black uppercase text-slate-500">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="w-3.5 h-1.5 rounded bg-emerald-500 inline-block" />
+                                          <span>Ventas Acumuladas</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="w-3.5 h-1.5 rounded bg-rose-500 inline-block" />
+                                          <span>Costos Acumulados</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="w-3.5 h-1.5 rounded bg-blue-500 inline-block" />
+                                          <span>Saldo Caja Acumulado</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* TAB 4: CONFIGURACIÓN FINANCIERA */}
+                          {analisisTab === 'config' && (
+                            <div className="space-y-6">
+                              <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs space-y-5">
+                                <div className="border-b border-slate-100 pb-3">
+                                  <h4 className="text-xs font-black uppercase text-slate-800 tracking-wider">Parámetros Financieros y Plazos de Crédito</h4>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs font-semibold text-slate-700">
+                                  {/* CLIENTES */}
+                                  <div className="space-y-4 bg-slate-50 p-5 rounded-2xl border border-slate-200">
+                                    <h5 className="font-extrabold uppercase text-[10px] text-slate-500 tracking-wider border-b pb-1.5">Clientes / Ingresos</h5>
+                                    
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div>
+                                        <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Anticipo / Pago Inicial (%)</label>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          max="100"
+                                          value={cajaAnticipoPct}
+                                          onChange={(e) => setCajaAnticipoPct(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
+                                          className="w-full border border-slate-250 rounded-xl p-2 text-xs font-bold text-slate-800 bg-white"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-[9px] font-bold uppercase text-slate-455 mb-1">Plazo Cobro Estados Pago</label>
+                                        <select
+                                          value={cajaCobroClientesDias}
+                                          onChange={(e) => setCajaCobroClientesDias(parseInt(e.target.value, 10))}
+                                          className="w-full border border-slate-250 rounded-xl p-2 text-xs font-bold text-slate-800 bg-white cursor-pointer"
+                                        >
+                                          <option value={0}>Al contado (Mismo mes)</option>
+                                          <option value={30}>30 días (Mes siguiente)</option>
+                                          <option value={60}>60 días (2 meses posterior)</option>
+                                          <option value={90}>90 días (3 meses posterior)</option>
+                                        </select>
+                                      </div>
+                                      <div>
+                                        <label className="block text-[9px] font-bold uppercase text-slate-455 mb-1">Retención Estados de Pago (%)</label>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          max="50"
+                                          value={cajaRetencionPct}
+                                          onChange={(e) => setCajaRetencionPct(Math.max(0, Math.min(50, parseFloat(e.target.value) || 0)))}
+                                          className="w-full border border-slate-250 rounded-xl p-2 text-xs font-bold text-slate-800 bg-white"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-[9px] font-bold uppercase text-slate-455 mb-1">Devolución Retenciones</label>
+                                        <select
+                                          value={cajaRetencionDevoluMes}
+                                          onChange={(e) => setCajaRetencionDevoluMes(parseInt(e.target.value, 10))}
+                                          className="w-full border border-slate-250 rounded-xl p-2 text-xs font-bold text-slate-800 bg-white cursor-pointer"
+                                        >
+                                          <option value={0}>Al finalizar obra (Mes 0)</option>
+                                          <option value={1}>1 mes posterior al fin</option>
+                                          <option value={2}>2 meses posterior al fin</option>
+                                          <option value={3}>3 meses posterior al fin</option>
+                                        </select>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* PROVEEDORES */}
+                                  <div className="space-y-4 bg-slate-50 p-5 rounded-2xl border border-slate-200">
+                                    <h5 className="font-extrabold uppercase text-[10px] text-slate-500 tracking-wider border-b pb-1.5">Proveedores / Egresos (Plazos de Crédito)</h5>
+                                    
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div>
+                                        <label className="block text-[9px] font-bold uppercase text-slate-455 mb-1">Plazo Materiales</label>
+                                        <select
+                                          value={cajaPagoMaterialesDias}
+                                          onChange={(e) => setCajaPagoMaterialesDias(parseInt(e.target.value, 10))}
+                                          className="w-full border border-slate-250 rounded-xl p-2 text-xs font-bold text-slate-800 bg-white cursor-pointer"
+                                        >
+                                          <option value={0}>Al contado (Mismo mes)</option>
+                                          <option value={30}>30 días posterior</option>
+                                          <option value={60}>60 días posterior</option>
+                                          <option value={90}>90 días posterior</option>
+                                        </select>
+                                      </div>
+                                      <div>
+                                        <label className="block text-[9px] font-bold uppercase text-slate-455 mb-1">Plazo Mano de Obra</label>
+                                        <select
+                                          value={cajaPagoManoObraDias}
+                                          onChange={(e) => setCajaPagoManoObraDias(parseInt(e.target.value, 10))}
+                                          className="w-full border border-slate-250 rounded-xl p-2 text-xs font-bold text-slate-800 bg-white cursor-pointer"
+                                        >
+                                          <option value={0}>Al contado (Mismo mes)</option>
+                                          <option value={15}>Quincenal (Mismo mes)</option>
+                                          <option value={30}>Mensual (30 días de desfase)</option>
+                                        </select>
+                                      </div>
+                                      <div>
+                                        <label className="block text-[9px] font-bold uppercase text-slate-455 mb-1">Plazo Maquinaria</label>
+                                        <select
+                                          value={cajaPagoMaquinariaDias}
+                                          onChange={(e) => setCajaPagoMaquinariaDias(parseInt(e.target.value, 10))}
+                                          className="w-full border border-slate-250 rounded-xl p-2 text-xs font-bold text-slate-800 bg-white cursor-pointer"
+                                        >
+                                          <option value={0}>Al contado</option>
+                                          <option value={30}>30 días de crédito</option>
+                                          <option value={60}>60 días de crédito</option>
+                                          <option value={90}>90 días de crédito</option>
+                                        </select>
+                                      </div>
+                                      <div>
+                                        <label className="block text-[9px] font-bold uppercase text-slate-455 mb-1">Plazo Herramientas</label>
+                                        <select
+                                          value={cajaPagoHerramientasDias}
+                                          onChange={(e) => setCajaPagoHerramientasDias(parseInt(e.target.value, 10))}
+                                          className="w-full border border-slate-250 rounded-xl p-2 text-xs font-bold text-slate-800 bg-white cursor-pointer"
+                                        >
+                                          <option value={0}>Al contado</option>
+                                          <option value={30}>30 días de crédito</option>
+                                          <option value={60}>60 días de crédito</option>
+                                          <option value={90}>90 días de crédito</option>
+                                        </select>
+                                      </div>
+                                      <div>
+                                        <label className="block text-[9px] font-bold uppercase text-slate-455 mb-1">Plazo Otros Gastos</label>
+                                        <select
+                                          value={cajaPagoOtrosDias}
+                                          onChange={(e) => setCajaPagoOtrosDias(parseInt(e.target.value, 10))}
+                                          className="w-full border border-slate-250 rounded-xl p-2 text-xs font-bold text-slate-800 bg-white cursor-pointer"
+                                        >
+                                          <option value={0}>Al contado</option>
+                                          <option value={30}>30 días posterior</option>
+                                          <option value={60}>60 días posterior</option>
+                                          <option value={90}>90 días posterior</option>
+                                        </select>
+                                      </div>
+                                      <div>
+                                        <label className="block text-[9px] font-bold uppercase text-slate-455 mb-1">Plazo Gastos Indirectos</label>
+                                        <select
+                                          value={cajaPagoIndirectosDias}
+                                          onChange={(e) => setCajaPagoIndirectosDias(parseInt(e.target.value, 10))}
+                                          className="w-full border border-slate-250 rounded-xl p-2 text-xs font-bold text-slate-800 bg-white cursor-pointer"
+                                        >
+                                          <option value={0}>Al contado (Mismo mes)</option>
+                                          <option value={30}>30 días posterior</option>
+                                          <option value={60}>60 días posterior</option>
+                                        </select>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* MIS PRESUPUESTOS */}
                 {activeSection === 'mis_presupuestos' && (
