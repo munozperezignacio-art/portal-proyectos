@@ -112,14 +112,27 @@ const normalizeTaskCode = (codeStr) => {
 
 const parsePredecesora = (predStr) => {
   if (!predStr) return null;
-  const regex = /^([a-zA-Z0-9.\-_]+)(FC|CC)?([+-]\d+)?$/i;
-  const match = predStr.trim().match(regex);
-  if (!match) return { code: predStr.trim(), type: 'FC', lag: 0 };
+  let str = predStr.trim().toUpperCase();
+  let lag = 0;
   
-  const code = match[1];
-  const type = (match[2] || 'FC').toUpperCase();
-  const lag = parseInt(match[3] || '0', 10);
+  // Extraer desfase al final si existe (ej: +2, -3)
+  const lagMatch = str.match(/([+-]\d+)$/);
+  if (lagMatch) {
+    lag = parseInt(lagMatch[1], 10);
+    str = str.substring(0, str.length - lagMatch[1].length);
+  }
   
+  // Extraer tipo de dependencia (FC o CC)
+  let type = 'FC';
+  if (str.endsWith('FC')) {
+    type = 'FC';
+    str = str.substring(0, str.length - 2);
+  } else if (str.endsWith('CC')) {
+    type = 'CC';
+    str = str.substring(0, str.length - 2);
+  }
+  
+  const code = str.trim();
   return { code, type, lag };
 };
 
