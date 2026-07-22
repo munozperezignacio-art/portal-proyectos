@@ -97,6 +97,32 @@ const calculateEndDateWithCalendar = (startDateStr, durationDays, calendarConfig
   return currentDate.toISOString().split('T')[0];
 };
 
+const normalizeTaskCode = (codeStr) => {
+  if (!codeStr) return '';
+  return codeStr
+    .trim()
+    .toUpperCase()
+    .split('.')
+    .map(part => {
+      const normalized = part.replace(/^0+/, '');
+      return normalized === '' ? '0' : normalized;
+    })
+    .join('.');
+};
+
+const parsePredecesora = (predStr) => {
+  if (!predStr) return null;
+  const regex = /^([a-zA-Z0-9.\-_]+)(FC|CC)?([+-]\d+)?$/i;
+  const match = predStr.trim().match(regex);
+  if (!match) return { code: predStr.trim(), type: 'FC', lag: 0 };
+  
+  const code = match[1];
+  const type = (match[2] || 'FC').toUpperCase();
+  const lag = parseInt(match[3] || '0', 10);
+  
+  return { code, type, lag };
+};
+
 export default function PresupuestosPlanif({ user, onBack }) {
   // Tipo de cambio del día (UF, USD, UTM, CLP)
   const [exchangeRates, setExchangeRates] = useState({
@@ -671,6 +697,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
 
       setSuccessMsg('Presupuesto guardado exitosamente.');
       fetchBudgetItems(selectedProyectoId);
+      fetchCronograma(selectedProyectoId);
     } catch (err) {
       setErrorMsg('Error al guardar presupuesto: ' + err.message);
     } finally {
@@ -1054,6 +1081,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
       setImportText('');
       setActiveSection('crear');
       fetchBudgetItems(selectedProyectoId);
+      fetchCronograma(selectedProyectoId);
     } catch (err) {
       setErrorMsg('Error al importar: ' + err.message);
     } finally {
@@ -1114,20 +1142,32 @@ export default function PresupuestosPlanif({ user, onBack }) {
         passes++;
         list = list.map(task => {
           if (task.predecesora) {
-            const predTask = list.find(x => x.codigo === task.predecesora.trim());
-            if (predTask && predTask.fecha_fin) {
-              const expectedStart = new Date(predTask.fecha_fin + 'T00:00:00');
-              expectedStart.setDate(expectedStart.getDate() + 1);
-              const expectedStartStr = expectedStart.toISOString().split('T')[0];
+            const parsed = parsePredecesora(task.predecesora);
+            if (parsed) {
+              const targetNormalized = normalizeTaskCode(parsed.code);
+              const predTask = list.find(x => normalizeTaskCode(x.codigo) === targetNormalized);
               
-              if (task.fecha_inicio !== expectedStartStr) {
-                const newEnd = calculateEndDateWithCalendar(expectedStartStr, task.duracion, calendarConfig);
-                changed = true;
-                return {
-                  ...task,
-                  fecha_inicio: expectedStartStr,
-                  fecha_fin: newEnd
-                };
+              if (predTask && predTask.fecha_fin && predTask.fecha_inicio) {
+                let baseDate;
+                if (parsed.type === 'CC') {
+                  baseDate = new Date(predTask.fecha_inicio + 'T00:00:00');
+                  baseDate.setDate(baseDate.getDate() + parsed.lag);
+                } else {
+                  baseDate = new Date(predTask.fecha_fin + 'T00:00:00');
+                  baseDate.setDate(baseDate.getDate() + 1 + parsed.lag);
+                }
+                
+                const expectedStartStr = baseDate.toISOString().split('T')[0];
+                
+                if (task.fecha_inicio !== expectedStartStr) {
+                  const newEnd = calculateEndDateWithCalendar(expectedStartStr, task.duracion, calendarConfig);
+                  changed = true;
+                  return {
+                    ...task,
+                    fecha_inicio: expectedStartStr,
+                    fecha_fin: newEnd
+                  };
+                }
               }
             }
           }
@@ -1967,6 +2007,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
       setSuccessMsg('Análisis de partida guardado correctamente.');
       setShowApuModal(false);
       fetchBudgetItems(selectedProyectoId);
+      fetchCronograma(selectedProyectoId);
     } catch (err) {
       setErrorMsg('Error al guardar APU: ' + err.message);
     } finally {
