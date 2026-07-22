@@ -63,7 +63,15 @@ const calculateEndDateWithCalendar = (startDateStr, durationDays, calendarConfig
   let duration = parseFloat(durationDays);
   if (isNaN(duration)) duration = 1;
 
+  // Safe-guards for config properties
+  const config = calendarConfig || {};
+  const trabajaSabado = !!config.trabajaSabado;
+  const trabajaDomingo = !!config.trabajaDomingo;
+  const feriados = config.feriados || [];
+  const eficiencias = config.eficienciasEspeciales || {};
+
   let currentDate = new Date(startDateStr + 'T00:00:00');
+  if (isNaN(currentDate.getTime())) return startDateStr;
   
   // Si duración es 0 (Hito), la fecha de fin es igual a la de inicio
   if (duration <= 0) return startDateStr;
@@ -77,16 +85,16 @@ const calculateEndDateWithCalendar = (startDateStr, durationDays, calendarConfig
     const dayOfWeek = currentDate.getDay(); // 0 = Domingo, 6 = Sábado
 
     let isWorkingDay = true;
-    if (dayOfWeek === 0 && !calendarConfig.trabajaDomingo) isWorkingDay = false;
-    if (dayOfWeek === 6 && !calendarConfig.trabajaSabado) isWorkingDay = false;
+    if (dayOfWeek === 0 && !trabajaDomingo) isWorkingDay = false;
+    if (dayOfWeek === 6 && !trabajaSabado) isWorkingDay = false;
 
-    if (calendarConfig.feriados && calendarConfig.feriados.includes(dateStr)) {
+    if (feriados.includes(dateStr)) {
       isWorkingDay = false;
     }
 
     if (isWorkingDay) {
-      const efficiency = parseFloat(calendarConfig.eficienciasEspeciales?.[dateStr] ?? 100) / 100;
-      daysWorked += efficiency;
+      const efficiency = parseFloat(eficiencias[dateStr] ?? 100) / 100;
+      daysWorked += isNaN(efficiency) ? 1.0 : efficiency;
     }
 
     if (daysWorked < duration) {
@@ -155,6 +163,12 @@ export default function PresupuestosPlanif({ user, onBack }) {
 
   // Visualización y emisión en moneda seleccionada para planilla
   const [displayCurrency, setDisplayCurrency] = useState('CLP');
+
+  // Estados de arrastre interactivo para el Gantt
+  const [draggedTaskId, setDraggedTaskId] = useState(null);
+  const [dragStartX, setDragStartX] = useState(0);
+  const [dragStartLag, setDragStartLag] = useState(0);
+  const [dragStartInicio, setDragStartInicio] = useState('');
 
   // Configuración del calendario laboral del proyecto
   const [calendarConfig, setCalendarConfig] = useState({
@@ -439,6 +453,9 @@ export default function PresupuestosPlanif({ user, onBack }) {
           localCalendar
         );
 
+        const rawPred = existing ? (existing.predecesora || '') : '';
+        const parsed = parsePredecesora(rawPred) || { code: '', type: 'FC', lag: 0 };
+
         return {
           id: existing ? existing.id : 'temp-crono-' + item.codigo,
           presupuesto_id: projId,
@@ -447,7 +464,10 @@ export default function PresupuestosPlanif({ user, onBack }) {
           fecha_inicio: existing ? existing.fecha_inicio : defaultStart,
           fecha_fin: defaultEnd,
           duracion: finalDuration,
-          predecesora: existing ? (existing.predecesora || '') : '',
+          predecesora: rawPred,
+          predecesora_code: parsed.code,
+          predecesora_tipo: parsed.type,
+          predecesora_desfase: parsed.lag,
           porcentaje_avance: 0,
           responsable: existing ? (existing.responsable || '') : '',
           estado: existing ? (existing.estado || 'blue') : 'blue', // Repurposed for color (default blue)
@@ -460,8 +480,14 @@ export default function PresupuestosPlanif({ user, onBack }) {
       // Agregar hitos (que no coinciden con códigos de partidas de presupuesto)
       (cronoData || []).forEach(c => {
         if (!mergedList.some(m => m.codigo === c.codigo)) {
+          const rawPred = c.predecesora || '';
+          const parsed = parsePredecesora(rawPred) || { code: '', type: 'FC', lag: 0 };
           mergedList.push({
             ...c,
+            predecesora: rawPred,
+            predecesora_code: parsed.code,
+            predecesora_tipo: parsed.type,
+            predecesora_desfase: parsed.lag,
             is_partida: false
           });
         }
@@ -1123,6 +1149,9 @@ export default function PresupuestosPlanif({ user, onBack }) {
       duracion: 0,
       fecha_fin: todayStr,
       predecesora: '',
+      predecesora_code: '',
+      predecesora_tipo: 'FC',
+      predecesora_desfase: 0,
       porcentaje_avance: 0,
       responsable: '',
       estado: 'slate', // default color code for milestone
@@ -1132,10 +1161,23 @@ export default function PresupuestosPlanif({ user, onBack }) {
   };
 
   const handleUpdateCronogramaField = (id, field, value) => {
+    setErrorMsg(''); // Limpiar errores previos
     setCronograma(prev => {
       let list = prev.map(task => {
         if (task.id === id) {
           let updated = { ...task, [field]: value };
+
+          // Mantener sincronizado el string 'predecesora' cuando se editen los subcampos
+          if (field === 'predecesora_code' || field === 'predecesora_tipo' || field === 'predecesora_desfase') {
+            const code = field === 'predecesora_code' ? value : (task.predecesora_code || '');
+            const tipo = field === 'predecesora_tipo' ? value : (task.predecesora_tipo || 'FC');
+            const lag = parseInt(field === 'predecesora_desfase' ? value : (task.predecesora_desfase || 0), 10) || 0;
+            
+            updated.predecesora_code = code;
+            updated.predecesora_tipo = tipo;
+            updated.predecesora_desfase = lag;
+            updated.predecesora = code ? `${code}${tipo}${lag >= 0 ? '+' : ''}${lag}` : '';
+          }
 
           if (field === 'fecha_inicio' || field === 'duracion') {
             const start = field === 'fecha_inicio' ? value : task.fecha_inicio;
@@ -1147,27 +1189,33 @@ export default function PresupuestosPlanif({ user, onBack }) {
         return task;
       });
 
+      // Validar si la predecesora ingresada existe
+      let hasInvalidPredecessor = false;
+      let invalidDetails = '';
+
       // Transitive predecessors resolution
       let changed = true;
       let passes = 0;
-      while (changed && passes < 10) {
+      const maxPasses = 15;
+      
+      while (changed && passes < maxPasses) {
         changed = false;
         passes++;
         list = list.map(task => {
-          if (task.predecesora) {
-            const parsed = parsePredecesora(task.predecesora);
-            if (parsed) {
-              const targetNormalized = normalizeTaskCode(parsed.code);
-              const predTask = list.find(x => normalizeTaskCode(x.codigo) === targetNormalized);
-              
-              if (predTask && predTask.fecha_fin && predTask.fecha_inicio) {
+          if (task.predecesora_code) {
+            const targetNormalized = normalizeTaskCode(task.predecesora_code);
+            const predTask = list.find(x => normalizeTaskCode(x.codigo) === targetNormalized);
+            
+            if (predTask) {
+              if (predTask.fecha_fin && predTask.fecha_inicio) {
                 let baseDate;
-                if (parsed.type === 'CC') {
+                const lag = parseInt(task.predecesora_desfase, 10) || 0;
+                if (task.predecesora_tipo === 'CC') {
                   baseDate = new Date(predTask.fecha_inicio + 'T00:00:00');
-                  baseDate.setDate(baseDate.getDate() + parsed.lag);
+                  baseDate.setDate(baseDate.getDate() + lag);
                 } else {
                   baseDate = new Date(predTask.fecha_fin + 'T00:00:00');
-                  baseDate.setDate(baseDate.getDate() + 1 + parsed.lag);
+                  baseDate.setDate(baseDate.getDate() + 1 + lag);
                 }
                 
                 const expectedStartStr = baseDate.toISOString().split('T')[0];
@@ -1182,10 +1230,19 @@ export default function PresupuestosPlanif({ user, onBack }) {
                   };
                 }
               }
+            } else {
+              hasInvalidPredecessor = true;
+              invalidDetails = `La predecesora '${task.predecesora_code}' de la tarea '${task.tarea}' no existe en este proyecto.`;
             }
           }
           return task;
         });
+      }
+
+      if (passes >= maxPasses) {
+        setTimeout(() => setErrorMsg('Error: Se ha detectado una dependencia circular o bucle infinito entre las predecesoras. Los plazos no se pudieron recalcular.'), 0);
+      } else if (hasInvalidPredecessor) {
+        setTimeout(() => setErrorMsg(`Alerta: ${invalidDetails}`), 0);
       }
 
       return list;
@@ -1297,7 +1354,17 @@ export default function PresupuestosPlanif({ user, onBack }) {
       const toInsert = resolvedList
         .filter(t => typeof t.id === 'string' && t.id.startsWith('temp-'))
         .map(t => {
-          const { id, is_partida, is_chapter, cantidad, rendimiento_meta, ...rest } = t;
+          const { 
+            id, 
+            is_partida, 
+            is_chapter, 
+            cantidad, 
+            rendimiento_meta, 
+            predecesora_code, 
+            predecesora_tipo, 
+            predecesora_desfase, 
+            ...rest 
+          } = t;
           return {
             ...rest,
             presupuesto_id: selectedProyectoId,
@@ -2951,11 +3018,13 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                   <tr className="bg-slate-50 border-b border-slate-200 text-slate-660 font-bold text-[9px] uppercase tracking-wider select-none">
                                     <th className="p-3 w-16 text-center">Código</th>
                                     <th className="p-3">Tarea / Hito</th>
-                                    <th className="p-3 w-20">Inicio</th>
-                                    <th className="p-3 w-16 text-center">Días</th>
+                                    <th className="p-3 w-24">Inicio</th>
+                                    <th className="p-3 w-14 text-center">Días</th>
                                     <th className="p-3 w-16 text-center">Pred.</th>
-                                    <th className="p-3 w-24 text-center">Color Barra</th>
-                                    <th className="p-3 w-12"></th>
+                                    <th className="p-3 w-14 text-center">Tipo</th>
+                                    <th className="p-3 w-14 text-center">Desf.</th>
+                                    <th className="p-3 w-32 text-center">Color</th>
+                                    <th className="p-3 w-10"></th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-150">
@@ -3013,29 +3082,72 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                         <td className="p-2">
                                           <input
                                             type="text"
-                                            value={task.predecesora || ''}
-                                            onChange={(e) => !isChapter && handleUpdateCronogramaField(task.id, 'predecesora', e.target.value)}
+                                            value={task.predecesora_code || ''}
+                                            onChange={(e) => !isChapter && handleUpdateCronogramaField(task.id, 'predecesora_code', e.target.value)}
                                             disabled={isChapter}
-                                            placeholder={isChapter ? '' : 'nº'}
-                                            className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-655 text-center font-bold"
+                                            placeholder={isChapter ? '' : 'código'}
+                                            className="w-full bg-transparent border border-slate-200 focus:ring-1 focus:ring-primary rounded p-0.5 text-xs text-slate-800 text-center font-bold"
                                           />
                                         </td>
                                         <td className="p-2">
-                                          {isChapter ? (
-                                            <span className="text-[10px] text-slate-450 font-bold block text-center select-none">Negro</span>
-                                          ) : (
+                                          {!isChapter && (
                                             <select
-                                              value={task.estado || 'blue'}
-                                              onChange={(e) => handleUpdateCronogramaField(task.id, 'estado', e.target.value)}
-                                              className="w-full border border-slate-200 rounded-lg p-1 text-xs text-slate-700 bg-white font-semibold text-center cursor-pointer"
+                                              value={task.predecesora_tipo || 'FC'}
+                                              onChange={(e) => handleUpdateCronogramaField(task.id, 'predecesora_tipo', e.target.value)}
+                                              disabled={isChapter || !task.predecesora_code}
+                                              className={`w-full border border-slate-200 rounded p-0.5 text-[10px] text-slate-700 bg-white font-semibold text-center cursor-pointer ${!task.predecesora_code ? 'opacity-40 cursor-not-allowed' : ''}`}
                                             >
-                                              <option value="blue">🔵 Azul</option>
-                                              <option value="emerald">🟢 Verde</option>
-                                              <option value="purple">🟣 Púrpura</option>
-                                              <option value="amber">🟡 Amarillo</option>
-                                              <option value="rose">🔴 Rojo</option>
-                                              <option value="slate">⚫ Gris</option>
+                                              <option value="FC">FC</option>
+                                              <option value="CC">CC</option>
                                             </select>
+                                          )}
+                                        </td>
+                                        <td className="p-2">
+                                          {!isChapter && (
+                                            <input
+                                              type="number"
+                                              value={task.predecesora_desfase ?? 0}
+                                              onChange={(e) => handleUpdateCronogramaField(task.id, 'predecesora_desfase', parseInt(e.target.value, 10) || 0)}
+                                              disabled={isChapter || !task.predecesora_code}
+                                              className={`w-full bg-transparent border border-slate-200 focus:ring-1 focus:ring-primary rounded p-0.5 text-xs text-slate-850 text-center font-bold ${!task.predecesora_code ? 'opacity-40 cursor-not-allowed' : ''}`}
+                                            />
+                                          )}
+                                        </td>
+                                        <td className="p-2">
+                                          {isChapter ? (
+                                            <span className="text-[10px] text-slate-400 font-bold block text-center select-none">Negro</span>
+                                          ) : (
+                                            <div className="flex items-center gap-1 justify-center py-1">
+                                              {['blue', 'emerald', 'purple', 'amber', 'rose', 'slate'].map(color => {
+                                                let dotClass = 'w-3.5 h-3.5 rounded-full cursor-pointer transition border border-transparent hover:scale-125';
+                                                if (color === 'blue') dotClass += ' bg-blue-500 hover:bg-blue-600';
+                                                if (color === 'emerald') dotClass += ' bg-emerald-500 hover:bg-emerald-600';
+                                                if (color === 'purple') dotClass += ' bg-purple-500 hover:bg-purple-600';
+                                                if (color === 'amber') dotClass += ' bg-amber-500 hover:bg-amber-600';
+                                                if (color === 'rose') dotClass += ' bg-rose-500 hover:bg-rose-600';
+                                                if (color === 'slate') dotClass += ' bg-slate-500 hover:bg-slate-600';
+                                                
+                                                if (task.estado === color) {
+                                                  dotClass += ' ring-2 ring-slate-800 ring-offset-1 scale-110';
+                                                }
+                                                
+                                                let colorLabel = 'Azul';
+                                                if (color === 'emerald') colorLabel = 'Verde';
+                                                if (color === 'purple') colorLabel = 'Púrpura';
+                                                if (color === 'amber') colorLabel = 'Amarillo';
+                                                if (color === 'rose') colorLabel = 'Rojo';
+                                                if (color === 'slate') colorLabel = 'Gris';
+
+                                                return (
+                                                  <div 
+                                                    key={color} 
+                                                    className={dotClass}
+                                                    title={colorLabel}
+                                                    onClick={() => handleUpdateCronogramaField(task.id, 'estado', color)}
+                                                  />
+                                                );
+                                              })}
+                                            </div>
                                           )}
                                         </td>
                                         <td className="p-2 text-center">
@@ -3129,10 +3241,57 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                       >
                                         {span && (
                                           <div 
-                                            className="relative flex items-center h-full px-1"
+                                            className={`relative flex items-center h-full px-1 cursor-ew-resize select-none ${
+                                              draggedTaskId === task.id ? 'ring-2 ring-primary ring-offset-1 rounded-lg z-25' : 'z-10'
+                                            }`}
                                             style={{
                                               gridColumnStart: span.gridColumnStart,
                                               gridColumnEnd: span.gridColumnEnd
+                                            }}
+                                            onPointerDown={(e) => {
+                                              if (task.is_chapter) return;
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              setDraggedTaskId(task.id);
+                                              setDragStartX(e.clientX);
+                                              setDragStartLag(parseInt(task.predecesora_desfase, 10) || 0);
+                                              setDragStartInicio(task.fecha_inicio);
+                                              e.target.setPointerCapture(e.pointerId);
+                                            }}
+                                            onPointerMove={(e) => {
+                                              if (draggedTaskId === task.id) {
+                                                const deltaX = e.clientX - dragStartX;
+                                                const dayWidth = 28; // Ancho promedio de celda día en px
+                                                const daysShift = Math.round(deltaX / dayWidth);
+                                                
+                                                if (daysShift !== 0) {
+                                                  if (task.predecesora_code) {
+                                                    const newLag = dragStartLag + daysShift;
+                                                    handleUpdateCronogramaField(task.id, 'predecesora_desfase', newLag);
+                                                  } else {
+                                                    const d = new Date(dragStartInicio + 'T00:00:00');
+                                                    d.setDate(d.getDate() + daysShift);
+                                                    const newStart = d.toISOString().split('T')[0];
+                                                    handleUpdateCronogramaField(task.id, 'fecha_inicio', newStart);
+                                                  }
+                                                  
+                                                  // Reiniciar referencias locales para evitar aceleración
+                                                  setDragStartX(e.clientX);
+                                                  if (task.predecesora_code) {
+                                                    setDragStartLag(prev => prev + daysShift);
+                                                  } else {
+                                                    const d = new Date(dragStartInicio + 'T00:00:00');
+                                                    d.setDate(d.getDate() + daysShift);
+                                                    setDragStartInicio(d.toISOString().split('T')[0]);
+                                                  }
+                                                }
+                                              }
+                                            }}
+                                            onPointerUp={(e) => {
+                                              if (draggedTaskId === task.id) {
+                                                e.target.releasePointerCapture(e.pointerId);
+                                                setDraggedTaskId(null);
+                                              }
                                             }}
                                           >
                                             {isMilestone ? (
