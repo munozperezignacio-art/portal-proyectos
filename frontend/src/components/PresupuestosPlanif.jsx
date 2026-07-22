@@ -170,6 +170,9 @@ export default function PresupuestosPlanif({ user, onBack }) {
   const [dragStartLag, setDragStartLag] = useState(0);
   const [dragStartInicio, setDragStartInicio] = useState('');
 
+  // Estado para el selector de color flotante en las barras del Gantt
+  const [showColorPickerTaskId, setShowColorPickerTaskId] = useState(null);
+
   // Configuración del calendario laboral del proyecto
   const [calendarConfig, setCalendarConfig] = useState({
     trabajaSabado: false,
@@ -3024,7 +3027,6 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                     <th className="p-3 w-16 text-center">Pred.</th>
                                     <th className="p-3 w-14 text-center">Tipo</th>
                                     <th className="p-3 w-14 text-center">Desf.</th>
-                                    <th className="p-3 w-32 text-center">Color</th>
                                     <th className="p-3 w-10"></th>
                                   </tr>
                                 </thead>
@@ -3114,43 +3116,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                             />
                                           )}
                                         </td>
-                                        <td className="p-2">
-                                          {isChapter ? (
-                                            <span className="text-[10px] text-slate-400 font-bold block text-center select-none">Negro</span>
-                                          ) : (
-                                            <div className="flex items-center gap-1 justify-center py-1">
-                                              {['blue', 'emerald', 'purple', 'amber', 'rose', 'slate'].map(color => {
-                                                let dotClass = 'w-3.5 h-3.5 rounded-full cursor-pointer transition border border-transparent hover:scale-125';
-                                                if (color === 'blue') dotClass += ' bg-blue-500 hover:bg-blue-600';
-                                                if (color === 'emerald') dotClass += ' bg-emerald-500 hover:bg-emerald-600';
-                                                if (color === 'purple') dotClass += ' bg-purple-500 hover:bg-purple-600';
-                                                if (color === 'amber') dotClass += ' bg-amber-500 hover:bg-amber-600';
-                                                if (color === 'rose') dotClass += ' bg-rose-500 hover:bg-rose-600';
-                                                if (color === 'slate') dotClass += ' bg-slate-500 hover:bg-slate-600';
-                                                
-                                                if (task.estado === color) {
-                                                  dotClass += ' ring-2 ring-slate-800 ring-offset-1 scale-110';
-                                                }
-                                                
-                                                let colorLabel = 'Azul';
-                                                if (color === 'emerald') colorLabel = 'Verde';
-                                                if (color === 'purple') colorLabel = 'Púrpura';
-                                                if (color === 'amber') colorLabel = 'Amarillo';
-                                                if (color === 'rose') colorLabel = 'Rojo';
-                                                if (color === 'slate') colorLabel = 'Gris';
 
-                                                return (
-                                                  <div 
-                                                    key={color} 
-                                                    className={dotClass}
-                                                    title={colorLabel}
-                                                    onClick={() => handleUpdateCronogramaField(task.id, 'estado', color)}
-                                                  />
-                                                );
-                                              })}
-                                            </div>
-                                          )}
-                                        </td>
                                         <td className="p-2 text-center">
                                           {!isChapter && !task.is_partida && (
                                             <button
@@ -3295,17 +3261,85 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                               }
                                             }}
                                           >
+                                            {/* Floating color picker popover */}
+                                            {showColorPickerTaskId === task.id && (
+                                              <div 
+                                                className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2.5 bg-white border border-slate-200 shadow-xl rounded-2xl px-3 py-2 flex items-center gap-2 z-50 animate-in fade-in slide-in-from-bottom-1 duration-150"
+                                                onPointerDown={(e) => e.stopPropagation()}
+                                                onClick={(e) => e.stopPropagation()}
+                                              >
+                                                {['blue', 'emerald', 'purple', 'amber', 'rose', 'slate'].map(color => {
+                                                  let dotClass = 'w-4 h-4 rounded-full cursor-pointer transition border border-slate-100 hover:scale-125';
+                                                  if (color === 'blue') dotClass += ' bg-blue-500 hover:bg-blue-600';
+                                                  if (color === 'emerald') dotClass += ' bg-emerald-500 hover:bg-emerald-600';
+                                                  if (color === 'purple') dotClass += ' bg-purple-500 hover:bg-purple-600';
+                                                  if (color === 'amber') dotClass += ' bg-amber-500 hover:bg-amber-600';
+                                                  if (color === 'rose') dotClass += ' bg-rose-500 hover:bg-rose-600';
+                                                  if (color === 'slate') dotClass += ' bg-slate-500 hover:bg-slate-600';
+                                                  
+                                                  if (task.estado === color) {
+                                                    dotClass += ' ring-2 ring-primary ring-offset-1 scale-110';
+                                                  }
+                                                  
+                                                  return (
+                                                    <div 
+                                                      key={color} 
+                                                      className={dotClass}
+                                                      onClick={() => {
+                                                        handleUpdateCronogramaField(task.id, 'estado', color);
+                                                        setShowColorPickerTaskId(null);
+                                                      }}
+                                                    />
+                                                  );
+                                                })}
+                                                <button
+                                                  onClick={() => setShowColorPickerTaskId(null)}
+                                                  className="text-slate-400 hover:text-slate-600 text-xs ml-1 border-l border-slate-200 pl-2 hover:scale-110 cursor-pointer"
+                                                >
+                                                  ✕
+                                                </button>
+                                              </div>
+                                            )}
+
                                             {isMilestone ? (
-                                              <div className="flex items-center gap-1 bg-slate-900 text-white rounded-lg px-2 py-0.5 shadow border border-slate-700 text-[9px] font-black z-10 animate-in zoom-in duration-100 truncate w-full justify-center">
-                                                <span className="text-amber-400">◆</span>
-                                                <span className="truncate uppercase">{task.tarea}</span>
+                                              <div className="group/bar flex items-center justify-between gap-1 bg-slate-900 text-white rounded-lg px-2 py-0.5 shadow border border-slate-700 text-[9px] font-black z-10 animate-in zoom-in duration-100 truncate w-full">
+                                                <div className="flex items-center gap-1 truncate">
+                                                  <span className="text-amber-400">◆</span>
+                                                  <span className="truncate uppercase">{task.tarea}</span>
+                                                </div>
+                                                <button
+                                                  type="button"
+                                                  onClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    setShowColorPickerTaskId(showColorPickerTaskId === task.id ? null : task.id);
+                                                  }}
+                                                  className="opacity-0 group-hover/bar:opacity-100 p-0.5 hover:bg-white/20 rounded text-white transition cursor-pointer shrink-0 ml-1"
+                                                  title="Cambiar color"
+                                                >
+                                                  🎨
+                                                </button>
                                               </div>
                                             ) : (
                                               <div 
-                                                className={`w-full h-5 ${barColor} text-white rounded-lg flex items-center justify-between px-2 text-[9px] font-bold shadow-xs truncate`}
+                                                className={`group/bar w-full h-5 ${barColor} text-white rounded-lg flex items-center justify-between px-2 text-[9px] font-bold shadow-xs truncate`}
                                                 title={task.tarea}
                                               >
                                                 <span className="truncate uppercase">{task.tarea}</span>
+                                                {!task.is_chapter && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                      e.preventDefault();
+                                                      e.stopPropagation();
+                                                      setShowColorPickerTaskId(showColorPickerTaskId === task.id ? null : task.id);
+                                                    }}
+                                                    className="opacity-0 group-hover/bar:opacity-100 p-0.5 hover:bg-white/20 rounded text-white transition cursor-pointer shrink-0 ml-1"
+                                                    title="Cambiar color"
+                                                  >
+                                                    🎨
+                                                  </button>
+                                                )}
                                               </div>
                                             )}
                                           </div>
