@@ -10,7 +10,7 @@ import PublicFormFiller from './components/PublicFormFiller';
 import { 
   LogOut, LayoutDashboard, Building2, Users, Truck, ShieldAlert, Settings, Info, Menu, X, Loader2,
   Layers, Handshake, Receipt, Coins, ClipboardCheck, Boxes, BadgeCheck,
-  FileSpreadsheet, Upload, CalendarDays, Hammer
+  FileSpreadsheet, Upload, CalendarDays, Hammer, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 
@@ -28,6 +28,7 @@ function App() {
   const [currentModule, setCurrentModule] = useState('dashboard');
   const [companyBranding, setCompanyBranding] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile drawer toggle
+  const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true); // Desktop sidebar collapse toggle
   const [obras, setObras] = useState([]);
   const [obrasLoading, setObrasLoading] = useState(false);
   const [selectedObraName, setSelectedObraName] = useState(null);
@@ -266,21 +267,32 @@ function App() {
     <div className="min-h-screen flex bg-slate-50 text-slate-800 font-sans">
       
       {/* SIDEBAR NAVIGATION (Desktop) */}
-      <aside className="hidden md:flex flex-col w-64 bg-white border-r border-slate-200 fixed inset-y-0 left-0 z-40 transition-all">
+      <aside className={`hidden md:flex flex-col bg-white border-r border-slate-200 fixed inset-y-0 left-0 z-40 transition-all duration-300 ${
+        desktopSidebarOpen ? 'w-64' : 'w-0 overflow-hidden border-r-0'
+      }`}>
         
         {/* Brand/Logo Header */}
-        <div className="p-5 border-b border-slate-100 flex items-center justify-center bg-slate-50/50 min-h-[73px]">
-          {companyBranding && companyBranding.logo_base64 ? (
-            <img 
-              src={companyBranding.logo_base64} 
-              className="max-h-10 max-w-full object-contain mx-auto" 
-              alt="Logo" 
-            />
-          ) : (
-            <div className="bg-primary/10 px-3 py-2 rounded-xl flex items-center justify-center w-full">
-              <span className="text-primary font-black text-sm tracking-wider uppercase">{user.empresa}</span>
-            </div>
-          )}
+        <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 min-h-[73px]">
+          <div className="flex-1 min-w-0 pr-2">
+            {companyBranding && companyBranding.logo_base64 ? (
+              <img 
+                src={companyBranding.logo_base64} 
+                className="max-h-10 max-w-full object-contain mx-auto" 
+                alt="Logo" 
+              />
+            ) : (
+              <div className="bg-primary/10 px-3 py-2 rounded-xl flex items-center justify-center w-full">
+                <span className="text-primary font-black text-sm tracking-wider uppercase truncate">{user.empresa}</span>
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => setDesktopSidebarOpen(false)}
+            title="Ocultar menú lateral"
+            className="p-1.5 hover:bg-slate-200 rounded-lg text-slate-400 hover:text-slate-600 transition cursor-pointer shrink-0"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
         </div>
 
         {/* User Info Card */}
@@ -364,8 +376,21 @@ function App() {
         </div>
       </aside>
 
+      {/* Floating button to restore desktop sidebar */}
+      {!desktopSidebarOpen && (
+        <button
+          onClick={() => setDesktopSidebarOpen(true)}
+          title="Mostrar menú lateral"
+          className="hidden md:flex items-center justify-center w-10 h-10 bg-white border border-slate-200 rounded-r-xl shadow-md fixed bottom-6 left-0 z-50 text-slate-600 hover:text-slate-900 transition-all hover:pl-2 cursor-pointer border-l-0"
+        >
+          <ChevronRight className="w-5 h-5 text-primary" />
+        </button>
+      )}
+
       {/* MOBILE HEADER & DRAWER SIDEBAR */}
-      <div className="flex-1 flex flex-col md:pl-64 min-h-screen">
+      <div className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ${
+        desktopSidebarOpen ? 'md:pl-64' : 'md:pl-0'
+      }`}>
         <header className="md:hidden bg-primary text-white p-4 flex justify-between items-center shadow-md z-30 transition-all">
           <div className="flex items-center gap-3">
             <button 
