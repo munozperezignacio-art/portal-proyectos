@@ -3301,7 +3301,6 @@ export default function PresupuestosPlanif({ user, onBack }) {
                             const fuelPerUnit = rendMeta > 0 ? (fuelDaily * qty) / rendMeta : 0;
                             itemSub = (unitCost * qty * resRend) + fuelPerUnit;
                           }
-                          machSum += itemSub;
                         } else if (res.tipo === 'Herramientas') {
                           const isTimeUnit = unitStr.includes('mes') || unitStr.includes('mensual') || 
                                              unitStr.includes('hr') || unitStr.includes('hora') || 
@@ -3318,7 +3317,6 @@ export default function PresupuestosPlanif({ user, onBack }) {
                           } else {
                             itemSub = unitCost * qty * resRend;
                           }
-                          herrSum += itemSub;
                         } else if (res.tipo === 'Mano de Obra') {
                           if (unitStr.includes('mes') || unitStr.includes('mensual')) {
                             const dailyRate = unitCost / diasMes;
@@ -3331,13 +3329,8 @@ export default function PresupuestosPlanif({ user, onBack }) {
                           } else {
                             itemSub = unitCost * qty * resRend;
                           }
-                          laborSum += itemSub;
-                        } else if (res.tipo === 'Otros') {
-                          itemSub = unitCost * qty * resRend;
-                          otrosSum += itemSub;
                         } else {
                           itemSub = unitCost * qty * resRend;
-                          matSum += itemSub;
                         }
                       } else {
                         // COSTO-TIEMPO (Cobro directo en tiempo sin rendimiento)
@@ -3354,12 +3347,6 @@ export default function PresupuestosPlanif({ user, onBack }) {
                         }
 
                         itemSub = (dailyCost + fuelDaily) * qty;
-
-                        if (res.tipo === 'Material') matSum += itemSub;
-                        else if (res.tipo === 'Mano de Obra') laborSum += itemSub;
-                        else if (res.tipo === 'Maquinaria') machSum += itemSub;
-                        else if (res.tipo === 'Herramientas') herrSum += itemSub;
-                        else otrosSum += itemSub;
                       }
 
                       const isMach = res.tipo === 'Maquinaria';
