@@ -1284,7 +1284,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
       const toInsert = resolvedList
         .filter(t => typeof t.id === 'string' && t.id.startsWith('temp-'))
         .map(t => {
-          const { id, is_partida, is_chapter, ...rest } = t;
+          const { id, is_partida, is_chapter, cantidad, rendimiento_meta, ...rest } = t;
           return {
             ...rest,
             presupuesto_id: selectedProyectoId,
