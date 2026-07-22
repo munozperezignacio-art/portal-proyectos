@@ -4,18 +4,55 @@ import {
   ArrowLeft, FileSpreadsheet, Calendar, Plus, Save, Trash2, 
   Upload, Check, AlertCircle, RefreshCw, ChevronRight, CalendarDays,
   FolderPlus, DollarSign, Hammer, Briefcase, FileText, MapPin, Clock, ChevronLeft,
-  Settings, Percent, Coins, Sliders, Info, Store, Building2, ChevronDown, ChevronUp, Calculator, Fuel, Wrench, PieChart, Download
+  Settings, Percent, Coins, Sliders, Info, Store, Building2, ChevronDown, ChevronUp, Calculator, Fuel, Wrench, PieChart, Download, Globe
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { comunasChile } from '../utils/comunas';
 
+// Helpers para compatibilidad de metadatos en columnas existentes
+const parseResourceUnitAndCurrency = (unidadStr) => {
+  const parts = (unidadStr || '').split('|');
+  return {
+    unidad: parts[0]?.trim() || 'un',
+    moneda: parts[1]?.trim() || 'CLP'
+  };
+};
+
+const serializeResourceUnitAndCurrency = (unidad, moneda) => {
+  return `${unidad || 'un'} | ${moneda || 'CLP'}`;
+};
+
+const parseProjectTipoAndCurrency = (tipoStr) => {
+  const parts = (tipoStr || '').split('|');
+  return {
+    tipo: parts[0]?.trim() || 'Privado',
+    monedaBase: parts[1]?.trim() || 'CLP'
+  };
+};
+
+const serializeProjectTipoAndCurrency = (tipo, monedaBase) => {
+  return `${tipo || 'Privado'} | ${monedaBase || 'CLP'}`;
+};
+
 export default function PresupuestosPlanif({ user, onBack }) {
+  // Tipo de cambio del día (UF, USD, UTM, CLP)
+  const [exchangeRates, setExchangeRates] = useState({
+    CLP: 1,
+    USD: 945,  // default fallback
+    UF: 38480, // default fallback
+    UTM: 66250 // default fallback
+  });
+  const [loadingRates, setLoadingRates] = useState(true);
+
   // Lista de proyectos/presupuestos independientes
   const [proyectos, setProyectos] = useState([]);
   const [selectedProyectoId, setSelectedProyectoId] = useState('');
   const [loadingProyectos, setLoadingProyectos] = useState(true);
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
+
+  // Visualización y emisión en moneda seleccionada para planilla
+  const [displayCurrency, setDisplayCurrency] = useState('CLP');
   
   // Datos del nuevo proyecto
   const [newProjectData, setNewProjectData] = useState({ 
@@ -26,7 +63,8 @@ export default function PresupuestosPlanif({ user, onBack }) {
     plazo_estimado: '',
     presupuesto_estimado: '',
     tipo_proyecto: 'Privado',
-    comuna: ''
+    comuna: '',
+    moneda_base: 'CLP'
   });
 
   // Apartado activo: '' (Menú principal de apartados), 'crear', 'ingresar', 'gantt', 'recursos', 'mis_presupuestos'
@@ -71,6 +109,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
     recurso: '',
     tipo: 'Material',
     unidad: 'un',
+    moneda: 'CLP',
     costo_unitario: '',
     ciudad: '',
     proveedor: ''
@@ -97,6 +136,29 @@ export default function PresupuestosPlanif({ user, onBack }) {
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
+  // Cargar indicadores de mindicador.cl al iniciar
+  useEffect(() => {
+    const fetchRates = async () => {
+      setLoadingRates(true);
+      try {
+        const res = await fetch('https://mindicador.cl/api');
+        if (!res.ok) throw new Error('Dificultades de conexión con indicador API');
+        const data = await res.json();
+        setExchangeRates({
+          CLP: 1,
+          USD: data.dolar?.valor || 945,
+          UF: data.uf?.valor || 38480,
+          UTM: data.utm?.valor || 66250
+        });
+      } catch (err) {
+        console.warn('CORS o red no disponible. Usando UF/Dólar referenciales del día.', err.message);
+      } finally {
+        setLoadingRates(false);
+      }
+    };
+    fetchRates();
+  }, []);
+
   // Cargar proyectos al iniciar
   useEffect(() => {
     fetchProyectos();
@@ -116,6 +178,49 @@ export default function PresupuestosPlanif({ user, onBack }) {
       setIndirectCosts([]);
     }
   }, [selectedProyectoId]);
+
+  // Sincronizar moneda de visualización con la moneda base del proyecto activo
+  const currentProyecto = proyectos.find(p => p.id === parseInt(selectedProyectoId, 10));
+  const projectBaseCurrency = currentProyecto 
+    ? parseProjectTipoAndCurrency(currentProyecto.tipo_proyecto).monedaBase 
+    : 'CLP';
+
+  useEffect(() => {
+    if (currentProyecto) {
+      const info = parseProjectTipoAndCurrency(currentProyecto.tipo_proyecto);
+      setDisplayCurrency(info.monedaBase || 'CLP');
+    }
+  }, [selectedProyectoId, proyectos]);
+
+  // Conversión de Divisas Matemáticas
+  const convertCurrency = (amount, from, to) => {
+    if (!amount) return 0;
+    if (from === to) return amount;
+    
+    // Primero convertir a pesos (CLP)
+    let inCLP = amount;
+    if (from === 'USD') inCLP = amount * exchangeRates.USD;
+    else if (from === 'UF') inCLP = amount * exchangeRates.UF;
+    else if (from === 'UTM') inCLP = amount * exchangeRates.UTM;
+
+    // Convertir de pesos (CLP) a la moneda destino
+    if (to === 'CLP') return inCLP;
+    if (to === 'USD') return inCLP / exchangeRates.USD;
+    if (to === 'UF') return inCLP / exchangeRates.UF;
+    if (to === 'UTM') return inCLP / exchangeRates.UTM;
+    return amount;
+  };
+
+  const formatCurrencyValue = (val, currency) => {
+    if (currency === 'CLP') {
+      return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(val || 0);
+    } else if (currency === 'USD') {
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val || 0);
+    } else if (currency === 'UF') {
+      return `UF ${(val || 0).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
+    }
+    return val;
+  };
 
   const fetchProyectos = async () => {
     setLoadingProyectos(true);
@@ -228,6 +333,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
     if (!newProjectData.nombre.trim()) return;
     setLoadingProyectos(true);
     try {
+      const tipoWithCurrency = serializeProjectTipoAndCurrency(newProjectData.tipo_proyecto, newProjectData.moneda_base);
       const { data, error } = await supabase
         .from('presupuestos_proyectos')
         .insert([
@@ -238,7 +344,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
             ubicacion: newProjectData.ubicacion.trim(),
             plazo_estimado: parseInt(newProjectData.plazo_estimado, 10) || 0,
             presupuesto_estimado: parseFloat(newProjectData.presupuesto_estimado) || 0,
-            tipo_proyecto: newProjectData.tipo_proyecto,
+            tipo_proyecto: tipoWithCurrency,
             comuna: newProjectData.comuna
           }
         ])
@@ -246,7 +352,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
 
       if (error) throw error;
 
-      setSuccessMsg('Proyecto creado con éxito.');
+      setSuccessMsg('Proyecto y presupuesto base en ' + newProjectData.moneda_base + ' creado.');
       setNewProjectData({ 
         nombre: '', 
         descripcion: '',
@@ -255,7 +361,8 @@ export default function PresupuestosPlanif({ user, onBack }) {
         plazo_estimado: '',
         presupuesto_estimado: '',
         tipo_proyecto: 'Privado',
-        comuna: ''
+        comuna: '',
+        moneda_base: 'CLP'
       });
       setShowCreateProjectModal(false);
       
@@ -414,24 +521,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
     }
   };
 
-  // --- EXPORTAR PRESUPUESTO EN EXCEL (HOJA 1 RESUMEN, HOJAS 2+ APUs) ---
-  const makeSheetName = (code, title, usedSet) => {
-    let raw = `${code ? code + ' ' : ''}${title || 'Partida'}`.replace(/[:\\/?*\[\]]/g, '');
-    if (raw.length > 30) {
-      raw = raw.substring(0, 30).trim();
-    }
-    let finalName = raw;
-    let counter = 1;
-    while (usedSet.has(finalName.toLowerCase())) {
-      const suffix = `_${counter}`;
-      const baseLen = 30 - suffix.length;
-      finalName = raw.substring(0, baseLen) + suffix;
-      counter++;
-    }
-    usedSet.add(finalName.toLowerCase());
-    return finalName;
-  };
-
+  // --- EXPORTAR PRESUPUESTO EN EXCEL (CON MONEDA SELECCIONADA) ---
   const handleExportExcel = async () => {
     if (!selectedProyectoId || itemsPresupuesto.length === 0) {
       alert("No hay partidas registradas en el presupuesto actual para exportar.");
@@ -466,22 +556,36 @@ export default function PresupuestosPlanif({ user, onBack }) {
       sheet1Data.push(['PRESUPUESTO DE OBRA', projName]);
       sheet1Data.push(['Cliente / Mandante:', currentProyecto?.cliente || 'N/A']);
       sheet1Data.push(['Ubicación / Comuna:', `${currentProyecto?.ubicacion || ''} - ${currentProyecto?.comuna || ''}`]);
-      sheet1Data.push(['Tipo de Proyecto:', currentProyecto?.tipo_proyecto || 'Privado']);
+      sheet1Data.push(['Moneda Base del Proyecto:', projectBaseCurrency]);
+      sheet1Data.push(['Moneda de Emisión / Reporte:', displayCurrency]);
       sheet1Data.push(['Fecha Exportación:', new Date().toLocaleDateString('es-CL')]);
       sheet1Data.push([]); // Línea en blanco
 
       // Encabezados Tabla
-      sheet1Data.push(['CÓDIGO', 'ITEM / PARTIDA', 'UNIDAD', 'CANTIDAD', 'PRECIO UNITARIO ($)', 'PRECIO PARTIDA ($)']);
+      sheet1Data.push([
+        'CÓDIGO', 
+        'ITEM / PARTIDA', 
+        'UNIDAD', 
+        'CANTIDAD', 
+        `PRECIO UNITARIO (${displayCurrency})`, 
+        `PRECIO PARTIDA (${displayCurrency})`
+      ]);
 
       itemsPresupuesto.forEach(item => {
         const isChapter = isChapterRow(item, itemsPresupuesto);
-        const directPrice = parseFloat(item.costo_unitario) || 0;
+        const directPriceInBase = parseFloat(item.costo_unitario) || 0;
         const isProratedActive = prorateFactor > 1;
-        const effectivePrice = isProratedActive ? Math.round(directPrice * prorateFactor) : directPrice;
+        const effectivePriceInBase = isProratedActive ? directPriceInBase * prorateFactor : directPriceInBase;
 
-        const importeVal = isChapter
-          ? getChapterSum(item.codigo, itemsPresupuesto, isProratedActive, prorateFactor)
-          : (parseFloat(item.cantidad) || 0) * effectivePrice;
+        // Convertir de Moneda Base a Moneda de Visualización
+        const effectivePriceInDisplay = convertCurrency(effectivePriceInBase, projectBaseCurrency, displayCurrency);
+
+        const chapterSumInBase = isChapter ? getChapterSum(item.codigo, itemsPresupuesto, isProratedActive, prorateFactor) : 0;
+        const chapterSumInDisplay = convertCurrency(chapterSumInBase, projectBaseCurrency, displayCurrency);
+
+        const importeInDisplay = isChapter 
+          ? chapterSumInDisplay 
+          : (parseFloat(item.cantidad) || 0) * effectivePriceInDisplay;
 
         if (isChapter) {
           sheet1Data.push([
@@ -490,7 +594,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
             '',
             '',
             '',
-            Math.round(importeVal)
+            displayCurrency === 'CLP' ? Math.round(importeInDisplay) : parseFloat(importeInDisplay.toFixed(4))
           ]);
         } else {
           sheet1Data.push([
@@ -498,39 +602,44 @@ export default function PresupuestosPlanif({ user, onBack }) {
             item.partida || '',
             item.unidad || '',
             parseFloat(item.cantidad) || 0,
-            Math.round(effectivePrice),
-            Math.round(importeVal)
+            displayCurrency === 'CLP' ? Math.round(effectivePriceInDisplay) : parseFloat(effectivePriceInDisplay.toFixed(4)),
+            displayCurrency === 'CLP' ? Math.round(importeInDisplay) : parseFloat(importeInDisplay.toFixed(4))
           ]);
         }
       });
 
       sheet1Data.push([]); // Línea vacía
-      sheet1Data.push(['', 'COSTO DIRECTO TOTAL', '', '', '', Math.round(totalDirectCost)]);
+
+      const totalDirectCostDisp = convertCurrency(totalDirectCost, projectBaseCurrency, displayCurrency);
+      sheet1Data.push(['', 'COSTO DIRECTO TOTAL', '', '', '', displayCurrency === 'CLP' ? Math.round(totalDirectCostDisp) : parseFloat(totalDirectCostDisp.toFixed(4))]);
 
       if (proratedIndirectCosts.length > 0) {
+        const proratedDispVal = convertCurrency(totalProratedIndirectValue, projectBaseCurrency, displayCurrency);
         sheet1Data.push([
           '',
           `COSTOS GENERALES PRORRATEADOS (+${proratePctIncrement}%): ${proratedIndirectCosts.map(c => c.concepto).join(', ')}`,
           '',
           '',
           '',
-          Math.round(totalProratedIndirectValue)
+          displayCurrency === 'CLP' ? Math.round(proratedDispVal) : parseFloat(proratedDispVal.toFixed(4))
         ]);
       }
 
       nonProratedIndirectCosts.forEach(cost => {
-        const costVal = calculateIndirectCostValue(cost);
+        const costValInBase = calculateIndirectCostValue(cost);
+        const costValInDisp = convertCurrency(costValInBase, projectBaseCurrency, displayCurrency);
         sheet1Data.push([
           '',
           `${cost.concepto} (${cost.tipo === 'Porcentaje' ? `${cost.valor}%` : 'Monto Fijo'})`,
           '',
           '',
           '',
-          Math.round(costVal)
+          displayCurrency === 'CLP' ? Math.round(costValInDisp) : parseFloat(costValInDisp.toFixed(4))
         ]);
       });
 
-      sheet1Data.push(['', 'TOTAL GENERAL DEL PRESUPUESTO', '', '', '', Math.round(totalProjectCost)]);
+      const totalProjectCostDisp = convertCurrency(totalProjectCost, projectBaseCurrency, displayCurrency);
+      sheet1Data.push(['', 'TOTAL GENERAL DEL PRESUPUESTO', '', '', '', displayCurrency === 'CLP' ? Math.round(totalProjectCostDisp) : parseFloat(totalProjectCostDisp.toFixed(4))]);
 
       const ws1 = XLSX.utils.aoa_to_sheet(sheet1Data);
       ws1['!cols'] = [
@@ -545,7 +654,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
       XLSX.utils.book_append_sheet(wb, ws1, 'Resumen Presupuesto');
 
       // -------------------------------------------------------------
-      // HOJAS 2 EN ADELANTE: 1 HOJA POR CADA APU / PARTIDA
+      // HOJAS 2 EN ADELANTE: APUs
       // -------------------------------------------------------------
       const usedSheetNames = new Set(['resumen presupuesto']);
 
@@ -561,6 +670,8 @@ export default function PresupuestosPlanif({ user, onBack }) {
         apuSheetData.push(['Código Partida:', item.codigo || 'S/N']);
         apuSheetData.push(['Unidad de Medida:', item.unidad || 'un']);
         apuSheetData.push(['Cantidad de Partida:', parseFloat(item.cantidad) || 0]);
+        apuSheetData.push(['Moneda del Análisis:', projectBaseCurrency]);
+        apuSheetData.push(['Moneda de Presentación:', displayCurrency]);
         apuSheetData.push(['Metodología:', item.tipo_metodologia || 'Precio Unitario']);
         apuSheetData.push([]);
 
@@ -571,7 +682,17 @@ export default function PresupuestosPlanif({ user, onBack }) {
         apuSheetData.push(['Imponderables (%):', item.imponderables_pct || 5]);
         apuSheetData.push([]);
 
-        apuSheetData.push(['RECURSO / INSUMO', 'TIPO', 'TARIFA BASE ($)', 'UNIDAD', 'CANTIDAD / CONSUMO', 'DIESEL (L/hr)', 'REND. COEF.', 'COSTO UNIT. PARTIDA ($)']);
+        apuSheetData.push([
+          'RECURSO / INSUMO', 
+          'TIPO', 
+          'TARIFA BASE ORIGINAL', 
+          'MONEDA',
+          'UNIDAD', 
+          'CANTIDAD / CONSUMO', 
+          'DIESEL (L/hr)', 
+          'REND. COEF.', 
+          `COSTO UNIT. PARTIDA (${displayCurrency})`
+        ]);
 
         let matSum = 0;
         let laborSum = 0;
@@ -594,85 +715,93 @@ export default function PresupuestosPlanif({ user, onBack }) {
 
           const qty = parseFloat(link.cantidad_unidad) || 0;
           const resRend = parseFloat(link.rendimiento) || 1;
-          const unitCost = parseFloat(res.costo_unitario) || 0;
-          const unitStr = (res.unidad || '').toLowerCase().trim();
+          const originalCost = parseFloat(res.costo_unitario) || 0;
+          const resInfo = parseResourceUnitAndCurrency(res.unidad);
+          
+          // Costo en Moneda Base del proyecto
+          const unitCostInBase = convertCurrency(originalCost, resInfo.moneda, projectBaseCurrency);
+
+          const unitStr = resInfo.unidad.toLowerCase().trim();
           const consumoLh = parseFloat(link.consumo_combustible_lh) || 0;
 
-          let itemSub = 0;
+          let itemSubInBase = 0;
           if (isPU) {
             if (res.tipo === 'Maquinaria') {
               const isTimeUnit = unitStr.includes('mes') || unitStr.includes('mensual') || unitStr.includes('hr') || unitStr.includes('hora') || unitStr.includes('día') || unitStr.includes('dia');
               if (isTimeUnit) {
-                let dailyRate = unitCost;
-                if (unitStr.includes('mes') || unitStr.includes('mensual')) dailyRate = unitCost / diasMes;
-                else if (unitStr.includes('hr') || unitStr.includes('hora')) dailyRate = unitCost * hrsJornada;
+                let dailyRate = unitCostInBase;
+                if (unitStr.includes('mes') || unitStr.includes('mensual')) dailyRate = unitCostInBase / diasMes;
+                else if (unitStr.includes('hr') || unitStr.includes('hora')) dailyRate = unitCostInBase * hrsJornada;
                 const fuelDaily = consumoLh * hrsJornada * precioDiesel;
-                itemSub = ((dailyRate + fuelDaily) * qty) / rendMeta;
+                itemSubInBase = ((dailyRate + fuelDaily) * qty) / rendMeta;
               } else {
                 const fuelDaily = consumoLh * hrsJornada * precioDiesel;
                 const fuelPerUnit = rendMeta > 0 ? (fuelDaily * qty) / rendMeta : 0;
-                itemSub = (unitCost * qty * resRend) + fuelPerUnit;
+                itemSubInBase = (unitCostInBase * qty * resRend) + fuelPerUnit;
               }
-              machSum += itemSub;
+              machSum += itemSubInBase;
             } else if (res.tipo === 'Herramientas') {
               const isTimeUnit = unitStr.includes('mes') || unitStr.includes('mensual') || unitStr.includes('hr') || unitStr.includes('hora') || unitStr.includes('día') || unitStr.includes('dia');
               if (isTimeUnit) {
-                let dailyRate = unitCost;
-                if (unitStr.includes('mes') || unitStr.includes('mensual')) dailyRate = unitCost / diasMes;
-                else if (unitStr.includes('hr') || unitStr.includes('hora')) dailyRate = unitCost * hrsJornada;
-                itemSub = (dailyRate * qty) / rendMeta;
+                let dailyRate = unitCostInBase;
+                if (unitStr.includes('mes') || unitStr.includes('mensual')) dailyRate = unitCostInBase / diasMes;
+                else if (unitStr.includes('hr') || unitStr.includes('hora')) dailyRate = unitCostInBase * hrsJornada;
+                itemSubInBase = (dailyRate * qty) / rendMeta;
               } else {
-                itemSub = unitCost * qty * resRend;
+                itemSubInBase = unitCostInBase * qty * resRend;
               }
-              herrSum += itemSub;
+              herrSum += itemSubInBase;
             } else if (res.tipo === 'Mano de Obra') {
               if (unitStr.includes('mes') || unitStr.includes('mensual')) {
-                itemSub = ((unitCost / diasMes) * qty) / rendMeta;
+                itemSubInBase = ((unitCostInBase / diasMes) * qty) / rendMeta;
               } else if (unitStr.includes('hr') || unitStr.includes('hora')) {
-                itemSub = ((unitCost * hrsJornada) * qty) / rendMeta;
+                itemSubInBase = ((unitCostInBase * hrsJornada) * qty) / rendMeta;
               } else if (unitStr.includes('día') || unitStr.includes('dia')) {
-                itemSub = (unitCost * qty) / rendMeta;
+                itemSubInBase = (unitCostInBase * qty) / rendMeta;
               } else {
-                itemSub = unitCost * qty * resRend;
+                itemSubInBase = unitCostInBase * qty * resRend;
               }
-              laborSum += itemSub;
+              laborSum += itemSubInBase;
             } else if (res.tipo === 'Otros') {
-              itemSub = unitCost * qty * resRend;
-              otrosSum += itemSub;
+              itemSubInBase = unitCostInBase * qty * resRend;
+              otrosSum += itemSubInBase;
             } else {
-              itemSub = unitCost * qty * resRend;
-              matSum += itemSub;
+              itemSubInBase = unitCostInBase * qty * resRend;
+              matSum += itemSubInBase;
             }
           } else {
-            let dailyCost = unitCost;
-            if (unitStr.includes('mes') || unitStr.includes('mensual')) dailyCost = unitCost / diasMes;
-            else if (unitStr.includes('hr') || unitStr.includes('hora')) dailyCost = unitCost * hrsJornada;
+            let dailyCost = unitCostInBase;
+            if (unitStr.includes('mes') || unitStr.includes('mensual')) dailyCost = unitCostInBase / diasMes;
+            else if (unitStr.includes('hr') || unitStr.includes('hora')) dailyCost = unitCostInBase * hrsJornada;
 
             let fuelDaily = 0;
             if (res.tipo === 'Maquinaria' && consumoLh > 0) fuelDaily = consumoLh * hrsJornada * precioDiesel;
-            itemSub = (dailyCost + fuelDaily) * qty;
+            itemSubInBase = (dailyCost + fuelDaily) * qty;
 
-            if (res.tipo === 'Material') matSum += itemSub;
-            else if (res.tipo === 'Mano de Obra') laborSum += itemSub;
-            else if (res.tipo === 'Maquinaria') machSum += itemSub;
-            else if (res.tipo === 'Herramientas') herrSum += itemSub;
-            else otrosSum += itemSub;
+            if (res.tipo === 'Material') matSum += itemSubInBase;
+            else if (res.tipo === 'Mano de Obra') laborSum += itemSubInBase;
+            else if (res.tipo === 'Maquinaria') machSum += itemSubInBase;
+            else if (res.tipo === 'Herramientas') herrSum += itemSubInBase;
+            else otrosSum += itemSubInBase;
           }
+
+          const itemSubInDisplay = convertCurrency(itemSubInBase, projectBaseCurrency, displayCurrency);
 
           apuSheetData.push([
             res.recurso || '',
             res.tipo || '',
-            Math.round(unitCost),
-            res.unidad || '',
+            originalCost,
+            resInfo.moneda,
+            resInfo.unidad,
             qty,
             consumoLh || 0,
             resRend || 1,
-            Math.round(itemSub)
+            displayCurrency === 'CLP' ? Math.round(itemSubInDisplay) : parseFloat(itemSubInDisplay.toFixed(4))
           ]);
         });
 
         if (itemLinks.length === 0) {
-          apuSheetData.push(['(Sin recursos vinculados en APU)', '', '', '', '', '', '', 0]);
+          apuSheetData.push(['(Sin recursos vinculados en APU)', '', '', '', '', '', '', '', 0]);
         }
 
         apuSheetData.push([]);
@@ -681,18 +810,28 @@ export default function PresupuestosPlanif({ user, onBack }) {
         const subtotalDirecto = matSum + machSum + laborTotal + herrSum + otrosSum;
         const totalUnitario = subtotalDirecto * (1 + impPct / 100);
 
-        apuSheetData.push(['DESGLOSE DE COSTOS Y RESULTADO FINAL']);
-        apuSheetData.push(['Materiales:', Math.round(matSum), 'Mano de Obra (+Leyes):', Math.round(laborTotal)]);
-        apuSheetData.push(['Maquinaria (+Diesel):', Math.round(machSum), 'Herramientas:', Math.round(herrSum)]);
-        apuSheetData.push(['Otros Insumos:', Math.round(otrosSum), `Imponderables (${impPct}%):`, Math.round(subtotalDirecto * (impPct / 100))]);
-        apuSheetData.push(['SUBTOTAL DIRECTO:', Math.round(subtotalDirecto), 'PRECIO UNITARIO FINAL ($):', Math.round(totalUnitario)]);
+        const matDisp = convertCurrency(matSum, projectBaseCurrency, displayCurrency);
+        const laborDisp = convertCurrency(laborTotal, projectBaseCurrency, displayCurrency);
+        const machDisp = convertCurrency(machSum, projectBaseCurrency, displayCurrency);
+        const herrDisp = convertCurrency(herrSum, projectBaseCurrency, displayCurrency);
+        const otrosDisp = convertCurrency(otrosSum, projectBaseCurrency, displayCurrency);
+        const impDisp = convertCurrency(subtotalDirecto * (impPct / 100), projectBaseCurrency, displayCurrency);
+        const subtotalDisp = convertCurrency(subtotalDirecto, projectBaseCurrency, displayCurrency);
+        const totalUnitDisp = convertCurrency(totalUnitario, projectBaseCurrency, displayCurrency);
+
+        apuSheetData.push([`DESGLOSE DE COSTOS Y RESULTADO FINAL (${displayCurrency})`]);
+        apuSheetData.push(['Materiales:', displayCurrency === 'CLP' ? Math.round(matDisp) : parseFloat(matDisp.toFixed(4)), 'Mano de Obra (+Leyes):', displayCurrency === 'CLP' ? Math.round(laborDisp) : parseFloat(laborDisp.toFixed(4))]);
+        apuSheetData.push(['Maquinaria (+Diesel):', displayCurrency === 'CLP' ? Math.round(machDisp) : parseFloat(machDisp.toFixed(4)), 'Herramientas:', displayCurrency === 'CLP' ? Math.round(herrDisp) : parseFloat(herrDisp.toFixed(4))]);
+        apuSheetData.push(['Otros Insumos:', displayCurrency === 'CLP' ? Math.round(otrosDisp) : parseFloat(otrosDisp.toFixed(4)), `Imponderables (${impPct}%):`, displayCurrency === 'CLP' ? Math.round(impDisp) : parseFloat(impDisp.toFixed(4))]);
+        apuSheetData.push(['SUBTOTAL DIRECTO:', displayCurrency === 'CLP' ? Math.round(subtotalDisp) : parseFloat(subtotalDisp.toFixed(4)), 'PRECIO UNITARIO FINAL ($):', displayCurrency === 'CLP' ? Math.round(totalUnitDisp) : parseFloat(totalUnitDisp.toFixed(4))]);
 
         const wsApu = XLSX.utils.aoa_to_sheet(apuSheetData);
         wsApu['!cols'] = [
           { wch: 32 },
           { wch: 16 },
-          { wch: 18 },
+          { wch: 22 },
           { wch: 10 },
+          { wch: 12 },
           { wch: 20 },
           { wch: 16 },
           { wch: 12 },
@@ -703,8 +842,8 @@ export default function PresupuestosPlanif({ user, onBack }) {
       });
 
       const safeProjName = projName.replace(/[^a-zA-Z0-9_-]/g, '_');
-      XLSX.writeFile(wb, `Presupuesto_${safeProjName}.xlsx`);
-      setSuccessMsg('Presupuesto y APUs exportados exitosamente a Excel.');
+      XLSX.writeFile(wb, `Presupuesto_${safeProjName}_${displayCurrency}.xlsx`);
+      setSuccessMsg('Presupuesto y APUs exportados exitosamente a Excel en ' + displayCurrency);
     } catch (err) {
       console.error('Error al exportar Excel:', err);
       setErrorMsg('Error al generar Excel: ' + err.message);
@@ -713,7 +852,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
     }
   };
 
-  // --- TAB: INGRESAR PRESUPUESTO ---
+  // --- IMPORTADOR MASIVO ---
   const handleImportCSV = async () => {
     if (!selectedProyectoId || !importText.trim()) return;
     setBudgetLoading(true);
@@ -912,7 +1051,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
       presupuesto_id: selectedProyectoId,
       recurso: 'NUEVO RECURSO',
       tipo: 'Material',
-      unidad: 'un',
+      unidad: serializeResourceUnitAndCurrency('un', 'CLP'),
       costo_unitario: 0,
       cantidad_estimada: 0,
       ciudad: '',
@@ -928,10 +1067,6 @@ export default function PresupuestosPlanif({ user, onBack }) {
       }
       return item;
     }));
-  };
-
-  const handleDeleteResourceRow = (id) => {
-    setRecursos(prev => prev.filter(r => r.id !== id));
   };
 
   const handleSaveResources = async () => {
@@ -1153,8 +1288,6 @@ export default function PresupuestosPlanif({ user, onBack }) {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(num || 0);
   };
 
-  const currentProyecto = proyectos.find(p => p.id === parseInt(selectedProyectoId, 10));
-
   // Totales
   const totalDirectCost = itemsPresupuesto.reduce((acc, curr) => {
     if (isChapterRow(curr, itemsPresupuesto)) return acc;
@@ -1191,14 +1324,24 @@ export default function PresupuestosPlanif({ user, onBack }) {
   const proratePctIncrement = ((prorateFactor - 1) * 100).toFixed(1);
 
   const totalResourceCost = recursos.reduce((acc, curr) => {
-    return acc + ((parseFloat(curr.cantidad_estimada) || 0) * (parseFloat(curr.costo_unitario) || 0));
+    const resInfo = parseResourceUnitAndCurrency(curr.unidad);
+    const costInBase = convertCurrency(parseFloat(curr.costo_unitario) || 0, resInfo.moneda, projectBaseCurrency);
+    return acc + ((parseFloat(curr.cantidad_estimada) || 0) * costInBase);
   }, 0);
 
-  const materialCost = recursos.filter(r => r.tipo === 'Material').reduce((sum, r) => sum + (r.cantidad_estimada * r.costo_unitario), 0);
-  const laborCost = recursos.filter(r => r.tipo === 'Mano de Obra').reduce((sum, r) => sum + (r.cantidad_estimada * r.costo_unitario), 0);
-  const machineryCost = recursos.filter(r => r.tipo === 'Maquinaria').reduce((sum, r) => sum + (r.cantidad_estimada * r.costo_unitario), 0);
-  const herramientasCost = recursos.filter(r => r.tipo === 'Herramientas').reduce((sum, r) => sum + (r.cantidad_estimada * r.costo_unitario), 0);
-  const otrosCost = recursos.filter(r => r.tipo === 'Otros').reduce((sum, r) => sum + (r.cantidad_estimada * r.costo_unitario), 0);
+  const getCategorizedResourceCost = (type) => {
+    return recursos.filter(r => r.tipo === type).reduce((sum, r) => {
+      const resInfo = parseResourceUnitAndCurrency(r.unidad);
+      const costInBase = convertCurrency(parseFloat(r.costo_unitario) || 0, resInfo.moneda, projectBaseCurrency);
+      return sum + ((parseFloat(r.cantidad_estimada) || 0) * costInBase);
+    }, 0);
+  };
+
+  const materialCost = getCategorizedResourceCost('Material');
+  const laborCost = getCategorizedResourceCost('Mano de Obra');
+  const machineryCost = getCategorizedResourceCost('Maquinaria');
+  const herramientasCost = getCategorizedResourceCost('Herramientas');
+  const otrosCost = getCategorizedResourceCost('Otros');
 
   // --- ACCIONES DE APU MODAL ---
   const openApuModal = async (item) => {
@@ -1215,6 +1358,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
       recurso: '',
       tipo: 'Material',
       unidad: 'un',
+      moneda: 'CLP',
       costo_unitario: '',
       ciudad: '',
       proveedor: ''
@@ -1281,6 +1425,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
     setApuLoading(true);
 
     try {
+      const serializedUnit = serializeResourceUnitAndCurrency(newResourceForm.unidad, newResourceForm.moneda);
       const { data, error } = await supabase
         .from('recursos_presupuesto')
         .insert([
@@ -1288,7 +1433,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
             presupuesto_id: selectedProyectoId,
             recurso: newResourceForm.recurso.trim(),
             tipo: newResourceForm.tipo,
-            unidad: newResourceForm.unidad.trim() || 'un',
+            unidad: serializedUnit,
             costo_unitario: parseFloat(newResourceForm.costo_unitario) || 0,
             cantidad_estimada: 1,
             ciudad: newResourceForm.ciudad,
@@ -1318,6 +1463,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
         recurso: '',
         tipo: 'Material',
         unidad: 'un',
+        moneda: 'CLP',
         costo_unitario: '',
         ciudad: '',
         proveedor: ''
@@ -1367,8 +1513,13 @@ export default function PresupuestosPlanif({ user, onBack }) {
 
       const qty = parseFloat(link.cantidad_unidad) || 0;
       const resRend = parseFloat(link.rendimiento) || 1;
-      const unitCost = parseFloat(res.costo_unitario) || 0;
-      const unitStr = (res.unidad || '').toLowerCase().trim();
+      const originalCost = parseFloat(res.costo_unitario) || 0;
+      
+      const resInfo = parseResourceUnitAndCurrency(res.unidad);
+      // Convertir de la moneda del recurso a la moneda base del proyecto
+      const unitCost = convertCurrency(originalCost, resInfo.moneda, projectBaseCurrency);
+      
+      const unitStr = resInfo.unidad.toLowerCase().trim();
       const consumoLh = parseFloat(link.consumo_combustible_lh) || 0;
 
       if (!isPU) {
@@ -1495,7 +1646,6 @@ export default function PresupuestosPlanif({ user, onBack }) {
         autoTiempo = (parseFloat(apuItem.cantidad) || 0) / parseFloat(apuForm.rendimiento_meta);
       }
 
-      // 1. Guardar en presupuestos_items con fallback
       const fullUpdatePayload = {
         tipo_metodologia: apuForm.tipo_metodologia,
         rendimiento_meta: parseFloat(apuForm.rendimiento_meta) || 0,
@@ -1530,7 +1680,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
         throw itemErr;
       }
 
-      // 2. Guardar recursos vinculados (Limpiar e insertar)
+      // Guardar recursos vinculados
       const { error: delErr } = await supabase
         .from('presupuestos_items_recursos')
         .delete()
@@ -1570,6 +1720,23 @@ export default function PresupuestosPlanif({ user, onBack }) {
     } else {
       onBack();
     }
+  };
+
+  const makeSheetName = (code, title, usedSet) => {
+    let raw = `${code ? code + ' ' : ''}${title || 'Partida'}`.replace(/[:\\/?*\[\]]/g, '');
+    if (raw.length > 30) {
+      raw = raw.substring(0, 30).trim();
+    }
+    let finalName = raw;
+    let counter = 1;
+    while (usedSet.has(finalName.toLowerCase())) {
+      const suffix = `_${counter}`;
+      const baseLen = 30 - suffix.length;
+      finalName = raw.substring(0, baseLen) + suffix;
+      counter++;
+    }
+    usedSet.add(finalName.toLowerCase());
+    return finalName;
   };
 
   const isWorkspaceActive = activeSection !== '' && activeSection !== 'mis_presupuestos';
@@ -1636,6 +1803,31 @@ export default function PresupuestosPlanif({ user, onBack }) {
         </div>
       </div>
 
+      {/* 2. Barra de Indicadores Financieros Oficiales (UF, Dólar, UTM) */}
+      <div className="bg-slate-900 text-white rounded-3xl p-3 px-6 flex flex-wrap justify-between items-center gap-4 shadow-sm animate-in fade-in duration-200">
+        <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-350 flex items-center gap-1">
+            <Globe className="w-3.5 h-3.5 text-slate-400" />
+            <span>Indicadores Financieros Oficiales</span>
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-6 text-xs font-black">
+          <div className="flex items-center gap-2">
+            <span className="text-slate-450 text-[10px] font-bold">VALOR UF:</span>
+            <span className="text-amber-400 font-black">{loadingRates ? 'Cargando...' : formatCLP(exchangeRates.UF)}</span>
+          </div>
+          <div className="flex items-center gap-2 border-l border-slate-700 pl-6">
+            <span className="text-slate-455 text-[10px] font-bold">DÓLAR (USD):</span>
+            <span className="text-emerald-400 font-black">{loadingRates ? 'Cargando...' : formatCLP(exchangeRates.USD)}</span>
+          </div>
+          <div className="flex items-center gap-2 border-l border-slate-700 pl-6">
+            <span className="text-slate-450 text-[10px] font-bold">UTM:</span>
+            <span className="text-blue-400 font-black">{loadingRates ? 'Cargando...' : formatCLP(exchangeRates.UTM)}</span>
+          </div>
+        </div>
+      </div>
+
       {/* Alertas */}
       {successMsg && <div className="bg-emerald-50 text-emerald-700 p-3.5 rounded-xl text-xs font-semibold border border-emerald-250 animate-in fade-in duration-150">{successMsg}</div>}
       {errorMsg && <div className="bg-red-50 text-red-700 p-3.5 rounded-xl text-xs font-semibold border border-red-250 animate-in fade-in duration-150">{errorMsg}</div>}
@@ -1661,10 +1853,13 @@ export default function PresupuestosPlanif({ user, onBack }) {
               <p className="text-xs font-extrabold text-slate-850 uppercase">{currentProyecto.comuna || 'No asignada'}</p>
             </div>
             <div className="space-y-1">
-              <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Tipo Proyecto</span>
-              <p className="text-xs font-extrabold text-slate-850 uppercase flex items-center gap-1">
-                <span className={`w-2 h-2 rounded-full ${currentProyecto.tipo_proyecto === 'Público' ? 'bg-blue-650' : 'bg-emerald-650'}`} />
-                <span>{currentProyecto.tipo_proyecto || 'Privado'}</span>
+              <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Tipo Proyecto & Moneda Base</span>
+              <p className="text-xs font-extrabold text-slate-850 uppercase flex items-center gap-1.5">
+                <span className={`w-2.5 h-2.5 rounded-full ${parseProjectTipoAndCurrency(currentProyecto.tipo_proyecto).tipo === 'Público' ? 'bg-blue-650' : 'bg-emerald-650'}`} />
+                <span>{parseProjectTipoAndCurrency(currentProyecto.tipo_proyecto).tipo}</span>
+                <span className="bg-slate-100 text-slate-700 font-black text-[9px] px-1.5 py-0.5 rounded-md border">
+                  {projectBaseCurrency}
+                </span>
               </p>
             </div>
             <div className="space-y-1">
@@ -1675,9 +1870,9 @@ export default function PresupuestosPlanif({ user, onBack }) {
               </p>
             </div>
             <div className="space-y-1">
-              <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Presupuesto Límite</span>
+              <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Presupuesto Límite ({projectBaseCurrency})</span>
               <p className="text-xs font-extrabold text-slate-850 truncate">
-                {currentProyecto.presupuesto_estimado ? formatCLP(currentProyecto.presupuesto_estimado) : 'Sin límite'}
+                {currentProyecto.presupuesto_estimado ? formatCurrencyValue(currentProyecto.presupuesto_estimado, projectBaseCurrency) : 'Sin límite'}
               </p>
             </div>
           </div>
@@ -1821,10 +2016,10 @@ export default function PresupuestosPlanif({ user, onBack }) {
               <div className="space-y-6">
                 
                 {/* Barra superior */}
-                <div className="flex justify-between items-center bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
+                <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center bg-white p-4 border border-slate-200 rounded-2xl shadow-xs gap-3">
                   <button
                     onClick={() => { setActiveSection(''); setErrorMsg(''); setSuccessMsg(''); }}
-                    className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-slate-850 font-bold cursor-pointer transition"
+                    className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-slate-850 font-bold cursor-pointer transition mr-auto"
                   >
                     <ChevronLeft className="w-4 h-4" />
                     <span>Volver al menú de apartados</span>
@@ -1833,6 +2028,21 @@ export default function PresupuestosPlanif({ user, onBack }) {
                   <div className="flex flex-wrap items-center gap-2.5">
                     {activeSection === 'crear' && (
                       <>
+                        {/* Selector de Moneda de Emisión / Visualización */}
+                        <div className="flex items-center gap-1.5 bg-slate-100 border rounded-xl px-3.5 py-2">
+                          <Coins className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span className="text-[10px] font-black uppercase text-slate-500">Moneda Emisión:</span>
+                          <select
+                            value={displayCurrency}
+                            onChange={(e) => setDisplayCurrency(e.target.value)}
+                            className="bg-transparent text-xs font-black text-slate-800 border-0 p-0 focus:outline-none focus:ring-0 cursor-pointer"
+                          >
+                            <option value="CLP">CLP ($)</option>
+                            <option value="USD">USD ($)</option>
+                            <option value="UF">UF</option>
+                          </select>
+                        </div>
+
                         <button
                           onClick={handleExportExcel}
                           disabled={exportingExcel}
@@ -1840,7 +2050,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                           title="Descargar Presupuesto y APUs en Excel multi-hoja"
                         >
                           <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
-                          <span>{exportingExcel ? 'Generando Excel...' : 'Descargar Excel'}</span>
+                          <span>{exportingExcel ? 'Generando...' : 'Descargar Excel'}</span>
                         </button>
 
                         <button
@@ -1890,8 +2100,10 @@ export default function PresupuestosPlanif({ user, onBack }) {
                     <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                       <div className="flex flex-wrap items-center gap-6">
                         <div>
-                          <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Costo Directo Subtotal</h4>
-                          <p className="text-xl font-black text-slate-850 mt-0.5">{formatCLP(totalDirectCost)}</p>
+                          <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Costo Directo Subtotal ({displayCurrency})</h4>
+                          <p className="text-xl font-black text-slate-850 mt-0.5">
+                            {formatCurrencyValue(convertCurrency(totalDirectCost, projectBaseCurrency, displayCurrency), displayCurrency)}
+                          </p>
                         </div>
                         {proratedIndirectCosts.length > 0 && (
                           <div className="border-l border-slate-200 pl-6">
@@ -1903,8 +2115,10 @@ export default function PresupuestosPlanif({ user, onBack }) {
                           </div>
                         )}
                         <div className="border-l border-slate-200 pl-6">
-                          <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total General Presupuesto</h4>
-                          <p className="text-xl font-black text-primary mt-0.5">{formatCLP(totalProjectCost)}</p>
+                          <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total General Presupuesto ({displayCurrency})</h4>
+                          <p className="text-xl font-black text-primary mt-0.5">
+                            {formatCurrencyValue(convertCurrency(totalProjectCost, projectBaseCurrency, displayCurrency), displayCurrency)}
+                          </p>
                         </div>
                       </div>
 
@@ -1926,10 +2140,10 @@ export default function PresupuestosPlanif({ user, onBack }) {
                               <th className="p-3.5">Concepto / Partida</th>
                               <th className="p-3.5 w-20">Unidad</th>
                               <th className="p-3.5 w-28">Cant. / Tiempo</th>
-                              <th className="p-3.5 w-36">
-                                {proratedIndirectCosts.length > 0 ? 'Precio Unit. Prorrateado ($)' : 'Precio / Tarifa ($)'}
+                              <th className="p-3.5 w-44">
+                                {proratedIndirectCosts.length > 0 ? `P. Unit. Prorrateado (${displayCurrency})` : `P. Unit. Directo (${displayCurrency})`}
                               </th>
-                              <th className="p-3.5 w-36">Importe ($)</th>
+                              <th className="p-3.5 w-44">Importe ({displayCurrency})</th>
                               <th className="p-3.5 w-36 text-center">Metodología</th>
                               <th className="p-3.5 w-24 text-center">Acciones</th>
                             </tr>
@@ -1937,13 +2151,22 @@ export default function PresupuestosPlanif({ user, onBack }) {
                           <tbody className="divide-y divide-slate-150">
                             {itemsPresupuesto.map((item) => {
                               const isChapter = isChapterRow(item, itemsPresupuesto);
-                              const directPrice = parseFloat(item.costo_unitario) || 0;
+                              const directPriceInBase = parseFloat(item.costo_unitario) || 0;
                               const isProratedActive = prorateFactor > 1;
-                              const effectivePrice = isProratedActive ? Math.round(directPrice * prorateFactor) : directPrice;
+                              const effectivePriceInBase = isProratedActive ? (directPriceInBase * prorateFactor) : directPriceInBase;
 
-                              const importeVal = isChapter
-                                ? getChapterSum(item.codigo, itemsPresupuesto, isProratedActive, prorateFactor)
-                                : (parseFloat(item.cantidad) || 0) * effectivePrice;
+                              // Conversión a Moneda de Visualización
+                              const effectivePriceInDisplay = convertCurrency(effectivePriceInBase, projectBaseCurrency, displayCurrency);
+                              
+                              const chapterSumInBase = isChapter 
+                                ? getChapterSum(item.codigo, itemsPresupuesto, isProratedActive, prorateFactor) 
+                                : 0;
+                              const chapterSumInDisplay = convertCurrency(chapterSumInBase, projectBaseCurrency, displayCurrency);
+
+                              const importeInDisplay = isChapter
+                                ? chapterSumInDisplay
+                                : (parseFloat(item.cantidad) || 0) * effectivePriceInDisplay;
+
                               const isIndent = item.codigo && item.codigo.includes('.');
                               const isCostoTiempo = item.tipo_metodologia === 'Costo-Tiempo';
 
@@ -2000,12 +2223,14 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                     {!isChapter && (
                                       <div className="relative flex items-center">
                                         <input
-                                          type="number"
-                                          step="any"
-                                          value={item.costo_unitario !== undefined && item.costo_unitario !== null && item.costo_unitario !== '' ? Math.round(effectivePrice) : ''}
+                                          type="text"
+                                          value={displayCurrency === 'CLP' ? Math.round(effectivePriceInDisplay) : effectivePriceInDisplay.toFixed(4)}
                                           onChange={(e) => {
-                                            if (!isProratedActive) {
-                                              handleUpdateBudgetField(item.id, 'costo_unitario', e.target.value);
+                                            if (!isProratedActive && typeof item.id !== 'number') {
+                                              // Convertir el input (que está en displayCurrency) a la base del proyecto
+                                              const enteredVal = parseFloat(e.target.value) || 0;
+                                              const baseVal = convertCurrency(enteredVal, displayCurrency, projectBaseCurrency);
+                                              handleUpdateBudgetField(item.id, 'costo_unitario', baseVal);
                                             }
                                           }}
                                           placeholder="0"
@@ -2019,7 +2244,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                           }`}
                                         />
                                         {isProratedActive && (
-                                          <span className="text-[8.5px] font-black text-purple-700 bg-purple-100 px-1 py-0.5 rounded ml-1 shrink-0" title={`Precio Directo: ${formatCLP(directPrice)}`}>
+                                          <span className="text-[8.5px] font-black text-purple-700 bg-purple-100 px-1 py-0.5 rounded ml-1 shrink-0" title={`Precio Directo Base: ${formatCurrencyValue(directPriceInBase, projectBaseCurrency)}`}>
                                             +{proratePctIncrement}%
                                           </span>
                                         )}
@@ -2027,7 +2252,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                     )}
                                   </td>
                                   <td className="p-3.5 font-bold text-slate-800">
-                                    {formatCLP(importeVal)}
+                                    {formatCurrencyValue(importeInDisplay, displayCurrency)}
                                   </td>
                                   <td className="p-2 text-center">
                                     {!isChapter && (
@@ -2068,7 +2293,9 @@ export default function PresupuestosPlanif({ user, onBack }) {
                               <>
                                 <tr className="bg-slate-50/50 font-bold border-t-2 border-slate-300">
                                   <td colSpan="5" className="p-3.5 text-right uppercase text-[10px] text-slate-500 font-extrabold tracking-wider">Costo Directo Total:</td>
-                                  <td className="p-3.5 text-slate-850 font-black text-sm">{formatCLP(totalDirectCost)}</td>
+                                  <td className="p-3.5 text-slate-850 font-black text-sm">
+                                    {formatCurrencyValue(convertCurrency(totalDirectCost, projectBaseCurrency, displayCurrency), displayCurrency)}
+                                  </td>
                                   <td colSpan="2"></td>
                                 </tr>
                                 
@@ -2077,20 +2304,23 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                     <td colSpan="8" className="p-3 text-center text-xs">
                                       <span className="inline-flex items-center gap-1.5 font-extrabold">
                                         <PieChart className="w-4 h-4 text-purple-600" />
-                                        <span>Costos Generales Prorrateados en Precios Unitarios (+{proratePctIncrement}% = {formatCLP(totalProratedIndirectValue)}): {proratedIndirectCosts.map(c => c.concepto).join(', ')}</span>
+                                        <span>Costos Generales Prorrateados (+{proratePctIncrement}% = {formatCurrencyValue(convertCurrency(totalProratedIndirectValue, projectBaseCurrency, displayCurrency), displayCurrency)}): {proratedIndirectCosts.map(c => c.concepto).join(', ')}</span>
                                       </span>
                                     </td>
                                   </tr>
                                 )}
 
                                 {nonProratedIndirectCosts.map((cost) => {
-                                  const costVal = calculateIndirectCostValue(cost);
+                                  const costValInBase = calculateIndirectCostValue(cost);
+                                  const costValInDisplay = convertCurrency(costValInBase, projectBaseCurrency, displayCurrency);
                                   return (
-                                    <tr key={cost.id} className="bg-slate-50/30 text-slate-600 font-semibold border-t border-slate-200">
-                                      <td colSpan="5" className="p-3 text-right uppercase text-[9px] font-bold text-slate-455 tracking-wider">
+                                    <tr key={cost.id} className="bg-slate-50/30 text-slate-655 font-semibold border-t border-slate-200">
+                                      <td colSpan="5" className="p-3 text-right uppercase text-[9px] font-bold text-slate-450 tracking-wider">
                                         {cost.concepto} ({cost.tipo === 'Porcentaje' ? `${cost.valor}%` : 'Monto Fijo'}):
                                       </td>
-                                      <td className="p-3 text-slate-800 font-bold">{formatCLP(costVal)}</td>
+                                      <td className="p-3 text-slate-800 font-bold">
+                                        {formatCurrencyValue(costValInDisplay, displayCurrency)}
+                                      </td>
                                       <td colSpan="2"></td>
                                     </tr>
                                   );
@@ -2098,7 +2328,9 @@ export default function PresupuestosPlanif({ user, onBack }) {
 
                                 <tr className="bg-slate-100 font-black border-t-2 border-slate-400">
                                   <td colSpan="5" className="p-3.5 text-right uppercase text-xs text-slate-700 tracking-wider">Total General del Presupuesto:</td>
-                                  <td className="p-3.5 text-primary font-black text-base">{formatCLP(totalProjectCost)}</td>
+                                  <td className="p-3.5 text-primary font-black text-base">
+                                    {formatCurrencyValue(convertCurrency(totalProjectCost, projectBaseCurrency, displayCurrency), displayCurrency)}
+                                  </td>
                                   <td colSpan="2"></td>
                                 </tr>
                               </>
@@ -2124,7 +2356,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                     </p>
 
                     <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-[10px] font-semibold text-slate-500 space-y-2">
-                      <span className="font-bold text-slate-850 block">Formato aceptado:</span>
+                      <span className="font-bold text-slate-850 block">Formato aceptado (valores en {projectBaseCurrency}):</span>
                       <code className="bg-white px-2 py-1 rounded border font-mono block text-slate-800">
                         Código, Concepto, Unidad, Cantidad, CostoUnitario, Rendimiento
                       </code>
@@ -2360,28 +2592,28 @@ export default function PresupuestosPlanif({ user, onBack }) {
                   <div className="space-y-4 animate-in fade-in duration-200">
                     <div className="grid grid-cols-1 sm:grid-cols-6 gap-3">
                       <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
-                        <h4 className="text-[10px] text-slate-455 font-bold uppercase tracking-wider">Costo Estimado Total</h4>
-                        <p className="text-base font-black text-slate-850 mt-1">{formatCLP(totalResourceCost)}</p>
+                        <h4 className="text-[10px] text-slate-455 font-bold uppercase tracking-wider">Costo Estimado Total ({projectBaseCurrency})</h4>
+                        <p className="text-base font-black text-slate-850 mt-1">{formatCurrencyValue(totalResourceCost, projectBaseCurrency)}</p>
                       </div>
                       <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
-                        <h4 className="text-[10px] text-slate-455 font-bold uppercase tracking-wider">Materiales</h4>
-                        <p className="text-base font-bold text-blue-700 mt-1">{formatCLP(materialCost)}</p>
+                        <h4 className="text-[10px] text-slate-455 font-bold uppercase tracking-wider">Materiales ({projectBaseCurrency})</h4>
+                        <p className="text-base font-bold text-blue-700 mt-1">{formatCurrencyValue(materialCost, projectBaseCurrency)}</p>
                       </div>
                       <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
-                        <h4 className="text-[10px] text-slate-455 font-bold uppercase tracking-wider">Mano de Obra</h4>
-                        <p className="text-base font-bold text-amber-700 mt-1">{formatCLP(laborCost)}</p>
+                        <h4 className="text-[10px] text-slate-455 font-bold uppercase tracking-wider">Mano de Obra ({projectBaseCurrency})</h4>
+                        <p className="text-base font-bold text-amber-700 mt-1">{formatCurrencyValue(laborCost, projectBaseCurrency)}</p>
                       </div>
                       <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
-                        <h4 className="text-[10px] text-slate-455 font-bold uppercase tracking-wider">Maquinaria</h4>
-                        <p className="text-base font-bold text-purple-700 mt-1">{formatCLP(machineryCost)}</p>
+                        <h4 className="text-[10px] text-slate-455 font-bold uppercase tracking-wider">Maquinaria ({projectBaseCurrency})</h4>
+                        <p className="text-base font-bold text-purple-700 mt-1">{formatCurrencyValue(machineryCost, projectBaseCurrency)}</p>
                       </div>
                       <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
-                        <h4 className="text-[10px] text-slate-455 font-bold uppercase tracking-wider">Herramientas</h4>
-                        <p className="text-base font-bold text-rose-700 mt-1">{formatCLP(herramientasCost)}</p>
+                        <h4 className="text-[10px] text-slate-455 font-bold uppercase tracking-wider">Herramientas ({projectBaseCurrency})</h4>
+                        <p className="text-base font-bold text-rose-700 mt-1">{formatCurrencyValue(herramientasCost, projectBaseCurrency)}</p>
                       </div>
                       <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
-                        <h4 className="text-[10px] text-slate-455 font-bold uppercase tracking-wider">Otros Insumos</h4>
-                        <p className="text-base font-bold text-teal-700 mt-1">{formatCLP(otrosCost)}</p>
+                        <h4 className="text-[10px] text-slate-455 font-bold uppercase tracking-wider">Otros Insumos ({projectBaseCurrency})</h4>
+                        <p className="text-base font-bold text-teal-700 mt-1">{formatCurrencyValue(otrosCost, projectBaseCurrency)}</p>
                       </div>
                     </div>
 
@@ -2402,18 +2634,21 @@ export default function PresupuestosPlanif({ user, onBack }) {
                             <tr className="bg-slate-50 border-b border-slate-200 text-slate-650 font-bold text-[9px] uppercase tracking-wider select-none">
                               <th className="p-3.5">Nombre Recurso</th>
                               <th className="p-3.5 w-36">Tipo</th>
-                              <th className="p-3.5 w-20">Unidad</th>
-                              <th className="p-3.5 w-28">Costo Unit. ($)</th>
+                              <th className="p-3.5 w-32 text-center">Tarifa / Costo</th>
+                              <th className="p-3.5 w-24 text-center">Moneda</th>
+                              <th className="p-3.5 w-24">Unidad</th>
                               <th className="p-3.5 w-24">Cant. Est.</th>
                               <th className="p-3.5 w-36">Comuna / Ciudad</th>
                               <th className="p-3.5 w-36">Proveedor</th>
-                              <th className="p-3.5 w-32">Costo Total ($)</th>
+                              <th className="p-3.5 w-32 text-right">Costo Est. ({projectBaseCurrency})</th>
                               <th className="p-3.5 w-14 text-center"></th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-150">
                             {recursos.map((item) => {
-                              const totalRow = (parseFloat(item.cantidad_estimada) || 0) * (parseFloat(item.costo_unitario) || 0);
+                              const resInfo = parseResourceUnitAndCurrency(item.unidad);
+                              const costInBase = convertCurrency(parseFloat(item.costo_unitario) || 0, resInfo.moneda, projectBaseCurrency);
+                              const totalRowInBase = (parseFloat(item.cantidad_estimada) || 0) * costInBase;
 
                               return (
                                 <tr key={item.id} className="hover:bg-slate-50/50 transition">
@@ -2422,7 +2657,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                       type="text"
                                       value={item.recurso || ''}
                                       onChange={(e) => handleUpdateResourceField(item.id, 'recurso', e.target.value)}
-                                      placeholder="ej: Cemento Gris / Martillo Demoledor"
+                                      placeholder="ej: Cemento Gris"
                                       className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-800 uppercase font-semibold"
                                     />
                                   </td>
@@ -2441,21 +2676,38 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                   </td>
                                   <td className="p-2">
                                     <input
-                                      type="text"
-                                      value={item.unidad || ''}
-                                      onChange={(e) => handleUpdateResourceField(item.id, 'unidad', e.target.value)}
-                                      placeholder="bolsas"
-                                      className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-600 text-center uppercase"
-                                    />
-                                  </td>
-                                  <td className="p-2">
-                                    <input
                                       type="number"
                                       step="any"
                                       value={item.costo_unitario ?? ''}
                                       onChange={(e) => handleUpdateResourceField(item.id, 'costo_unitario', e.target.value)}
                                       placeholder="0"
-                                      className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-700"
+                                      className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-700 text-center font-bold"
+                                    />
+                                  </td>
+                                  <td className="p-2">
+                                    <select
+                                      value={resInfo.moneda}
+                                      onChange={(e) => {
+                                        const serialized = serializeResourceUnitAndCurrency(resInfo.unidad, e.target.value);
+                                        handleUpdateResourceField(item.id, 'unidad', serialized);
+                                      }}
+                                      className="w-full border border-slate-200 rounded-lg p-1 text-xs text-slate-700 font-bold bg-white text-center"
+                                    >
+                                      <option value="CLP">CLP ($)</option>
+                                      <option value="USD">USD ($)</option>
+                                      <option value="UF">UF</option>
+                                    </select>
+                                  </td>
+                                  <td className="p-2">
+                                    <input
+                                      type="text"
+                                      value={resInfo.unidad}
+                                      onChange={(e) => {
+                                        const serialized = serializeResourceUnitAndCurrency(e.target.value, resInfo.moneda);
+                                        handleUpdateResourceField(item.id, 'unidad', serialized);
+                                      }}
+                                      placeholder="un"
+                                      className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-600 text-center uppercase"
                                     />
                                   </td>
                                   <td className="p-2">
@@ -2489,13 +2741,13 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                       className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-700 uppercase"
                                     />
                                   </td>
-                                  <td className="p-3.5 font-bold text-slate-800">
-                                    {formatCLP(totalRow)}
+                                  <td className="p-3.5 font-bold text-slate-800 text-right">
+                                    {formatCurrencyValue(totalRowInBase, projectBaseCurrency)}
                                   </td>
                                   <td className="p-2 text-center">
                                     <button
                                       onClick={() => handleDeleteResourceRow(item.id)}
-                                      className="p-1.5 text-red-650 hover:bg-red-50 rounded-lg transition cursor-pointer"
+                                      className="p-1.5 text-red-655 hover:bg-red-50 rounded-lg transition cursor-pointer"
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
                                     </button>
@@ -2534,7 +2786,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                 <th className="p-3.5">Cliente</th>
                                 <th className="p-3.5">Ubicación</th>
                                 <th className="p-3.5 w-32 text-center">Plazo</th>
-                                <th className="p-3.5 w-40 text-right">Límite Estimado ($)</th>
+                                <th className="p-3.5 w-48 text-right">Límite Estimado</th>
                                 <th className="p-3.5 w-32 text-center">Estado</th>
                                 <th className="p-3.5 w-52 text-center"></th>
                               </tr>
@@ -2542,13 +2794,18 @@ export default function PresupuestosPlanif({ user, onBack }) {
                             <tbody className="divide-y divide-slate-150">
                               {proyectos.map((p) => {
                                 const isActive = p.id === parseInt(selectedProyectoId, 10);
+                                const pInfo = parseProjectTipoAndCurrency(p.tipo_proyecto);
+
                                 return (
                                   <tr key={p.id} className={`hover:bg-slate-50/50 transition ${isActive ? 'bg-primary/5' : ''}`}>
                                     <td className="p-3.5 font-bold text-slate-800 uppercase">
                                       <div className="flex items-center gap-1.5">
                                         <span>{p.nombre}</span>
-                                        <span className={`text-[8.5px] px-1.5 py-0.5 rounded-md font-extrabold ${p.tipo_proyecto === 'Público' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-50 text-slate-600 border border-slate-200'}`}>
-                                          {p.tipo_proyecto || 'Privado'}
+                                        <span className={`text-[8.5px] px-1.5 py-0.5 rounded-md font-extrabold ${pInfo.tipo === 'Público' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-50 text-slate-600 border border-slate-200'}`}>
+                                          {pInfo.tipo || 'Privado'}
+                                        </span>
+                                        <span className="bg-slate-100 text-slate-700 font-extrabold text-[8.5px] px-1 py-0.5 rounded border ml-1">
+                                          {pInfo.monedaBase || 'CLP'}
                                         </span>
                                       </div>
                                     </td>
@@ -2556,7 +2813,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                     <td className="p-3.5 text-slate-600 uppercase font-semibold">{p.comuna || '-'}</td>
                                     <td className="p-3.5 text-center font-bold text-slate-700">{p.plazo_estimado ? `${p.plazo_estimado} días` : '-'}</td>
                                     <td className="p-3.5 text-right font-bold text-slate-850">
-                                      {p.presupuesto_estimado ? formatCLP(p.presupuesto_estimado) : '-'}
+                                      {p.presupuesto_estimado ? formatCurrencyValue(p.presupuesto_estimado, pInfo.monedaBase || 'CLP') : '-'}
                                     </td>
                                     <td className="p-3.5 text-center">
                                       {isActive ? (
@@ -2590,7 +2847,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                               fetchProyectos();
                                             }
                                           }}
-                                          className="p-1.5 text-red-650 hover:bg-red-50 rounded-lg transition cursor-pointer"
+                                          className="p-1.5 text-red-655 hover:bg-red-50 rounded-lg transition cursor-pointer"
                                         >
                                           <Trash2 className="w-4 h-4" />
                                         </button>
@@ -2614,23 +2871,23 @@ export default function PresupuestosPlanif({ user, onBack }) {
 
       </div>
 
-      {/* ================= MODAL: ANÁLISIS DE PARTIDA (APU AVANZADO) ================= */}
+      {/* ================= MODAL: ANÁLISIS DE PARTIDA (APU CON MONEDAS PARTICULARES) ================= */}
       {showApuModal && apuItem && (() => {
         const apuCalc = calculateApuCost();
         const isCostoTiempoMode = apuForm.tipo_metodologia === 'Costo-Tiempo';
 
         return (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl w-full max-w-4xl p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 overflow-y-auto max-h-[90vh]">
+            <div className="bg-white rounded-3xl w-full max-w-5xl p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 overflow-y-auto max-h-[90vh]">
               
               {/* Cabecera APU */}
               <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100">
                 <div>
                   <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
                     <Settings className="w-4.5 h-4.5 text-primary" />
-                    <span>Análisis de Precios Unitarios (APU): {apuItem.partida}</span>
+                    <span>Análisis APU: {apuItem.partida}</span>
                   </h3>
-                  <p className="text-[10px] text-slate-500 font-bold uppercase mt-0.5">Código: {apuItem.codigo || 'S/N'}</p>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase mt-0.5">Código: {apuItem.codigo || 'S/N'} | Moneda del Análisis: {projectBaseCurrency}</p>
                 </div>
                 <button 
                   onClick={() => setShowApuModal(false)} 
@@ -2659,8 +2916,8 @@ export default function PresupuestosPlanif({ user, onBack }) {
                   </span>
                 </div>
                 <div>
-                  <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Precio / Tarifa Resultante</span>
-                  <p className="text-sm font-black text-primary">{formatCLP(apuCalc.totalUnitario)}</p>
+                  <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Costo Unitario Resultante</span>
+                  <p className="text-sm font-black text-primary">{formatCurrencyValue(apuCalc.totalUnitario, projectBaseCurrency)}</p>
                 </div>
               </div>
 
@@ -2673,7 +2930,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                 >
                   <div className="flex items-center gap-2">
                     <Sliders className="w-4 h-4 text-primary" />
-                    <span>⚙️ Configuración y Parámetros del APU</span>
+                    <span>⚙️ Configuración y Parámetros del APU (En {projectBaseCurrency})</span>
                   </div>
                   {showApuConfigAccordion ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
                 </button>
@@ -2766,7 +3023,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                       <div>
                         <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1 flex items-center gap-1">
                           <Fuel className="w-3 h-3 text-amber-600" />
-                          <span>Diesel ($/L)</span>
+                          <span>Diesel ({projectBaseCurrency}/L)</span>
                         </label>
                         <input
                           type="number"
@@ -2858,11 +3115,14 @@ export default function PresupuestosPlanif({ user, onBack }) {
                         className="w-full border border-slate-250 rounded-lg p-2 text-xs font-semibold text-slate-700 bg-white uppercase"
                       >
                         <option value="">Selecciona un Recurso...</option>
-                        {recursos.map(r => (
-                          <option key={r.id} value={r.id}>
-                            {r.recurso} [{r.tipo}] - {formatCLP(r.costo_unitario)} / {r.unidad} {r.ciudad ? `(${r.ciudad})` : ''} {r.proveedor ? `- Prov: ${r.proveedor}` : ''}
-                          </option>
-                        ))}
+                        {recursos.map(r => {
+                          const rInfo = parseResourceUnitAndCurrency(r.unidad);
+                          return (
+                            <option key={r.id} value={r.id}>
+                              {r.recurso} [{r.tipo}] - {formatCurrencyValue(r.costo_unitario, rInfo.moneda)} / {rInfo.unidad} {r.ciudad ? `(${r.ciudad})` : ''} {r.proveedor ? `- Prov: ${r.proveedor}` : ''}
+                            </option>
+                          );
+                        })}
                       </select>
                     </div>
                     <button
@@ -2875,18 +3135,18 @@ export default function PresupuestosPlanif({ user, onBack }) {
                   </div>
                 )}
 
-                {/* OPCIÓN 2: NUEVO (INCLUYE "Herramientas" y "Otros") */}
+                {/* OPCIÓN 2: NUEVO (INCLUYE MONEDA) */}
                 {addResourceMode === 'nuevo' && (
                   <form onSubmit={handleCreateAndLinkNewResource} className="space-y-3 pt-1">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Nombre Recurso / Insumo *</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                      <div className="sm:col-span-2">
+                        <label className="block text-[9px] font-bold uppercase text-slate-455 mb-1">Nombre Recurso / Insumo *</label>
                         <input
                           type="text"
                           required
                           value={newResourceForm.recurso}
                           onChange={(e) => setNewResourceForm({ ...newResourceForm, recurso: e.target.value })}
-                          placeholder="ej: Martillo Demoledor / Andamios"
+                          placeholder="ej: Fierro Estructural"
                           className="w-full border border-slate-200 rounded-lg p-1.5 text-xs text-slate-800 focus:outline-none focus:border-primary uppercase bg-white"
                         />
                       </div>
@@ -2905,32 +3165,44 @@ export default function PresupuestosPlanif({ user, onBack }) {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Unidad de Medida</label>
-                        <input
-                          type="text"
-                          value={newResourceForm.unidad}
-                          onChange={(e) => setNewResourceForm({ ...newResourceForm, unidad: e.target.value })}
-                          placeholder="ej: mes, día, un, hr, m3"
-                          className="w-full border border-slate-200 rounded-lg p-1.5 text-xs text-slate-800 uppercase bg-white"
-                        />
+                        <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Moneda del Costo Particular</label>
+                        <select
+                          value={newResourceForm.moneda}
+                          onChange={(e) => setNewResourceForm({ ...newResourceForm, moneda: e.target.value })}
+                          className="w-full border border-slate-200 rounded-lg p-1.5 text-xs text-slate-700 bg-white font-bold"
+                        >
+                          <option value="CLP">CLP ($)</option>
+                          <option value="USD">USD ($)</option>
+                          <option value="UF">UF</option>
+                        </select>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                       <div>
-                        <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Costo / Tarifa ($) *</label>
+                        <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Costo Tarifa Particular *</label>
                         <input
                           type="number"
                           step="any"
                           required
                           value={newResourceForm.costo_unitario}
                           onChange={(e) => setNewResourceForm({ ...newResourceForm, costo_unitario: e.target.value })}
-                          placeholder="ej: 900000"
+                          placeholder="ej: 12500"
                           className="w-full border border-slate-200 rounded-lg p-1.5 text-xs text-slate-800 bg-white"
                         />
                       </div>
                       <div>
-                        <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Comuna / Ciudad origen</label>
+                        <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Unidad de Medida</label>
+                        <input
+                          type="text"
+                          value={newResourceForm.unidad}
+                          onChange={(e) => setNewResourceForm({ ...newResourceForm, unidad: e.target.value })}
+                          placeholder="ej: kg"
+                          className="w-full border border-slate-200 rounded-lg p-1.5 text-xs text-slate-800 uppercase bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold uppercase text-slate-455 mb-1">Comuna / Ciudad origen</label>
                         <select
                           value={newResourceForm.ciudad}
                           onChange={(e) => setNewResourceForm({ ...newResourceForm, ciudad: e.target.value })}
@@ -2967,20 +3239,21 @@ export default function PresupuestosPlanif({ user, onBack }) {
                 )}
               </div>
 
-              {/* TABLA DE INSUMOS VINCULADOS CON UNIFICACIÓN */}
+              {/* TABLA DE INSUMOS APU CON CONVERSIÓN INDIVIDUAL A MONEDA BASE DEL PROYECTO */}
               <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs mb-6">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-slate-655 font-bold text-[9px] uppercase tracking-wider select-none">
                       <th className="p-3">Recurso / Insumo</th>
                       <th className="p-3 w-28">Tipo</th>
-                      <th className="p-3 w-24 text-right">Tarifa ($) / Unidad</th>
+                      <th className="p-3 w-40 text-right">Tarifa Original</th>
+                      <th className="p-3 w-24 text-center">Moneda</th>
                       <th className="p-3 w-24 text-center">Consumo / Cant.</th>
                       <th className="p-3 w-28 text-center">Consumo Diesel (L/hr)</th>
                       {!isCostoTiempoMode && (
                         <th className="p-3 w-24 text-center">Rend. Coef.</th>
                       )}
-                      <th className="p-3 w-32 text-right">Costo Unit. Partida ($)</th>
+                      <th className="p-3 w-40 text-right">Costo Unit. Partida ({projectBaseCurrency})</th>
                       <th className="p-3 w-12 text-center"></th>
                     </tr>
                   </thead>
@@ -2991,8 +3264,13 @@ export default function PresupuestosPlanif({ user, onBack }) {
 
                       const qty = parseFloat(link.cantidad_unidad) || 0;
                       const resRend = parseFloat(link.rendimiento) || 1;
-                      const unitCost = parseFloat(res.costo_unitario) || 0;
-                      const unitStr = (res.unidad || '').toLowerCase().trim();
+                      const originalCost = parseFloat(res.costo_unitario) || 0;
+                      
+                      const resInfo = parseResourceUnitAndCurrency(res.unidad);
+                      // Convertir costo a moneda base del proyecto
+                      const unitCost = convertCurrency(originalCost, resInfo.moneda, projectBaseCurrency);
+
+                      const unitStr = resInfo.unidad.toLowerCase().trim();
                       const rendMeta = parseFloat(apuForm.rendimiento_meta) || 1;
                       const diasMes = parseFloat(apuForm.dias_habiles_mes) || 22;
                       const hrsJornada = parseFloat(apuForm.horas_jornada) || 9;
@@ -3023,6 +3301,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                             const fuelPerUnit = rendMeta > 0 ? (fuelDaily * qty) / rendMeta : 0;
                             itemSub = (unitCost * qty * resRend) + fuelPerUnit;
                           }
+                          machSum += itemSub;
                         } else if (res.tipo === 'Herramientas') {
                           const isTimeUnit = unitStr.includes('mes') || unitStr.includes('mensual') || 
                                              unitStr.includes('hr') || unitStr.includes('hora') || 
@@ -3039,6 +3318,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
                           } else {
                             itemSub = unitCost * qty * resRend;
                           }
+                          herrSum += itemSub;
                         } else if (res.tipo === 'Mano de Obra') {
                           if (unitStr.includes('mes') || unitStr.includes('mensual')) {
                             const dailyRate = unitCost / diasMes;
@@ -3051,8 +3331,13 @@ export default function PresupuestosPlanif({ user, onBack }) {
                           } else {
                             itemSub = unitCost * qty * resRend;
                           }
+                          laborSum += itemSub;
+                        } else if (res.tipo === 'Otros') {
+                          itemSub = unitCost * qty * resRend;
+                          otrosSum += itemSub;
                         } else {
                           itemSub = unitCost * qty * resRend;
+                          matSum += itemSub;
                         }
                       } else {
                         // COSTO-TIEMPO (Cobro directo en tiempo sin rendimiento)
@@ -3069,6 +3354,12 @@ export default function PresupuestosPlanif({ user, onBack }) {
                         }
 
                         itemSub = (dailyCost + fuelDaily) * qty;
+
+                        if (res.tipo === 'Material') matSum += itemSub;
+                        else if (res.tipo === 'Mano de Obra') laborSum += itemSub;
+                        else if (res.tipo === 'Maquinaria') machSum += itemSub;
+                        else if (res.tipo === 'Herramientas') herrSum += itemSub;
+                        else otrosSum += itemSub;
                       }
 
                       const isMach = res.tipo === 'Maquinaria';
@@ -3091,47 +3382,31 @@ export default function PresupuestosPlanif({ user, onBack }) {
                               {res.tipo}
                             </span>
                           </td>
-                          <td className="p-2 text-right font-medium text-slate-700">
-                            {formatCLP(res.costo_unitario)} / {res.unidad || 'un'}
+                          <td className="p-2 text-right font-bold text-slate-700">
+                            {formatCurrencyValue(originalCost, resInfo.moneda)}
                           </td>
-                          <td className="p-2">
-                            <input
-                              type="number"
-                              step="any"
-                              value={link.cantidad_unidad ?? ''}
-                              onChange={(e) => handleUpdateApuResourceField(link.id, 'cantidad_unidad', e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-200 rounded p-1 text-center text-xs text-slate-800 font-semibold"
-                            />
+                          <td className="p-2 text-center font-extrabold text-slate-600 uppercase">
+                            {resInfo.moneda}
+                          </td>
+                          <td className="p-2 text-center">
+                            <span className="font-semibold text-slate-800">{qty}</span>
+                            <span className="text-[10px] text-slate-450 uppercase ml-1">{resInfo.unidad}</span>
                           </td>
                           <td className="p-2 text-center">
                             {isMach ? (
-                              <div className="relative flex items-center justify-center">
-                                <input
-                                  type="number"
-                                  step="any"
-                                  value={link.consumo_combustible_lh ?? ''}
-                                  onChange={(e) => handleUpdateApuResourceField(link.id, 'consumo_combustible_lh', e.target.value)}
-                                  placeholder="0"
-                                  className="w-20 bg-amber-50/70 border border-amber-200 rounded p-1 text-center text-xs font-bold text-amber-900 focus:outline-none focus:border-amber-400"
-                                />
-                                <span className="text-[9px] font-bold text-amber-700 ml-1">L/hr</span>
-                              </div>
+                              <span className="font-bold text-amber-900 bg-amber-50 px-2 py-0.5 rounded">{consumoLh} L/hr</span>
                             ) : (
                               <span className="text-slate-300 text-[10px]">-</span>
                             )}
                           </td>
                           {!isCostoTiempoMode && (
-                            <td className="p-2">
-                              <input
-                                type="number"
-                                step="any"
-                                value={link.rendimiento ?? ''}
-                                onChange={(e) => handleUpdateApuResourceField(link.id, 'rendimiento', e.target.value)}
-                                className="w-full bg-slate-50 border border-slate-200 rounded p-1 text-center text-xs text-slate-800 font-semibold"
-                              />
+                            <td className="p-2 text-center font-semibold text-slate-700">
+                              {resRend}
                             </td>
                           )}
-                          <td className="p-3.5 text-right font-bold text-slate-800">{formatCLP(Math.round(itemSub))}</td>
+                          <td className="p-3.5 text-right font-black text-slate-800">
+                            {formatCurrencyValue(itemSub, projectBaseCurrency)}
+                          </td>
                           <td className="p-2 text-center">
                             <button
                               type="button"
@@ -3147,7 +3422,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
 
                     {apuResources.length === 0 && (
                       <tr>
-                        <td colSpan={!isCostoTiempoMode ? 8 : 7} className="p-8 text-center text-xs text-slate-400 italic">
+                        <td colSpan={!isCostoTiempoMode ? 9 : 8} className="p-8 text-center text-xs text-slate-400 italic">
                           No has vinculado recursos a esta partida. Selecciona uno del catálogo o crea uno nuevo arriba.
                         </td>
                       </tr>
@@ -3156,35 +3431,35 @@ export default function PresupuestosPlanif({ user, onBack }) {
                 </table>
               </div>
 
-              {/* RESUMEN DE SUB-TOTALES POR CATEGORÍA DE RECURSOS */}
+              {/* RESUMEN DE SUB-TOTALES POR CATEGORÍA EN MONEDA BASE DEL PROYECTO */}
               <div className="bg-slate-50 p-4 border border-slate-200 rounded-2xl space-y-2 text-xs">
-                <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block mb-2">Desglose de Costos de la Partida ($/Unidad):</span>
+                <span className="text-[10px] font-extrabold uppercase text-slate-550 tracking-wider block mb-2">Desglose de Costos de la Partida ($/Unidad en {projectBaseCurrency}):</span>
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 font-semibold text-slate-700">
                   <div>
                     <span className="text-[9px] uppercase text-slate-400 block">Materiales:</span>
-                    <span className="text-slate-850 font-bold">{formatCLP(apuCalc.matSum)}</span>
+                    <span className="text-slate-850 font-bold">{formatCurrencyValue(apuCalc.matSum, projectBaseCurrency)}</span>
                   </div>
                   <div>
                     <span className="text-[9px] uppercase text-slate-400 block">Mano Obra (+Leyes):</span>
-                    <span className="text-amber-800 font-bold">{formatCLP(apuCalc.laborTotal)}</span>
+                    <span className="text-amber-800 font-bold">{formatCurrencyValue(apuCalc.laborTotal, projectBaseCurrency)}</span>
                   </div>
                   <div>
                     <span className="text-[9px] uppercase text-slate-400 block">Maquinaria (+Diesel):</span>
-                    <span className="text-purple-800 font-bold">{formatCLP(apuCalc.machSum)}</span>
+                    <span className="text-purple-800 font-bold">{formatCurrencyValue(apuCalc.machSum, projectBaseCurrency)}</span>
                   </div>
                   <div>
                     <span className="text-[9px] uppercase text-slate-400 block">Herramientas:</span>
-                    <span className="text-rose-800 font-bold">{formatCLP(apuCalc.herrSum)}</span>
+                    <span className="text-rose-800 font-bold">{formatCurrencyValue(apuCalc.herrSum, projectBaseCurrency)}</span>
                   </div>
                   <div>
                     <span className="text-[9px] uppercase text-slate-400 block">Otros Insumos:</span>
-                    <span className="text-teal-800 font-bold">{formatCLP(apuCalc.otrosSum)}</span>
+                    <span className="text-teal-800 font-bold">{formatCurrencyValue(apuCalc.otrosSum, projectBaseCurrency)}</span>
                   </div>
                 </div>
 
                 <div className="border-t border-slate-200 pt-2.5 flex justify-between items-center font-bold">
                   <span className="uppercase text-slate-600 text-[10px]">Subtotal Directo + Imponderables ({apuForm.imponderables_pct}%):</span>
-                  <span className="text-primary font-black text-sm">{formatCLP(apuCalc.totalUnitario)}</span>
+                  <span className="text-primary font-black text-sm">{formatCurrencyValue(apuCalc.totalUnitario, projectBaseCurrency)}</span>
                 </div>
               </div>
 
@@ -3213,14 +3488,14 @@ export default function PresupuestosPlanif({ user, onBack }) {
         );
       })()}
 
-      {/* COSTOS INDIRECTOS MODAL (SELECCIÓN INDIVIDUAL UNO A UNO SI SE PRORRATEA O NO) */}
+      {/* COSTOS INDIRECTOS MODAL */}
       {showIndirectModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-2xl p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 space-y-4">
             <div className="flex justify-between items-center border-b border-slate-100 pb-2">
               <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
                 <Sliders className="w-4.5 h-4.5 text-primary" />
-                <span>Configuración de Costos Indirectos</span>
+                <span>Configuración de Costos Indirectos ({projectBaseCurrency})</span>
               </h3>
               <button 
                 onClick={() => setShowIndirectModal(false)} 
@@ -3289,7 +3564,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
               <div className="bg-purple-50 p-3 rounded-2xl border border-purple-200 text-xs text-purple-900 flex items-center gap-2">
                 <PieChart className="w-4 h-4 text-purple-600 shrink-0" />
                 <span className="leading-snug">
-                  Los costos seleccionados ({proratedIndirectCosts.map(c => c.concepto).join(', ')}) incrementarán ponderadamente los Precios Unitarios en un <strong className="font-black text-purple-950">+{proratePctIncrement}%</strong> ({formatCLP(totalProratedIndirectValue)}).
+                  Los costos seleccionados ({proratedIndirectCosts.map(c => c.concepto).join(', ')}) incrementarán ponderadamente los Precios Unitarios en un <strong className="font-black text-purple-950">+{proratePctIncrement}%</strong> ({formatCurrencyValue(totalProratedIndirectValue, projectBaseCurrency)}).
                 </span>
               </div>
             )}
@@ -3355,7 +3630,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
               </div>
 
               <div>
-                <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Cliente / Mandante</label>
+                <label className="block text-[9px] font-bold uppercase text-slate-455 mb-1">Cliente / Mandante</label>
                 <input
                   type="text"
                   value={newProjectData.cliente}
@@ -3404,6 +3679,21 @@ export default function PresupuestosPlanif({ user, onBack }) {
                   </select>
                 </div>
                 <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Moneda Base del Proyecto</label>
+                  <select
+                    value={newProjectData.moneda_base}
+                    onChange={(e) => setNewProjectData({ ...newProjectData, moneda_base: e.target.value })}
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-705 focus:outline-none focus:border-primary bg-white font-bold"
+                  >
+                    <option value="CLP">CLP ($)</option>
+                    <option value="USD">USD ($)</option>
+                    <option value="UF">UF</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Plazo de Entrega (Días)</label>
                   <input
                     type="number"
@@ -3413,17 +3703,16 @@ export default function PresupuestosPlanif({ user, onBack }) {
                     className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
                   />
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Presupuesto Inicial Límite ($)</label>
-                <input
-                  type="number"
-                  value={newProjectData.presupuesto_estimado}
-                  onChange={(e) => setNewProjectData({ ...newProjectData, presupuesto_estimado: e.target.value })}
-                  placeholder="ej: 150000000"
-                  className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
-                />
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Presupuesto Límite (En Moneda Base)</label>
+                  <input
+                    type="number"
+                    value={newProjectData.presupuesto_estimado}
+                    onChange={(e) => setNewProjectData({ ...newProjectData, presupuesto_estimado: e.target.value })}
+                    placeholder="ej: 5000"
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
+                  />
+                </div>
               </div>
 
               <button
