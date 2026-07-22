@@ -34,11 +34,67 @@ const serializeProjectTipoAndCurrency = (tipo, monedaBase) => {
   return `${tipo || 'Privado'} | ${monedaBase || 'CLP'}`;
 };
 
-const calculateEndDate = (startDateStr, durationDays) => {
-  if (!startDateStr || !durationDays) return '';
-  const date = new Date(startDateStr + 'T00:00:00');
-  date.setDate(date.getDate() + parseInt(durationDays, 10) - 1);
-  return date.toISOString().split('T')[0];
+const parseProjectDescriptionAndCalendar = (descStr) => {
+  const parts = (descStr || '').split('|||CALENDAR:');
+  const userDesc = parts[0] || '';
+  let calendar = {
+    trabajaSabado: false,
+    trabajaDomingo: false,
+    feriados: [],
+    eficienciasEspeciales: {},
+    turnoHoras: 9
+  };
+  if (parts[1]) {
+    try {
+      calendar = JSON.parse(parts[1]);
+    } catch (e) {
+      console.warn("Failed to parse calendar from description", e);
+    }
+  }
+  return { userDesc, calendar };
+};
+
+const serializeProjectDescriptionAndCalendar = (userDesc, calendar) => {
+  return `${userDesc || ''}|||CALENDAR:${JSON.stringify(calendar)}`;
+};
+
+const calculateEndDateWithCalendar = (startDateStr, durationDays, calendarConfig) => {
+  if (!startDateStr || durationDays === undefined) return '';
+  let duration = parseFloat(durationDays);
+  if (isNaN(duration)) duration = 1;
+
+  let currentDate = new Date(startDateStr + 'T00:00:00');
+  
+  // Si duración es 0 (Hito), la fecha de fin es igual a la de inicio
+  if (duration <= 0) return startDateStr;
+
+  let daysWorked = 0;
+  let iterations = 0;
+  
+  while (daysWorked < duration && iterations < 1000) {
+    iterations++;
+    const dateStr = currentDate.toISOString().split('T')[0];
+    const dayOfWeek = currentDate.getDay(); // 0 = Domingo, 6 = Sábado
+
+    let isWorkingDay = true;
+    if (dayOfWeek === 0 && !calendarConfig.trabajaDomingo) isWorkingDay = false;
+    if (dayOfWeek === 6 && !calendarConfig.trabajaSabado) isWorkingDay = false;
+
+    if (calendarConfig.feriados && calendarConfig.feriados.includes(dateStr)) {
+      isWorkingDay = false;
+    }
+
+    if (isWorkingDay) {
+      const efficiency = parseFloat(calendarConfig.eficienciasEspeciales?.[dateStr] ?? 100) / 100;
+      daysWorked += efficiency;
+    }
+
+    if (daysWorked < duration) {
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+  }
+
+  return currentDate.toISOString().split('T')[0];
 };
 
 export default function PresupuestosPlanif({ user, onBack }) {
@@ -60,6 +116,15 @@ export default function PresupuestosPlanif({ user, onBack }) {
 
   // Visualización y emisión en moneda seleccionada para planilla
   const [displayCurrency, setDisplayCurrency] = useState('CLP');
+
+  // Configuración del calendario laboral del proyecto
+  const [calendarConfig, setCalendarConfig] = useState({
+    trabajaSabado: false,
+    trabajaDomingo: false,
+    feriados: [],
+    eficienciasEspeciales: {},
+    turnoHoras: 9
+  });
   
   // Datos del nuevo proyecto
   const [newProjectData, setNewProjectData] = useState({ 
@@ -196,6 +261,9 @@ export default function PresupuestosPlanif({ user, onBack }) {
     if (currentProyecto) {
       const info = parseProjectTipoAndCurrency(currentProyecto.tipo_proyecto);
       setDisplayCurrency(info.monedaBase || 'CLP');
+      
+      const parsed = parseProjectDescriptionAndCalendar(currentProyecto.descripcion);
+      setCalendarConfig(parsed.calendar);
     }
   }, [selectedProyectoId, proyectos]);
 
@@ -273,6 +341,26 @@ export default function PresupuestosPlanif({ user, onBack }) {
   const fetchCronograma = async (projId) => {
     setTasksLoading(true);
     try {
+      const { data: projData, error: projErr } = await supabase
+        .from('presupuestos_proyectos')
+        .select('descripcion')
+        .eq('id', projId)
+        .single();
+      
+      let localCalendar = {
+        trabajaSabado: false,
+        trabajaDomingo: false,
+        feriados: [],
+        eficienciasEspeciales: {},
+        turnoHoras: 9
+      };
+
+      if (!projErr && projData?.descripcion) {
+        const parsed = parseProjectDescriptionAndCalendar(projData.descripcion);
+        localCalendar = parsed.calendar;
+        setCalendarConfig(localCalendar);
+      }
+
       const { data: cronoData, error: cronoErr } = await supabase
         .from('planificacion_cronogramas')
         .select('*')
@@ -299,7 +387,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
         
         const defaultDuration = Math.max(1, Math.ceil(parseFloat(item.tiempo_estimado) || 1));
         const defaultStart = todayStr;
-        const defaultEnd = calculateEndDate(defaultStart, defaultDuration);
+        const defaultEnd = calculateEndDateWithCalendar(defaultStart, defaultDuration, localCalendar);
 
         return {
           id: existing ? existing.id : 'temp-crono-' + item.codigo,
@@ -310,14 +398,14 @@ export default function PresupuestosPlanif({ user, onBack }) {
           fecha_fin: existing ? existing.fecha_fin : defaultEnd,
           duracion: existing ? (parseInt(existing.duracion, 10) || 1) : defaultDuration,
           predecesora: existing ? (existing.predecesora || '') : '',
-          porcentaje_avance: existing ? (parseFloat(existing.porcentaje_avance) || 0) : 0,
+          porcentaje_avance: 0,
           responsable: existing ? (existing.responsable || '') : '',
-          estado: existing ? (existing.estado || 'Pendiente') : 'Pendiente',
+          estado: existing ? (existing.estado || 'blue') : 'blue', // Repurposed for color (default blue)
           is_partida: true
         };
       });
 
-      // Agregar cualquier tarea personalizada extra de la tabla cronograma
+      // Agregar hitos (que no coinciden con códigos de partidas de presupuesto)
       (cronoData || []).forEach(c => {
         if (!mergedList.some(m => m.codigo === c.codigo)) {
           mergedList.push({
@@ -961,66 +1049,121 @@ export default function PresupuestosPlanif({ user, onBack }) {
   };
 
   // --- TAB: DIAGRAMA GANTT ---
-  const handleAddCronogramaRow = () => {
-    let nextCode = '1';
-    if (cronograma.length > 0) {
-      const last = cronograma[cronograma.length - 1];
-      if (last.codigo) {
-        const num = parseInt(last.codigo, 10);
-        if (!isNaN(num)) nextCode = String(num + 1);
-      }
+  const handleAddMilestoneRow = () => {
+    let nextCode = 'H-1';
+    const existingHitos = cronograma.filter(t => t.codigo && t.codigo.startsWith('H-'));
+    if (existingHitos.length > 0) {
+      const last = existingHitos[existingHitos.length - 1];
+      const num = parseInt(last.codigo.replace('H-', ''), 10);
+      if (!isNaN(num)) nextCode = `H-${num + 1}`;
     }
+
+    const todayStr = new Date().toISOString().split('T')[0];
 
     const newRow = {
       id: 'temp-' + Date.now() + Math.random(),
       presupuesto_id: selectedProyectoId,
       codigo: nextCode,
-      tarea: 'Nueva Tarea',
-      fecha_inicio: new Date().toISOString().split('T')[0],
-      duracion: 5,
-      fecha_fin: calculateEndDate(new Date().toISOString().split('T')[0], 5),
+      tarea: 'Nuevo Hito',
+      fecha_inicio: todayStr,
+      duracion: 0,
+      fecha_fin: todayStr,
       predecesora: '',
       porcentaje_avance: 0,
       responsable: '',
-      estado: 'Pendiente'
+      estado: 'slate', // default color code for milestone
+      is_partida: false
     };
     setCronograma([...cronograma, newRow]);
   };
 
-
-
   const handleUpdateCronogramaField = (id, field, value) => {
-    setCronograma(prev => prev.map(task => {
-      if (task.id === id) {
-        let updated = { ...task, [field]: value };
+    setCronograma(prev => {
+      let list = prev.map(task => {
+        if (task.id === id) {
+          let updated = { ...task, [field]: value };
 
-        if (field === 'fecha_inicio' || field === 'duracion') {
-          const start = field === 'fecha_inicio' ? value : task.fecha_inicio;
-          const dur = field === 'duracion' ? value : task.duracion;
-          updated.fecha_fin = calculateEndDate(start, dur);
-        }
-
-        if (field === 'predecesora' && value) {
-          const predTask = cronograma.find(x => x.codigo === value.trim());
-          if (predTask && predTask.fecha_fin) {
-            const pFinishDate = new Date(predTask.fecha_fin + 'T00:00:00');
-            pFinishDate.setDate(pFinishDate.getDate() + 1);
-            updated.fecha_inicio = pFinishDate.toISOString().split('T')[0];
-            updated.fecha_fin = calculateEndDate(updated.fecha_inicio, updated.duracion);
+          if (field === 'fecha_inicio' || field === 'duracion') {
+            const start = field === 'fecha_inicio' ? value : task.fecha_inicio;
+            const dur = field === 'duracion' ? value : task.duracion;
+            updated.fecha_fin = calculateEndDateWithCalendar(start, dur, calendarConfig);
           }
+          return updated;
         }
+        return task;
+      });
 
-        if (field === 'porcentaje_avance') {
-          const pct = parseFloat(value) || 0;
-          if (pct === 100) updated.estado = 'Completado';
-          else if (pct > 0) updated.estado = 'En Progreso';
-          else updated.estado = 'Pendiente';
-        }
-
-        return updated;
+      // Transitive predecessors resolution
+      let changed = true;
+      let passes = 0;
+      while (changed && passes < 10) {
+        changed = false;
+        passes++;
+        list = list.map(task => {
+          if (task.predecesora) {
+            const predTask = list.find(x => x.codigo === task.predecesora.trim());
+            if (predTask && predTask.fecha_fin) {
+              const expectedStart = new Date(predTask.fecha_fin + 'T00:00:00');
+              expectedStart.setDate(expectedStart.getDate() + 1);
+              const expectedStartStr = expectedStart.toISOString().split('T')[0];
+              
+              if (task.fecha_inicio !== expectedStartStr) {
+                const newEnd = calculateEndDateWithCalendar(expectedStartStr, task.duracion, calendarConfig);
+                changed = true;
+                return {
+                  ...task,
+                  fecha_inicio: expectedStartStr,
+                  fecha_fin: newEnd
+                };
+              }
+            }
+          }
+          return task;
+        });
       }
-      return task;
-    }));
+
+      return list;
+    });
+  };
+
+  const handleSaveCalendarConfig = async (newConfig) => {
+    if (!selectedProyectoId || !currentProyecto) return;
+    setTasksLoading(true);
+    try {
+      const userDesc = parseProjectDescriptionAndCalendar(currentProyecto.descripcion).userDesc;
+      const serializedDesc = serializeProjectDescriptionAndCalendar(userDesc, newConfig);
+      
+      const { error } = await supabase
+        .from('presupuestos_proyectos')
+        .update({ descripcion: serializedDesc })
+        .eq('id', selectedProyectoId);
+      
+      if (error) throw error;
+      
+      setCalendarConfig(newConfig);
+      setSuccessMsg('Configuración de calendario guardada y plazos recalculados.');
+      
+      // Update local projects list to reflect the updated description
+      setProyectos(prev => prev.map(p => {
+        if (p.id === parseInt(selectedProyectoId, 10)) {
+          return { ...p, descripcion: serializedDesc };
+        }
+        return p;
+      }));
+
+      // Force recalculation of all tasks in the cronograma
+      setCronograma(prev => prev.map(task => {
+        if (task.is_chapter) return task;
+        const start = task.fecha_inicio;
+        const dur = task.duracion;
+        const end = calculateEndDateWithCalendar(start, dur, newConfig);
+        return { ...task, fecha_fin: end };
+      }));
+    } catch (err) {
+      setErrorMsg('Error al guardar calendario: ' + err.message);
+    } finally {
+      setTasksLoading(false);
+    }
   };
 
   const handleDeleteCronogramaRow = (id) => {
@@ -1089,7 +1232,11 @@ export default function PresupuestosPlanif({ user, onBack }) {
         .filter(t => typeof t.id === 'string' && t.id.startsWith('temp-'))
         .map(t => {
           const { id, is_partida, is_chapter, ...rest } = t;
-          return { ...rest, presupuesto_id: selectedProyectoId };
+          return {
+            ...rest,
+            presupuesto_id: selectedProyectoId,
+            duracion: isNaN(parseInt(rest.duracion, 10)) ? 0 : parseInt(rest.duracion, 10)
+          };
         });
 
       const { data: dbCurrent, error: dbErr } = await supabase
@@ -1119,7 +1266,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
             tarea: item.tarea,
             fecha_inicio: item.fecha_inicio,
             fecha_fin: item.fecha_fin,
-            duracion: parseInt(item.duracion, 10) || 1,
+            duracion: isNaN(parseInt(item.duracion, 10)) ? 0 : parseInt(item.duracion, 10),
             predecesora: item.predecesora,
             porcentaje_avance: parseFloat(item.porcentaje_avance) || 0,
             responsable: item.responsable,
@@ -2537,221 +2684,417 @@ export default function PresupuestosPlanif({ user, onBack }) {
                   });
 
                   return (
-                    <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start animate-in fade-in duration-200">
-                      <div className="xl:col-span-6 space-y-4">
-                        <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex justify-between items-center">
-                          <div>
-                            <h3 className="text-xs font-extrabold uppercase text-slate-800 tracking-wider">Hoja de Planificación</h3>
-                            <p className="text-[10px] text-slate-455 font-bold uppercase mt-0.5">Listado de etapas y plazos</p>
-                          </div>
-                          <button
-                            onClick={handleAddCronogramaRow}
-                            className="flex items-center gap-1.5 bg-slate-50 border border-slate-250 text-slate-700 text-xs font-bold px-3 py-2 rounded-xl hover:bg-slate-100 transition cursor-pointer"
-                          >
-                            <Plus className="w-4 h-4 text-primary" />
-                            <span>Agregar Tarea</span>
-                          </button>
+                    <div className="space-y-6">
+                      
+                      {/* Panel de Configuración de Calendario y Eficiencias */}
+                      <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs space-y-4">
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                          <h4 className="text-xs font-black uppercase text-slate-800 tracking-wider flex items-center gap-1.5">
+                            <CalendarDays className="w-4.5 h-4.5 text-primary" />
+                            <span>Calendario Laboral & Eficiencia</span>
+                          </h4>
+                          <span className="text-[9px] bg-slate-100 text-slate-500 font-extrabold uppercase px-2 py-0.5 rounded border">
+                            Configuración Activa
+                          </span>
                         </div>
 
-                        <div className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden">
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-left text-xs border-collapse">
-                              <thead>
-                                <tr className="bg-slate-50 border-b border-slate-200 text-slate-660 font-bold text-[9px] uppercase tracking-wider select-none">
-                                  <th className="p-3 w-16 text-center">Código</th>
-                                  <th className="p-3">Tarea</th>
-                                  <th className="p-3 w-20">Inicio</th>
-                                  <th className="p-3 w-16 text-center">Días</th>
-                                  <th className="p-3 w-16 text-center">Pred.</th>
-                                  <th className="p-3 w-20 text-center">Avance</th>
-                                  <th className="p-3 w-12"></th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-150">
-                                {resolvedCronograma.map((task) => {
-                                  const isChapter = task.is_chapter;
-                                  return (
-                                    <tr key={task.id} className={`hover:bg-slate-50/50 transition ${isChapter ? 'bg-slate-100/80 font-bold' : ''}`}>
-                                      <td className="p-2">
-                                        <input
-                                          type="text"
-                                          value={task.codigo || ''}
-                                          onChange={(e) => !isChapter && handleUpdateCronogramaField(task.id, 'codigo', e.target.value)}
-                                          disabled={isChapter}
-                                          className={`w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-center ${isChapter ? 'font-black text-slate-800' : 'text-slate-800'}`}
-                                        />
-                                      </td>
-                                      <td className="p-2">
-                                        <input
-                                          type="text"
-                                          value={task.tarea || ''}
-                                          onChange={(e) => !isChapter && handleUpdateCronogramaField(task.id, 'tarea', e.target.value)}
-                                          disabled={isChapter}
-                                          className={`w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs uppercase ${isChapter ? 'font-black text-slate-900' : 'text-slate-800 font-semibold'}`}
-                                        />
-                                      </td>
-                                      <td className="p-2">
-                                        {isChapter ? (
-                                          <span className="p-1 text-[11px] text-slate-500 font-bold block text-center select-none">{task.fecha_inicio}</span>
-                                        ) : (
-                                          <input
-                                            type="date"
-                                            value={task.fecha_inicio || ''}
-                                            onChange={(e) => handleUpdateCronogramaField(task.id, 'fecha_inicio', e.target.value)}
-                                            className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-[11px] text-slate-700 font-medium"
-                                          />
-                                        )}
-                                      </td>
-                                      <td className="p-2">
-                                        {isChapter ? (
-                                          <span className="p-1 text-xs text-slate-500 font-bold block text-center select-none">{task.duracion}</span>
-                                        ) : (
-                                          <input
-                                            type="number"
-                                            min="1"
-                                            value={task.duracion ?? ''}
-                                            onChange={(e) => handleUpdateCronogramaField(task.id, 'duracion', e.target.value)}
-                                            className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-700 font-bold text-center"
-                                          />
-                                        )}
-                                      </td>
-                                      <td className="p-2">
-                                        <input
-                                          type="text"
-                                          value={task.predecesora || ''}
-                                          onChange={(e) => !isChapter && handleUpdateCronogramaField(task.id, 'predecesora', e.target.value)}
-                                          disabled={isChapter}
-                                          placeholder={isChapter ? '' : 'nº'}
-                                          className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-655 text-center font-bold"
-                                        />
-                                      </td>
-                                      <td className="p-2">
-                                        {isChapter ? (
-                                          <span className="p-1 text-xs text-slate-500 font-bold block text-center select-none">{task.porcentaje_avance}%</span>
-                                        ) : (
-                                          <input
-                                            type="number"
-                                            min="0"
-                                            max="100"
-                                            value={task.porcentaje_avance ?? ''}
-                                            onChange={(e) => handleUpdateCronogramaField(task.id, 'porcentaje_avance', e.target.value)}
-                                            className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-700 text-center font-semibold"
-                                          />
-                                        )}
-                                      </td>
-                                      <td className="p-2 text-center">
-                                        {!isChapter && (
-                                          <button
-                                            onClick={() => handleDeleteCronogramaRow(task.id)}
-                                            className="p-1 text-red-655 hover:bg-red-50 rounded-lg transition"
-                                          >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                          </button>
-                                        )}
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-5 text-xs">
+                          {/* JORNADA Y TURNOS */}
+                          <div className="md:col-span-4 space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                            <h5 className="font-extrabold uppercase text-[10px] text-slate-500 tracking-wider">Jornada de Trabajo</h5>
+                            
+                            <label className="flex items-center gap-2 font-semibold cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={calendarConfig.trabajaSabado}
+                                onChange={(e) => handleSaveCalendarConfig({ ...calendarConfig, trabajaSabado: e.target.checked })}
+                                className="rounded text-primary focus:ring-primary w-4 h-4 cursor-pointer"
+                              />
+                              <span>Considerar Sábados como Laboral</span>
+                            </label>
+
+                            <label className="flex items-center gap-2 font-semibold cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={calendarConfig.trabajaDomingo}
+                                onChange={(e) => handleSaveCalendarConfig({ ...calendarConfig, trabajaDomingo: e.target.checked })}
+                                className="rounded text-primary focus:ring-primary w-4 h-4 cursor-pointer"
+                              />
+                              <span>Considerar Domingos como Laboral</span>
+                            </label>
+
+                            <div className="pt-1.5 flex items-center gap-2">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase">Horas Turno/Día:</span>
+                              <input
+                                type="number"
+                                min="1"
+                                max="24"
+                                value={calendarConfig.turnoHoras ?? 9}
+                                onChange={(e) => handleSaveCalendarConfig({ ...calendarConfig, turnoHoras: parseInt(e.target.value, 10) || 9 })}
+                                className="w-16 border border-slate-250 rounded-lg p-1 text-center font-bold text-slate-800 bg-white"
+                              />
+                            </div>
+                          </div>
+
+                          {/* FERIADOS / FESTIVOS */}
+                          <div className="md:col-span-4 space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                            <h5 className="font-extrabold uppercase text-[10px] text-slate-500 tracking-wider">Feriados / Días No Laborables</h5>
+                            
+                            <div className="flex gap-2">
+                              <input
+                                type="date"
+                                id="new-holiday-input"
+                                className="flex-1 border border-slate-250 rounded-lg p-1 bg-white text-xs"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const el = document.getElementById('new-holiday-input');
+                                  const dateVal = el?.value;
+                                  if (dateVal && !calendarConfig.feriados.includes(dateVal)) {
+                                    const updated = { ...calendarConfig, feriados: [...calendarConfig.feriados, dateVal].sort() };
+                                    handleSaveCalendarConfig(updated);
+                                    if (el) el.value = '';
+                                  }
+                                }}
+                                className="bg-primary text-white font-bold px-3 py-1 rounded-lg text-xs hover:bg-primary-hover transition shrink-0 cursor-pointer"
+                              >
+                                + Agregar
+                              </button>
+                            </div>
+
+                            <div className="max-h-[90px] overflow-y-auto space-y-1 pr-1 border rounded-lg bg-white p-1.5">
+                              {calendarConfig.feriados.length === 0 ? (
+                                <p className="text-[10px] text-slate-400 italic text-center py-2">Sin feriados registrados</p>
+                              ) : (
+                                calendarConfig.feriados.map(d => (
+                                  <div key={d} className="flex justify-between items-center bg-slate-50 px-2 py-1 rounded-md border text-[10px] font-bold">
+                                    <span className="font-mono text-slate-700">{d}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const updated = { ...calendarConfig, feriados: calendarConfig.feriados.filter(x => x !== d) };
+                                        handleSaveCalendarConfig(updated);
+                                      }}
+                                      className="text-red-500 hover:text-red-700 font-bold px-1"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
+
+                          {/* EFICIENCIAS MENORES / RESTRICCIONES */}
+                          <div className="md:col-span-4 space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                            <h5 className="font-extrabold uppercase text-[10px] text-slate-500 tracking-wider">Rendimiento / Eficiencia Especial</h5>
+                            
+                            <div className="flex flex-col gap-1.5 bg-white p-2 rounded-xl border border-slate-200">
+                              <div className="flex gap-2">
+                                <input
+                                  type="date"
+                                  id="new-eff-date"
+                                  className="flex-1 border border-slate-250 rounded-lg p-1 text-[11px]"
+                                />
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  defaultValue="50"
+                                  id="new-eff-pct"
+                                  placeholder="%"
+                                  className="w-14 border border-slate-250 rounded-lg p-1 text-center font-bold"
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const dateEl = document.getElementById('new-eff-date');
+                                  const pctEl = document.getElementById('new-eff-pct');
+                                  const dateVal = dateEl?.value;
+                                  const pctVal = parseInt(pctEl?.value, 10);
+                                  if (dateVal && !isNaN(pctVal)) {
+                                    const updated = {
+                                      ...calendarConfig,
+                                      eficienciasEspeciales: {
+                                        ...calendarConfig.eficienciasEspeciales,
+                                        [dateVal]: pctVal
+                                      }
+                                    };
+                                    handleSaveCalendarConfig(updated);
+                                    if (dateEl) dateEl.value = '';
+                                  }
+                                }}
+                                className="bg-primary text-white font-bold py-1 rounded-lg text-[10px] hover:bg-primary-hover transition cursor-pointer"
+                              >
+                                Vincular Eficiencia Especial
+                              </button>
+                            </div>
+
+                            <div className="max-h-[90px] overflow-y-auto space-y-1 pr-1 border rounded-lg bg-white p-1.5">
+                              {Object.keys(calendarConfig.eficienciasEspeciales || {}).length === 0 ? (
+                                <p className="text-[10px] text-slate-400 italic text-center py-2">Sin restricciones de rendimiento</p>
+                              ) : (
+                                Object.entries(calendarConfig.eficienciasEspeciales).map(([date, pct]) => (
+                                  <div key={date} className="flex justify-between items-center bg-slate-50 px-2 py-1 rounded-md border text-[10px] font-bold">
+                                    <span className="font-mono text-slate-700">{date}: <strong className="text-amber-700">{pct}% Ef.</strong></span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const copy = { ...calendarConfig.eficienciasEspeciales };
+                                        delete copy[date];
+                                        const updated = { ...calendarConfig, eficienciasEspeciales: copy };
+                                        handleSaveCalendarConfig(updated);
+                                      }}
+                                      className="text-red-500 hover:text-red-700 font-bold px-1"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                ))
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
 
-                      <div className="xl:col-span-6 space-y-4">
-                        <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex flex-wrap justify-between items-center gap-4">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">Fecha Escala:</span>
-                            <input
-                              type="date"
-                              value={ganttStartDate}
-                              onChange={(e) => setGanttStartDate(e.target.value)}
-                              className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-800 focus:outline-none"
-                            />
+                      {/* Layout Principal Gantt */}
+                      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+                        <div className="xl:col-span-6 space-y-4">
+                          <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex justify-between items-center">
+                            <div>
+                              <h3 className="text-xs font-extrabold uppercase text-slate-800 tracking-wider">Hoja de Planificación</h3>
+                              <p className="text-[10px] text-slate-455 font-bold uppercase mt-0.5">Partidas del Presupuesto e Hitos de Control</p>
+                            </div>
+                            <button
+                              onClick={handleAddMilestoneRow}
+                              className="flex items-center gap-1.5 bg-slate-50 border border-slate-250 text-slate-700 text-xs font-bold px-3.5 py-2 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+                            >
+                              <Plus className="w-4 h-4 text-primary" />
+                              <span>Agregar Hito</span>
+                            </button>
                           </div>
 
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">Límites:</span>
-                            <select
-                              value={ganttScale}
-                              onChange={(e) => setGanttScale(parseInt(e.target.value, 10))}
-                              className="border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-700 bg-white"
-                            >
-                              <option value={15}>15 días</option>
-                              <option value={30}>30 días (Mes)</option>
-                              <option value={60}>60 días (Trimestre)</option>
-                            </select>
+                          <div className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden">
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left text-xs border-collapse">
+                                <thead>
+                                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-660 font-bold text-[9px] uppercase tracking-wider select-none">
+                                    <th className="p-3 w-16 text-center">Código</th>
+                                    <th className="p-3">Tarea / Hito</th>
+                                    <th className="p-3 w-20">Inicio</th>
+                                    <th className="p-3 w-16 text-center">Días</th>
+                                    <th className="p-3 w-16 text-center">Pred.</th>
+                                    <th className="p-3 w-24 text-center">Color Barra</th>
+                                    <th className="p-3 w-12"></th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-150">
+                                  {resolvedCronograma.map((task) => {
+                                    const isChapter = task.is_chapter;
+                                    const isMilestone = task.duracion === 0;
+
+                                    return (
+                                      <tr key={task.id} className={`hover:bg-slate-50/50 transition ${isChapter ? 'bg-slate-100/80 font-bold' : ''}`}>
+                                        <td className="p-2">
+                                          <input
+                                            type="text"
+                                            value={task.codigo || ''}
+                                            onChange={(e) => !isChapter && handleUpdateCronogramaField(task.id, 'codigo', e.target.value)}
+                                            disabled={isChapter || task.is_partida}
+                                            className={`w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-center ${isChapter ? 'font-black text-slate-800' : 'text-slate-800'}`}
+                                          />
+                                        </td>
+                                        <td className="p-2">
+                                          <input
+                                            type="text"
+                                            value={task.tarea || ''}
+                                            onChange={(e) => !isChapter && handleUpdateCronogramaField(task.id, 'tarea', e.target.value)}
+                                            disabled={isChapter || task.is_partida}
+                                            className={`w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs uppercase ${isChapter ? 'font-black text-slate-900' : isMilestone ? 'text-slate-900 font-extrabold text-[11px]' : 'text-slate-850 font-semibold'}`}
+                                          />
+                                        </td>
+                                        <td className="p-2">
+                                          {isChapter ? (
+                                            <span className="p-1 text-[11px] text-slate-500 font-bold block text-center select-none">{task.fecha_inicio}</span>
+                                          ) : (
+                                            <input
+                                              type="date"
+                                              value={task.fecha_inicio || ''}
+                                              onChange={(e) => handleUpdateCronogramaField(task.id, 'fecha_inicio', e.target.value)}
+                                              className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-[11px] text-slate-700 font-medium"
+                                            />
+                                          )}
+                                        </td>
+                                        <td className="p-2">
+                                          {isChapter ? (
+                                            <span className="p-1 text-xs text-slate-500 font-bold block text-center select-none">{task.duracion}</span>
+                                          ) : (
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              value={task.duracion ?? ''}
+                                              onChange={(e) => handleUpdateCronogramaField(task.id, 'duracion', e.target.value)}
+                                              disabled={isMilestone} // force milestone to stay at 0
+                                              className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-700 font-bold text-center"
+                                            />
+                                          )}
+                                        </td>
+                                        <td className="p-2">
+                                          <input
+                                            type="text"
+                                            value={task.predecesora || ''}
+                                            onChange={(e) => !isChapter && handleUpdateCronogramaField(task.id, 'predecesora', e.target.value)}
+                                            disabled={isChapter}
+                                            placeholder={isChapter ? '' : 'nº'}
+                                            className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-655 text-center font-bold"
+                                          />
+                                        </td>
+                                        <td className="p-2">
+                                          {isChapter ? (
+                                            <span className="text-[10px] text-slate-450 font-bold block text-center select-none">Negro</span>
+                                          ) : (
+                                            <select
+                                              value={task.estado || 'blue'}
+                                              onChange={(e) => handleUpdateCronogramaField(task.id, 'estado', e.target.value)}
+                                              className="w-full border border-slate-200 rounded-lg p-1 text-xs text-slate-700 bg-white font-semibold text-center cursor-pointer"
+                                            >
+                                              <option value="blue">🔵 Azul</option>
+                                              <option value="emerald">🟢 Verde</option>
+                                              <option value="purple">🟣 Púrpura</option>
+                                              <option value="amber">🟡 Amarillo</option>
+                                              <option value="rose">🔴 Rojo</option>
+                                              <option value="slate">⚫ Gris</option>
+                                            </select>
+                                          )}
+                                        </td>
+                                        <td className="p-2 text-center">
+                                          {!isChapter && !task.is_partida && (
+                                            <button
+                                              onClick={() => handleDeleteCronogramaRow(task.id)}
+                                              className="p-1 text-red-655 hover:bg-red-50 rounded-lg transition"
+                                            >
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
                           </div>
                         </div>
 
-                        <div className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden">
-                          <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                            <span className="text-[10px] font-extrabold uppercase text-slate-555 tracking-wider">Diagrama Gantt</span>
+                        <div className="xl:col-span-6 space-y-4">
+                          <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex flex-wrap justify-between items-center gap-4">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">Fecha Escala:</span>
+                              <input
+                                type="date"
+                                value={ganttStartDate}
+                                onChange={(e) => setGanttStartDate(e.target.value)}
+                                className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-800 focus:outline-none"
+                              />
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">Límites:</span>
+                              <select
+                                value={ganttScale}
+                                onChange={(e) => setGanttScale(parseInt(e.target.value, 10))}
+                                className="border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-700 bg-white"
+                              >
+                                <option value={15}>15 días</option>
+                                <option value={30}>30 días (Mes)</option>
+                                <option value={60}>60 días (Trimestre)</option>
+                              </select>
+                            </div>
                           </div>
 
-                          <div className="p-4 overflow-x-auto">
-                            <div 
-                              className="grid border-r border-b border-slate-200 select-none min-w-[650px]"
-                              style={{ gridTemplateColumns: `repeat(${ganttScale}, minmax(26px, 1fr))` }}
-                            >
-                              {ganttDays.map((day, idx) => (
-                                <div 
-                                  key={idx}
-                                  className={`text-center py-2 border-t border-l border-slate-200 flex flex-col justify-center items-center ${
-                                    day.isWeekend ? 'bg-slate-100/70 text-slate-400' : 'bg-slate-50 text-slate-655'
-                                  }`}
-                                >
-                                  <span className="text-[7.5px] font-bold uppercase tracking-wider">{day.monthStr}</span>
-                                  <span className="text-[10px] font-black">{day.dayNum}</span>
-                                </div>
-                              ))}
+                          <div className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden">
+                            <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                              <span className="text-[10px] font-extrabold uppercase text-slate-555 tracking-wider">Diagrama Gantt</span>
+                            </div>
 
-                              {resolvedCronograma.map((task) => {
-                                const span = getGanttSpan(task.fecha_inicio, task.fecha_fin);
-                                let barColor = 'bg-yellow-500';
-                                if (task.is_chapter) barColor = 'bg-slate-800';
-                                else if (task.estado === 'En Progreso') barColor = 'bg-blue-600';
-                                else if (task.estado === 'Completado') barColor = 'bg-emerald-600';
-
-                                return (
+                            <div className="p-4 overflow-x-auto">
+                              <div 
+                                className="grid border-r border-b border-slate-200 select-none min-w-[650px]"
+                                style={{ gridTemplateColumns: `repeat(${ganttScale}, minmax(26px, 1fr))` }}
+                              >
+                                {ganttDays.map((day, idx) => (
                                   <div 
-                                    key={task.id}
-                                    className="h-9 relative border-t border-l border-slate-200 flex items-center bg-slate-50/20"
-                                    style={{ gridColumn: `1 / span ${ganttScale}` }}
+                                    key={idx}
+                                    className={`text-center py-2 border-t border-l border-slate-200 flex flex-col justify-center items-center ${
+                                      day.isWeekend ? 'bg-slate-100/70 text-slate-400' : 'bg-slate-50 text-slate-655'
+                                    }`}
                                   >
-                                    <div 
-                                      className="grid h-full w-full absolute top-0 left-0"
-                                      style={{ gridTemplateColumns: `repeat(${ganttScale}, minmax(26px, 1fr))` }}
-                                    >
-                                      {span && (
-                                        <div 
-                                          className="relative flex items-center h-full px-1"
-                                          style={{
-                                            gridColumnStart: span.gridColumnStart,
-                                            gridColumnEnd: span.gridColumnEnd
-                                          }}
-                                        >
-                                          <div 
-                                            className={`w-full h-5 ${barColor} text-white rounded-lg flex items-center justify-between px-2 text-[9px] font-bold shadow-xs truncate`}
-                                          >
-                                            <span className="truncate uppercase">{task.tarea}</span>
-                                            <span>{task.porcentaje_avance}%</span>
-                                          </div>
-                                        </div>
-                                      )}
-
-                                      {ganttDays.map((day, idx) => (
-                                        <div 
-                                          key={idx} 
-                                          className={`border-r border-slate-100/50 h-full pointer-events-none ${
-                                            day.isWeekend ? 'bg-slate-100/10' : ''
-                                          }`} 
-                                        />
-                                      ))}
-                                    </div>
+                                    <span className="text-[7.5px] font-bold uppercase tracking-wider">{day.monthStr}</span>
+                                    <span className="text-[10px] font-black">{day.dayNum}</span>
                                   </div>
-                                );
-                              })}
+                                ))}
+
+                                {resolvedCronograma.map((task) => {
+                                  const span = getGanttSpan(task.fecha_inicio, task.fecha_fin);
+                                  const isMilestone = task.duracion === 0;
+
+                                  let barColor = 'bg-blue-600';
+                                  if (task.is_chapter) barColor = 'bg-slate-800';
+                                  else if (task.estado === 'emerald') barColor = 'bg-emerald-600';
+                                  else if (task.estado === 'purple') barColor = 'bg-purple-600';
+                                  else if (task.estado === 'amber') barColor = 'bg-amber-500';
+                                  else if (task.estado === 'rose') barColor = 'bg-rose-500';
+                                  else if (task.estado === 'slate') barColor = 'bg-slate-500';
+
+                                  return (
+                                    <div 
+                                      key={task.id}
+                                      className="h-9 relative border-t border-l border-slate-200 flex items-center bg-slate-50/20"
+                                      style={{ gridColumn: `1 / span ${ganttScale}` }}
+                                    >
+                                      <div 
+                                        className="grid h-full w-full absolute top-0 left-0"
+                                        style={{ gridTemplateColumns: `repeat(${ganttScale}, minmax(26px, 1fr))` }}
+                                      >
+                                        {span && (
+                                          <div 
+                                            className="relative flex items-center h-full px-1"
+                                            style={{
+                                              gridColumnStart: span.gridColumnStart,
+                                              gridColumnEnd: span.gridColumnEnd
+                                            }}
+                                          >
+                                            {isMilestone ? (
+                                              <div className="flex items-center gap-1 bg-slate-900 text-white rounded-lg px-2 py-0.5 shadow border border-slate-700 text-[9px] font-black z-10 animate-in zoom-in duration-100 truncate w-full justify-center">
+                                                <span className="text-amber-400">◆</span>
+                                                <span className="truncate uppercase">{task.tarea}</span>
+                                              </div>
+                                            ) : (
+                                              <div 
+                                                className={`w-full h-5 ${barColor} text-white rounded-lg flex items-center justify-between px-2 text-[9px] font-bold shadow-xs truncate`}
+                                                title={task.tarea}
+                                              >
+                                                <span className="truncate uppercase">{task.tarea}</span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+
+                                        {ganttDays.map((day, idx) => (
+                                          <div 
+                                            key={idx} 
+                                            className={`border-r border-slate-100/50 h-full pointer-events-none ${
+                                              day.isWeekend ? 'bg-slate-100/10' : ''
+                                            }`} 
+                                          />
+                                        ))}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             </div>
                           </div>
                         </div>
