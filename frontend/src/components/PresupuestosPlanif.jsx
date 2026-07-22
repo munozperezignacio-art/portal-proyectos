@@ -1905,19 +1905,18 @@ export default function PresupuestosPlanif({ user, onBack }) {
 
       if (!isPU) {
         // COSTO-TIEMPO (Cobro directo por tiempo de recursos sin rendimiento de obra)
-        let dailyCost = unitCost;
-        if (unitStr.includes('mes') || unitStr.includes('mensual')) {
-          dailyCost = unitCost / diasMes;
-        } else if (unitStr.includes('hr') || unitStr.includes('hora')) {
-          dailyCost = unitCost * hrsJornada;
-        }
-
-        let fuelDaily = 0;
+        let fuelCost = 0;
         if (res.tipo === 'Maquinaria' && consumoLh > 0) {
-          fuelDaily = consumoLh * hrsJornada * precioDiesel;
+          if (unitStr.includes('mes') || unitStr.includes('mensual')) {
+            fuelCost = (consumoLh * hrsJornada * diasMes * precioDiesel) * qty;
+          } else if (unitStr.includes('hr') || unitStr.includes('hora')) {
+            fuelCost = (consumoLh * precioDiesel) * qty;
+          } else {
+            fuelCost = (consumoLh * hrsJornada * precioDiesel) * qty;
+          }
         }
-
-        const sub = (dailyCost + fuelDaily) * qty;
+        
+        const sub = (unitCost * qty) + fuelCost;
 
         if (res.tipo === 'Material') matSum += sub;
         else if (res.tipo === 'Mano de Obra') laborSum += sub;
@@ -4078,19 +4077,18 @@ export default function PresupuestosPlanif({ user, onBack }) {
                         }
                       } else {
                         // COSTO-TIEMPO (Cobro directo en tiempo sin rendimiento)
-                        let dailyCost = unitCost;
-                        if (unitStr.includes('mes') || unitStr.includes('mensual')) {
-                          dailyCost = unitCost / diasMes;
-                        } else if (unitStr.includes('hr') || unitStr.includes('hora')) {
-                          dailyCost = unitCost * hrsJornada;
-                        }
-
-                        let fuelDaily = 0;
+                        let fuelCost = 0;
                         if (res.tipo === 'Maquinaria' && consumoLh > 0) {
-                          fuelDaily = consumoLh * hrsJornada * precioDiesel;
+                          if (unitStr.includes('mes') || unitStr.includes('mensual')) {
+                            fuelCost = (consumoLh * hrsJornada * diasMes * precioDiesel) * qty;
+                          } else if (unitStr.includes('hr') || unitStr.includes('hora')) {
+                            fuelCost = (consumoLh * precioDiesel) * qty;
+                          } else {
+                            fuelCost = (consumoLh * hrsJornada * precioDiesel) * qty;
+                          }
                         }
-
-                        itemSub = (dailyCost + fuelDaily) * qty;
+                        
+                        itemSub = (unitCost * qty) + fuelCost;
                       }
 
                       const isMach = res.tipo === 'Maquinaria';
