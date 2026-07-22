@@ -385,9 +385,20 @@ export default function PresupuestosPlanif({ user, onBack }) {
       const mergedList = sortedItems.map(item => {
         const existing = (cronoData || []).find(c => c.codigo === item.codigo);
         
-        const defaultDuration = Math.max(1, Math.ceil(parseFloat(item.tiempo_estimado) || 1));
+        const qty = parseFloat(item.cantidad) || 0;
+        const rend = parseFloat(item.rendimiento_meta) || 0;
+        let calculatedDays = parseFloat(item.tiempo_estimado) || 1;
+        if (rend > 0) {
+          calculatedDays = qty / rend;
+        }
+        const finalDuration = Math.max(1, Math.ceil(calculatedDays));
+
         const defaultStart = todayStr;
-        const defaultEnd = calculateEndDateWithCalendar(defaultStart, defaultDuration, localCalendar);
+        const defaultEnd = calculateEndDateWithCalendar(
+          existing ? existing.fecha_inicio : defaultStart,
+          finalDuration,
+          localCalendar
+        );
 
         return {
           id: existing ? existing.id : 'temp-crono-' + item.codigo,
@@ -395,13 +406,15 @@ export default function PresupuestosPlanif({ user, onBack }) {
           codigo: item.codigo,
           tarea: item.partida, // Sincronizado siempre con el nombre actual de la partida
           fecha_inicio: existing ? existing.fecha_inicio : defaultStart,
-          fecha_fin: existing ? existing.fecha_fin : defaultEnd,
-          duracion: existing ? (parseInt(existing.duracion, 10) || 1) : defaultDuration,
+          fecha_fin: defaultEnd,
+          duracion: finalDuration,
           predecesora: existing ? (existing.predecesora || '') : '',
           porcentaje_avance: 0,
           responsable: existing ? (existing.responsable || '') : '',
           estado: existing ? (existing.estado || 'blue') : 'blue', // Repurposed for color (default blue)
-          is_partida: true
+          is_partida: true,
+          cantidad: qty,
+          rendimiento_meta: rend
         };
       });
 
@@ -1889,9 +1902,10 @@ export default function PresupuestosPlanif({ user, onBack }) {
     try {
       const calc = calculateApuCost();
       
-      let autoTiempo = apuForm.tiempo_estimado;
-      if (apuForm.tipo_metodologia === 'Costo-Tiempo' && apuForm.rendimiento_meta > 0) {
-        autoTiempo = (parseFloat(apuItem.cantidad) || 0) / parseFloat(apuForm.rendimiento_meta);
+      let autoTiempo = parseFloat(apuForm.tiempo_estimado) || 0;
+      const parsedRendimiento = parseFloat(apuForm.rendimiento_meta) || 0;
+      if (parsedRendimiento > 0) {
+        autoTiempo = (parseFloat(apuItem.cantidad) || 0) / parsedRendimiento;
       }
 
       const fullUpdatePayload = {
@@ -2936,8 +2950,9 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                               min="0"
                                               value={task.duracion ?? ''}
                                               onChange={(e) => handleUpdateCronogramaField(task.id, 'duracion', e.target.value)}
-                                              disabled={isMilestone} // force milestone to stay at 0
-                                              className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-slate-700 font-bold text-center"
+                                              disabled={isMilestone || (task.is_partida && task.rendimiento_meta > 0)}
+                                              title={task.is_partida && task.rendimiento_meta > 0 ? "Calculado automáticamente: Cantidad / Rendimiento" : ""}
+                                              className={`w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-center font-bold ${isMilestone || (task.is_partida && task.rendimiento_meta > 0) ? 'text-slate-400 cursor-not-allowed bg-slate-55/20 rounded font-black' : 'text-slate-700'}`}
                                             />
                                           )}
                                         </td>
