@@ -444,7 +444,9 @@ export default function PresupuestosPlanif({ user, onBack }) {
         if (rend > 0) {
           calculatedDays = qty / rend;
         }
-        const finalDuration = Math.max(1, Math.ceil(calculatedDays));
+        const finalDuration = existing && existing.duracion !== undefined && existing.duracion !== null
+          ? Math.max(1, parseInt(existing.duracion, 10))
+          : Math.max(1, Math.ceil(calculatedDays));
 
         const defaultStart = todayStr;
         const defaultEnd = calculateEndDateWithCalendar(
@@ -3069,12 +3071,12 @@ export default function PresupuestosPlanif({ user, onBack }) {
                                           ) : (
                                             <input
                                               type="number"
-                                              min="0"
+                                              min="1"
                                               value={task.duracion ?? ''}
                                               onChange={(e) => handleUpdateCronogramaField(task.id, 'duracion', e.target.value)}
-                                              disabled={isMilestone || (task.is_partida && task.rendimiento_meta > 0)}
-                                              title={task.is_partida && task.rendimiento_meta > 0 ? "Calculado automáticamente: Cantidad / Rendimiento" : ""}
-                                              className={`w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-center font-bold ${isMilestone || (task.is_partida && task.rendimiento_meta > 0) ? 'text-slate-400 cursor-not-allowed bg-slate-55/20 rounded font-black' : 'text-slate-700'}`}
+                                              disabled={isMilestone}
+                                              title={task.is_partida && task.rendimiento_meta > 0 ? "Calculado inicialmente por Cantidad/Rendimiento, pero editable manual" : ""}
+                                              className={`w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1 text-xs text-center font-bold ${isMilestone ? 'text-slate-400 cursor-not-allowed bg-slate-55/20 rounded font-black' : 'text-slate-700'}`}
                                             />
                                           )}
                                         </td>
