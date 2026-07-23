@@ -4,11 +4,12 @@ import {
   ArrowLeft, ShieldAlert, Plus, Save, Trash2, FileText, CheckCircle2, 
   Share2, Copy, Eye, Edit, ChevronLeft, QrCode, AlertTriangle, 
   Type, AlignLeft, Hash, Calendar, CheckSquare, Radio, ToggleLeft, 
-  PenTool, Camera, Sparkles, Send, Check, Download, Layers, Building2, User, BoxSelect, Layers3
+  PenTool, Camera, Sparkles, Send, Check, Download, Layers, Building2, User, BoxSelect, Layers3,
+  Award, BookOpen, GraduationCap, Video, HelpCircle, ExternalLink, FileSpreadsheet
 } from 'lucide-react';
 
 export default function Prevencion({ user, onBack }) {
-  // Apartado activo: '' (Menú rectángulos), 'builder' (Creador de Formularios), 'mis_formularios', 'completar', 'respuestas'
+  // Apartado activo: '' (Menú), 'builder' (Creador), 'mis_formularios', 'completar', 'respuestas', 'capacitaciones', 'evaluaciones'
   const [activeSection, setActiveSection] = useState('');
 
   // Lista de Formularios Guardados (Plantillas)
@@ -49,6 +50,32 @@ export default function Prevencion({ user, onBack }) {
   // MODALES Y MENSAJES
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareFormItem, setShareFormItem] = useState(null);
+
+  // --- SUBMÓDULO CAPACITACIONES & EVALUACIONES ---
+  const [capacitaciones, setCapacitaciones] = useState([]);
+  const [loadingCapacitaciones, setLoadingCapacitaciones] = useState(false);
+  const [intentosEvaluaciones, setIntentosEvaluaciones] = useState([]);
+  const [loadingIntentos, setLoadingIntentos] = useState(false);
+
+  // Formulario Capacitación (Crear / Editar)
+  const [showCapModal, setShowCapModal] = useState(false);
+  const [capId, setCapId] = useState(null);
+  const [capTitulo, setCapTitulo] = useState('');
+  const [capDescripcion, setCapDescripcion] = useState('');
+  const [capVideoUrl, setCapVideoUrl] = useState('');
+  const [capContenidoTexto, setCapContenidoTexto] = useState('');
+
+  // Configuración de Cuestionario (Evaluación)
+  const [showQuizModal, setShowQuizModal] = useState(false);
+  const [selectedCapForQuiz, setSelectedCapForQuiz] = useState(null);
+  const [quizQuestions, setQuizQuestions] = useState([]); // [{"pregunta": "", "tipo": "multiple", "opciones": ["", ""], "correct_idx": 0, "puntos": 10}]
+
+  // Compartir Capacitación
+  const [showShareCapModal, setShowShareCapModal] = useState(false);
+  const [shareCapItem, setShareCapItem] = useState(null);
+
+  // Ver Detalle de Cuestionario de un Trabajador
+  const [selectedIntentoDetail, setSelectedIntentoDetail] = useState(null);
   const [selectedResponseDetail, setSelectedResponseDetail] = useState(null);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -92,6 +119,8 @@ export default function Prevencion({ user, onBack }) {
   useEffect(() => {
     fetchFormularios();
     fetchRespuestas();
+    fetchCapacitaciones();
+    fetchIntentosEvaluaciones();
   }, []);
 
   const fetchFormularios = async () => {
@@ -124,6 +153,129 @@ export default function Prevencion({ user, onBack }) {
     } finally {
       setLoadingRespuestas(false);
     }
+  };
+
+  const fetchCapacitaciones = async () => {
+    setLoadingCapacitaciones(true);
+    try {
+      const { data, error } = await supabase
+        .from('prevencion_capacitaciones')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setCapacitaciones(data || []);
+    } catch (err) {
+      console.error('Error al cargar capacitaciones:', err.message);
+    } finally {
+      setLoadingCapacitaciones(false);
+    }
+  };
+
+  const fetchIntentosEvaluaciones = async () => {
+    setLoadingIntentos(true);
+    try {
+      const { data, error } = await supabase
+        .from('prevencion_capacitaciones_intentos')
+        .select('*, prevencion_capacitaciones(titulo)')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setIntentosEvaluaciones(data || []);
+    } catch (err) {
+      console.error('Error al cargar intentos de evaluación:', err.message);
+    } finally {
+      setLoadingIntentos(false);
+    }
+  };
+
+  const handleSaveCapacitacion = async () => {
+    if (!capTitulo.trim()) {
+      setErrorMsg('Por favor ingresa un título para la capacitación.');
+      return;
+    }
+    setSavingForm(true);
+    setErrorMsg('');
+    setSuccessMsg('');
+    try {
+      const token = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+      const payload = {
+        titulo: capTitulo,
+        descripcion: capDescripcion,
+        video_url: capVideoUrl,
+        contenido_texto: capContenidoTexto,
+        creado_por: user ? user.email : 'Prevencionista'
+      };
+
+      if (capId) {
+        const { error } = await supabase
+          .from('prevencion_capacitaciones')
+          .update(payload)
+          .eq('id', capId);
+        if (error) throw error;
+        setSuccessMsg('Capacitación actualizada exitosamente.');
+      } else {
+        const { error } = await supabase
+          .from('prevencion_capacitaciones')
+          .insert([{ ...payload, publico_token: token, preguntas: [] }]);
+        if (error) throw error;
+        setSuccessMsg('Nueva capacitación creada exitosamente.');
+      }
+
+      setShowCapModal(false);
+      // Reset form
+      setCapId(null);
+      setCapTitulo('');
+      setCapDescripcion('');
+      setCapVideoUrl('');
+      setCapContenidoTexto('');
+
+      fetchCapacitaciones();
+    } catch (err) {
+      setErrorMsg('Error al guardar capacitación: ' + err.message);
+    } finally {
+      setSavingForm(false);
+    }
+  };
+
+  const handleDeleteCapacitacion = async (id) => {
+    if (!window.confirm('¿Está seguro de eliminar esta capacitación y todas sus evaluaciones registradas?')) return;
+    try {
+      const { error } = await supabase
+        .from('prevencion_capacitaciones')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+      setSuccessMsg('Capacitación eliminada.');
+      fetchCapacitaciones();
+      fetchIntentosEvaluaciones();
+    } catch (err) {
+      setErrorMsg('Error al eliminar: ' + err.message);
+    }
+  };
+
+  const handleSaveQuiz = async () => {
+    if (!selectedCapForQuiz) return;
+    setSavingForm(true);
+    setErrorMsg('');
+    setSuccessMsg('');
+    try {
+      const { error } = await supabase
+        .from('prevencion_capacitaciones')
+        .update({ preguntas: quizQuestions })
+        .eq('id', selectedCapForQuiz.id);
+      if (error) throw error;
+      setSuccessMsg('Cuestionario de evaluación actualizado con éxito.');
+      setShowQuizModal(false);
+      fetchCapacitaciones();
+    } catch (err) {
+      setErrorMsg('Error al guardar cuestionario: ' + err.message);
+    } finally {
+      setSavingForm(false);
+    }
+  };
+
+  const getShareCapUrl = (cap) => {
+    const base = window.location.origin + window.location.pathname;
+    return `${base}?prevencion_capacitacion=${cap.publico_token || cap.id}`;
   };
 
   // --- LÓGICA DE BUILDER ---
@@ -543,6 +695,42 @@ export default function Prevencion({ user, onBack }) {
               </h3>
               <p className="text-xs text-slate-500 leading-normal">
                 Historial completo de inspecciones enviadas con firmantes múltiples desglosados.
+              </p>
+            </div>
+          </div>
+
+          {/* Card 5: Capacitaciones */}
+          <div 
+            onClick={() => { setActiveSection('capacitaciones'); setErrorMsg(''); setSuccessMsg(''); fetchCapacitaciones(); }}
+            className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[160px]"
+          >
+            <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300 w-fit">
+              <GraduationCap className="w-6 h-6" />
+            </div>
+            <div className="space-y-1 mt-4">
+              <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
+                Capacitaciones ({capacitaciones.length})
+              </h3>
+              <p className="text-xs text-slate-500 leading-normal">
+                Administra cursos con videos, textos y cuestionarios de evaluación con calificaciones.
+              </p>
+            </div>
+          </div>
+
+          {/* Card 6: Resultados Evaluaciones */}
+          <div 
+            onClick={() => { setActiveSection('evaluaciones'); setErrorMsg(''); setSuccessMsg(''); fetchIntentosEvaluaciones(); }}
+            className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[160px]"
+          >
+            <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300 w-fit">
+              <Award className="w-6 h-6" />
+            </div>
+            <div className="space-y-1 mt-4">
+              <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
+                Resultados Evaluaciones ({intentosEvaluaciones.length})
+              </h3>
+              <p className="text-xs text-slate-500 leading-normal">
+                Verifica las notas, aciertos y estado de aprobación de los trabajadores en tiempo real.
               </p>
             </div>
           </div>
@@ -1400,6 +1588,581 @@ export default function Prevencion({ user, onBack }) {
             <div className="flex justify-end pt-2">
               <button
                 onClick={() => setShowShareModal(false)}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-4 py-2 rounded-xl transition cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
+
+      {/* ================= APARTADO: CAPACITACIONES ================= */}
+      {activeSection === 'capacitaciones' && (
+        <div className="space-y-4 animate-in fade-in duration-200">
+          <div className="flex justify-between items-center">
+            <h3 className="font-extrabold text-xs uppercase tracking-wider text-slate-800">
+              Gestión de Capacitaciones ({capacitaciones.length})
+            </h3>
+            <button
+              onClick={() => {
+                setCapId(null);
+                setCapTitulo('');
+                setCapDescripcion('');
+                setCapVideoUrl('');
+                setCapContenidoTexto('');
+                setShowCapModal(true);
+              }}
+              className="bg-primary hover:bg-primary-hover text-white text-xs font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Nueva Capacitación</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {capacitaciones.map((cap) => {
+              const cantPreguntas = Array.isArray(cap.preguntas) ? cap.preguntas.length : 0;
+              return (
+                <div key={cap.id} className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs flex flex-col justify-between space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-start gap-2">
+                      <h4 className="font-black text-slate-850 text-xs uppercase tracking-wider line-clamp-1">{cap.titulo}</h4>
+                      <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded bg-slate-100 text-slate-500 shrink-0">
+                        {cantPreguntas} {cantPreguntas === 1 ? 'Pregunta' : 'Preguntas'}
+                      </span>
+                    </div>
+                    {cap.descripcion && <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">{cap.descripcion}</p>}
+                    
+                    <div className="flex flex-col gap-1 text-[10px] text-slate-450 font-bold uppercase pt-2">
+                      <div className="flex items-center gap-1.5">
+                        <Video className={`w-3.5 h-3.5 ${cap.video_url ? 'text-emerald-500' : 'text-slate-300'}`} />
+                        <span>{cap.video_url ? 'Video Vinculado' : 'Sin Video'}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <FileText className={`w-3.5 h-3.5 ${cap.contenido_texto ? 'text-emerald-500' : 'text-slate-300'}`} />
+                        <span>{cap.contenido_texto ? 'Texto Vinculado' : 'Sin Material Texto'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 border-t pt-4">
+                    <button
+                      onClick={() => {
+                        setCapId(cap.id);
+                        setCapTitulo(cap.titulo);
+                        setCapDescripcion(cap.descripcion || '');
+                        setCapVideoUrl(cap.video_url || '');
+                        setCapContenidoTexto(cap.contenido_texto || '');
+                        setShowCapModal(true);
+                      }}
+                      className="border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-[10px] uppercase py-2 rounded-xl transition cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      <Edit className="w-3.5 h-3.5" /> Editar
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedCapForQuiz(cap);
+                        setQuizQuestions(Array.isArray(cap.preguntas) ? JSON.parse(JSON.stringify(cap.preguntas)) : []);
+                        setShowQuizModal(true);
+                      }}
+                      className="bg-primary/5 hover:bg-primary/10 text-primary font-extrabold text-[10px] uppercase py-2 rounded-xl transition cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      <Award className="w-3.5 h-3.5" /> Cuestionario
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShareCapItem(cap);
+                        setShowShareCapModal(true);
+                      }}
+                      className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-extrabold text-[10px] uppercase py-2 rounded-xl transition cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      <Share2 className="w-3.5 h-3.5" /> Compartir
+                    </button>
+                    <button
+                      onClick={() => handleDeleteCapacitacion(cap.id)}
+                      className="border border-red-200 hover:bg-red-50 text-red-650 font-bold text-[10px] uppercase py-2 rounded-xl transition cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Eliminar
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+
+            {capacitaciones.length === 0 && (
+              <div className="md:col-span-3 bg-white border border-dashed border-slate-300 rounded-3xl p-12 text-center text-xs text-slate-500 font-bold uppercase">
+                No tienes capacitaciones creadas aún. Presiona "Nueva Capacitación" arriba para empezar.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ================= APARTADO: RESULTADOS DE EVALUACIONES ================= */}
+      {activeSection === 'evaluaciones' && (
+        <div className="space-y-4 animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs">
+            <h3 className="font-extrabold text-xs uppercase tracking-wider text-slate-800 border-b border-slate-100 pb-3 mb-4">
+              Historial de Evaluaciones y Calificaciones ({intentosEvaluaciones.length})
+            </h3>
+
+            {intentosEvaluaciones.length === 0 ? (
+              <div className="p-8 text-center text-xs text-slate-400 italic">
+                No hay evaluaciones registradas en el sistema todavía.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-655 font-bold text-[9px] uppercase tracking-wider select-none">
+                      <th className="p-3.5">Capacitación</th>
+                      <th className="p-3.5">Nombre Trabajador</th>
+                      <th className="p-3.5">RUT / Identificación</th>
+                      <th className="p-3.5 text-center">Respuestas (Correctas)</th>
+                      <th className="p-3.5 text-center">Nota</th>
+                      <th className="p-3.5 text-center">Resultado</th>
+                      <th className="p-3.5">Fecha Intento</th>
+                      <th className="p-3.5 w-24 text-center">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-150 text-slate-700 font-semibold">
+                    {intentosEvaluaciones.map((i) => (
+                      <tr key={i.id} className="hover:bg-slate-50/50">
+                        <td className="p-3.5 max-w-[200px] truncate uppercase font-bold text-slate-800">
+                          {i.prevencion_capacitaciones ? i.prevencion_capacitaciones.titulo : 'Capacitación'}
+                        </td>
+                        <td className="p-3.5 uppercase">{i.nombre_trabajador}</td>
+                        <td className="p-3.5 font-mono">{i.rut_trabajador}</td>
+                        <td className="p-3.5 text-center font-mono font-bold text-slate-600">
+                          {i.puntaje_obtenido} / {i.puntaje_maximo}
+                        </td>
+                        <td className="p-3.5 text-center">
+                          <span className={`text-sm font-black px-2 py-0.5 rounded ${i.aprobado ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                            {parseFloat(i.nota).toFixed(1)}
+                          </span>
+                        </td>
+                        <td className="p-3.5 text-center select-none">
+                          <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                            i.aprobado ? 'bg-emerald-50 text-emerald-600 border border-emerald-250' : 'bg-rose-50 text-rose-600 border border-rose-250'
+                          }`}>
+                            {i.aprobado ? 'Aprobado' : 'Reprobado'}
+                          </span>
+                        </td>
+                        <td className="p-3.5 text-slate-450 font-mono">
+                          {new Date(i.created_at).toLocaleDateString()} {new Date(i.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                        <td className="p-3.5 text-center">
+                          <button
+                            onClick={async () => {
+                              try {
+                                const { data: capData } = await supabase
+                                  .from('prevencion_capacitaciones')
+                                  .select('*')
+                                  .eq('id', i.capacitacion_id)
+                                  .maybeSingle();
+                                setSelectedIntentoDetail({
+                                  ...i,
+                                  curso: capData
+                                });
+                              } catch (err) {
+                                console.error('Error al cargar detalle:', err);
+                              }
+                            }}
+                            className="bg-primary/5 hover:bg-primary/10 text-primary p-1.5 rounded-lg cursor-pointer"
+                            title="Ver detalles de respuestas"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CREAR / EDITAR CAPACITACIÓN */}
+      {showCapModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-lg p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+              <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                <GraduationCap className="w-5 h-5 text-primary" />
+                <span>{capId ? 'Editar Capacitación' : 'Nueva Capacitación'}</span>
+              </h3>
+              <button onClick={() => setShowCapModal(false)} className="text-slate-400 hover:text-slate-650 font-bold text-sm cursor-pointer">✕</button>
+            </div>
+
+            <div className="space-y-3 text-xs font-semibold text-slate-700">
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold uppercase text-slate-450">Título de la Capacitación</label>
+                <input 
+                  type="text" 
+                  value={capTitulo} 
+                  onChange={(e) => setCapTitulo(e.target.value)} 
+                  placeholder="ej: Uso Correcto de EPP para Trabajo en Altura" 
+                  className="w-full border border-slate-200 rounded-xl p-2 bg-white font-bold"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold uppercase text-slate-450">Descripción Corta</label>
+                <input 
+                  type="text" 
+                  value={capDescripcion} 
+                  onChange={(e) => setCapDescripcion(e.target.value)} 
+                  placeholder="Resumen del material para los trabajadores..." 
+                  className="w-full border border-slate-200 rounded-xl p-2 bg-white"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold uppercase text-slate-450">Enlace de Video (YouTube / Vimeo)</label>
+                <input 
+                  type="text" 
+                  value={capVideoUrl} 
+                  onChange={(e) => setCapVideoUrl(e.target.value)} 
+                  placeholder="https://www.youtube.com/watch?v=..." 
+                  className="w-full border border-slate-200 rounded-xl p-2 bg-white font-mono text-slate-600"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold uppercase text-slate-450">Contenido de Texto / Instrucciones de Estudio</label>
+                <textarea 
+                  value={capContenidoTexto} 
+                  onChange={(e) => setCapContenidoTexto(e.target.value)} 
+                  placeholder="Escribe aquí el material instructivo, manuales, normas de seguridad y consideraciones..." 
+                  rows="6"
+                  className="w-full border border-slate-200 rounded-xl p-2.5 bg-white font-normal"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <button
+                onClick={() => setShowCapModal(false)}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-4 py-2.5 rounded-xl transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveCapacitacion}
+                disabled={savingForm}
+                className="bg-primary hover:bg-primary-hover text-white text-xs font-bold px-4 py-2.5 rounded-xl transition cursor-pointer flex items-center gap-1"
+              >
+                {savingForm ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                <span>Guardar Capacitación</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CONFIGURACIÓN CUESTIONARIO */}
+      {showQuizModal && selectedCapForQuiz && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-2xl p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]">
+            
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2 shrink-0">
+              <div className="space-y-0.5">
+                <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                  <Award className="w-5 h-5 text-emerald-650" />
+                  <span>Configurar Evaluación (Cuestionario)</span>
+                </h3>
+                <p className="text-[10px] text-slate-400 font-bold uppercase">{selectedCapForQuiz.titulo}</p>
+              </div>
+              <button onClick={() => setShowQuizModal(false)} className="text-slate-400 hover:text-slate-650 font-bold text-sm cursor-pointer">✕</button>
+            </div>
+
+            {/* Listado de Preguntas */}
+            <div className="flex-1 overflow-y-auto my-4 pr-1 space-y-4 text-xs font-semibold text-slate-700">
+              {quizQuestions.map((q, idx) => (
+                <div key={idx} className="bg-slate-50 border rounded-2xl p-4 space-y-3 relative">
+                  <button 
+                    onClick={() => setQuizQuestions(quizQuestions.filter((_, i) => i !== idx))}
+                    className="absolute top-2.5 right-2.5 text-red-500 hover:bg-red-50 p-1.5 rounded-lg cursor-pointer transition"
+                    title="Eliminar pregunta"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+
+                  <div className="flex gap-2">
+                    <div className="flex-1 space-y-1">
+                      <label className="text-[9px] font-bold uppercase text-slate-450 block">Pregunta {idx + 1}</label>
+                      <input 
+                        type="text" 
+                        value={q.pregunta} 
+                        onChange={(e) => {
+                          const updated = [...quizQuestions];
+                          updated[idx].pregunta = e.target.value;
+                          setQuizQuestions(updated);
+                        }} 
+                        placeholder="ej: ¿Cuál es la altura mínima para requerir arnés de seguridad?" 
+                        className="w-full border border-slate-200 rounded-lg p-1.5 bg-white font-bold"
+                      />
+                    </div>
+                    <div className="w-20 space-y-1 shrink-0">
+                      <label className="text-[9px] font-bold uppercase text-slate-450 block text-right">Puntos</label>
+                      <input 
+                        type="number" 
+                        value={q.puntos} 
+                        onChange={(e) => {
+                          const updated = [...quizQuestions];
+                          updated[idx].puntos = parseFloat(e.target.value) || 1;
+                          setQuizQuestions(updated);
+                        }} 
+                        className="w-full border border-slate-200 rounded-lg p-1.5 bg-white text-right font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Opciones */}
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-bold uppercase text-slate-450 flex justify-between items-center">
+                      <span>Opciones de Respuesta</span>
+                      <button 
+                        onClick={() => {
+                          const updated = [...quizQuestions];
+                          updated[idx].opciones = [...(updated[idx].opciones || []), ''];
+                          setQuizQuestions(updated);
+                        }}
+                        className="text-[8px] bg-slate-200 hover:bg-slate-300 text-slate-700 px-1.5 py-0.5 rounded cursor-pointer transition font-black uppercase"
+                      >
+                        + Agregar Opción
+                      </button>
+                    </label>
+
+                    <div className="space-y-1.5">
+                      {(q.opciones || []).map((op, opIdx) => (
+                        <div key={opIdx} className="flex items-center gap-2">
+                          <input 
+                            type="radio" 
+                            name={`correct-${idx}`} 
+                            checked={parseInt(q.correct_idx) === opIdx}
+                            onChange={() => {
+                              const updated = [...quizQuestions];
+                              updated[idx].correct_idx = opIdx;
+                              setQuizQuestions(updated);
+                            }}
+                            className="w-4 h-4 text-primary border-slate-350 focus:ring-primary cursor-pointer"
+                            title="Marcar como respuesta correcta"
+                          />
+                          <input 
+                            type="text" 
+                            value={op} 
+                            onChange={(e) => {
+                              const updated = [...quizQuestions];
+                              updated[idx].opciones[opIdx] = e.target.value;
+                              setQuizQuestions(updated);
+                            }} 
+                            placeholder={`Opción ${opIdx + 1}`} 
+                            className="flex-1 border border-slate-200 rounded-lg p-1.5 bg-white font-semibold text-slate-800"
+                          />
+                          <button 
+                            disabled={q.opciones.length <= 2}
+                            onClick={() => {
+                              const updated = [...quizQuestions];
+                              updated[idx].opciones = updated[idx].opciones.filter((_, o) => o !== opIdx);
+                              if (parseInt(q.correct_idx) >= updated[idx].opciones.length) {
+                                updated[idx].correct_idx = 0;
+                              }
+                              setQuizQuestions(updated);
+                            }}
+                            className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg cursor-pointer transition disabled:opacity-30 disabled:hover:bg-transparent"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {quizQuestions.length === 0 && (
+                <div className="p-8 text-center text-xs text-slate-550 font-bold uppercase border border-dashed rounded-3xl bg-slate-50">
+                  No hay preguntas en este cuestionario. Haz clic en "Agregar Pregunta" abajo.
+                </div>
+              )}
+
+              <button
+                onClick={() => {
+                  setQuizQuestions([...quizQuestions, {
+                    pregunta: '',
+                    tipo: 'multiple',
+                    opciones: ['Opción A', 'Opción B'],
+                    correct_idx: 0,
+                    puntos: 1
+                  }]);
+                }}
+                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-[10px] uppercase py-2.5 rounded-xl border border-dashed border-slate-300 transition cursor-pointer"
+              >
+                + Agregar Pregunta
+              </button>
+            </div>
+
+            <div className="flex justify-between items-center pt-3 border-t shrink-0">
+              <span className="text-[10px] text-slate-450 font-bold uppercase">
+                Total Puntos: {quizQuestions.reduce((s, q) => s + (parseFloat(q.puntos) || 0), 0)}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowQuizModal(false)}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-4 py-2.5 rounded-xl transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSaveQuiz}
+                  disabled={savingForm}
+                  className="bg-primary hover:bg-primary-hover text-white text-xs font-bold px-4 py-2.5 rounded-xl transition cursor-pointer flex items-center gap-1"
+                >
+                  {savingForm ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  <span>Guardar Evaluación</span>
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* MODAL COMPARTIR CAPACITACIÓN */}
+      {showShareCapModal && shareCapItem && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 space-y-5">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+              <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                <Share2 className="w-4 h-4 text-primary" />
+                <span>Compartir Capacitación</span>
+              </h3>
+              <button onClick={() => setShowShareCapModal(false)} className="text-slate-400 hover:text-slate-655 font-bold text-sm cursor-pointer">✕</button>
+            </div>
+
+            <div className="space-y-2">
+              <h4 className="text-sm font-black text-slate-850 uppercase">{shareCapItem.titulo}</h4>
+              <p className="text-xs text-slate-500">
+                Comparte este enlace para que los trabajadores realicen el curso y respondan el examen desde cualquier dispositivo.
+              </p>
+            </div>
+
+            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-2">
+              <span className="text-[9px] font-bold uppercase text-slate-450 block">Enlace de la Capacitación:</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={getShareCapUrl(shareCapItem)}
+                  className="bg-white border border-slate-200 rounded-xl p-2 text-xs font-mono text-slate-700 flex-1 select-all"
+                />
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(getShareCapUrl(shareCapItem));
+                    setSuccessMsg('Enlace de capacitación copiado.');
+                    setShowShareCapModal(false);
+                  }}
+                  className="bg-primary hover:bg-primary-hover text-white p-2 rounded-xl transition cursor-pointer"
+                  title="Copiar enlace"
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setShowShareCapModal(false)}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-4 py-2 rounded-xl transition cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DETALLES DEL INTENTO DE EVALUACIÓN */}
+      {selectedIntentoDetail && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-xl p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2 shrink-0">
+              <div className="space-y-0.5">
+                <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                  <Award className="w-5 h-5 text-emerald-650" />
+                  <span>Hoja de Respuestas de Trabajador</span>
+                </h3>
+                <p className="text-[10px] text-slate-450 font-bold uppercase">{selectedIntentoDetail.nombre_trabajador}</p>
+              </div>
+              <button onClick={() => setSelectedIntentoDetail(null)} className="text-slate-400 hover:text-slate-655 font-bold text-sm cursor-pointer">✕</button>
+            </div>
+
+            {/* Ficha Resumen */}
+            <div className="bg-slate-50 p-4 rounded-2xl border my-4 grid grid-cols-2 gap-4 text-xs font-semibold text-slate-700 shrink-0">
+              <div className="space-y-1">
+                <p className="text-[9px] font-bold text-slate-450 uppercase">RUT</p>
+                <p className="text-slate-800 font-mono">{selectedIntentoDetail.rut_trabajador}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[9px] font-bold text-slate-450 uppercase">Nota Final</p>
+                <p className={`text-sm font-black uppercase ${selectedIntentoDetail.aprobado ? 'text-emerald-700' : 'text-red-700'}`}>
+                  {parseFloat(selectedIntentoDetail.nota).toFixed(1)} ({selectedIntentoDetail.aprobado ? 'Aprobado' : 'Reprobado'})
+                </p>
+              </div>
+              <div className="space-y-1 col-span-2">
+                <p className="text-[9px] font-bold text-slate-450 uppercase">Capacitación Realizada</p>
+                <p className="text-slate-800 font-bold uppercase">{selectedIntentoDetail.prevencion_capacitaciones?.titulo || 'Desconocida'}</p>
+              </div>
+            </div>
+
+            {/* Listado de Preguntas Contestadas */}
+            <div className="flex-1 overflow-y-auto pr-1 space-y-3 text-xs font-semibold text-slate-700">
+              {Array.isArray(selectedIntentoDetail.curso?.preguntas) ? (
+                selectedIntentoDetail.curso.preguntas.map((preg, idx) => {
+                  const selectIdx = selectedIntentoDetail.respuestas[idx];
+                  const correctIdx = parseInt(preg.correct_idx);
+                  const isCorrect = selectIdx === correctIdx;
+                  return (
+                    <div key={idx} className={`border rounded-2xl p-4 space-y-2 ${isCorrect ? 'bg-emerald-50/30 border-emerald-100' : 'bg-red-50/30 border-red-100'}`}>
+                      <div className="flex justify-between items-start gap-4">
+                        <p className="font-extrabold text-slate-800">{idx + 1}. {preg.pregunta}</p>
+                        <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded shrink-0 ${isCorrect ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                          {isCorrect ? `Correcto (+${preg.puntos} pts)` : 'Incorrecto (0 pts)'}
+                        </span>
+                      </div>
+                      <div className="space-y-1 pl-2">
+                        <p className="text-[10px]">
+                          <span className="text-slate-450">Respuesta elegida:</span>{' '}
+                          <span className={`font-bold ${isCorrect ? 'text-emerald-700' : 'text-red-700'}`}>
+                            {preg.opciones[selectIdx] !== undefined ? preg.opciones[selectIdx] : '(No respondida)'}
+                          </span>
+                        </p>
+                        {!isCorrect && (
+                          <p className="text-[10px]">
+                            <span className="text-slate-450">Respuesta correcta:</span>{' '}
+                            <span className="text-emerald-700 font-bold">
+                              {preg.opciones[correctIdx]}
+                            </span>
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="text-center text-slate-450 italic">No hay preguntas de referencia para mostrar.</p>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-3 border-t shrink-0">
+              <button
+                onClick={() => setSelectedIntentoDetail(null)}
                 className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-4 py-2 rounded-xl transition cursor-pointer"
               >
                 Cerrar
