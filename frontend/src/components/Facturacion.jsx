@@ -4,7 +4,7 @@ import {
   Building2, Receipt, Plus, Trash2, Check, AlertCircle, RefreshCw, FileText, 
   ChevronRight, ArrowLeft, Printer, Search, Settings, Save, Sparkles, FolderPlus, 
   Coins, ShoppingBag, Eye, Percent, FileCode, CheckCircle, HelpCircle, HardDrive,
-  Users, Boxes, FileCheck, Ban
+  Users, Boxes, FileCheck, Ban, Lock, Unlock
 } from 'lucide-react';
 import { comunasChile } from '../utils/comunas';
 
@@ -1730,7 +1730,10 @@ ${detalleXml}  </Documento>
           <div className="bg-white border border-slate-250 rounded-3xl p-6 shadow-xs space-y-4">
             <h4 className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider border-b pb-2 flex justify-between items-center">
               <span>🛠️ Detalle de Ítems</span>
-              <button onClick={() => setDteItems([...dteItems, { codigo: '', descripcion: '', cantidad: 1, precioUnitario: 0, exento: false, detalles: '' }])} className="text-[9px] font-black uppercase bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-xl cursor-pointer transition flex items-center gap-1">
+              <button onClick={() => {
+                const lockedItems = dteItems.map(it => ({ ...it, locked: true }));
+                setDteItems([...lockedItems, { codigo: '', descripcion: '', cantidad: 1, precioUnitario: 0, exento: false, detalles: '', locked: false }]);
+              }} className="text-[9px] font-black uppercase bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-xl cursor-pointer transition flex items-center gap-1">
                 <Plus className="w-3.5 h-3.5" /> Agregar Producto
               </button>
             </h4>
@@ -1738,38 +1741,47 @@ ${detalleXml}  </Documento>
             {/* Listado de Productos como Tarjetas Modernas */}
             <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1">
               {dteItems.map((item, idx) => (
-                <div key={idx} className="bg-slate-50 border border-slate-150 rounded-2xl p-4 space-y-3 relative text-xs font-semibold text-slate-700">
-                  <button onClick={() => { if (dteItems.length === 1) return; setDteItems(dteItems.filter((_, i) => i !== idx)); }} className="absolute top-3 right-3 text-red-500 hover:bg-red-50 p-1.5 rounded-lg cursor-pointer transition" title="Eliminar ítem">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                <div key={idx} className={`border rounded-2xl p-4 space-y-3 relative text-xs font-semibold text-slate-700 transition ${item.locked ? 'bg-slate-100 border-slate-200 opacity-90' : 'bg-slate-50 border-slate-150'}`}>
+                  <div className="absolute top-3 right-3 flex items-center gap-1.5">
+                    <button onClick={() => {
+                      const upd = [...dteItems];
+                      upd[idx].locked = !upd[idx].locked;
+                      setDteItems(upd);
+                    }} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg cursor-pointer transition" title={item.locked ? "Desbloquear para editar" : "Bloquear edición"}>
+                      {item.locked ? <Lock className="w-4 h-4 text-amber-500" /> : <Unlock className="w-4 h-4 text-slate-450" />}
+                    </button>
+                    <button onClick={() => { if (dteItems.length === 1) return; setDteItems(dteItems.filter((_, i) => i !== idx)); }} className="text-red-500 hover:bg-red-55 p-1.5 rounded-lg cursor-pointer transition" title="Eliminar ítem">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
                     <div className="md:col-span-3 space-y-1">
                       <label className="block text-[8px] font-extrabold uppercase text-slate-450">Código Producto</label>
-                      <input type="text" value={item.codigo || ''} onChange={(e) => { const upd = [...dteItems]; upd[idx].codigo = e.target.value; setDteItems(upd); }} placeholder="ej: H-30" className="w-full border border-slate-200 rounded-xl p-2 text-xs bg-white" />
+                      <input type="text" value={item.codigo || ''} disabled={item.locked} onChange={(e) => { const upd = [...dteItems]; upd[idx].codigo = e.target.value; setDteItems(upd); }} placeholder="ej: H-30" className="w-full border border-slate-200 rounded-xl p-2 text-xs bg-white disabled:bg-slate-100 disabled:text-slate-500" />
                     </div>
                     <div className="md:col-span-5 space-y-1">
                       <label className="block text-[8px] font-extrabold uppercase text-slate-450">Descripción / Producto</label>
-                      <input type="text" value={item.descripcion} onChange={(e) => { const upd = [...dteItems]; upd[idx].descripcion = e.target.value; setDteItems(upd); }} placeholder="Detalle del producto o servicio..." className="w-full border border-slate-200 rounded-xl p-2 text-xs bg-white font-bold" />
+                      <input type="text" value={item.descripcion} disabled={item.locked} onChange={(e) => { const upd = [...dteItems]; upd[idx].descripcion = e.target.value; setDteItems(upd); }} placeholder="Detalle del producto o servicio..." className="w-full border border-slate-200 rounded-xl p-2 text-xs bg-white font-bold disabled:bg-slate-100 disabled:text-slate-500" />
                     </div>
                     <div className="md:col-span-2 space-y-1">
                       <label className="block text-[8px] font-extrabold uppercase text-slate-450 text-center">Cantidad</label>
-                      <input type="number" value={item.cantidad} onChange={(e) => { const upd = [...dteItems]; upd[idx].cantidad = parseInt(e.target.value) || 0; setDteItems(upd); }} className="w-full border border-slate-200 rounded-xl p-2 text-xs bg-white text-center font-bold text-slate-800" />
+                      <input type="number" value={item.cantidad} disabled={item.locked} onChange={(e) => { const upd = [...dteItems]; upd[idx].cantidad = parseInt(e.target.value) || 0; setDteItems(upd); }} className="w-full border border-slate-200 rounded-xl p-2 text-xs bg-white text-center font-bold text-slate-800 disabled:bg-slate-100 disabled:text-slate-500" />
                     </div>
                     <div className="md:col-span-2 space-y-1">
                       <label className="block text-[8px] font-extrabold uppercase text-slate-450 text-right">P. Unitario</label>
-                      <input type="number" value={item.precioUnitario} onChange={(e) => { const upd = [...dteItems]; upd[idx].precioUnitario = parseFloat(e.target.value) || 0; setDteItems(upd); }} className="w-full border border-slate-200 rounded-xl p-2 text-xs bg-white text-right font-bold text-slate-850" />
+                      <input type="number" value={item.precioUnitario} disabled={item.locked} onChange={(e) => { const upd = [...dteItems]; upd[idx].precioUnitario = parseFloat(e.target.value) || 0; setDteItems(upd); }} className="w-full border border-slate-200 rounded-xl p-2 text-xs bg-white text-right font-bold text-slate-855 disabled:bg-slate-100 disabled:text-slate-500" />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
                     <div className="md:col-span-9 space-y-1">
                       <label className="block text-[8px] font-extrabold uppercase text-slate-450">Especificaciones / Detalles Adicionales</label>
-                      <input type="text" value={item.detalles || ''} onChange={(e) => { const upd = [...dteItems]; upd[idx].detalles = e.target.value; setDteItems(upd); }} placeholder="ej: dimensiones, marca, color, notas especiales de despacho..." className="w-full border border-slate-200 rounded-xl p-2 text-xs bg-white text-slate-700 font-normal" />
+                      <input type="text" value={item.detalles || ''} disabled={item.locked} onChange={(e) => { const upd = [...dteItems]; upd[idx].detalles = e.target.value; setDteItems(upd); }} placeholder="ej: dimensiones, marca, color, notas especiales de despacho..." className="w-full border border-slate-200 rounded-xl p-2 text-xs bg-white text-slate-700 font-normal disabled:bg-slate-100 disabled:text-slate-500" />
                     </div>
                     <div className="md:col-span-3 flex items-center justify-end gap-2 pt-4">
-                      <input type="checkbox" id={`exento-${idx}`} checked={item.exento || false} onChange={(e) => { const upd = [...dteItems]; upd[idx].exento = e.target.checked; setDteItems(upd); }} className="w-4 h-4 rounded border-slate-300 focus:ring-primary cursor-pointer text-primary" />
-                      <label htmlFor={`exento-${idx}`} className="text-[10px] font-extrabold uppercase text-slate-550 cursor-pointer select-none">Exento de IVA</label>
+                      <input type="checkbox" id={`exento-${idx}`} checked={item.exento || false} disabled={item.locked} onChange={(e) => { const upd = [...dteItems]; upd[idx].exento = e.target.checked; setDteItems(upd); }} className="w-4 h-4 rounded border-slate-300 focus:ring-primary cursor-pointer text-primary disabled:opacity-50" />
+                      <label htmlFor={`exento-${idx}`} className="text-[10px] font-extrabold uppercase text-slate-550 cursor-pointer select-none disabled:opacity-50">Exento de IVA</label>
                     </div>
                   </div>
                 </div>
@@ -1890,11 +1902,11 @@ ${detalleXml}  </Documento>
                 <div className="border-4 border-emerald-700 p-6 space-y-6 rounded-xl">
                   <div className="flex justify-between items-start">
                     <div>
-                      <h2 className="text-sm font-black text-emerald-800 uppercase">{configSii.razon_social || user.empresa}</h2>
-                      <p className="text-[10px] text-slate-500 font-extrabold uppercase">Giro: {configSii.giro}</p>
+                      <h2 className="text-sm font-black text-emerald-800 uppercase">{configSii?.razon_social || user.empresa}</h2>
+                      <p className="text-[10px] text-slate-500 font-extrabold uppercase">Giro: {configSii?.giro || 'Giro Comercial'}</p>
                     </div>
                     <div className="border-4 border-red-600 rounded-lg p-3 text-center w-52 shrink-0">
-                      <p className="text-red-600 text-[10px] font-black">R.U.T.: {configSii.rut_empresa}</p>
+                      <p className="text-red-600 text-[10px] font-black">R.U.T.: {configSii?.rut_empresa || 'RUT Emisor'}</p>
                       <p className="text-red-600 text-xs font-black uppercase">{getDteTypeName(selectedDTE.tipo_dte)}</p>
                       <p className="text-red-600 text-[11px] font-black">Nº {selectedDTE.folio}</p>
                     </div>
@@ -2302,33 +2314,45 @@ ${detalleXml}  </Documento>
               <div className="space-y-3">
                 <h4 className="text-[10px] text-slate-500 font-extrabold uppercase border-b pb-1 flex justify-between items-center">
                   <span>🛠️ Detalle de Productos (OC)</span>
-                  <button onClick={() => setOcItems([...ocItems, { descripcion: '', cantidad: 1, precioUnitario: 0, detalles: '' }])} className="text-[8px] font-black uppercase bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-0.5 rounded cursor-pointer transition">+ Agregar Producto</button>
+                  <button onClick={() => {
+                    const lockedItems = ocItems.map(it => ({ ...it, locked: true }));
+                    setOcItems([...lockedItems, { descripcion: '', cantidad: 1, precioUnitario: 0, detalles: '', locked: false }]);
+                  }} className="text-[8px] font-black uppercase bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-0.5 rounded cursor-pointer transition">+ Agregar Producto</button>
                 </h4>
                 <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
                   {ocItems.map((it, idx) => (
-                    <div key={idx} className="bg-slate-50 border border-slate-150 rounded-2xl p-3.5 space-y-2.5 relative text-xs font-semibold text-slate-700">
-                      <button onClick={() => { if (ocItems.length === 1) return; setOcItems(ocItems.filter((_, i) => i !== idx)); }} className="absolute top-2 right-2 text-red-500 hover:bg-red-50 p-1.5 rounded-lg cursor-pointer transition">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                    <div key={idx} className={`border rounded-2xl p-3.5 space-y-2.5 relative text-xs font-semibold text-slate-700 transition ${it.locked ? 'bg-slate-100 border-slate-200 opacity-90' : 'bg-slate-50 border-slate-150'}`}>
+                      <div className="absolute top-2 right-2 flex items-center gap-1.5">
+                        <button onClick={() => {
+                          const upd = [...ocItems];
+                          upd[idx].locked = !upd[idx].locked;
+                          setOcItems(upd);
+                        }} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg cursor-pointer transition" title={it.locked ? "Desbloquear para editar" : "Bloquear edición"}>
+                          {it.locked ? <Lock className="w-3.5 h-3.5 text-amber-500" /> : <Unlock className="w-3.5 h-3.5 text-slate-450" />}
+                        </button>
+                        <button onClick={() => { if (ocItems.length === 1) return; setOcItems(ocItems.filter((_, i) => i !== idx)); }} className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg cursor-pointer transition" title="Eliminar ítem">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-12 gap-2">
                         <div className="md:col-span-6 space-y-1">
                           <label className="block text-[8px] font-extrabold uppercase text-slate-450">Descripción / Producto</label>
-                          <input type="text" value={it.descripcion} onChange={(e) => { const upd = [...ocItems]; upd[idx].descripcion = e.target.value; setOcItems(upd); }} placeholder="ej: Cemento Melón Especial" className="w-full border border-slate-200 rounded-lg p-1.5 text-xs bg-white font-bold" />
+                          <input type="text" value={it.descripcion} disabled={it.locked} onChange={(e) => { const upd = [...ocItems]; upd[idx].descripcion = e.target.value; setOcItems(upd); }} placeholder="ej: Cemento Melón Especial" className="w-full border border-slate-200 rounded-lg p-1.5 text-xs bg-white font-bold disabled:bg-slate-100 disabled:text-slate-550" />
                         </div>
                         <div className="md:col-span-3 space-y-1">
                           <label className="block text-[8px] font-extrabold uppercase text-slate-450 text-center">Cantidad</label>
-                          <input type="number" value={it.cantidad} onChange={(e) => { const upd = [...ocItems]; upd[idx].cantidad = parseInt(e.target.value) || 0; setOcItems(upd); }} className="w-full border border-slate-200 rounded-lg p-1.5 text-xs bg-white text-center font-bold" />
+                          <input type="number" value={it.cantidad} disabled={it.locked} onChange={(e) => { const upd = [...ocItems]; upd[idx].cantidad = parseInt(e.target.value) || 0; setOcItems(upd); }} className="w-full border border-slate-200 rounded-lg p-1.5 text-xs bg-white text-center font-bold disabled:bg-slate-100 disabled:text-slate-550" />
                         </div>
                         <div className="md:col-span-3 space-y-1">
                           <label className="block text-[8px] font-extrabold uppercase text-slate-450 text-right">P. Unitario</label>
-                          <input type="number" value={it.precioUnitario} onChange={(e) => { const upd = [...ocItems]; upd[idx].precioUnitario = parseFloat(e.target.value) || 0; setOcItems(upd); }} className="w-full border border-slate-200 rounded-lg p-1.5 text-xs bg-white text-right font-bold" />
+                          <input type="number" value={it.precioUnitario} disabled={it.locked} onChange={(e) => { const upd = [...ocItems]; upd[idx].precioUnitario = parseFloat(e.target.value) || 0; setOcItems(upd); }} className="w-full border border-slate-200 rounded-lg p-1.5 text-xs bg-white text-right font-bold disabled:bg-slate-100 disabled:text-slate-555" />
                         </div>
                       </div>
 
                       <div className="space-y-1">
                         <label className="block text-[8px] font-extrabold uppercase text-slate-450">Especificaciones / Detalles Adicionales (Notas)</label>
-                        <input type="text" value={it.detalles || ''} onChange={(e) => { const upd = [...ocItems]; upd[idx].detalles = e.target.value; setOcItems(upd); }} placeholder="ej: color, dimensiones, marca, plazo de entrega en bodega..." className="w-full border border-slate-200 rounded-lg p-1.5 text-xs bg-white text-slate-700 font-normal" />
+                        <input type="text" value={it.detalles || ''} disabled={it.locked} onChange={(e) => { const upd = [...ocItems]; upd[idx].detalles = e.target.value; setOcItems(upd); }} placeholder="ej: color, dimensiones, marca, plazo de entrega en bodega..." className="w-full border border-slate-200 rounded-lg p-1.5 text-xs bg-white text-slate-700 font-normal disabled:bg-slate-100 disabled:text-slate-550" />
                       </div>
                     </div>
                   ))}
