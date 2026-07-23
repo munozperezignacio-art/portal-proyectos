@@ -7,6 +7,7 @@ import ConfigCorreos from './components/ConfigCorreos';
 import PresupuestosPlanif from './components/PresupuestosPlanif';
 import Prevencion from './components/Prevencion';
 import PublicFormFiller from './components/PublicFormFiller';
+import Facturacion from './components/Facturacion';
 import { 
   LogOut, LayoutDashboard, Building2, Users, Truck, ShieldAlert, Settings, Info, Menu, X, Loader2,
   Layers, Handshake, Receipt, Coins, ClipboardCheck, Boxes, BadgeCheck,
@@ -607,6 +608,15 @@ function App() {
               setSelectedObraName(null);
               setCurrentModule('dashboard');
             }} />
+          ) : currentModule === 'facturacion' ? (
+            <Facturacion 
+              user={user} 
+              companyBranding={companyBranding} 
+              onBack={() => {
+                setSelectedObraName(null);
+                setCurrentModule('dashboard');
+              }} 
+            />
           ) : (
             /* Fallback */
             <div className="bg-white p-6 border border-slate-200 rounded-2xl shadow-sm space-y-4">
