@@ -1942,25 +1942,25 @@ export default function Facturacion({ user, companyBranding, onBack }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold text-slate-700">
               <div className="space-y-1">
                 <label className="block text-[9px] font-bold uppercase text-slate-450">RUT Empresa</label>
-                <input type="text" value={configSii.rut_empresa || ''} onChange={(e) => setConfigSii({ ...configSii, rut_empresa: e.target.value })} className="w-full border border-slate-250 rounded-xl p-2.5 text-xs text-slate-800 bg-white" />
+                <input type="text" value={configSii?.rut_empresa || ''} onChange={(e) => setConfigSii({ ...configSii, rut_empresa: e.target.value })} className="w-full border border-slate-250 rounded-xl p-2.5 text-xs text-slate-800 bg-white" />
               </div>
               <div className="space-y-1">
                 <label className="block text-[9px] font-bold uppercase text-slate-450">Razón Social</label>
-                <input type="text" value={configSii.razon_social || ''} onChange={(e) => setConfigSii({ ...configSii, razon_social: e.target.value })} className="w-full border border-slate-250 rounded-xl p-2.5 text-xs text-slate-800 bg-white" />
+                <input type="text" value={configSii?.razon_social || ''} onChange={(e) => setConfigSii({ ...configSii, razon_social: e.target.value })} className="w-full border border-slate-250 rounded-xl p-2.5 text-xs text-slate-800 bg-white" />
               </div>
               <div className="space-y-1 sm:col-span-2">
                 <label className="block text-[9px] font-bold uppercase text-slate-450">Giro Comercial</label>
-                <input type="text" value={configSii.giro || ''} onChange={(e) => setConfigSii({ ...configSii, giro: e.target.value })} className="w-full border border-slate-250 rounded-xl p-2.5 text-xs text-slate-800 bg-white" />
+                <input type="text" value={configSii?.giro || ''} onChange={(e) => setConfigSii({ ...configSii, giro: e.target.value })} className="w-full border border-slate-250 rounded-xl p-2.5 text-xs text-slate-800 bg-white" />
               </div>
               <div className="space-y-1">
                 <label className="block text-[9px] font-bold uppercase text-slate-450">Dirección Casa Matriz</label>
-                <input type="text" value={configSii.direccion || ''} onChange={(e) => setConfigSii({ ...configSii, direccion: e.target.value })} className="w-full border border-slate-250 rounded-xl p-2.5 text-xs text-slate-800 bg-white" />
+                <input type="text" value={configSii?.direccion || ''} onChange={(e) => setConfigSii({ ...configSii, direccion: e.target.value })} className="w-full border border-slate-250 rounded-xl p-2.5 text-xs text-slate-800 bg-white" />
               </div>
               <div className="space-y-1">
                 <label className="block text-[9px] font-bold uppercase text-slate-455">Comuna</label>
-                <select value={configSii.comuna || ''} onChange={(e) => setConfigSii({ ...configSii, comuna: e.target.value })} className="w-full border border-slate-250 rounded-xl p-2.5 text-xs text-slate-800 bg-white cursor-pointer">
+                <select value={configSii?.comuna || ''} onChange={(e) => setConfigSii({ ...configSii, comuna: e.target.value })} className="w-full border border-slate-250 rounded-xl p-2.5 text-xs text-slate-800 bg-white cursor-pointer">
                   <option value="">Selecciona Comuna...</option>
-                  {comunasChile.map((c, i) => <option key={i} value={c}>{c}</option>)}
+                  {Array.isArray(comunasChile) && comunasChile.map((c, i) => <option key={i} value={c}>{c}</option>)}
                 </select>
               </div>
             </div>
@@ -1976,7 +1976,7 @@ export default function Facturacion({ user, companyBranding, onBack }) {
                 <input
                   type="checkbox"
                   id="ruleRechazoSinOC"
-                  checked={configSii.rechazo_sin_oc || false}
+                  checked={configSii?.rechazo_sin_oc || false}
                   onChange={(e) => handleToggleRuleRechazo(e.target.checked)}
                   className="w-4 h-4 text-primary border-slate-350 rounded focus:ring-primary mt-0.5 cursor-pointer"
                 />
@@ -1992,7 +1992,7 @@ export default function Facturacion({ user, companyBranding, onBack }) {
             </div>
 
             <div className="flex justify-end">
-              <button onClick={handleSaveConfigSii} disabled={loading} className="bg-primary text-white font-extrabold text-xs uppercase px-5 py-2.5 rounded-xl hover:bg-primary-hover transition flex items-center gap-1.5">
+              <button onClick={handleSaveConfigSii} disabled={loading} className="bg-primary text-white font-extrabold text-xs uppercase px-5 py-2.5 rounded-xl hover:bg-primary-hover shadow-xs transition flex items-center gap-1.5">
                 {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                 Guardar Configuración
               </button>
@@ -2002,7 +2002,7 @@ export default function Facturacion({ user, companyBranding, onBack }) {
           <div className="lg:col-span-5 bg-white border border-slate-250 rounded-3xl p-6 shadow-xs space-y-5 h-fit font-semibold text-xs text-slate-700">
             <div className="space-y-3">
               <h4 className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider border-b pb-2">🔑 Certificado Digital</h4>
-              {configSii.certificado_nombre && (
+              {configSii?.certificado_nombre && (
                 <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-3.5 rounded-2xl flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
                   <div className="truncate">
@@ -2024,7 +2024,7 @@ export default function Facturacion({ user, companyBranding, onBack }) {
             <div className="border-t pt-4 space-y-3">
               <h4 className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider flex items-center justify-between">
                 <span>📶 Canal de Conexión SII</span>
-                <select value={configSii.modo_sii} onChange={(e) => setConfigSii({ ...configSii, modo_sii: e.target.value })} className="border text-[9px] font-black uppercase px-2 py-1 bg-slate-50 cursor-pointer">
+                <select value={configSii?.modo_sii || 'Certificación'} onChange={(e) => setConfigSii({ ...configSii, modo_sii: e.target.value })} className="border text-[9px] font-black uppercase px-2 py-1 bg-slate-50 cursor-pointer">
                   <option value="Certificación">Certificación</option>
                   <option value="Producción">Producción</option>
                 </select>
