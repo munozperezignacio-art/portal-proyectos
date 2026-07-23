@@ -133,7 +133,7 @@ export default function Prevencion({ user, onBack }) {
       if (error) throw error;
       setFormularios(data || []);
     } catch (err) {
-      console.error('Error al cargar formularios:', err.message);
+      console.error('Error al cargar formularios:', err?.message || 'Error desconocido');
     } finally {
       setLoadingForms(false);
     }
@@ -149,7 +149,7 @@ export default function Prevencion({ user, onBack }) {
       if (error) throw error;
       setRespuestas(data || []);
     } catch (err) {
-      console.error('Error al cargar respuestas:', err.message);
+      console.error('Error al cargar respuestas:', err?.message || 'Error desconocido');
     } finally {
       setLoadingRespuestas(false);
     }
@@ -165,7 +165,7 @@ export default function Prevencion({ user, onBack }) {
       if (error) throw error;
       setCapacitaciones(data || []);
     } catch (err) {
-      console.error('Error al cargar capacitaciones:', err.message);
+      console.error('Error al cargar capacitaciones:', err?.message || 'Error desconocido');
     } finally {
       setLoadingCapacitaciones(false);
     }
@@ -181,7 +181,7 @@ export default function Prevencion({ user, onBack }) {
       if (error) throw error;
       setIntentosEvaluaciones(data || []);
     } catch (err) {
-      console.error('Error al cargar intentos de evaluación:', err.message);
+      console.error('Error al cargar intentos de evaluación:', err?.message || 'Error desconocido');
     } finally {
       setLoadingIntentos(false);
     }
@@ -202,7 +202,7 @@ export default function Prevencion({ user, onBack }) {
         descripcion: capDescripcion,
         video_url: capVideoUrl,
         contenido_texto: capContenidoTexto,
-        creado_por: user ? user.email : 'Prevencionista'
+        creado_por: user ? (user.correo || user.usuario) : 'Prevencionista'
       };
 
       if (capId) {
@@ -230,7 +230,7 @@ export default function Prevencion({ user, onBack }) {
 
       fetchCapacitaciones();
     } catch (err) {
-      setErrorMsg('Error al guardar capacitación: ' + err.message);
+      setErrorMsg('Error al guardar capacitación: ' + (err?.message || 'Error desconocido'));
     } finally {
       setSavingForm(false);
     }
@@ -248,7 +248,7 @@ export default function Prevencion({ user, onBack }) {
       fetchCapacitaciones();
       fetchIntentosEvaluaciones();
     } catch (err) {
-      setErrorMsg('Error al eliminar: ' + err.message);
+      setErrorMsg('Error al eliminar: ' + (err?.message || 'Error desconocido'));
     }
   };
 
@@ -267,7 +267,7 @@ export default function Prevencion({ user, onBack }) {
       setShowQuizModal(false);
       fetchCapacitaciones();
     } catch (err) {
-      setErrorMsg('Error al guardar cuestionario: ' + err.message);
+      setErrorMsg('Error al guardar cuestionario: ' + (err?.message || 'Error desconocido'));
     } finally {
       setSavingForm(false);
     }
