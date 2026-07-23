@@ -4,7 +4,7 @@ import {
   ArrowLeft, FileSpreadsheet, Calendar, Plus, Save, Trash2, 
   Upload, Check, AlertCircle, RefreshCw, ChevronRight, CalendarDays,
   FolderPlus, DollarSign, Hammer, Briefcase, FileText, MapPin, Clock, ChevronLeft,
-  Settings, Percent, Coins, Sliders, Info, Store, Building2, ChevronDown, ChevronUp, Calculator, Fuel, Wrench, PieChart, Download, Globe, TrendingUp
+  Settings, Percent, Coins, Sliders, Info, Store, Building2, ChevronDown, ChevronUp, Calculator, Fuel, Wrench, PieChart, Download, Globe, TrendingUp, Sparkles
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { comunasChile } from '../utils/comunas';
@@ -194,6 +194,22 @@ export default function PresupuestosPlanif({ user, onBack }) {
   const [allApuLinks, setAllApuLinks] = useState([]);
   const [allApuLinksLoading, setAllApuLinksLoading] = useState(false);
 
+  // Estados del Importador de Presupuestos con IA
+  const [geminiApiKey, setGeminiApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
+  const [importAILoading, setImportAILoading] = useState(false);
+  const [importAIError, setImportAIError] = useState('');
+  const [importAIFile, setImportAIFile] = useState(null);
+  const [parsedAIBudget, setParsedAIBudget] = useState(null);
+
+  // Estados editables de la vista previa del proyecto importado por IA
+  const [aiProjNombre, setAiProjNombre] = useState('');
+  const [aiProjCliente, setAiProjCliente] = useState('');
+  const [aiProjComuna, setAiProjComuna] = useState('');
+  const [aiProjMoneda, setAiProjMoneda] = useState('CLP');
+  const [aiProjPlazo, setAiProjPlazo] = useState(30);
+
+
+
   // Configuración del calendario laboral del proyecto
   const [calendarConfig, setCalendarConfig] = useState({
     trabajaSabado: false,
@@ -371,6 +387,283 @@ export default function PresupuestosPlanif({ user, onBack }) {
       fetchProjectApuLinks();
     }
   }, [activeSection, selectedProyectoId, itemsPresupuesto]);
+
+  // --- LÓGICA DE IMPORTADOR INTELIGENTE CON IA (GEMINI 2.5 FLASH) ---
+  const convertFileToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleProcessAIImport = async () => {
+    if (!importAIFile) {
+      setImportAIError("Por favor selecciona un archivo.");
+      return;
+    }
+    if (!geminiApiKey.trim()) {
+      setImportAIError("Por favor ingresa una API Key de Gemini válida.");
+      return;
+    }
+    setImportAILoading(true);
+    setImportAIError("");
+    setParsedAIBudget(null);
+
+    try {
+      const file = importAIFile;
+      const fileType = file.name.split('.').pop().toLowerCase();
+      
+      let promptPayload = "";
+      let inlineData = null;
+
+      if (['xlsx', 'xls', 'csv'].includes(fileType)) {
+        const data = await file.arrayBuffer();
+        const workbook = XLSX.read(data, { type: 'array' });
+        let textContent = "";
+        workbook.SheetNames.forEach(sheetName => {
+          const worksheet = workbook.Sheets[sheetName];
+          const csv = XLSX.utils.sheet_to_csv(worksheet);
+          textContent += `--- Hoja: ${sheetName} ---\n${csv}\n\n`;
+        });
+        promptPayload = `Aquí está el contenido del presupuesto en formato de planilla:\n\n${textContent}`;
+      } else if (fileType === 'pdf') {
+        const base64 = await convertFileToBase64(file);
+        inlineData = {
+          mimeType: "application/pdf",
+          data: base64
+        };
+        promptPayload = "Analiza el archivo PDF adjunto que contiene un presupuesto de obra.";
+      } else if (['png', 'jpg', 'jpeg'].includes(fileType)) {
+        const base64 = await convertFileToBase64(file);
+        inlineData = {
+          mimeType: file.type,
+          data: base64
+        };
+        promptPayload = "Analiza la imagen adjunta que contiene una planilla de presupuesto de obra.";
+      } else {
+        const text = await file.text();
+        promptPayload = `Aquí está el contenido de texto del presupuesto:\n\n${text}`;
+      }
+
+      const systemPrompt = `Eres un experto en ingeniería de costos y presupuestos para la construcción.
+Tu tarea es leer y extraer estructuradamente la información de la planilla o documento de presupuesto adjunto.
+Debes identificar:
+1. Nombre del proyecto (sé descriptivo, ej. "Habilitación de Oficinas EMIN", "Pavimentación Calle Larraín").
+2. Cliente o Mandante del proyecto.
+3. Ubicación o Comuna de Chile sugerida en base a la dirección o contexto del texto (ej. "Santiago", "Las Condes", "Maipú").
+4. Moneda base (CLP, USD o UF).
+5. Listado jerárquico de partidas y capítulos.
+
+Para cada fila en el presupuesto, clasifícala como:
+- Capítulo (is_chapter: true): tiene un código y descripción, pero no tiene unidad, cantidad ni precio unitario.
+- Partida (is_chapter: false): tiene un código, descripción, unidad (ej: GL, M3, UN, M2, KG, etc.), cantidad y costo_unitario (precio unitario directo de costo).
+
+IMPORTANTE:
+- Mantén la jerarquía utilizando los códigos (ej: "01", "01.01", "01.02"). Si el archivo original no tiene códigos, genéralos en formato correlativo (ej. "01", "01.01", "01.02").
+- Si no encuentras la cantidad o el costo unitario para una partida, ponle 0 por defecto.
+- No incluyas filas vacías o subtotales de capítulo como partidas individuales. Los subtotales se calculan dinámicamente en nuestra aplicación.
+- Proporciona un estimado razonable para el plazo de ejecución en días hábiles (plazo_estimado, def: 30) según la magnitud del proyecto.
+
+Devuelve el resultado estrictamente en formato JSON utilizando el siguiente esquema:
+{
+  "proyecto": {
+    "nombre": "Nombre del proyecto o de la obra",
+    "cliente": "Cliente o Mandante",
+    "moneda_base": "CLP" (o "USD", o "UF"),
+    "comuna": "Comuna de Chile relevante o vacía",
+    "plazo_estimado": 30
+  },
+  "items": [
+    {
+      "codigo": "Código jerárquico",
+      "descripcion": "Descripción del ítem o capítulo",
+      "is_chapter": true o false,
+      "unidad": "Unidad física si no es capítulo, sino vacía",
+      "cantidad": número,
+      "costo_unitario": número
+    }
+  ]
+}
+
+IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado con bloques de código markdown de tipo \`\`\`json o similar, ni agregues ningún texto explicativo. Solo el objeto JSON.`;
+
+      const parts = [{ text: systemPrompt }];
+      if (promptPayload) {
+        parts.push({ text: promptPayload });
+      }
+      if (inlineData) {
+        parts.push({ inlineData });
+      }
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          contents: [{ parts }],
+          generationConfig: {
+            responseMimeType: "application/json"
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error?.message || `Error del servidor Gemini: ${response.status}`);
+      }
+
+      const resData = await response.json();
+      const rawText = resData.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!rawText) {
+        throw new Error("Gemini retornó una respuesta vacía o sin contenido.");
+      }
+
+      const parsed = JSON.parse(rawText.trim());
+      
+      if (!parsed.proyecto || !Array.isArray(parsed.items)) {
+        throw new Error("El JSON retornado por la IA no tiene el formato correcto.");
+      }
+
+      setParsedAIBudget(parsed);
+      setAiProjNombre(parsed.proyecto.nombre || '');
+      setAiProjCliente(parsed.proyecto.cliente || '');
+      setAiProjComuna(parsed.proyecto.comuna || '');
+      setAiProjMoneda(parsed.proyecto.moneda_base || 'CLP');
+      setAiProjPlazo(parseInt(parsed.proyecto.plazo_estimado) || 30);
+      setSuccessMsg("Archivo procesado con éxito por la Inteligencia Artificial. Revisa el desglose abajo.");
+    } catch (err) {
+      console.error(err);
+      setImportAIError(err.message || "Error procesando el archivo con Gemini.");
+    } finally {
+      setImportAILoading(false);
+    }
+  };
+
+  const handleConfirmAIImport = async () => {
+    if (!parsedAIBudget) return;
+    setImportAILoading(true);
+    setImportAIError("");
+    setSuccessMsg("");
+
+    try {
+      let finalProjName = aiProjNombre.trim();
+      if (!finalProjName) {
+        throw new Error("El nombre del proyecto no puede estar vacío.");
+      }
+
+      // Validar si el nombre ya existe
+      const { data: existingProjs } = await supabase
+        .from('presupuestos_proyectos')
+        .select('id')
+        .eq('nombre', finalProjName);
+      
+      if (existingProjs && existingProjs.length > 0) {
+        finalProjName += ` (${new Date().toLocaleDateString('es-CL')} ${new Date().toLocaleTimeString('es-CL').slice(0,5)})`;
+      }
+
+      const items = parsedAIBudget.items;
+      const totalDirectCostVal = items
+        .filter(item => !item.is_chapter)
+        .reduce((sum, item) => sum + ((parseFloat(item.cantidad) || 0) * (parseFloat(item.costo_unitario) || 0)), 0);
+
+      const serializedTipo = serializeProjectTipoAndCurrency('Privado', aiProjMoneda);
+      const serializedDesc = `Importado con IA 🧠 desde archivo: ${importAIFile ? importAIFile.name : 'Documento'}|||CALENDAR:${JSON.stringify(calendarConfig)}`;
+
+      const { data: projData, error: projErr } = await supabase
+        .from('presupuestos_proyectos')
+        .insert([
+          {
+            nombre: finalProjName,
+            descripcion: serializedDesc,
+            ubicacion: aiProjComuna || 'Santiago',
+            cliente: aiProjCliente || '',
+            plazo_estimado: parseInt(aiProjPlazo) || 30,
+            presupuesto_estimado: Math.round(totalDirectCostVal),
+            tipo_proyecto: serializedTipo,
+            comuna: aiProjComuna || 'Santiago',
+            metodologia: 'Precio Unitario'
+          }
+        ])
+        .select();
+
+      if (projErr) throw projErr;
+      if (!projData || projData.length === 0) {
+        throw new Error("No se pudo obtener el ID del proyecto insertado.");
+      }
+
+      const newProjId = projData[0].id;
+
+      const itemsToInsert = items.map(item => ({
+        presupuesto_id: newProjId,
+        codigo: item.codigo || '01',
+        partida: item.descripcion || 'Sin descripción',
+        unidad: item.is_chapter ? '' : (item.unidad || 'un'),
+        cantidad: item.is_chapter ? 0 : (parseFloat(item.cantidad) || 0),
+        costo_unitario: item.is_chapter ? 0 : (parseFloat(item.costo_unitario) || 0),
+        rendimiento_meta: item.is_chapter ? 0 : 1,
+        tipo_metodologia: 'Precio Unitario',
+        leyes_sociales_pct: 35,
+        imponderables_pct: 5,
+        herramientas_menores_pct: 5,
+        dias_habiles_mes: 22,
+        horas_jornada: 9,
+        precio_combustible: 1050
+      }));
+
+      const { data: insertedItems, error: itemsErr } = await supabase
+        .from('presupuestos_items')
+        .insert(itemsToInsert)
+        .select();
+
+      if (itemsErr) throw itemsErr;
+
+      const todayStr = new Date().toISOString().split('T')[0];
+      const cronoToInsert = insertedItems.map(item => {
+        const qty = parseFloat(item.cantidad) || 0;
+        const dur = item.unidad === '' ? 0 : Math.max(1, Math.min(30, Math.ceil(qty / 10) || 5));
+        const fechaFin = calculateEndDateWithCalendar(todayStr, dur, calendarConfig);
+
+        return {
+          presupuesto_id: newProjId,
+          codigo: item.codigo,
+          tarea: item.partida,
+          fecha_inicio: todayStr,
+          fecha_fin: fechaFin,
+          duracion: dur,
+          predecesora: '',
+          porcentaje_avance: 0,
+          responsable: '',
+          estado: 'blue'
+        };
+      });
+
+      const { error: cronoErr } = await supabase
+        .from('planificacion_cronogramas')
+        .insert(cronoToInsert);
+
+      if (cronoErr) throw cronoErr;
+
+      setSuccessMsg(`¡Presupuesto "${finalProjName}" creado con éxito con ${insertedItems.length} partidas importadas por IA!`);
+      setParsedAIBudget(null);
+      setImportAIFile(null);
+      
+      await fetchProyectos(newProjId);
+      setSelectedProyectoId(newProjId);
+      setActiveSection('');
+    } catch (err) {
+      console.error(err);
+      setImportAIError(err.message || "Error guardando el presupuesto en la base de datos.");
+    } finally {
+      setImportAILoading(false);
+    }
+  };
+
 
   // Conversión de Divisas Matemáticas
   const convertCurrency = (amount, from, to) => {
@@ -2463,6 +2756,25 @@ export default function PresupuestosPlanif({ user, onBack }) {
                     </p>
                   </div>
                 </div>
+
+                {/* Card 7: Importación Inteligente con IA */}
+                <div 
+                  onClick={() => { setActiveSection('importar_ia'); setErrorMsg(''); setSuccessMsg(''); setImportAIError(''); setParsedAIBudget(null); }}
+                  className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex items-start gap-5 min-h-[140px]"
+                >
+                  <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300 shrink-0">
+                    <Sparkles className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition flex items-center gap-1.5">
+                      Importación con IA <span className="bg-emerald-100 text-emerald-800 text-[9px] px-1.5 py-0.5 rounded font-black tracking-normal uppercase">Nuevo</span>
+                    </h3>
+                    <p className="text-xs text-slate-500 leading-normal">
+                      Sube presupuestos en formato Excel, PDF, imágenes o texto y genera de forma automática la planilla completa usando Inteligencia Artificial.
+                    </p>
+                  </div>
+                </div>
+
 
               </div>
             ) : (
@@ -4879,6 +5191,336 @@ export default function PresupuestosPlanif({ user, onBack }) {
                     </div>
                   );
                 })()}
+
+                {/* IMPORTADOR INTELIGENTE CON IA */}
+                {activeSection === 'importar_ia' && (
+                  <div className="space-y-6 animate-in fade-in duration-200">
+                    <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-6">
+                      <div className="border-b border-slate-100 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2.5 bg-primary/10 text-primary rounded-2xl">
+                            <Sparkles className="w-5 h-5 animate-pulse" />
+                          </div>
+                          <div>
+                            <h3 className="font-extrabold text-xs uppercase tracking-wider text-slate-800">
+                              Importador Inteligente de Presupuestos con IA
+                            </h3>
+                            <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">
+                              Carga automática de archivos usando Gemini 2.5 Flash
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* API KEY DE GEMINI */}
+                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
+                        <div className="flex justify-between items-center border-b border-slate-150 pb-2">
+                          <h4 className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider flex items-center gap-1">
+                            🔑 Configuración de API Key (Gemini)
+                          </h4>
+                          <span className="text-[9px] bg-blue-100 text-blue-800 font-black px-2 py-0.5 rounded uppercase">
+                            BYOK - Almacenamiento Local Seguro
+                          </span>
+                        </div>
+                        
+                        <div className="flex flex-col sm:flex-row items-end gap-3">
+                          <div className="flex-1 space-y-1">
+                            <label className="block text-[9px] font-bold uppercase text-slate-450">Ingresa tu API Key de Gemini</label>
+                            <input
+                              type="password"
+                              value={geminiApiKey}
+                              onChange={(e) => setGeminiApiKey(e.target.value)}
+                              placeholder="AIzaSy..."
+                              className="w-full border border-slate-250 rounded-xl p-2.5 text-xs text-slate-800 bg-white placeholder-slate-350 focus:ring-1 focus:ring-primary focus:outline-none"
+                            />
+                          </div>
+                          <button
+                            onClick={() => {
+                              localStorage.setItem('gemini_api_key', geminiApiKey);
+                              alert("¡Clave de API guardada localmente de forma segura!");
+                            }}
+                            className="bg-primary text-white font-extrabold text-xs uppercase px-4 py-2.5 rounded-xl hover:bg-primary-hover shadow-xs cursor-pointer transition shrink-0 h-10 flex items-center justify-center gap-1.5"
+                          >
+                            <Save className="w-3.5 h-3.5" />
+                            Guardar Clave
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-slate-455 font-semibold leading-normal">
+                          💡 La clave se almacena exclusivamente en tu navegador. Si no tienes una clave, puedes obtener una de forma <strong>completamente gratuita y sin costo</strong> ingresando con tu cuenta de Google a <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-extrabold">Google AI Studio</a> y presionando "Get API Key".
+                        </p>
+                      </div>
+
+                      {/* CARGA DE ARCHIVO */}
+                      {!parsedAIBudget && (
+                        <div className="space-y-4">
+                          <div className="border-2 border-dashed border-slate-200 rounded-3xl p-8 text-center bg-slate-50/50 hover:bg-slate-50 transition duration-200 flex flex-col items-center justify-center gap-3">
+                            <div className="p-4 bg-primary/10 text-primary rounded-full">
+                              <Upload className="w-8 h-8" />
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-xs font-extrabold text-slate-700">Arrastra tu archivo aquí o presiona el botón para seleccionar</p>
+                              <p className="text-[10px] text-slate-450">Formatos soportados: Excel (.xlsx, .xls), CSV, PDF (.pdf), Imágenes (.png, .jpg), Texto (.txt)</p>
+                            </div>
+                            <input
+                              type="file"
+                              id="aiImportFileInput"
+                              onChange={(e) => setImportAIFile(e.target.files[0])}
+                              accept=".xlsx,.xls,.csv,.pdf,.png,.jpg,.jpeg,.txt"
+                              className="hidden"
+                            />
+                            <button
+                              onClick={() => document.getElementById('aiImportFileInput').click()}
+                              className="border border-slate-250 bg-white text-slate-700 font-extrabold text-xs uppercase px-4 py-2 rounded-xl hover:bg-slate-50 shadow-xs cursor-pointer transition"
+                            >
+                              Seleccionar Archivo
+                            </button>
+                          </div>
+
+                          {importAIFile && (
+                            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
+                              <div className="flex items-center gap-2.5">
+                                <div className="p-2.5 bg-emerald-100 text-emerald-800 rounded-xl">
+                                  <FileSpreadsheet className="w-5 h-5" />
+                                </div>
+                                <div>
+                                  <p className="text-xs font-extrabold text-slate-800">{importAIFile.name}</p>
+                                  <p className="text-[9px] text-slate-450 font-bold uppercase">
+                                    {(importAIFile.size / 1024).toFixed(1)} KB | Tipo: {importAIFile.name.split('.').pop().toUpperCase()}
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => setImportAIFile(null)}
+                                className="text-red-655 hover:bg-red-50 p-1.5 rounded-lg transition"
+                                title="Quitar archivo"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          )}
+
+                          {importAIError && (
+                            <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-xs font-semibold text-red-700 flex items-start gap-2 animate-shake">
+                              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                              <span>{importAIError}</span>
+                            </div>
+                          )}
+
+                          <div className="flex justify-end gap-3 pt-2">
+                            <button
+                              onClick={() => { setActiveSection(''); setImportAIFile(null); }}
+                              className="border border-slate-250 bg-white text-slate-700 font-extrabold text-xs uppercase px-5 py-2.5 rounded-xl hover:bg-slate-50 transition cursor-pointer shadow-xs"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              onClick={handleProcessAIImport}
+                              disabled={importAILoading || !importAIFile || !geminiApiKey}
+                              className={`bg-primary text-white font-extrabold text-xs uppercase px-5 py-2.5 rounded-xl shadow-xs hover:bg-primary-hover transition flex items-center gap-1.5 cursor-pointer ${(!importAIFile || !geminiApiKey) ? 'opacity-40 cursor-not-allowed' : ''}`}
+                            >
+                              {importAILoading ? (
+                                <>
+                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                  Procesando con IA...
+                                </>
+                              ) : (
+                                <>
+                                  <Sparkles className="w-3.5 h-3.5" />
+                                  Procesar Presupuesto con IA
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* LOADER PANTALLA COMPLETA O BLOQUE DE ESPERA */}
+                      {importAILoading && !parsedAIBudget && (
+                        <div className="bg-slate-50 border border-slate-200 rounded-3xl p-12 text-center shadow-xs flex flex-col items-center justify-center space-y-4 animate-pulse">
+                          <RefreshCw className="w-10 h-10 text-primary animate-spin" />
+                          <div>
+                            <p className="text-xs text-slate-800 font-extrabold uppercase">La Inteligencia Artificial está analizando tu archivo...</p>
+                            <p className="text-[10px] text-slate-500 font-semibold mt-1">
+                              Leyendo celdas, deduciendo la jerarquía de capítulos y extrayendo unidades de medida y precios. Esto puede tardar entre 5 y 15 segundos según el tamaño del documento.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* VISTA PREVIA DEL PRESUPUESTO EXTRAÍDO */}
+                      {parsedAIBudget && (
+                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom duration-300">
+                          <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-2xl text-xs font-semibold flex items-start gap-2">
+                            <Check className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" />
+                            <div>
+                              <p className="font-extrabold uppercase text-[10px] text-emerald-700 tracking-wider">¡Presupuesto Interpretado con Éxito!</p>
+                              <p className="mt-0.5">Hemos extraído la información. Revisa y edita los campos del proyecto a continuación y confirma la creación.</p>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                            
+                            {/* Panel Izquierdo: Metadatos del Proyecto */}
+                            <div className="lg:col-span-4 bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4 h-fit">
+                              <h4 className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider border-b pb-2 mb-2">
+                                📝 Datos Básicos del Proyecto
+                              </h4>
+                              
+                              <div className="space-y-3 text-xs font-semibold text-slate-700">
+                                <div className="space-y-1">
+                                  <label className="block text-[9px] font-bold uppercase text-slate-450">Nombre de la Obra</label>
+                                  <input
+                                    type="text"
+                                    value={aiProjNombre}
+                                    onChange={(e) => setAiProjNombre(e.target.value)}
+                                    placeholder="Nombre del proyecto"
+                                    className="w-full border border-slate-250 rounded-xl p-2 text-xs font-bold text-slate-800 bg-white"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="block text-[9px] font-bold uppercase text-slate-450">Cliente / Mandante</label>
+                                  <input
+                                    type="text"
+                                    value={aiProjCliente}
+                                    onChange={(e) => setAiProjCliente(e.target.value)}
+                                    placeholder="Nombre del cliente"
+                                    className="w-full border border-slate-250 rounded-xl p-2 text-xs font-bold text-slate-800 bg-white"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="block text-[9px] font-bold uppercase text-slate-455">Comuna Faena</label>
+                                  <select
+                                    value={aiProjComuna}
+                                    onChange={(e) => setAiProjComuna(e.target.value)}
+                                    className="w-full border border-slate-250 rounded-xl p-2 text-xs font-bold text-slate-800 bg-white cursor-pointer"
+                                  >
+                                    <option value="">Selecciona Comuna...</option>
+                                    {comunasChile.map((c, idx) => (
+                                      <option key={idx} value={c}>{c}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="space-y-1">
+                                    <label className="block text-[9px] font-bold uppercase text-slate-450">Moneda Base</label>
+                                    <select
+                                      value={aiProjMoneda}
+                                      onChange={(e) => setAiProjMoneda(e.target.value)}
+                                      className="w-full border border-slate-250 rounded-xl p-2 text-xs font-bold text-slate-800 bg-white cursor-pointer"
+                                    >
+                                      <option value="CLP">CLP ($)</option>
+                                      <option value="USD">USD (US$)</option>
+                                      <option value="UF">UF (UF)</option>
+                                    </select>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="block text-[9px] font-bold uppercase text-slate-455">Plazo (Días)</label>
+                                    <input
+                                      type="number"
+                                      value={aiProjPlazo}
+                                      onChange={(e) => setAiProjPlazo(parseInt(e.target.value, 10) || 0)}
+                                      placeholder="30"
+                                      className="w-full border border-slate-250 rounded-xl p-2 text-xs font-bold text-slate-800 bg-white"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Panel Derecho: Tabla de Partidas */}
+                            <div className="lg:col-span-8 bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+                              <h4 className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider border-b pb-2 mb-2">
+                                📊 Planilla de Partidas Extraídas
+                              </h4>
+                              
+                              <div className="overflow-x-auto max-h-[400px] overflow-y-auto border border-slate-150 rounded-xl">
+                                <table className="w-full text-left text-xs border-collapse">
+                                  <thead>
+                                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-550 font-bold text-[9px] uppercase tracking-wider select-none sticky top-0 z-10">
+                                      <th className="p-2.5 w-16">Item</th>
+                                      <th className="p-2.5">Descripción de Partida / Capítulo</th>
+                                      <th className="p-2.5 w-14 text-center">Un.</th>
+                                      <th className="p-2.5 w-20 text-right">Cant.</th>
+                                      <th className="p-2.5 w-24 text-right">P.U. ({aiProjMoneda})</th>
+                                      <th className="p-2.5 w-28 text-right bg-slate-100/50">Total</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-150 text-slate-700">
+                                    {parsedAIBudget.items.map((item, idx) => {
+                                      const qty = parseFloat(item.cantidad) || 0;
+                                      const pu = parseFloat(item.costo_unitario) || 0;
+                                      const totalVal = qty * pu;
+                                      
+                                      if (item.is_chapter) {
+                                        return (
+                                          <tr key={idx} className="bg-slate-50/70 font-extrabold text-slate-850">
+                                            <td className="p-2.5 select-none">{item.codigo}</td>
+                                            <td className="p-2.5 uppercase font-black text-slate-900" colSpan={4}>
+                                              {item.descripcion}
+                                            </td>
+                                            <td className="p-2.5 text-right bg-slate-100/30 font-black">-</td>
+                                          </tr>
+                                        );
+                                      }
+
+                                      return (
+                                        <tr key={idx} className="hover:bg-slate-50/50 font-semibold">
+                                          <td className="p-2.5 text-slate-500 font-bold">{item.codigo}</td>
+                                          <td className="p-2.5 text-slate-800 font-bold">{item.descripcion}</td>
+                                          <td className="p-2.5 text-center text-slate-500 uppercase">{item.unidad || 'un'}</td>
+                                          <td className="p-2.5 text-right">{qty}</td>
+                                          <td className="p-2.5 text-right">{formatCurrencyValue(pu, aiProjMoneda)}</td>
+                                          <td className="p-2.5 text-right font-extrabold bg-slate-100/30 text-slate-800">
+                                            {formatCurrencyValue(totalVal, aiProjMoneda)}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+
+                          </div>
+
+                          {importAIError && (
+                            <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-xs font-semibold text-red-700 flex items-start gap-2 animate-shake">
+                              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                              <span>{importAIError}</span>
+                            </div>
+                          )}
+
+                          <div className="flex justify-end gap-3 pt-2">
+                            <button
+                              onClick={() => { setParsedAIBudget(null); setImportAIFile(null); }}
+                              className="border border-slate-250 bg-white text-slate-700 font-extrabold text-xs uppercase px-5 py-2.5 rounded-xl hover:bg-slate-50 transition cursor-pointer shadow-xs"
+                            >
+                              Volver a subir
+                            </button>
+                            <button
+                              onClick={handleConfirmAIImport}
+                              disabled={importAILoading}
+                              className="bg-primary text-white font-extrabold text-xs uppercase px-6 py-3 rounded-xl hover:bg-primary-hover shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                            >
+                              {importAILoading ? (
+                                <>
+                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                  Guardando Presupuesto...
+                                </>
+                              ) : (
+                                <>
+                                  <Check className="w-3.5 h-3.5" />
+                                  Confirmar y Crear Presupuesto
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                    </div>
+                  </div>
+                )}
 
                 {/* MIS PRESUPUESTOS */}
                 {activeSection === 'mis_presupuestos' && (
