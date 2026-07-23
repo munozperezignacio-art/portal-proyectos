@@ -35,25 +35,30 @@ export async function sendSystemEmail({ to, subject, htmlContent }) {
       return { success: false, error: 'No se especificaron destinatarios válidos' };
     }
 
-    // 2. Realizar petición POST a la API de Resend
-    const response = await fetch('https://api.resend.com/emails', {
+    // 2. Realizar petición POST al endpoint serverless (para evitar bloqueos de CORS en el navegador)
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const apiEndpoint = isLocal 
+      ? 'https://obraxis.cl/api/send-email'
+      : '/api/send-email';
+
+    const response = await fetch(apiEndpoint, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: `Obraxis <${sender}>`,
+        apiKey,
+        sender: `Obraxis <${sender}>`,
         to: recipients,
         subject: subject,
-        html: htmlContent,
+        htmlContent: htmlContent,
       }),
     });
 
     const result = await response.json();
 
     if (!response.ok) {
-      throw new Error(result.message || 'Error en la petición a la API de Resend');
+      throw new Error(result.error || 'Error en la petición a la API de Resend');
     }
 
     console.log('Correo enviado con éxito:', result);
