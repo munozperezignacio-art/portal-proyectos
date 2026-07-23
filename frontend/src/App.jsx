@@ -56,13 +56,27 @@ function App() {
     if (!user) return;
     async function fetchBranding() {
       try {
-        const { data, error } = await supabase
+        let data = null;
+        const { data: brandData, error: brandErr } = await supabase
           .from('config_empresa')
-          .select('logo_base64, color_primario, color_secundario, modulos_activos')
+          .select('logo_base64, color_primario, color_secundario, modulos_activos, gemini_api_key, gemini_model')
           .eq('empresa', user.empresa)
           .maybeSingle();
 
-        if (error) throw error;
+        if (brandErr && brandErr.message.includes('column')) {
+          // Fallback en caso de que no existan las columnas de IA en la tabla config_empresa
+          const { data: fallbackData, error: fallbackErr } = await supabase
+            .from('config_empresa')
+            .select('logo_base64, color_primario, color_secundario, modulos_activos')
+            .eq('empresa', user.empresa)
+            .maybeSingle();
+          if (fallbackErr) throw fallbackErr;
+          data = fallbackData;
+        } else if (brandErr) {
+          throw brandErr;
+        } else {
+          data = brandData;
+        }
         
         if (data) {
           setCompanyBranding(data);
@@ -580,10 +594,14 @@ function App() {
               setCurrentModule('dashboard');
             }} />
           ) : currentModule === 'presupuestos' ? (
-            <PresupuestosPlanif user={user} onBack={() => {
-              setSelectedObraName(null);
-              setCurrentModule('dashboard');
-            }} />
+            <PresupuestosPlanif 
+              user={user} 
+              companyBranding={companyBranding} 
+              onBack={() => {
+                setSelectedObraName(null);
+                setCurrentModule('dashboard');
+              }} 
+            />
           ) : currentModule === 'prevencion' ? (
             <Prevencion user={user} onBack={() => {
               setSelectedObraName(null);

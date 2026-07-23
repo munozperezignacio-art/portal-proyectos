@@ -144,7 +144,7 @@ const parsePredecesora = (predStr) => {
   return { code, type, lag };
 };
 
-export default function PresupuestosPlanif({ user, onBack }) {
+export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
   // Tipo de cambio del día (UF, USD, UTM, CLP)
   const [exchangeRates, setExchangeRates] = useState({
     CLP: 1,
@@ -195,8 +195,24 @@ export default function PresupuestosPlanif({ user, onBack }) {
   const [allApuLinksLoading, setAllApuLinksLoading] = useState(false);
 
   // Estados del Importador de Presupuestos con IA
-  const [geminiApiKey, setGeminiApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
-  const [geminiModel, setGeminiModel] = useState(() => localStorage.getItem('gemini_model') || 'gemini-3.5-flash');
+  const [geminiApiKey, setGeminiApiKey] = useState(() => {
+    if (companyBranding?.gemini_api_key) return companyBranding.gemini_api_key;
+    return localStorage.getItem('gemini_api_key') || '';
+  });
+  const [geminiModel, setGeminiModel] = useState(() => {
+    if (companyBranding?.gemini_model) return companyBranding.gemini_model;
+    return localStorage.getItem('gemini_model') || 'gemini-3.5-flash';
+  });
+
+  useEffect(() => {
+    if (companyBranding?.gemini_api_key) {
+      setGeminiApiKey(companyBranding.gemini_api_key);
+    }
+    if (companyBranding?.gemini_model) {
+      setGeminiModel(companyBranding.gemini_model);
+    }
+  }, [companyBranding]);
+
   const [importAILoading, setImportAILoading] = useState(false);
   const [importAIError, setImportAIError] = useState('');
   const [importAIFile, setImportAIFile] = useState(null);
@@ -545,6 +561,37 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
       setImportAILoading(false);
     }
   };
+
+  const handleSaveIAConfig = async () => {
+    try {
+      localStorage.setItem('gemini_api_key', geminiApiKey);
+      localStorage.setItem('gemini_model', geminiModel);
+
+      const isPrivileged = user.rol?.toLowerCase() === 'superusuario' || user.rol?.toLowerCase() === 'administrador';
+      if (isPrivileged) {
+        const { error } = await supabase
+          .from('config_empresa')
+          .upsert({
+            empresa: user.empresa,
+            gemini_api_key: geminiApiKey,
+            gemini_model: geminiModel
+          }, { onConflict: 'empresa' });
+
+        if (error) {
+          console.warn("No se pudo guardar la configuración de IA en la base de datos:", error.message);
+          alert("Configuración guardada en este navegador de forma local. Para habilitarla para toda la empresa, asegúrate de ejecutar el script SQL de migración en Supabase.");
+        } else {
+          alert("¡Configuración de IA guardada con éxito en la base de datos para toda la empresa!");
+        }
+      } else {
+        alert("Configuración de IA guardada en este navegador de forma local.");
+      }
+    } catch (err) {
+      console.error("Error al guardar configuración de IA:", err);
+      alert("Configuración guardada en este navegador de forma local.");
+    }
+  };
+
 
   const handleConfirmAIImport = async () => {
     if (!parsedAIBudget) return;
@@ -5251,11 +5298,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
 
                           <div className="md:col-span-2">
                             <button
-                              onClick={() => {
-                                localStorage.setItem('gemini_api_key', geminiApiKey);
-                                localStorage.setItem('gemini_model', geminiModel);
-                                alert("¡Configuración de IA guardada localmente!");
-                              }}
+                              onClick={handleSaveIAConfig}
                               className="w-full bg-primary text-white font-extrabold text-xs uppercase py-2.5 rounded-xl hover:bg-primary-hover shadow-xs cursor-pointer transition h-10 flex items-center justify-center gap-1.5"
                             >
                               <Save className="w-3.5 h-3.5" />
