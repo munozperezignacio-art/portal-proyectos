@@ -31,6 +31,7 @@ export default function Prevencion({ user, onBack }) {
   });
   const [formFields, setFormFields] = useState([]);
   const [savingForm, setSavingForm] = useState(false);
+  const [newEmailInput, setNewEmailInput] = useState('');
 
   // ESTADO DE LLENADO DE FORMULARIO (COMPLETAR EN TERRENO)
   const [selectedFormToFill, setSelectedFormToFill] = useState(null);
@@ -1222,15 +1223,81 @@ export default function Prevencion({ user, onBack }) {
                   </div>
 
                   <div>
-                    <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Correos de Notificación de Alertas (Separados por coma - Opcional)</label>
-                    <input
-                      type="text"
-                      value={formMeta.correos_notificacion || ''}
-                      onChange={(e) => setFormMeta({ ...formMeta, correos_notificacion: e.target.value })}
-                      placeholder="ejemplo1@obraxis.cl, ejemplo2@obraxis.cl"
-                      className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
-                    />
-                    <p className="text-[9px] text-slate-400 mt-1">Si dejas este campo vacío, las respuestas se notificarán a los correos configurados de forma general en el panel de Alertas de Correo.</p>
+                    {(() => {
+                      const emailsList = formMeta.correos_notificacion 
+                        ? formMeta.correos_notificacion.split(',').map(e => e.trim()).filter(Boolean)
+                        : [];
+                      
+                      const handleAddEmail = (e) => {
+                        e.preventDefault();
+                        const email = newEmailInput.trim().toLowerCase();
+                        if (!email) return;
+                        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                          alert("Por favor ingrese un correo válido.");
+                          return;
+                        }
+                        if (emailsList.includes(email)) {
+                          alert("Este correo ya está agregado.");
+                          return;
+                        }
+                        const updatedEmails = [...emailsList, email].join(', ');
+                        setFormMeta({ ...formMeta, correos_notificacion: updatedEmails });
+                        setNewEmailInput('');
+                      };
+
+                      const handleRemoveEmail = (emailToRemove) => {
+                        const updatedEmails = emailsList.filter(e => e !== emailToRemove).join(', ');
+                        setFormMeta({ ...formMeta, correos_notificacion: updatedEmails });
+                      };
+
+                      return (
+                        <div className="space-y-2">
+                          <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Correos de Notificación de Alertas (Opcional)</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="email"
+                              value={newEmailInput}
+                              onChange={(e) => setNewEmailInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleAddEmail(e);
+                                }
+                              }}
+                              placeholder="ej: supervisor@obraxis.cl"
+                              className="flex-1 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleAddEmail}
+                              className="bg-primary hover:bg-primary-hover text-white px-4 rounded-xl text-xs font-bold transition flex items-center justify-center cursor-pointer shadow-xs"
+                            >
+                              + Agregar
+                            </button>
+                          </div>
+
+                          {/* Lista de correos agregados */}
+                          {emailsList.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 pt-1.5">
+                              {emailsList.map((email, idx) => (
+                                <span key={idx} className="inline-flex items-center gap-1.5 bg-slate-100 border border-slate-200 text-slate-750 text-[10px] font-extrabold px-2.5 py-1 rounded-lg">
+                                  <span>{email}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveEmail(email)}
+                                    className="text-slate-400 hover:text-red-600 font-bold focus:outline-none cursor-pointer"
+                                  >
+                                    ✕
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          <p className="text-[9px] text-slate-400 mt-1">Si dejas esta lista vacía, las respuestas se notificarán a los correos configurados de forma general en el panel de Alertas de Correo.</p>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
 
