@@ -517,18 +517,36 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
         parts.push({ inlineData });
       }
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          contents: [{ parts }],
-          generationConfig: {
-            responseMimeType: "application/json"
+      let response;
+      let retries = 3;
+      let delay = 2000;
+
+      for (let i = 0; i < retries; i++) {
+        response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            contents: [{ parts }],
+            generationConfig: {
+              responseMimeType: "application/json"
+            }
+          })
+        });
+
+        if (response.ok) break;
+
+        if (response.status === 429 || response.status === 503 || response.status === 500) {
+          if (i < retries - 1) {
+            console.warn(`Gemini experimentó alta demanda (Status ${response.status}). Reintentando en ${delay / 1000}s...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            delay *= 2;
+            continue;
           }
-        })
-      });
+        }
+        break;
+      }
 
       if (!response.ok) {
         const errData = await response.json();
