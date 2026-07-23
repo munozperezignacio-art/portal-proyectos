@@ -128,7 +128,7 @@ export default function Facturacion({ user, companyBranding, onBack }) {
   const [dteReceptorNombre, setDteReceptorNombre] = useState('');
   const [dteCentroGestion, setDteCentroGestion] = useState('');
   const [dteSeccionId, setDteSeccionId] = useState('');
-  const [dteItems, setDteItems] = useState([{ descripcion: '', cantidad: 1, precioUnitario: 0, exento: false }]);
+  const [dteItems, setDteItems] = useState([{ codigo: '', descripcion: '', cantidad: 1, precioUnitario: 0, exento: false }]);
   
   // Referencias en DTE
   const [dteRefTipo, setDteRefTipo] = useState(''); // ej. 801 (OC), 52 (Guía)
@@ -583,6 +583,21 @@ export default function Facturacion({ user, companyBranding, onBack }) {
       const total = neto + iva + exento;
 
       const trackIdSimulado = `Track-${Math.floor(100000 + Math.random() * 900000)}`;
+      let detalleXml = '';
+      dteItems.forEach((item, index) => {
+        detalleXml += `    <Detalle>
+      <NroLinDet>${index + 1}</NroLinDet>
+      <CdgItem>
+        <TpoCodigo>INT1</TpoCodigo>
+        <VlrCodigo>${item.codigo || 'S-C'}</VlrCodigo>
+      </CdgItem>
+      <NmbItem>${item.descripcion}</NmbItem>
+      <QtyItem>${item.cantidad}</QtyItem>
+      <PrcItem>${item.precioUnitario}</PrcItem>
+      <MontoItem>${Math.round(item.cantidad * item.precioUnitario)}</MontoItem>
+    </Detalle>\n`;
+      });
+
       const dteXmlStr = `<?xml version="1.0" encoding="ISO-8859-1"?>
 <DTE version="1.0">
   <Documento ID="F${folioADoc}T${dteTipo}">
@@ -607,7 +622,7 @@ export default function Facturacion({ user, companyBranding, onBack }) {
         <MntTotal>${total}</MntTotal>
       </Totales>
     </Encabezado>
-  </Documento>
+${detalleXml}  </Documento>
 </DTE>`;
 
       const { error: insErr } = await supabase
@@ -645,7 +660,7 @@ export default function Facturacion({ user, companyBranding, onBack }) {
       setDteSeccionId('');
       setDteRefTipo('');
       setDteRefFolio('');
-      setDteItems([{ descripcion: '', cantidad: 1, precioUnitario: 0, exento: false }]);
+      setDteItems([{ codigo: '', descripcion: '', cantidad: 1, precioUnitario: 0, exento: false }]);
       fetchFolios();
       fetchDocumentos();
       setActiveTab('registro');
@@ -654,6 +669,39 @@ export default function Facturacion({ user, companyBranding, onBack }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePreviewDraftDTE = () => {
+    if (!dteReceptorRut.trim() || !dteReceptorNombre.trim()) {
+      setErrorMsg("Para previsualizar, ingresa el RUT y Razón Social del receptor.");
+      return;
+    }
+    let neto = 0;
+    let exento = 0;
+    dteItems.forEach(item => {
+      const val = (parseInt(item.cantidad) || 0) * (parseFloat(item.precioUnitario) || 0);
+      if (item.exento) exento += val;
+      else neto += val;
+    });
+    const iva = Math.round(neto * 0.19);
+    const total = neto + iva + exento;
+
+    const draftDTE = {
+      tipo_dte: dteTipo,
+      folio: "BORRADOR SIMULADO",
+      rut_receptor: dteReceptorRut,
+      nombre_receptor: dteReceptorNombre,
+      monto_neto: neto,
+      monto_iva: iva,
+      monto_total: total,
+      detalles: dteItems,
+      estado_acuse: 'Borrador',
+      fecha_emision: new Date().toISOString().split('T')[0]
+    };
+
+    setSelectedDTE(draftDTE);
+    setShowDTEModal(true);
+    setShowXMLViewer(false);
   };
 
   // -------------------------------------------------------------
@@ -1677,30 +1725,47 @@ export default function Facturacion({ user, companyBranding, onBack }) {
           <div className="lg:col-span-7 bg-white border border-slate-250 rounded-3xl p-6 shadow-xs space-y-4">
             <h4 className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider border-b pb-2 flex justify-between items-center">
               <span>🛠️ Detalle de Ítems</span>
-              <button onClick={() => setDteItems([...dteItems, { descripcion: '', cantidad: 1, precioUnitario: 0, exento: false }])} className="text-[9px] font-black uppercase bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded">+ Agregar Producto</button>
+              <button onClick={() => setDteItems([...dteItems, { codigo: '', descripcion: '', cantidad: 1, precioUnitario: 0, exento: false }])} className="text-[9px] font-black uppercase bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded cursor-pointer transition">+ Agregar Producto</button>
             </h4>
+
+            {/* Encabezados de Columnas del Detalle */}
+            <div className="flex gap-2.5 px-2.5 text-[8.5px] font-extrabold uppercase text-slate-450 select-none">
+              <div className="w-24">Código</div>
+              <div className="flex-1">Descripción / Producto</div>
+              <div className="w-16 text-center">Cant.</div>
+              <div className="w-24 text-right">P. Unitario</div>
+              <div className="w-16 text-center">Exento IVA</div>
+              <div className="w-9"></div>
+            </div>
 
             <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
               {dteItems.map((item, idx) => (
-                <div key={idx} className="flex gap-2.5 items-end bg-slate-50 p-2.5 border border-slate-150 rounded-xl">
-                  <div className="flex-1 space-y-0.5">
-                    <input type="text" value={item.descripcion} onChange={(e) => { const upd = [...dteItems]; upd[idx].descripcion = e.target.value; setDteItems(upd); }} placeholder="Detalle..." className="w-full border border-slate-200 rounded-lg p-1.5 text-xs bg-white" />
+                <div key={idx} className="flex gap-2.5 items-center bg-slate-50 p-2 border border-slate-150 rounded-xl">
+                  <div className="w-24">
+                    <input type="text" value={item.codigo || ''} onChange={(e) => { const upd = [...dteItems]; upd[idx].codigo = e.target.value; setDteItems(upd); }} placeholder="ej: H-30" className="w-full border border-slate-200 rounded-lg p-1.5 text-xs bg-white" />
                   </div>
-                  <div className="w-16 space-y-0.5">
-                    <input type="number" value={item.cantidad} onChange={(e) => { const upd = [...dteItems]; upd[idx].cantidad = parseInt(e.target.value) || 0; setDteItems(upd); }} className="w-full border border-slate-200 rounded-lg p-1.5 text-xs bg-white text-center" />
+                  <div className="flex-1">
+                    <input type="text" value={item.descripcion} onChange={(e) => { const upd = [...dteItems]; upd[idx].descripcion = e.target.value; setDteItems(upd); }} placeholder="Detalle del producto o servicio..." className="w-full border border-slate-200 rounded-lg p-1.5 text-xs bg-white" />
                   </div>
-                  <div className="w-24 space-y-0.5">
-                    <input type="number" value={item.precioUnitario} onChange={(e) => { const upd = [...dteItems]; upd[idx].precioUnitario = parseFloat(e.target.value) || 0; setDteItems(upd); }} className="w-full border border-slate-200 rounded-lg p-1.5 text-xs bg-white text-right" />
+                  <div className="w-16">
+                    <input type="number" value={item.cantidad} onChange={(e) => { const upd = [...dteItems]; upd[idx].cantidad = parseInt(e.target.value) || 0; setDteItems(upd); }} className="w-full border border-slate-200 rounded-lg p-1.5 text-xs bg-white text-center font-bold text-slate-800" />
                   </div>
-                  <div className="w-12 flex flex-col items-center justify-center pb-2">
-                    <input type="checkbox" checked={item.exento} onChange={(e) => { const upd = [...dteItems]; upd[idx].exento = e.target.checked; setDteItems(upd); }} className="w-4 h-4 rounded border-slate-350" />
+                  <div className="w-24">
+                    <input type="number" value={item.precioUnitario} onChange={(e) => { const upd = [...dteItems]; upd[idx].precioUnitario = parseFloat(e.target.value) || 0; setDteItems(upd); }} className="w-full border border-slate-200 rounded-lg p-1.5 text-xs bg-white text-right font-bold text-slate-850" />
                   </div>
-                  <button onClick={() => { if (dteItems.length === 1) return; setDteItems(dteItems.filter((_, i) => i !== idx)); }} className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg mb-0.5"><Trash2 className="w-4 h-4" /></button>
+                  <div className="w-16 flex items-center justify-center">
+                    <input type="checkbox" checked={item.exento || false} onChange={(e) => { const upd = [...dteItems]; upd[idx].exento = e.target.checked; setDteItems(upd); }} className="w-4 h-4 rounded border-slate-300 focus:ring-primary cursor-pointer text-primary" />
+                  </div>
+                  <button onClick={() => { if (dteItems.length === 1) return; setDteItems(dteItems.filter((_, i) => i !== idx)); }} className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg cursor-pointer transition"><Trash2 className="w-4 h-4" /></button>
                 </div>
               ))}
             </div>
 
-            <div className="flex justify-end pt-4 border-t">
+            <div className="flex justify-end pt-4 border-t gap-3">
+              <button onClick={handlePreviewDraftDTE} disabled={loading || !dteReceptorRut || !dteReceptorNombre} className="border border-slate-250 bg-slate-50 text-slate-700 hover:bg-slate-100 font-extrabold text-xs uppercase px-5 py-2.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer">
+                <Eye className="w-3.5 h-3.5" />
+                Previsualizar Borrador
+              </button>
               <button onClick={handleEmitirDTE} disabled={loading || !dteReceptorRut || !dteReceptorNombre} className="bg-primary text-white font-extrabold text-xs uppercase px-5 py-2.5 rounded-xl hover:bg-primary-hover shadow-xs transition flex items-center gap-1.5 cursor-pointer">
                 {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
                 Firmar y Emitir
@@ -1834,16 +1899,18 @@ export default function Facturacion({ user, companyBranding, onBack }) {
 
                   <table className="w-full text-left text-[10px] border">
                     <thead>
-                      <tr className="bg-slate-100 border-b text-slate-655 font-bold uppercase text-[8px]">
+                      <tr className="bg-slate-100 border-b text-slate-655 font-bold uppercase text-[8.5px] tracking-wider bg-slate-50 text-slate-500">
+                        <th className="p-2 w-20">Código</th>
                         <th className="p-2">Descripción</th>
                         <th className="p-2 w-12 text-center">Cant.</th>
                         <th className="p-2 w-20 text-right">P. Unitario</th>
                         <th className="p-2 w-24 text-right">Total</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y text-slate-700 font-bold">
+                    <tbody className="divide-y text-slate-700 font-bold bg-white">
                       {Array.isArray(selectedDTE.detalles) && selectedDTE.detalles.map((it, idx) => (
-                        <tr key={idx}>
+                        <tr key={idx} className="hover:bg-slate-50/50">
+                          <td className="p-2 text-slate-450 font-mono text-[9px]">{it.codigo || '—'}</td>
                           <td className="p-2">{it.descripcion}</td>
                           <td className="p-2 text-center">{it.cantidad}</td>
                           <td className="p-2 text-right">{formatCLP(it.precioUnitario)}</td>
