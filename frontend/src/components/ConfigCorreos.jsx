@@ -771,7 +771,7 @@ function ConfigCorreos({ user, onBack }) {
             Gestión de Empresas
           </button>
         )}
-        {user.rol.toLowerCase() === 'superusuario' && (
+        {user.empresa === 'Obraxis' && user.rol.toLowerCase() === 'superusuario' && (
           <button
             onClick={() => setActiveTab('plataforma')}
             className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 whitespace-nowrap cursor-pointer ${
