@@ -80,6 +80,30 @@ export default function Prevencion({ user, onBack }) {
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
+  // --- SUBMÓDULO CUMPLIMIENTO DE SEGURIDAD Y PREVENCIÓN ---
+  const [personalMaestro, setPersonalMaestro] = useState([]);
+  const [asignacionesCumplimiento, setAsignacionesCumplimiento] = useState([]);
+  const [loadingAsignaciones, setLoadingAsignaciones] = useState(false);
+  const [registrosCumplimientoLog, setRegistrosCumplimientoLog] = useState([]);
+  const [cumplimientoSubTab, setCumplimientoSubTab] = useState('seguimiento');
+  
+  // Formulario Asignación
+  const [asigTrabajadorRut, setAsigTrabajadorRut] = useState('');
+  const [asigTrabajadorNombre, setAsigTrabajadorNombre] = useState('');
+  const [asigRegistroNombre, setAsigRegistroNombre] = useState('');
+  const [asigFrecuencia, setAsigFrecuencia] = useState('Diario');
+
+  // Registrar Cumplimiento (Log)
+  const [showLogModal, setShowLogModal] = useState(false);
+  const [selectedAsigForLog, setSelectedAsigForLog] = useState(null);
+  const [logFecha, setLogFecha] = useState(new Date().toISOString().split('T')[0]);
+  const [logEstado, setLogEstado] = useState('Cumple');
+  const [logObservaciones, setLogObservaciones] = useState('');
+
+  // Historial de una asignación
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [selectedAsigForHistory, setSelectedAsigForHistory] = useState(null);
+
   const categoriasPrevencion = [
     'Inspección EPP',
     'Charla 5 Minutos',
@@ -121,6 +145,9 @@ export default function Prevencion({ user, onBack }) {
     fetchRespuestas();
     fetchCapacitaciones();
     fetchIntentosEvaluaciones();
+    fetchPersonalMaestro();
+    fetchAsignacionesCumplimiento();
+    fetchRegistrosCumplimientoLog();
   }, []);
 
   const fetchFormularios = async () => {
@@ -185,6 +212,180 @@ export default function Prevencion({ user, onBack }) {
     } finally {
       setLoadingIntentos(false);
     }
+  };
+
+  const fetchPersonalMaestro = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('maestro_personal')
+        .select('nombre, rut, cargo')
+        .order('nombre', { ascending: true });
+      if (error) throw error;
+      setPersonalMaestro(data || []);
+    } catch (err) {
+      console.error('Error al cargar personal maestro:', err?.message || 'Error desconocido');
+    }
+  };
+
+  const fetchAsignacionesCumplimiento = async () => {
+    setLoadingAsignaciones(true);
+    try {
+      const { data, error } = await supabase
+        .from('prevencion_cumplimiento_asignaciones')
+        .select('*')
+        .order('trabajador_nombre', { ascending: true });
+      if (error) throw error;
+      setAsignacionesCumplimiento(data || []);
+    } catch (err) {
+      console.error('Error al cargar asignaciones de cumplimiento:', err?.message || 'Error desconocido');
+    } finally {
+      setLoadingAsignaciones(false);
+    }
+  };
+
+  const fetchRegistrosCumplimientoLog = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('prevencion_cumplimiento_registros')
+        .select('*')
+        .order('fecha_cumplimiento', { ascending: false });
+      if (error) throw error;
+      setRegistrosCumplimientoLog(data || []);
+    } catch (err) {
+      console.error('Error al cargar logs de cumplimiento:', err?.message || 'Error desconocido');
+    }
+  };
+
+  const handleSaveAsignacion = async () => {
+    if (!asigTrabajadorRut || !asigTrabajadorNombre.trim() || !asigRegistroNombre.trim()) {
+      setErrorMsg('Por favor complete todos los datos del trabajador y del registro operacional.');
+      return;
+    }
+    setSavingForm(true);
+    setErrorMsg('');
+    setSuccessMsg('');
+    try {
+      const payload = {
+        trabajador_rut: asigTrabajadorRut,
+        trabajador_nombre: asigTrabajadorNombre.trim(),
+        registro_nombre: asigRegistroNombre.trim(),
+        frecuencia: asigFrecuencia
+      };
+
+      const { error } = await supabase
+        .from('prevencion_cumplimiento_asignaciones')
+        .insert([payload]);
+      if (error) throw error;
+
+      setSuccessMsg('Asignación de cumplimiento guardada exitosamente.');
+      
+      // Reset form
+      setAsigTrabajadorRut('');
+      setAsigTrabajadorNombre('');
+      setAsigRegistroNombre('');
+      setAsigFrecuencia('Diario');
+
+      fetchAsignacionesCumplimiento();
+    } catch (err) {
+      setErrorMsg('Error al guardar asignación: ' + (err?.message || 'Error desconocido'));
+    } finally {
+      setSavingForm(false);
+    }
+  };
+
+  const handleDeleteAsignacion = async (id) => {
+    if (!window.confirm('¿Está seguro de eliminar esta asignación de cumplimiento? Se borrará también su historial.')) return;
+    setErrorMsg('');
+    setSuccessMsg('');
+    try {
+      const { error } = await supabase
+        .from('prevencion_cumplimiento_asignaciones')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+      setSuccessMsg('Asignación eliminada exitosamente.');
+      fetchAsignacionesCumplimiento();
+      fetchRegistrosCumplimientoLog();
+    } catch (err) {
+      setErrorMsg('Error al eliminar asignación: ' + (err?.message || 'Error desconocido'));
+    }
+  };
+
+  const handleSaveCumplimientoLog = async () => {
+    if (!selectedAsigForLog) return;
+    setSavingForm(true);
+    setErrorMsg('');
+    setSuccessMsg('');
+    try {
+      const payload = {
+        asignacion_id: selectedAsigForLog.id,
+        fecha_cumplimiento: logFecha,
+        estado: logEstado,
+        observaciones: logObservaciones.trim(),
+        verificado_por: user ? (user.correo || user.usuario) : 'Prevencionista'
+      };
+
+      const { error } = await supabase
+        .from('prevencion_cumplimiento_registros')
+        .insert([payload]);
+      if (error) throw error;
+
+      setSuccessMsg('Cumplimiento registrado con éxito.');
+      setShowLogModal(false);
+      
+      // Reset form
+      setSelectedAsigForLog(null);
+      setLogFecha(new Date().toISOString().split('T')[0]);
+      setLogEstado('Cumple');
+      setLogObservaciones('');
+
+      fetchRegistrosCumplimientoLog();
+    } catch (err) {
+      setErrorMsg('Error al registrar cumplimiento: ' + (err?.message || 'Error desconocido'));
+    } finally {
+      setSavingForm(false);
+    }
+  };
+
+  const getCumplimientoStatus = (asig) => {
+    const logs = registrosCumplimientoLog.filter(l => l.asignacion_id === asig.id);
+    if (logs.length === 0) {
+      return { label: 'Atrasado (Sin registros)', color: 'bg-rose-50 text-rose-700 border-rose-250', status: 'atrasado', lastDate: null };
+    }
+    
+    const sortedLogs = [...logs].sort((a, b) => new Date(b.fecha_cumplimiento) - new Date(a.fecha_cumplimiento));
+    const latestLog = sortedLogs[0];
+    
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (latestLog.fecha_cumplimiento >= todayStr) {
+      return { label: 'Al Día', color: 'bg-emerald-50 text-emerald-700 border-emerald-250', status: 'aldia', lastDate: latestLog.fecha_cumplimiento };
+    }
+    
+    const lastDate = new Date(latestLog.fecha_cumplimiento);
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    lastDate.setHours(0,0,0,0);
+    
+    const diffTime = Math.abs(today - lastDate);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (asig.frecuencia === 'Diario') {
+      return { label: 'Atrasado', color: 'bg-rose-50 text-rose-700 border-rose-250', status: 'atrasado', lastDate: latestLog.fecha_cumplimiento };
+    } else if (asig.frecuencia === 'Semanal') {
+      if (diffDays <= 7) {
+        return { label: 'Al Día', color: 'bg-emerald-50 text-emerald-700 border-emerald-250', status: 'aldia', lastDate: latestLog.fecha_cumplimiento };
+      } else {
+        return { label: 'Atrasado', color: 'bg-rose-50 text-rose-700 border-rose-250', status: 'atrasado', lastDate: latestLog.fecha_cumplimiento };
+      }
+    } else if (asig.frecuencia === 'Mensual') {
+      if (diffDays <= 30) {
+        return { label: 'Al Día', color: 'bg-emerald-50 text-emerald-700 border-emerald-250', status: 'aldia', lastDate: latestLog.fecha_cumplimiento };
+      } else {
+        return { label: 'Atrasado', color: 'bg-rose-50 text-rose-700 border-rose-250', status: 'atrasado', lastDate: latestLog.fecha_cumplimiento };
+      }
+    }
+    
+    return { label: 'Pendiente', color: 'bg-amber-50 text-amber-700 border-amber-250', status: 'pendiente', lastDate: latestLog.fecha_cumplimiento };
   };
 
   const handleSaveCapacitacion = async () => {
@@ -735,6 +936,30 @@ export default function Prevencion({ user, onBack }) {
             </div>
           </div>
 
+          {/* Card 7: Cumplimiento de Seguridad y Prevención */}
+          <div 
+            onClick={() => { 
+              setActiveSection('cumplimiento'); 
+              setErrorMsg(''); 
+              setSuccessMsg(''); 
+              fetchAsignacionesCumplimiento(); 
+              fetchRegistrosCumplimientoLog(); 
+            }}
+            className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[160px]"
+          >
+            <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300 w-fit">
+              <FileSpreadsheet className="w-6 h-6" />
+            </div>
+            <div className="space-y-1 mt-4">
+              <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
+                Cumplimiento de Seguridad y Prevención
+              </h3>
+              <p className="text-xs text-slate-500 leading-normal">
+                Asigna registros operacionales a trabajadores con plazos diarios, semanales o mensuales y realiza su seguimiento.
+              </p>
+            </div>
+          </div>
+
         </div>
       )}
 
@@ -775,6 +1000,24 @@ export default function Prevencion({ user, onBack }) {
               >
                 <Save className="w-4 h-4" />
                 <span>{savingForm ? 'Publicando...' : 'Publicar Formulario'}</span>
+              </button>
+            </div>
+          )}
+          {activeSection === 'cumplimiento' && (
+            <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setCumplimientoSubTab('seguimiento')}
+                className={`px-3 py-1.5 rounded-lg transition ${cumplimientoSubTab === 'seguimiento' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500'}`}
+              >
+                Seguimiento de Cumplimiento
+              </button>
+              <button
+                type="button"
+                onClick={() => setCumplimientoSubTab('asignar')}
+                className={`px-3 py-1.5 rounded-lg transition ${cumplimientoSubTab === 'asignar' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500'}`}
+              >
+                Asignar Registro Operacional
               </button>
             </div>
           )}
@@ -2163,6 +2406,413 @@ export default function Prevencion({ user, onBack }) {
             <div className="flex justify-end pt-3 border-t shrink-0">
               <button
                 onClick={() => setSelectedIntentoDetail(null)}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-4 py-2 rounded-xl transition cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
+      {/* ================= APARTADO: CUMPLIMIENTO DE SEGURIDAD Y PREVENCIÓN ================= */}
+      {activeSection === 'cumplimiento' && (
+        <div className="space-y-4 animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs">
+            <h3 className="font-extrabold text-xs uppercase tracking-wider text-slate-800 border-b border-slate-100 pb-3 mb-4">
+              Cumplimiento de Seguridad y Prevención ({asignacionesCumplimiento.length})
+            </h3>
+
+            {cumplimientoSubTab === 'asignar' ? (
+              /* PANEL DE ASIGNACIÓN */
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* Formulario de Asignación */}
+                <div className="lg:col-span-5 bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
+                  <span className="text-[10px] font-black uppercase text-slate-450 tracking-wider block">Asignar Registro Operacional</span>
+                  
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold uppercase text-slate-550 block">Seleccionar Trabajador</label>
+                    <select
+                      value={`${asigTrabajadorRut}|${asigTrabajadorNombre}`}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (!val) {
+                          setAsigTrabajadorRut('');
+                          setAsigTrabajadorNombre('');
+                        } else {
+                          const [rut, nombre] = val.split('|');
+                          setAsigTrabajadorRut(rut);
+                          setAsigTrabajadorNombre(nombre);
+                        }
+                      }}
+                      className="w-full border border-slate-250 rounded-xl p-2.5 bg-white text-xs font-semibold text-slate-700 focus:outline-none focus:border-primary"
+                    >
+                      <option value="">-- Seleccione un Trabajador --</option>
+                      {personalMaestro.map((p, idx) => (
+                        <option key={idx} value={`${p.rut}|${p.nombre}`}>
+                          {p.nombre} ({p.rut}) - {p.cargo || 'Sin Cargo'}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold uppercase text-slate-550 block">O buscar/ingresar RUT manualmente</label>
+                    <input 
+                      type="text"
+                      placeholder="RUT del trabajador"
+                      value={asigTrabajadorRut}
+                      onChange={(e) => setAsigTrabajadorRut(e.target.value)}
+                      className="w-full border border-slate-250 rounded-xl p-2.5 bg-white text-xs font-semibold text-slate-700 focus:outline-none focus:border-primary"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold uppercase text-slate-550 block">Nombre del Trabajador (Si se ingresó RUT manual)</label>
+                    <input 
+                      type="text"
+                      placeholder="Nombre completo"
+                      value={asigTrabajadorNombre}
+                      onChange={(e) => setAsigTrabajadorNombre(e.target.value)}
+                      className="w-full border border-slate-250 rounded-xl p-2.5 bg-white text-xs font-semibold text-slate-700 focus:outline-none focus:border-primary"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold uppercase text-slate-550 block">Registro Operacional / Requisito</label>
+                    <input 
+                      type="text"
+                      placeholder="Ej. Charla de 5 Minutos, Entrega de EPP, Uso de Arnés"
+                      value={asigRegistroNombre}
+                      onChange={(e) => setAsigRegistroNombre(e.target.value)}
+                      className="w-full border border-slate-250 rounded-xl p-2.5 bg-white text-xs font-semibold text-slate-700 focus:outline-none focus:border-primary"
+                      list="registros-sugeridos"
+                    />
+                    <datalist id="registros-sugeridos">
+                      <option value="Charla de 5 Minutos" />
+                      <option value="Inspección de EPP" />
+                      <option value="Examen de Altura Física" />
+                      <option value="Entrega de EPP" />
+                      <option value="Uso de Arnés de Seguridad" />
+                      <option value="Checklist de Maquinaria" />
+                    </datalist>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold uppercase text-slate-550 block">Frecuencia de Cumplimiento</label>
+                    <select
+                      value={asigFrecuencia}
+                      onChange={(e) => setAsigFrecuencia(e.target.value)}
+                      className="w-full border border-slate-250 rounded-xl p-2.5 bg-white text-xs font-semibold text-slate-700 focus:outline-none focus:border-primary"
+                    >
+                      <option value="Diario">Diario</option>
+                      <option value="Semanal">Semanal</option>
+                      <option value="Mensual">Mensual</option>
+                    </select>
+                  </div>
+
+                  <button
+                    onClick={handleSaveAsignacion}
+                    disabled={savingForm}
+                    className="w-full bg-primary hover:bg-primary-hover text-white text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    {savingForm ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                    <span>Asignar Requisito</span>
+                  </button>
+                </div>
+
+                {/* Listado de Asignaciones Existentes */}
+                <div className="lg:col-span-7 space-y-3">
+                  <span className="text-[10px] font-black uppercase text-slate-450 tracking-wider block">Asignaciones Activas</span>
+                  
+                  {asignacionesCumplimiento.length === 0 ? (
+                    <div className="p-8 text-center text-xs text-slate-400 italic bg-slate-50 border border-dashed rounded-2xl">
+                      No hay asignaciones de registros operacionales cargadas en el sistema.
+                    </div>
+                  ) : (
+                    <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white">
+                      <div className="max-h-[500px] overflow-y-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="bg-slate-50 border-b border-slate-200 text-slate-655 font-bold text-[9px] uppercase tracking-wider select-none sticky top-0 z-10">
+                              <th className="p-3">Trabajador</th>
+                              <th className="p-3">Registro Operacional</th>
+                              <th className="p-3">Frecuencia</th>
+                              <th className="p-3 w-16 text-center">Acciones</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-150 font-semibold text-slate-700">
+                            {asignacionesCumplimiento.map((a) => (
+                              <tr key={a.id} className="hover:bg-slate-55">
+                                <td className="p-3">
+                                  <span className="block font-bold text-slate-800 uppercase">{a.trabajador_nombre}</span>
+                                  <span className="block text-[10px] text-slate-450 font-mono">{a.trabajador_rut}</span>
+                                </td>
+                                <td className="p-3 uppercase text-slate-800">{a.registro_nombre}</td>
+                                <td className="p-3">
+                                  <span className="text-[9px] font-black uppercase bg-slate-100 text-slate-550 px-2 py-0.5 rounded">
+                                    {a.frecuencia}
+                                  </span>
+                                </td>
+                                <td className="p-3 text-center">
+                                  <button
+                                    onClick={() => handleDeleteAsignacion(a.id)}
+                                    className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
+                                    title="Eliminar asignación"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* SEGUIMIENTO / MATRIZ DE CONTROL */
+              <div className="space-y-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50 p-4 border border-slate-200 rounded-2xl">
+                  <div>
+                    <h4 className="text-xs font-black uppercase text-slate-800 tracking-wider">Matriz de Control Operacional</h4>
+                    <p className="text-[10px] text-slate-450 font-bold uppercase mt-0.5">Control visual del estado de cumplimientos de seguridad en faena</p>
+                  </div>
+                  
+                  {/* Leyenda */}
+                  <div className="flex items-center gap-3 text-[9px] font-black uppercase text-slate-500">
+                    <div className="flex items-center gap-1">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 block"></span>
+                      <span>Al Día</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500 block"></span>
+                      <span>Atrasado / Vencido</span>
+                    </div>
+                  </div>
+                </div>
+
+                {asignacionesCumplimiento.length === 0 ? (
+                  <div className="p-12 text-center text-xs text-slate-400 italic bg-white border border-dashed rounded-3xl">
+                    No tienes asignaciones de registros. Ve a la pestaña "Asignar Registro Operacional" para empezar.
+                  </div>
+                ) : (
+                  <div className="border border-slate-200 rounded-3xl overflow-hidden bg-white">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-655 font-bold text-[9px] uppercase tracking-wider select-none">
+                          <th className="p-4">Trabajador</th>
+                          <th className="p-4">Registro Requerido</th>
+                          <th className="p-4">Frecuencia</th>
+                          <th className="p-4 text-center">Última Verificación</th>
+                          <th className="p-4 text-center">Estado</th>
+                          <th className="p-4 w-44 text-center">Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-150 font-semibold text-slate-700">
+                        {asignacionesCumplimiento.map((a) => {
+                          const statusInfo = getCumplimientoStatus(a);
+                          return (
+                            <tr key={a.id} className="hover:bg-slate-50/50">
+                              <td className="p-4">
+                                <span className="block font-bold text-slate-800 uppercase">{a.trabajador_nombre}</span>
+                                <span className="block text-[10px] text-slate-450 font-mono">{a.trabajador_rut}</span>
+                              </td>
+                              <td className="p-4 uppercase text-slate-850">{a.registro_nombre}</td>
+                              <td className="p-4">
+                                <span className="text-[9px] font-black uppercase bg-slate-100 text-slate-550 px-2.5 py-0.5 rounded">
+                                  {a.frecuencia}
+                                </span>
+                              </td>
+                              <td className="p-4 text-center font-mono text-slate-600">
+                                {statusInfo.lastDate ? (
+                                  new Date(statusInfo.lastDate + 'T00:00:00').toLocaleDateString()
+                                ) : (
+                                  <span className="italic text-slate-400">Nunca</span>
+                                )}
+                              </td>
+                              <td className="p-4 text-center">
+                                <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-full border ${statusInfo.color}`}>
+                                  {statusInfo.label}
+                                </span>
+                              </td>
+                              <td className="p-4">
+                                <div className="flex items-center justify-center gap-2">
+                                  <button
+                                    onClick={() => {
+                                      setSelectedAsigForLog(a);
+                                      setLogFecha(new Date().toISOString().split('T')[0]);
+                                      setLogEstado('Cumple');
+                                      setLogObservaciones('');
+                                      setShowLogModal(true);
+                                    }}
+                                    className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-extrabold text-[9px] uppercase px-2.5 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1 border border-emerald-250"
+                                  >
+                                    <Check className="w-3.5 h-3.5" /> Registrar
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setSelectedAsigForHistory(a);
+                                      setShowHistoryModal(true);
+                                    }}
+                                    className="bg-primary/5 hover:bg-primary/10 text-primary font-extrabold text-[9px] uppercase px-2.5 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" /> Historial
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: REGISTRAR CUMPLIMIENTO LOG ================= */}
+      {showLogModal && selectedAsigForLog && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100">
+              <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1">
+                <span>Registrar Verificación</span>
+              </h3>
+              <button onClick={() => setShowLogModal(false)} className="text-slate-400 hover:text-slate-650 font-bold text-sm cursor-pointer">✕</button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-[11px] font-bold text-slate-600 space-y-1">
+                <p><span className="text-slate-400 uppercase">Trabajador:</span> {selectedAsigForLog.trabajador_nombre.toUpperCase()} ({selectedAsigForLog.trabajador_rut})</p>
+                <p><span className="text-slate-400 uppercase">Registro:</span> {selectedAsigForLog.registro_nombre.toUpperCase()}</p>
+                <p><span className="text-slate-400 uppercase">Frecuencia:</span> {selectedAsigForLog.frecuencia.toUpperCase()}</p>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold uppercase text-slate-500 block">Fecha del Registro</label>
+                <input 
+                  type="date"
+                  value={logFecha}
+                  onChange={(e) => setLogFecha(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl p-2 bg-white font-bold"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold uppercase text-slate-500 block">Evaluación / Estado</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {['Cumple', 'No Cumple', 'N/A'].map((est) => (
+                    <button
+                      key={est}
+                      type="button"
+                      onClick={() => setLogEstado(est)}
+                      className={`py-2 rounded-xl border text-[10px] font-black uppercase transition cursor-pointer ${
+                        logEstado === est 
+                          ? 'bg-primary text-white border-primary shadow-xs' 
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      {est}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold uppercase text-slate-500 block">Observaciones / Detalles</label>
+                <textarea
+                  placeholder="Detalles sobre el cumplimiento, notas adicionales, etc."
+                  value={logObservaciones}
+                  onChange={(e) => setLogObservaciones(e.target.value)}
+                  rows="3"
+                  className="w-full border border-slate-200 rounded-xl p-2.5 bg-white font-semibold text-slate-700 focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t">
+                <button
+                  onClick={() => setShowLogModal(false)}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-4 py-2.5 rounded-xl transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSaveCumplimientoLog}
+                  disabled={savingForm}
+                  className="bg-primary hover:bg-primary-hover text-white text-xs font-bold px-5 py-2.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+                >
+                  {savingForm ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  <span>Guardar Registro</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: VER HISTORIAL DE CUMPLIMIENTOS ================= */}
+      {showHistoryModal && selectedAsigForHistory && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-lg p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 flex flex-col max-h-[85vh]">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100 shrink-0">
+              <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1">
+                <span>Historial de Cumplimiento</span>
+              </h3>
+              <button onClick={() => setShowHistoryModal(false)} className="text-slate-400 hover:text-slate-650 font-bold text-sm cursor-pointer">✕</button>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-[11px] font-bold text-slate-600 space-y-1 shrink-0 mb-4">
+              <p><span className="text-slate-400 uppercase">Trabajador:</span> {selectedAsigForHistory.trabajador_nombre.toUpperCase()} ({selectedAsigForHistory.trabajador_rut})</p>
+              <p><span className="text-slate-400 uppercase">Registro:</span> {selectedAsigForHistory.registro_nombre.toUpperCase()}</p>
+              <p><span className="text-slate-400 uppercase">Frecuencia:</span> {selectedAsigForHistory.frecuencia.toUpperCase()}</p>
+            </div>
+
+            <div className="flex-1 overflow-y-auto pr-1 space-y-3">
+              {registrosCumplimientoLog.filter(l => l.asignacion_id === selectedAsigForHistory.id).length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-450 italic">
+                  No hay registros de cumplimiento cargados para esta asignación aún.
+                </div>
+              ) : (
+                registrosCumplimientoLog
+                  .filter(l => l.asignacion_id === selectedAsigForHistory.id)
+                  .map((log) => (
+                    <div key={log.id} className="border border-slate-150 rounded-2xl p-4 bg-slate-50/20 text-xs font-semibold text-slate-700 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="font-mono text-slate-600 font-bold">{new Date(log.fecha_cumplimiento + 'T00:00:00').toLocaleDateString()}</span>
+                        <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                          log.estado === 'Cumple' 
+                            ? 'bg-emerald-50 text-emerald-600 border-emerald-250' 
+                            : log.estado === 'No Cumple' 
+                              ? 'bg-rose-50 text-rose-600 border-rose-250' 
+                              : 'bg-slate-50 text-slate-550 border-slate-200'
+                        }`}>
+                          {log.estado}
+                        </span>
+                      </div>
+                      {log.observaciones && (
+                        <p className="text-[11px] text-slate-500 font-normal leading-relaxed bg-white border rounded-xl p-2.5">
+                          {log.observaciones}
+                        </p>
+                      )}
+                      <div className="flex justify-between text-[9px] font-bold uppercase text-slate-400 pt-1">
+                        <span>Verificado por: {log.verificado_por}</span>
+                        <span>Registrado: {new Date(log.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  ))
+              )}
+            </div>
+
+            <div className="flex justify-end pt-3 border-t shrink-0 mt-4">
+              <button
+                onClick={() => setShowHistoryModal(false)}
                 className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-4 py-2 rounded-xl transition cursor-pointer"
               >
                 Cerrar
