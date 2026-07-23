@@ -26,7 +26,8 @@ export default function Prevencion({ user, onBack }) {
   const [formMeta, setFormMeta] = useState({
     titulo: '',
     descripcion: '',
-    categoria: 'Inspección EPP'
+    categoria: 'Inspección EPP',
+    correos_notificacion: ''
   });
   const [formFields, setFormFields] = useState([]);
   const [savingForm, setSavingForm] = useState(false);
@@ -551,7 +552,8 @@ export default function Prevencion({ user, onBack }) {
     setFormMeta({
       titulo: '',
       descripcion: '',
-      categoria: 'Inspección EPP'
+      categoria: 'Inspección EPP',
+      correos_notificacion: ''
     });
     setFormFields([]);
     setBuilderTab('edit');
@@ -574,15 +576,18 @@ export default function Prevencion({ user, onBack }) {
     try {
       const publicToken = 'form-' + Math.random().toString(36).substring(2, 10);
 
+      const payload = {
+        titulo: formMeta.titulo.trim(),
+        descripcion: formMeta.descripcion.trim(),
+        categoria: formMeta.categoria,
+        campos: formFields,
+        correos_notificacion: formMeta.correos_notificacion ? formMeta.correos_notificacion.trim() : null
+      };
+
       if (editingFormId) {
         const { error } = await supabase
           .from('prevencion_formularios')
-          .update({
-            titulo: formMeta.titulo.trim(),
-            descripcion: formMeta.descripcion.trim(),
-            categoria: formMeta.categoria,
-            campos: formFields
-          })
+          .update(payload)
           .eq('id', editingFormId);
         if (error) throw error;
         setSuccessMsg('Formulario actualizado con éxito.');
@@ -591,10 +596,7 @@ export default function Prevencion({ user, onBack }) {
           .from('prevencion_formularios')
           .insert([
             {
-              titulo: formMeta.titulo.trim(),
-              descripcion: formMeta.descripcion.trim(),
-              categoria: formMeta.categoria,
-              campos: formFields,
+              ...payload,
               creado_por: user ? user.email : 'Prevencionista',
               publico_token: publicToken
             }
@@ -618,7 +620,8 @@ export default function Prevencion({ user, onBack }) {
     setFormMeta({
       titulo: form.titulo,
       descripcion: form.descripcion || '',
-      categoria: form.categoria || 'Inspección EPP'
+      categoria: form.categoria || 'Inspección EPP',
+      correos_notificacion: form.correos_notificacion || ''
     });
     setFormFields(form.campos || []);
     setBuilderTab('edit');
@@ -758,13 +761,20 @@ export default function Prevencion({ user, onBack }) {
 
       // --- Despachar Reporte de Prevención y Seguridad por Correo ---
       try {
-        const { data: configAlertas } = await supabase
-          .from('config_correos')
-          .select('correos')
-          .eq('tipo', 'Prevencion y Seguridad')
-          .maybeSingle();
+        let destinationEmails = selectedFormToFill.correos_notificacion;
 
-        if (configAlertas && configAlertas.correos) {
+        if (!destinationEmails) {
+          const { data: configAlertas } = await supabase
+            .from('config_correos')
+            .select('correos')
+            .eq('tipo', 'Prevencion y Seguridad')
+            .maybeSingle();
+          if (configAlertas && configAlertas.correos) {
+            destinationEmails = configAlertas.correos;
+          }
+        }
+
+        if (destinationEmails) {
           // Construir HTML del reporte
           let tableRowsHtml = "";
           (selectedFormToFill.campos || []).forEach((field) => {
@@ -853,7 +863,7 @@ export default function Prevencion({ user, onBack }) {
 
           const { sendSystemEmail } = await import('../utils/emailService');
           await sendSystemEmail({
-            to: configAlertas.correos,
+            to: destinationEmails,
             subject: `📋 Nueva Inspección: ${selectedFormToFill.titulo} - ${fillMetadata.proyecto_nombre || 'General'}`,
             htmlContent: mailHtml
           });
@@ -1209,6 +1219,18 @@ export default function Prevencion({ user, onBack }) {
                       placeholder="ej: Registro obligatorio de asistentes y evaluación de seguridad."
                       className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Correos de Notificación de Alertas (Separados por coma - Opcional)</label>
+                    <input
+                      type="text"
+                      value={formMeta.correos_notificacion || ''}
+                      onChange={(e) => setFormMeta({ ...formMeta, correos_notificacion: e.target.value })}
+                      placeholder="ejemplo1@obraxis.cl, ejemplo2@obraxis.cl"
+                      className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
+                    />
+                    <p className="text-[9px] text-slate-400 mt-1">Si dejas este campo vacío, las respuestas se notificarán a los correos configurados de forma general en el panel de Alertas de Correo.</p>
                   </div>
                 </div>
 
