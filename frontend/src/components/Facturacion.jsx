@@ -704,6 +704,34 @@ ${detalleXml}  </Documento>
     setShowXMLViewer(false);
   };
 
+  const handlePrintDTE = () => {
+    if (!selectedDTE) return;
+    const printWindow = window.open('', '_blank');
+    const invoiceHtml = document.getElementById('dte-print-area').innerHTML;
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>${getDteTypeName(selectedDTE.tipo_dte)} - Nº ${selectedDTE.folio}</title>
+          <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+          <style>
+            body { font-family: sans-serif; padding: 40px; background-color: white; }
+            .border-emerald-700 { border-color: #047857 !important; }
+            .text-emerald-800 { color: #065f46 !important; }
+            .border-red-600 { border-color: #dc2626 !important; }
+            .text-red-650 { color: #b91c1c !important; }
+            .text-red-600 { color: #dc2626 !important; }
+          </style>
+        </head>
+        <body onload="window.print(); setTimeout(() => { window.close(); }, 500);">
+          <div class="max-w-3xl mx-auto">
+            ${invoiceHtml}
+          </div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   // -------------------------------------------------------------
   // ACCIONES: INGRESO DE COMPRAS Y REGLAS DE RECHAZO AUTOMÁTICO
   // -------------------------------------------------------------
@@ -2372,8 +2400,13 @@ ${detalleXml}  </Documento>
       {showDTEModal && selectedDTE && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white border border-slate-250 rounded-3xl p-6 shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto relative animate-in zoom-in-95 duration-200">
-            <button onClick={() => { setShowDTEModal(false); setSelectedDTE(null); }} className="absolute top-4 right-4 text-xs font-bold text-slate-400 hover:text-slate-700">✕ Cerrar</button>
-            <div className="border-4 border-emerald-700 p-6 space-y-6 rounded-xl">
+            <div className="absolute top-4 right-4 flex items-center gap-3 z-10 bg-white pl-2">
+              <button onClick={handlePrintDTE} className="bg-primary text-white font-extrabold text-[10px] uppercase px-3 py-1.5 rounded-lg hover:bg-primary-hover shadow-xs flex items-center gap-1.5 cursor-pointer transition">
+                <Printer className="w-3.5 h-3.5" /> Imprimir / PDF
+              </button>
+              <button onClick={() => { setShowDTEModal(false); setSelectedDTE(null); }} className="text-xs font-bold text-slate-400 hover:text-slate-700">✕ Cerrar</button>
+            </div>
+            <div id="dte-print-area" className="border-4 border-emerald-700 p-6 space-y-6 rounded-xl bg-white">
               <div className="flex justify-between items-start">
                 <div>
                   <h2 className="text-sm font-black text-emerald-800 uppercase">{configSii?.razon_social || user.empresa}</h2>
