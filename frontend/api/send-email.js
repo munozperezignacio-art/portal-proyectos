@@ -1,6 +1,6 @@
-// api/send-email.js
+// frontend/api/send-email.js
 export default async function handler(req, res) {
-  // Configurar cabeceras CORS para permitir peticiones desde cualquier origen
+  // Configurar cabeceras CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
