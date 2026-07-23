@@ -54,13 +54,16 @@ function ConfigCorreos({ user, onBack }) {
     logo_base64: '',
     color_primario: '#1e3a8a',
     color_secundario: '#1d4ed8',
-    modulos_activos: []
+    modulos_activos: [],
+    email_api_key: '',
+    email_sender: 'notificaciones@obraxis.cl'
   });
 
   const [searchUserQuery, setSearchUserQuery] = useState('');
   const [searchCompanyQuery, setSearchCompanyQuery] = useState('');
   const [userModalLoading, setUserModalLoading] = useState(false);
   const [companyModalLoading, setCompanyModalLoading] = useState(false);
+  const [testMailLoading, setTestMailLoading] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -340,7 +343,9 @@ function ConfigCorreos({ user, onBack }) {
       logo_base64: comp.logo_base64 || '',
       color_primario: comp.color_primario || '#1e3a8a',
       color_secundario: comp.color_secundario || '#1d4ed8',
-      modulos_activos: comp.modulos_activos ? comp.modulos_activos.split(',').map(m => m.trim()) : []
+      modulos_activos: comp.modulos_activos ? comp.modulos_activos.split(',').map(m => m.trim()) : [],
+      email_api_key: comp.email_api_key || '',
+      email_sender: comp.email_sender || 'notificaciones@obraxis.cl'
     });
     setSuccessMsg('');
     setErrorMsg('');
@@ -374,7 +379,9 @@ function ConfigCorreos({ user, onBack }) {
       logo_base64: companyFormData.logo_base64,
       color_primario: companyFormData.color_primario,
       color_secundario: companyFormData.color_secundario,
-      modulos_activos: (companyFormData.modulos_activos || []).join(',')
+      modulos_activos: (companyFormData.modulos_activos || []).join(','),
+      email_api_key: companyFormData.email_api_key ? companyFormData.email_api_key.trim() : null,
+      email_sender: companyFormData.email_sender ? companyFormData.email_sender.trim() : 'notificaciones@obraxis.cl'
     };
 
     try {
@@ -404,6 +411,45 @@ function ConfigCorreos({ user, onBack }) {
       setErrorMsg(err.message);
     } finally {
       setCompanyModalLoading(false);
+    }
+  };
+
+  const handleSendTestEmail = async () => {
+    if (!companyFormData.email_api_key) {
+      alert("Por favor ingrese la API Key de Resend primero.");
+      return;
+    }
+    setTestMailLoading(true);
+    try {
+      const { sendSystemEmail } = await import('../utils/emailService');
+      const testHtml = `
+        <div style="font-family: sans-serif; padding: 25px; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; rounded: 12px; background-color: #ffffff;">
+          <h2 style="color: #2563eb; margin-top: 0;">🧪 Prueba de Conexión de Correo</h2>
+          <p style="color: #334155; font-size: 14px; line-height: 1.5;">Este correo confirma que la configuración de la API de Resend para el dominio <b>obraxis.cl</b> funciona correctamente.</p>
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin: 20px 0;">
+            <p style="margin: 0; font-size: 12px; color: #475569;"><b>Remitente:</b> ${companyFormData.email_sender}</p>
+            <p style="margin: 5px 0 0 0; font-size: 12px; color: #475569;"><b>Estado:</b> Conexión exitosa ✅</p>
+          </div>
+          <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+          <p style="font-size: 11px; color: #64748b; text-align: center; margin: 0;">Enviado por Obraxis - Portal de Proyectos</p>
+        </div>
+      `;
+      const recipient = user.correo || 'notificaciones@obraxis.cl';
+      const res = await sendSystemEmail({
+        to: recipient,
+        subject: '🧪 Prueba de Envío de Correo - Obraxis',
+        htmlContent: testHtml
+      });
+
+      if (res.success) {
+        alert(`¡Correo de prueba enviado con éxito a ${recipient}!`);
+      } else {
+        alert(`Error al enviar: ${res.error}`);
+      }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setTestMailLoading(false);
     }
   };
 
@@ -531,7 +577,7 @@ function ConfigCorreos({ user, onBack }) {
     return c.empresa && c.empresa.toLowerCase().includes(searchCompanyQuery.toLowerCase());
   });
 
-  const tiposReporte = ['Produccion Diaria', 'Uso Maquinaria', 'Asistencia Personal'];
+  const tiposReporte = ['Produccion Diaria', 'Uso Maquinaria', 'Asistencia Personal', 'Prevencion y Seguridad'];
   const modulosDisponibles = ['obras', 'rrhh', 'maquinaria', 'prevencion', 'acreditaciones', 'calidad', 'bodega', 'presupuestos', 'clientes', 'facturacion', 'gastos', 'admin'];
 
   return (
@@ -1246,6 +1292,40 @@ function ConfigCorreos({ user, onBack }) {
                   })}
                 </div>
               </div>
+
+              {companyFormData.empresa === 'Obraxis' && (
+                <div className="border-t border-slate-100 pt-4 space-y-4">
+                  <h4 className="font-bold text-slate-800 text-xs">Configuración de Correo (Resend API)</h4>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Resend API Key</label>
+                    <input
+                      type="password"
+                      value={companyFormData.email_api_key || ''}
+                      onChange={(e) => setCompanyFormData({ ...companyFormData, email_api_key: e.target.value })}
+                      placeholder="re_xxxxxxxx"
+                      className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 focus:outline-none focus:border-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Correo Remitente Autorizado</label>
+                    <input
+                      type="email"
+                      value={companyFormData.email_sender || ''}
+                      onChange={(e) => setCompanyFormData({ ...companyFormData, email_sender: e.target.value })}
+                      placeholder="notificaciones@obraxis.cl"
+                      className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 focus:outline-none focus:border-primary"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSendTestEmail}
+                    disabled={testMailLoading}
+                    className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-lg text-xs transition disabled:opacity-70 flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    {testMailLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span>Enviar Correo de Prueba</span>}
+                  </button>
+                </div>
+              )}
 
               <button
                 type="submit"

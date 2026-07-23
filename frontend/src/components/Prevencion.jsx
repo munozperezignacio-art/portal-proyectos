@@ -756,6 +756,112 @@ export default function Prevencion({ user, onBack }) {
 
       if (error) throw error;
 
+      // --- Despachar Reporte de Prevención y Seguridad por Correo ---
+      try {
+        const { data: configAlertas } = await supabase
+          .from('config_correos')
+          .select('correos')
+          .eq('tipo', 'Prevencion y Seguridad')
+          .maybeSingle();
+
+        if (configAlertas && configAlertas.correos) {
+          // Construir HTML del reporte
+          let tableRowsHtml = "";
+          (selectedFormToFill.campos || []).forEach((field) => {
+            const ans = finalAnswers[field.id];
+            let formattedAns = "";
+            if (field.type === 'repeater') {
+              if (Array.isArray(ans)) {
+                formattedAns = `<table style="width: 100%; border-collapse: collapse; margin-top: 5px;">`;
+                ans.forEach((instance, idx) => {
+                  formattedAns += `<tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 5px; font-size: 11px; font-weight: bold; color: #64748b;">Instancia ${idx + 1}:</td><td style="padding: 5px;">`;
+                  Object.entries(instance).forEach(([subId, subVal]) => {
+                    const subField = field.subFields?.find(sf => sf.id === subId);
+                    const subLabel = subField ? subField.label : subId;
+                    if (subField?.type === 'signature' && subVal) {
+                      formattedAns += `<b>${subLabel}:</b> <img src="${subVal}" style="max-height: 40px; vertical-align: middle;" /><br/>`;
+                    } else {
+                      formattedAns += `<b>${subLabel}:</b> ${subVal || '-'}<br/>`;
+                    }
+                  });
+                  formattedAns += `</td></tr>`;
+                });
+                formattedAns += `</table>`;
+              } else {
+                formattedAns = "Sin registros";
+              }
+            } else if (field.type === 'signature' && ans) {
+              formattedAns = `<img src="${ans}" style="max-height: 60px;" />`;
+            } else {
+              formattedAns = ans !== undefined ? String(ans) : "-";
+            }
+
+            tableRowsHtml += `
+              <tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 10px; font-size: 12px; color: #475569; font-weight: bold; width: 35%; background-color: #f8fafc;">${field.label}</td>
+                <td style="padding: 10px; font-size: 12px; color: #1e293b;">${formattedAns}</td>
+              </tr>
+            `;
+          });
+
+          let mainSignatureHtml = "";
+          if (mainSignatureDataUrl) {
+            mainSignatureHtml = `
+              <div style="margin-top: 25px; padding: 15px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #f8fafc; text-align: center;">
+                <h4 style="margin: 0 0 10px 0; color: #475569; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">Firma del Inspector</h4>
+                <img src="${mainSignatureDataUrl}" style="max-height: 80px; max-width: 100%;" />
+              </div>
+            `;
+          }
+
+          const mailHtml = `
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 25px; max-width: 600px; margin: auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px;">
+              <div style="text-align: center; border-bottom: 2px solid #2563eb; padding-bottom: 15px; margin-bottom: 20px;">
+                <h2 style="color: #0f172a; margin: 0; font-size: 20px; text-transform: uppercase;">Portal de Prevención</h2>
+                <p style="color: #2563eb; margin: 5px 0 0 0; font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em;">${selectedFormToFill.titulo}</p>
+              </div>
+
+              <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                <tr style="background-color: #f1f5f9;">
+                  <th colspan="2" style="padding: 10px; font-size: 12px; color: #334155; text-align: left; border-bottom: 1px solid #e2e8f0;">Metadata del Registro</th>
+                </tr>
+                <tr style="border-bottom: 1px solid #e2e8f0;">
+                  <td style="padding: 8px 10px; font-size: 11px; color: #64748b; font-weight: bold; width: 35%;">Proyecto / Obra:</td>
+                  <td style="padding: 8px 10px; font-size: 11px; color: #1e293b; font-weight: bold;">${fillMetadata.proyecto_nombre.trim() || 'General / Terreno'}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #e2e8f0;">
+                  <td style="padding: 8px 10px; font-size: 11px; color: #64748b; font-weight: bold;">Inspector / Autor:</td>
+                  <td style="padding: 8px 10px; font-size: 11px; color: #1e293b;">${fillMetadata.inspector.trim() || 'Anónimo'}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 10px; font-size: 11px; color: #64748b; font-weight: bold;">Fecha de Registro:</td>
+                  <td style="padding: 8px 10px; font-size: 11px; color: #1e293b;">${new Date().toLocaleDateString('es-CL')} ${new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</td>
+                </tr>
+              </table>
+
+              <h3 style="color: #0f172a; font-size: 13px; margin: 15px 0 10px 0; border-left: 4px solid #2563eb; padding-left: 8px; text-transform: uppercase; letter-spacing: 0.03em;">Respuestas del Formulario</h3>
+              <table style="width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+                ${tableRowsHtml}
+              </table>
+
+              ${mainSignatureHtml}
+
+              <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 25px 0;" />
+              <p style="font-size: 10px; color: #94a3b8; text-align: center; margin: 0;">Este es un reporte automático enviado por el Portal de Proyectos de Obraxis.cl</p>
+            </div>
+          `;
+
+          const { sendSystemEmail } = await import('../utils/emailService');
+          await sendSystemEmail({
+            to: configAlertas.correos,
+            subject: `📋 Nueva Inspección: ${selectedFormToFill.titulo} - ${fillMetadata.proyecto_nombre || 'General'}`,
+            htmlContent: mailHtml
+          });
+        }
+      } catch (errMail) {
+        console.error('Error al despachar correo de prevención:', errMail.toString());
+      }
+
       setSuccessMsg(`Inspección "${selectedFormToFill.titulo}" guardada correctamente.`);
       setSelectedFormToFill(null);
       setFillAnswers({});
