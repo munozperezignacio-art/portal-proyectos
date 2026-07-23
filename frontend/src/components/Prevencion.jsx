@@ -92,6 +92,7 @@ export default function Prevencion({ user, onBack }) {
   const [asigTrabajadorNombre, setAsigTrabajadorNombre] = useState('');
   const [asigRegistroNombre, setAsigRegistroNombre] = useState('');
   const [asigFrecuencia, setAsigFrecuencia] = useState('Diario');
+  const [asigFormType, setAsigFormType] = useState('');
 
   // Registrar Cumplimiento (Log)
   const [showLogModal, setShowLogModal] = useState(false);
@@ -284,6 +285,7 @@ export default function Prevencion({ user, onBack }) {
       setAsigTrabajadorNombre('');
       setAsigRegistroNombre('');
       setAsigFrecuencia('Diario');
+      setAsigFormType('');
 
       fetchAsignacionesCumplimiento();
     } catch (err) {
@@ -2481,23 +2483,51 @@ export default function Prevencion({ user, onBack }) {
 
                   <div className="space-y-1">
                     <label className="text-[9px] font-bold uppercase text-slate-550 block">Registro Operacional / Requisito</label>
-                    <input 
-                      type="text"
-                      placeholder="Ej. Charla de 5 Minutos, Entrega de EPP, Uso de Arnés"
-                      value={asigRegistroNombre}
-                      onChange={(e) => setAsigRegistroNombre(e.target.value)}
+                    <select
+                      value={asigFormType}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setAsigFormType(val);
+                        if (val !== 'OTRO') {
+                          setAsigRegistroNombre(val);
+                        } else {
+                          setAsigRegistroNombre('');
+                        }
+                      }}
                       className="w-full border border-slate-250 rounded-xl p-2.5 bg-white text-xs font-semibold text-slate-700 focus:outline-none focus:border-primary"
-                      list="registros-sugeridos"
-                    />
-                    <datalist id="registros-sugeridos">
-                      <option value="Charla de 5 Minutos" />
-                      <option value="Inspección de EPP" />
-                      <option value="Examen de Altura Física" />
-                      <option value="Entrega de EPP" />
-                      <option value="Uso de Arnés de Seguridad" />
-                      <option value="Checklist de Maquinaria" />
-                    </datalist>
+                    >
+                      <option value="">-- Seleccione un Formulario --</option>
+                      {formularios.length > 0 && (
+                        <optgroup label="Formularios del Sistema">
+                          {formularios.map((f) => (
+                            <option key={f.id} value={f.titulo}>{f.titulo}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      <optgroup label="Otros Registros Sugeridos">
+                        <option value="Charla de 5 Minutos">Charla de 5 Minutos</option>
+                        <option value="Inspección de EPP">Inspección de EPP</option>
+                        <option value="Examen de Altura Física">Examen de Altura Física</option>
+                        <option value="Entrega de EPP">Entrega de EPP</option>
+                        <option value="Uso de Arnés de Seguridad">Uso de Arnés de Seguridad</option>
+                        <option value="Checklist de Maquinaria">Checklist de Maquinaria</option>
+                      </optgroup>
+                      <option value="OTRO">* Otro (Ingresar Texto Personalizado)</option>
+                    </select>
                   </div>
+
+                  {asigFormType === 'OTRO' && (
+                    <div className="space-y-1 animate-in fade-in duration-200">
+                      <label className="text-[9px] font-bold uppercase text-slate-550 block">Nombre del Registro Personalizado</label>
+                      <input 
+                        type="text"
+                        placeholder="Escriba el nombre del registro"
+                        value={asigRegistroNombre}
+                        onChange={(e) => setAsigRegistroNombre(e.target.value)}
+                        className="w-full border border-slate-250 rounded-xl p-2.5 bg-white text-xs font-semibold text-slate-700 focus:outline-none focus:border-primary"
+                      />
+                    </div>
+                  )}
 
                   <div className="space-y-1">
                     <label className="text-[9px] font-bold uppercase text-slate-550 block">Frecuencia de Cumplimiento</label>
