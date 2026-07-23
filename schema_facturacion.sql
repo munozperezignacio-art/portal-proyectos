@@ -1,5 +1,5 @@
--- Script de Creación de Tablas para el Módulo de Facturación Electrónica, Centros de Gestión y Órdenes de Compra
--- Ejecuta este script en el SQL Editor de tu proyecto en Supabase para crear las tablas necesarias.
+-- Script de Creación de Tablas para el Módulo de Facturación Electrónica, Centros de Gestión y Órdenes de Compra (iConstruye Style)
+-- Ejecuta este script en el SQL Editor de tu proyecto en Supabase para crear o actualizar las tablas necesarias.
 
 -- 1. Tabla de Configuración de Facturación (SII y Certificado)
 CREATE TABLE IF NOT EXISTS facturacion_config (
@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS facturacion_config (
     certificado_digital_base64 TEXT,
     certificado_nombre TEXT,
     modo_sii TEXT DEFAULT 'Certificación', -- 'Certificación' o 'Producción'
+    rechazo_sin_oc BOOLEAN DEFAULT FALSE, -- Regla de control automático
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -28,7 +29,32 @@ CREATE TABLE IF NOT EXISTS facturacion_centros_gestion (
     CONSTRAINT unique_empresa_codigo UNIQUE(empresa, codigo)
 );
 
--- 3. Tabla de Órdenes de Compra (OC)
+-- 3. Tabla de Secciones / Departamentos
+CREATE TABLE IF NOT EXISTS facturacion_secciones (
+    id SERIAL PRIMARY KEY,
+    empresa TEXT NOT NULL,
+    nombre TEXT NOT NULL,
+    descripcion TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_empresa_seccion UNIQUE(empresa, nombre)
+);
+
+-- 4. Tabla de Proveedores Autorizados
+CREATE TABLE IF NOT EXISTS facturacion_proveedores (
+    id SERIAL PRIMARY KEY,
+    empresa TEXT NOT NULL,
+    rut TEXT NOT NULL,
+    razon_social TEXT NOT NULL,
+    giro TEXT,
+    direccion TEXT,
+    comuna TEXT,
+    email_dte TEXT,
+    plazo_pago INTEGER DEFAULT 30, -- Días de plazo de pago pactado
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_empresa_proveedor UNIQUE(empresa, rut)
+);
+
+-- 5. Tabla de Órdenes de Compra (OC)
 CREATE TABLE IF NOT EXISTS facturacion_ordenes_compra (
     id SERIAL PRIMARY KEY,
     empresa TEXT NOT NULL,
@@ -37,6 +63,7 @@ CREATE TABLE IF NOT EXISTS facturacion_ordenes_compra (
     proveedor_rut TEXT NOT NULL,
     proveedor_nombre TEXT NOT NULL,
     centro_gestion_id INTEGER REFERENCES facturacion_centros_gestion(id) ON DELETE SET NULL,
+    seccion_id INTEGER REFERENCES facturacion_secciones(id) ON DELETE SET NULL, -- Seccion asociada
     monto_neto NUMERIC DEFAULT 0,
     monto_iva NUMERIC DEFAULT 0,
     monto_total NUMERIC DEFAULT 0,
@@ -46,7 +73,18 @@ CREATE TABLE IF NOT EXISTS facturacion_ordenes_compra (
     CONSTRAINT unique_empresa_oc UNIQUE(empresa, numero)
 );
 
--- 4. Tabla de Documentos Tributarios Electrónicos (DTE) - Ventas y Compras
+-- 6. Tabla de Recepciones de Bodega (Materiales/Servicios)
+CREATE TABLE IF NOT EXISTS facturacion_recepciones (
+    id SERIAL PRIMARY KEY,
+    empresa TEXT NOT NULL,
+    oc_id INTEGER REFERENCES facturacion_ordenes_compra(id) ON DELETE CASCADE,
+    fecha_recepcion DATE DEFAULT CURRENT_DATE,
+    recibido_por TEXT NOT NULL,
+    detalles JSONB DEFAULT '[]', -- Lista de items recibidos y cantidad
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 7. Tabla de Documentos Tributarios Electrónicos (DTE) - Ventas y Compras
 CREATE TABLE IF NOT EXISTS facturacion_documentos (
     id SERIAL PRIMARY KEY,
     empresa TEXT NOT NULL,
@@ -61,16 +99,19 @@ CREATE TABLE IF NOT EXISTS facturacion_documentos (
     monto_total NUMERIC DEFAULT 0,
     detalles JSONB DEFAULT '[]', -- Lista de productos/servicios
     centro_gestion_id INTEGER REFERENCES facturacion_centros_gestion(id) ON DELETE SET NULL,
+    seccion_id INTEGER REFERENCES facturacion_secciones(id) ON DELETE SET NULL,
     referencia_oc_id INTEGER REFERENCES facturacion_ordenes_compra(id) ON DELETE SET NULL,
     referencia_folio INTEGER, -- Folio del documento que se referencia (ej: para Nota de Crédito o Guía)
     referencia_tipo INTEGER, -- Tipo DTE referenciado
     estado_sii TEXT DEFAULT 'Pendiente', -- 'Aceptado', 'Rechazado', 'Pendiente'
+    estado_acuse TEXT DEFAULT 'Pendiente', -- Acuse de recibo SII: 'Aceptado', 'Reclamado', 'Pendiente'
+    motivo_reclamo TEXT, -- Detalle si se rechaza la factura
     track_id TEXT, -- ID de seguimiento retornado por el SII
     xml_content TEXT, -- Contenido XML estructurado del DTE
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 5. Tabla de Folios Autorizados (CAF)
+-- 8. Tabla de Folios Autorizados (CAF)
 CREATE TABLE IF NOT EXISTS facturacion_folios (
     id SERIAL PRIMARY KEY,
     empresa TEXT NOT NULL,
@@ -86,6 +127,9 @@ CREATE TABLE IF NOT EXISTS facturacion_folios (
 -- Deshabilitar RLS para facilitar la lectura y escritura directa desde la aplicación
 ALTER TABLE facturacion_config DISABLE ROW LEVEL SECURITY;
 ALTER TABLE facturacion_centros_gestion DISABLE ROW LEVEL SECURITY;
+ALTER TABLE facturacion_secciones DISABLE ROW LEVEL SECURITY;
+ALTER TABLE facturacion_proveedores DISABLE ROW LEVEL SECURITY;
 ALTER TABLE facturacion_ordenes_compra DISABLE ROW LEVEL SECURITY;
+ALTER TABLE facturacion_recepciones DISABLE ROW LEVEL SECURITY;
 ALTER TABLE facturacion_documentos DISABLE ROW LEVEL SECURITY;
 ALTER TABLE facturacion_folios DISABLE ROW LEVEL SECURITY;
