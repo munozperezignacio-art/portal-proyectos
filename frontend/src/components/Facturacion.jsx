@@ -4,7 +4,7 @@ import {
   Building2, Receipt, Plus, Trash2, Check, AlertCircle, RefreshCw, FileText, 
   ChevronRight, ArrowLeft, Printer, Search, Settings, Save, Sparkles, FolderPlus, 
   Coins, ShoppingBag, Eye, Percent, FileCode, CheckCircle, HelpCircle, HardDrive,
-  Users, Boxes, FileCheck, Ban, ShieldAlert, BadgeCheck
+  Users, Boxes, FileCheck, Ban
 } from 'lucide-react';
 import { comunasChile } from '../utils/comunas';
 
@@ -822,7 +822,7 @@ export default function Facturacion({ user, companyBranding, onBack }) {
         <div className="flex flex-wrap items-center gap-2">
           {configSii.rechazo_sin_oc && (
             <span className="text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-200 px-3 py-1.5 rounded-xl uppercase tracking-wider flex items-center gap-1">
-              <ShieldAlert className="w-3.5 h-3.5" />
+              <AlertCircle className="w-3.5 h-3.5" />
               Rechazo sin OC Activo
             </span>
           )}
@@ -934,7 +934,7 @@ export default function Facturacion({ user, companyBranding, onBack }) {
             <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-3xl p-5 shadow-xs flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 bg-amber-100 rounded-xl text-amber-700">
-                  <ShieldAlert className="w-5 h-5" />
+                  <AlertCircle className="w-5 h-5" />
                 </div>
                 <div>
                   <h4 className="font-extrabold text-xs uppercase tracking-wider">Control de Acuse de Recibo SII</h4>
@@ -1968,7 +1968,7 @@ export default function Facturacion({ user, companyBranding, onBack }) {
             {/* REGLAS DE NEGOCIO AVANZADAS (iConstruye-Style) */}
             <div className="bg-slate-50 border border-slate-200 rounded-3xl p-5 space-y-4">
               <h4 className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider border-b pb-1.5 flex items-center gap-1">
-                <ShieldAlert className="w-4 h-4 text-primary" />
+                <AlertCircle className="w-4 h-4 text-primary" />
                 Reglas de Validación y Control Automático (iConstruye Style)
               </h4>
               
