@@ -1894,74 +1894,7 @@ ${detalleXml}  </Documento>
             </div>
           </div>
 
-          {/* VISOR DTE */}
-          {showDTEModal && selectedDTE && (
-            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-              <div className="bg-white border border-slate-250 rounded-3xl p-6 shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto relative animate-in zoom-in-95 duration-200">
-                <button onClick={() => { setShowDTEModal(false); setSelectedDTE(null); }} className="absolute top-4 right-4 text-xs font-bold text-slate-400 hover:text-slate-700">✕ Cerrar</button>
-                <div className="border-4 border-emerald-700 p-6 space-y-6 rounded-xl">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h2 className="text-sm font-black text-emerald-800 uppercase">{configSii?.razon_social || user.empresa}</h2>
-                      <p className="text-[10px] text-slate-500 font-extrabold uppercase">Giro: {configSii?.giro || 'Giro Comercial'}</p>
-                    </div>
-                    <div className="border-4 border-red-600 rounded-lg p-3 text-center w-52 shrink-0">
-                      <p className="text-red-600 text-[10px] font-black">R.U.T.: {configSii?.rut_empresa || 'RUT Emisor'}</p>
-                      <p className="text-red-600 text-xs font-black uppercase">{getDteTypeName(selectedDTE.tipo_dte)}</p>
-                      <p className="text-red-600 text-[11px] font-black">Nº {selectedDTE.folio}</p>
-                    </div>
-                  </div>
 
-                  <div className="grid grid-cols-2 gap-4 border border-slate-200 rounded-lg p-3 text-[10px] bg-slate-50">
-                    <div>
-                      <p className="text-slate-450 text-[8px] uppercase">Receptor:</p>
-                      <p className="text-slate-800 font-bold">{selectedDTE.nombre_receptor}</p>
-                      <p className="text-slate-800 font-bold">RUT: {selectedDTE.rut_receptor}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-450 text-[8px] uppercase">Acuse SII:</p>
-                      <p className="text-slate-800 font-black uppercase text-primary">{selectedDTE.estado_acuse}</p>
-                    </div>
-                  </div>
-
-                  <table className="w-full text-left text-[10px] border">
-                    <thead>
-                      <tr className="bg-slate-100 border-b text-slate-655 font-bold uppercase text-[8.5px] tracking-wider bg-slate-50 text-slate-500">
-                        <th className="p-2 w-20">Código</th>
-                        <th className="p-2">Descripción</th>
-                        <th className="p-2 w-12 text-center">Cant.</th>
-                        <th className="p-2 w-20 text-right">P. Unitario</th>
-                        <th className="p-2 w-24 text-right">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y text-slate-700 font-bold bg-white">
-                      {Array.isArray(selectedDTE.detalles) && selectedDTE.detalles.map((it, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50/50">
-                          <td className="p-2 text-slate-450 font-mono text-[9px]">{it.codigo || '—'}</td>
-                          <td className="p-2">
-                            <p className="font-bold text-slate-800">{it.descripcion}</p>
-                            {it.detalles && <p className="text-[9px] text-slate-500 font-normal mt-0.5">{it.detalles}</p>}
-                          </td>
-                          <td className="p-2 text-center">{it.cantidad}</td>
-                          <td className="p-2 text-right">{formatCLP(it.precioUnitario)}</td>
-                          <td className="p-2 text-right">{formatCLP(it.cantidad * it.precioUnitario)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-
-                  <div className="flex justify-between items-end">
-                    <div className="border p-2 text-center w-60 rounded bg-white font-mono text-[7px] text-slate-700 leading-none">[ TIMBRE ELECTRÓNICO SII PDF417 ]</div>
-                    <div className="w-48 space-y-1 text-slate-750 font-bold">
-                      <div className="flex justify-between"><span>Neto:</span><span>{formatCLP(selectedDTE.monto_neto)}</span></div>
-                      <div className="flex justify-between text-slate-400"><span>IVA:</span><span>{formatCLP(selectedDTE.monto_iva)}</span></div>
-                      <div className="flex justify-between font-black text-emerald-800 border-t pt-1"><span>Total:</span><span>{formatCLP(selectedDTE.monto_total)}</span></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* MODAL INGRESO COMPRA FACTURA PROVEEDOR */}
           {showIngresoCompraModal && (
@@ -2430,6 +2363,75 @@ ${detalleXml}  </Documento>
               <button onClick={handleSaveRecepcion} disabled={loading} className="w-full bg-emerald-650 hover:bg-emerald-700 text-white font-extrabold text-xs uppercase py-2.5 rounded-xl transition flex items-center justify-center gap-1.5">
                 <Check className="w-3.5 h-3.5" /> Registrar Entrada a Bodega
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VISOR DTE */}
+      {showDTEModal && selectedDTE && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-250 rounded-3xl p-6 shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto relative animate-in zoom-in-95 duration-200">
+            <button onClick={() => { setShowDTEModal(false); setSelectedDTE(null); }} className="absolute top-4 right-4 text-xs font-bold text-slate-400 hover:text-slate-700">✕ Cerrar</button>
+            <div className="border-4 border-emerald-700 p-6 space-y-6 rounded-xl">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h2 className="text-sm font-black text-emerald-800 uppercase">{configSii?.razon_social || user.empresa}</h2>
+                  <p className="text-[10px] text-slate-500 font-extrabold uppercase">Giro: {configSii?.giro || 'Giro Comercial'}</p>
+                </div>
+                <div className="border-4 border-red-600 rounded-lg p-3 text-center w-52 shrink-0">
+                  <p className="text-red-600 text-[10px] font-black">R.U.T.: {configSii?.rut_empresa || 'RUT Emisor'}</p>
+                  <p className="text-red-600 text-xs font-black uppercase">{getDteTypeName(selectedDTE.tipo_dte)}</p>
+                  <p className="text-red-600 text-[11px] font-black">Nº {selectedDTE.folio}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 border border-slate-200 rounded-lg p-3 text-[10px] bg-slate-50">
+                <div>
+                  <p className="text-slate-450 text-[8px] uppercase">Receptor:</p>
+                  <p className="text-slate-800 font-bold">{selectedDTE.nombre_receptor}</p>
+                  <p className="text-slate-800 font-bold">RUT: {selectedDTE.rut_receptor}</p>
+                </div>
+                <div>
+                  <p className="text-slate-450 text-[8px] uppercase">Acuse SII:</p>
+                  <p className="text-slate-800 font-black uppercase text-primary">{selectedDTE.estado_acuse}</p>
+                </div>
+              </div>
+
+              <table className="w-full text-left text-[10px] border">
+                <thead>
+                  <tr className="bg-slate-100 border-b text-slate-655 font-bold uppercase text-[8.5px] tracking-wider bg-slate-50 text-slate-500">
+                    <th className="p-2 w-20">Código</th>
+                    <th className="p-2">Descripción</th>
+                    <th className="p-2 w-12 text-center">Cant.</th>
+                    <th className="p-2 w-20 text-right">P. Unitario</th>
+                    <th className="p-2 w-24 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y text-slate-700 font-bold bg-white">
+                  {Array.isArray(selectedDTE.detalles) && selectedDTE.detalles.map((it, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/50">
+                      <td className="p-2 text-slate-450 font-mono text-[9px]">{it.codigo || '—'}</td>
+                      <td className="p-2">
+                        <p className="font-bold text-slate-800">{it.descripcion}</p>
+                        {it.detalles && <p className="text-[9px] text-slate-500 font-normal mt-0.5">{it.detalles}</p>}
+                      </td>
+                      <td className="p-2 text-center">{it.cantidad}</td>
+                      <td className="p-2 text-right">{formatCLP(it.precioUnitario)}</td>
+                      <td className="p-2 text-right">{formatCLP(it.cantidad * it.precioUnitario)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <div className="flex justify-between items-end">
+                <div className="border p-2 text-center w-60 rounded bg-white font-mono text-[7px] text-slate-700 leading-none">[ TIMBRE ELECTRÓNICO SII PDF417 ]</div>
+                <div className="w-48 space-y-1 text-slate-750 font-bold">
+                  <div className="flex justify-between"><span>Neto:</span><span>{formatCLP(selectedDTE.monto_neto)}</span></div>
+                  <div className="flex justify-between text-slate-400"><span>IVA:</span><span>{formatCLP(selectedDTE.monto_iva)}</span></div>
+                  <div className="flex justify-between font-black text-emerald-800 border-t pt-1"><span>Total:</span><span>{formatCLP(selectedDTE.monto_total)}</span></div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
