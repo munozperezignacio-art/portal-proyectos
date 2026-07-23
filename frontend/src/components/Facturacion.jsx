@@ -98,7 +98,7 @@ export default function Facturacion({ user, companyBranding, onBack }) {
   const [ocProveedorId, setOcProveedorId] = useState('');
   const [ocCentroGestion, setOcCentroGestion] = useState('');
   const [ocSeccionId, setOcSeccionId] = useState('');
-  const [ocItems, setOcItems] = useState([{ descripcion: '', cantidad: 1, precioUnitario: 0 }]);
+  const [ocItems, setOcItems] = useState([{ descripcion: '', cantidad: 1, precioUnitario: 0, detalles: '' }]);
   const [ocEstado, setOcEstado] = useState('Borrador');
 
   // -------------------------------------------------------------
@@ -468,7 +468,7 @@ export default function Facturacion({ user, companyBranding, onBack }) {
       setOcProveedorId('');
       setOcCentroGestion('');
       setOcSeccionId('');
-      setOcItems([{ descripcion: '', cantidad: 1, precioUnitario: 0 }]);
+      setOcItems([{ descripcion: '', cantidad: 1, precioUnitario: 0, detalles: '' }]);
       fetchOrdenesCompra();
     } catch (err) {
       setErrorMsg(err.message);
@@ -1468,7 +1468,7 @@ ${detalleXml}  </Documento>
               <h3 className="font-extrabold text-xs uppercase tracking-wider text-slate-800">Órdenes de Compra</h3>
               <p className="text-[10px] text-slate-500 font-semibold">Genera compras para proveedores y autoriza recepciones.</p>
             </div>
-            <button onClick={() => { setErrorMsg(''); setSuccessMsg(''); setOcProveedorId(''); setOcCentroGestion(''); setOcSeccionId(''); setOcItems([{ descripcion: '', cantidad: 1, precioUnitario: 0 }]); setOcEstado('Borrador'); setShowOCModal(true); }} className="bg-primary text-white font-extrabold text-xs uppercase px-4 py-2.5 rounded-xl hover:bg-primary-hover shadow-xs cursor-pointer transition flex items-center gap-1.5">
+            <button onClick={() => { setErrorMsg(''); setSuccessMsg(''); setOcProveedorId(''); setOcCentroGestion(''); setOcSeccionId(''); setOcItems([{ descripcion: '', cantidad: 1, precioUnitario: 0, detalles: '' }]); setOcEstado('Borrador'); setShowOCModal(true); }} className="bg-primary text-white font-extrabold text-xs uppercase px-4 py-2.5 rounded-xl hover:bg-primary-hover shadow-xs cursor-pointer transition flex items-center gap-1.5">
               <Plus className="w-4 h-4" /> Nueva Orden de Compra
             </button>
           </div>
@@ -1572,7 +1572,10 @@ ${detalleXml}  </Documento>
                 <tbody className="divide-y divide-slate-150 text-slate-700">
                   {selectedOC.detalles.map((it, idx) => (
                     <tr key={idx}>
-                      <td className="p-2 font-bold">{it.descripcion}</td>
+                      <td className="p-2">
+                        <p className="font-bold text-slate-800">{it.descripcion}</p>
+                        {it.detalles && <p className="text-[10px] text-slate-500 font-normal mt-0.5">{it.detalles}</p>}
+                      </td>
                       <td className="p-2 text-center">{it.cantidad}</td>
                       <td className="p-2 text-right">{formatCLP(it.precioUnitario)}</td>
                       <td className="p-2 text-right font-bold">{formatCLP(it.cantidad * it.precioUnitario)}</td>
@@ -1630,6 +1633,7 @@ ${detalleXml}  </Documento>
                             {r.detalles.map((d, i) => (
                               <div key={i} className="text-[11px] font-semibold text-slate-500">
                                 • {d.descripcion}: <span className="text-slate-800 font-extrabold">{d.cantidadRecibida} u</span>
+                                {d.detalles && <span className="text-slate-400 font-normal block pl-2 text-[10px]">— {d.detalles}</span>}
                               </div>
                             ))}
                           </div>
@@ -1649,19 +1653,19 @@ ${detalleXml}  </Documento>
         </div>
       )}
 
-      {/* -------------------------------------------------------------
-          TAB: EMITIR DTE (VENTAS)
-          ------------------------------------------------------------- */}
       {activeTab === 'emitir' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-in fade-in duration-200">
-          <div className="lg:col-span-5 bg-white border border-slate-250 rounded-3xl p-6 shadow-xs space-y-4 h-fit font-semibold text-xs text-slate-700">
-            <h4 className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider border-b pb-2">
-              📄 Datos del Receptor
+        <div className="space-y-6 animate-in fade-in duration-200">
+          
+          {/* Panel Superior: Datos del Receptor */}
+          <div className="bg-white border border-slate-250 rounded-3xl p-6 shadow-xs space-y-4 font-semibold text-xs text-slate-700">
+            <h4 className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider border-b pb-2 flex items-center gap-1.5">
+              <Users className="w-4 h-4 text-primary" />
+              📄 Datos del Receptor de DTE
             </h4>
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-1">
                 <label className="text-[9px] font-bold uppercase text-slate-450">Tipo DTE</label>
-                <select value={dteTipo} onChange={(e) => setDteTipo(parseInt(e.target.value))} className="w-full border border-slate-250 rounded-xl p-2 bg-white cursor-pointer">
+                <select value={dteTipo} onChange={(e) => setDteTipo(parseInt(e.target.value))} className="w-full border border-slate-250 rounded-xl p-2.5 bg-white cursor-pointer text-xs">
                   <option value={33}>Factura Electrónica (33)</option>
                   <option value={34}>Factura Exenta (34)</option>
                   <option value={39}>Boleta Electrónica (39)</option>
@@ -1670,93 +1674,104 @@ ${detalleXml}  </Documento>
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold uppercase text-slate-450">RUT Receptor</label>
-                  <input type="text" value={dteReceptorRut} onChange={(e) => setDteReceptorRut(e.target.value)} placeholder="76.123.456-K" className="w-full border border-slate-250 rounded-xl p-2 bg-white" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold uppercase text-slate-450">Centro Costos</label>
-                  <select value={dteCentroGestion} onChange={(e) => setDteCentroGestion(e.target.value)} className="w-full border border-slate-250 rounded-xl p-2 bg-white cursor-pointer">
-                    <option value="">Selecciona...</option>
-                    {centros.map(c => <option key={c.id} value={c.id}>{c.codigo} - {c.nombre}</option>)}
-                  </select>
-                </div>
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold uppercase text-slate-450">RUT Receptor</label>
+                <input type="text" value={dteReceptorRut} onChange={(e) => setDteReceptorRut(e.target.value)} placeholder="76.123.456-K" className="w-full border border-slate-250 rounded-xl p-2.5 bg-white text-xs" />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold uppercase text-slate-450">Razón Social Receptor</label>
-                  <input type="text" value={dteReceptorNombre} onChange={(e) => setDteReceptorNombre(e.target.value)} placeholder="Cliente Constructora" className="w-full border border-slate-250 rounded-xl p-2 bg-white" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold uppercase text-slate-450">Sección Solicitante</label>
-                  <select value={dteSeccionId} onChange={(e) => setDteSeccionId(e.target.value)} className="w-full border border-slate-250 rounded-xl p-2 bg-white cursor-pointer">
-                    <option value="">Selecciona...</option>
-                    {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-                  </select>
-                </div>
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold uppercase text-slate-450">Centro Costos</label>
+                <select value={dteCentroGestion} onChange={(e) => setDteCentroGestion(e.target.value)} className="w-full border border-slate-250 rounded-xl p-2.5 bg-white cursor-pointer text-xs">
+                  <option value="">Selecciona...</option>
+                  {centros.map(c => <option key={c.id} value={c.id}>{c.codigo} - {c.nombre}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-1 md:col-span-2">
+                <label className="text-[9px] font-bold uppercase text-slate-450">Razón Social Receptor</label>
+                <input type="text" value={dteReceptorNombre} onChange={(e) => setDteReceptorNombre(e.target.value)} placeholder="Cliente Constructora" className="w-full border border-slate-250 rounded-xl p-2.5 bg-white text-xs" />
               </div>
 
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
-                <h5 className="text-[9px] font-black uppercase text-slate-500 border-b pb-1">🔗 Documento Referencia (SII)</h5>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="space-y-1">
-                    <label className="text-[8px] font-bold uppercase text-slate-450">Tipo</label>
-                    <select value={dteRefTipo} onChange={(e) => setDteRefTipo(e.target.value)} className="w-full border border-slate-250 rounded-lg p-1 text-[10px] bg-white cursor-pointer">
-                      <option value="">Ninguno</option>
-                      <option value="801">OC (801)</option>
-                      <option value="52">Guía (52)</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[8px] font-bold uppercase text-slate-450">Folio</label>
-                    <input type="text" value={dteRefFolio} onChange={(e) => setDteRefFolio(e.target.value)} placeholder="Nº" className="w-full border border-slate-250 rounded-lg p-1 text-[10px] bg-white" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[8px] font-bold uppercase text-slate-450">Fecha</label>
-                    <input type="date" value={dteRefFecha} onChange={(e) => setDteRefFecha(e.target.value)} className="w-full border border-slate-250 rounded-lg p-1 text-[10px] bg-white" />
-                  </div>
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold uppercase text-slate-450">Sección Solicitante</label>
+                <select value={dteSeccionId} onChange={(e) => setDteSeccionId(e.target.value)} className="w-full border border-slate-250 rounded-xl p-2.5 bg-white cursor-pointer text-xs">
+                  <option value="">Selecciona...</option>
+                  {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+              <h5 className="text-[9px] font-black uppercase text-slate-500 border-b pb-1">🔗 Documento Referencia (SII)</h5>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[8px] font-bold uppercase text-slate-450">Tipo</label>
+                  <select value={dteRefTipo} onChange={(e) => setDteRefTipo(e.target.value)} className="w-full border border-slate-250 rounded-lg p-1.5 text-[10px] bg-white cursor-pointer">
+                    <option value="">Ninguno</option>
+                    <option value="801">OC (801)</option>
+                    <option value="52">Guía (52)</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[8px] font-bold uppercase text-slate-450">Folio</label>
+                  <input type="text" value={dteRefFolio} onChange={(e) => setDteRefFolio(e.target.value)} placeholder="Nº" className="w-full border border-slate-250 rounded-lg p-1.5 text-[10px] bg-white" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[8px] font-bold uppercase text-slate-450">Fecha</label>
+                  <input type="date" value={dteRefFecha} onChange={(e) => setDteRefFecha(e.target.value)} className="w-full border border-slate-250 rounded-lg p-1.5 text-[10px] bg-white" />
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="lg:col-span-7 bg-white border border-slate-250 rounded-3xl p-6 shadow-xs space-y-4">
+          {/* Panel Inferior: Detalle de Ítems */}
+          <div className="bg-white border border-slate-250 rounded-3xl p-6 shadow-xs space-y-4">
             <h4 className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider border-b pb-2 flex justify-between items-center">
               <span>🛠️ Detalle de Ítems</span>
-              <button onClick={() => setDteItems([...dteItems, { codigo: '', descripcion: '', cantidad: 1, precioUnitario: 0, exento: false }])} className="text-[9px] font-black uppercase bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded cursor-pointer transition">+ Agregar Producto</button>
+              <button onClick={() => setDteItems([...dteItems, { codigo: '', descripcion: '', cantidad: 1, precioUnitario: 0, exento: false, detalles: '' }])} className="text-[9px] font-black uppercase bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-xl cursor-pointer transition flex items-center gap-1">
+                <Plus className="w-3.5 h-3.5" /> Agregar Producto
+              </button>
             </h4>
 
-            {/* Encabezados de Columnas del Detalle */}
-            <div className="flex gap-2.5 px-2.5 text-[8.5px] font-extrabold uppercase text-slate-450 select-none">
-              <div className="w-24">Código</div>
-              <div className="flex-1">Descripción / Producto</div>
-              <div className="w-16 text-center">Cant.</div>
-              <div className="w-24 text-right">P. Unitario</div>
-              <div className="w-16 text-center">Exento IVA</div>
-              <div className="w-9"></div>
-            </div>
-
-            <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
+            {/* Listado de Productos como Tarjetas Modernas */}
+            <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1">
               {dteItems.map((item, idx) => (
-                <div key={idx} className="flex gap-2.5 items-center bg-slate-50 p-2 border border-slate-150 rounded-xl">
-                  <div className="w-24">
-                    <input type="text" value={item.codigo || ''} onChange={(e) => { const upd = [...dteItems]; upd[idx].codigo = e.target.value; setDteItems(upd); }} placeholder="ej: H-30" className="w-full border border-slate-200 rounded-lg p-1.5 text-xs bg-white" />
+                <div key={idx} className="bg-slate-50 border border-slate-150 rounded-2xl p-4 space-y-3 relative text-xs font-semibold text-slate-700">
+                  <button onClick={() => { if (dteItems.length === 1) return; setDteItems(dteItems.filter((_, i) => i !== idx)); }} className="absolute top-3 right-3 text-red-500 hover:bg-red-50 p-1.5 rounded-lg cursor-pointer transition" title="Eliminar ítem">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                    <div className="md:col-span-3 space-y-1">
+                      <label className="block text-[8px] font-extrabold uppercase text-slate-450">Código Producto</label>
+                      <input type="text" value={item.codigo || ''} onChange={(e) => { const upd = [...dteItems]; upd[idx].codigo = e.target.value; setDteItems(upd); }} placeholder="ej: H-30" className="w-full border border-slate-200 rounded-xl p-2 text-xs bg-white" />
+                    </div>
+                    <div className="md:col-span-5 space-y-1">
+                      <label className="block text-[8px] font-extrabold uppercase text-slate-450">Descripción / Producto</label>
+                      <input type="text" value={item.descripcion} onChange={(e) => { const upd = [...dteItems]; upd[idx].descripcion = e.target.value; setDteItems(upd); }} placeholder="Detalle del producto o servicio..." className="w-full border border-slate-200 rounded-xl p-2 text-xs bg-white font-bold" />
+                    </div>
+                    <div className="md:col-span-2 space-y-1">
+                      <label className="block text-[8px] font-extrabold uppercase text-slate-450 text-center">Cantidad</label>
+                      <input type="number" value={item.cantidad} onChange={(e) => { const upd = [...dteItems]; upd[idx].cantidad = parseInt(e.target.value) || 0; setDteItems(upd); }} className="w-full border border-slate-200 rounded-xl p-2 text-xs bg-white text-center font-bold text-slate-800" />
+                    </div>
+                    <div className="md:col-span-2 space-y-1">
+                      <label className="block text-[8px] font-extrabold uppercase text-slate-450 text-right">P. Unitario</label>
+                      <input type="number" value={item.precioUnitario} onChange={(e) => { const upd = [...dteItems]; upd[idx].precioUnitario = parseFloat(e.target.value) || 0; setDteItems(upd); }} className="w-full border border-slate-200 rounded-xl p-2 text-xs bg-white text-right font-bold text-slate-850" />
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <input type="text" value={item.descripcion} onChange={(e) => { const upd = [...dteItems]; upd[idx].descripcion = e.target.value; setDteItems(upd); }} placeholder="Detalle del producto o servicio..." className="w-full border border-slate-200 rounded-lg p-1.5 text-xs bg-white" />
+
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+                    <div className="md:col-span-9 space-y-1">
+                      <label className="block text-[8px] font-extrabold uppercase text-slate-450">Especificaciones / Detalles Adicionales</label>
+                      <input type="text" value={item.detalles || ''} onChange={(e) => { const upd = [...dteItems]; upd[idx].detalles = e.target.value; setDteItems(upd); }} placeholder="ej: dimensiones, marca, color, notas especiales de despacho..." className="w-full border border-slate-200 rounded-xl p-2 text-xs bg-white text-slate-700 font-normal" />
+                    </div>
+                    <div className="md:col-span-3 flex items-center justify-end gap-2 pt-4">
+                      <input type="checkbox" id={`exento-${idx}`} checked={item.exento || false} onChange={(e) => { const upd = [...dteItems]; upd[idx].exento = e.target.checked; setDteItems(upd); }} className="w-4 h-4 rounded border-slate-300 focus:ring-primary cursor-pointer text-primary" />
+                      <label htmlFor={`exento-${idx}`} className="text-[10px] font-extrabold uppercase text-slate-550 cursor-pointer select-none">Exento de IVA</label>
+                    </div>
                   </div>
-                  <div className="w-16">
-                    <input type="number" value={item.cantidad} onChange={(e) => { const upd = [...dteItems]; upd[idx].cantidad = parseInt(e.target.value) || 0; setDteItems(upd); }} className="w-full border border-slate-200 rounded-lg p-1.5 text-xs bg-white text-center font-bold text-slate-800" />
-                  </div>
-                  <div className="w-24">
-                    <input type="number" value={item.precioUnitario} onChange={(e) => { const upd = [...dteItems]; upd[idx].precioUnitario = parseFloat(e.target.value) || 0; setDteItems(upd); }} className="w-full border border-slate-200 rounded-lg p-1.5 text-xs bg-white text-right font-bold text-slate-850" />
-                  </div>
-                  <div className="w-16 flex items-center justify-center">
-                    <input type="checkbox" checked={item.exento || false} onChange={(e) => { const upd = [...dteItems]; upd[idx].exento = e.target.checked; setDteItems(upd); }} className="w-4 h-4 rounded border-slate-300 focus:ring-primary cursor-pointer text-primary" />
-                  </div>
-                  <button onClick={() => { if (dteItems.length === 1) return; setDteItems(dteItems.filter((_, i) => i !== idx)); }} className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg cursor-pointer transition"><Trash2 className="w-4 h-4" /></button>
                 </div>
               ))}
             </div>
@@ -1911,7 +1926,10 @@ ${detalleXml}  </Documento>
                       {Array.isArray(selectedDTE.detalles) && selectedDTE.detalles.map((it, idx) => (
                         <tr key={idx} className="hover:bg-slate-50/50">
                           <td className="p-2 text-slate-450 font-mono text-[9px]">{it.codigo || '—'}</td>
-                          <td className="p-2">{it.descripcion}</td>
+                          <td className="p-2">
+                            <p className="font-bold text-slate-800">{it.descripcion}</p>
+                            {it.detalles && <p className="text-[9px] text-slate-500 font-normal mt-0.5">{it.detalles}</p>}
+                          </td>
                           <td className="p-2 text-center">{it.cantidad}</td>
                           <td className="p-2 text-right">{formatCLP(it.precioUnitario)}</td>
                           <td className="p-2 text-right">{formatCLP(it.cantidad * it.precioUnitario)}</td>
@@ -2281,18 +2299,37 @@ ${detalleXml}  </Documento>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <h4 className="text-[9px] text-slate-500 font-extrabold uppercase border-b pb-1 flex justify-between items-center">
-                  <span>Productos</span>
-                  <button onClick={() => setOcItems([...ocItems, { descripcion: '', cantidad: 1, precioUnitario: 0 }])} className="text-[8px] font-black uppercase bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-0.5 rounded">+ Agregar</button>
+              <div className="space-y-3">
+                <h4 className="text-[10px] text-slate-500 font-extrabold uppercase border-b pb-1 flex justify-between items-center">
+                  <span>🛠️ Detalle de Productos (OC)</span>
+                  <button onClick={() => setOcItems([...ocItems, { descripcion: '', cantidad: 1, precioUnitario: 0, detalles: '' }])} className="text-[8px] font-black uppercase bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-0.5 rounded cursor-pointer transition">+ Agregar Producto</button>
                 </h4>
-                <div className="space-y-2 max-h-[150px] overflow-y-auto">
+                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
                   {ocItems.map((it, idx) => (
-                    <div key={idx} className="flex gap-2 items-end">
-                      <div className="flex-1"><input type="text" value={it.descripcion} onChange={(e) => { const upd = [...ocItems]; upd[idx].descripcion = e.target.value; setOcItems(upd); }} placeholder="Detalle..." className="w-full border border-slate-200 rounded-lg p-1 text-xs bg-white" /></div>
-                      <div className="w-14"><input type="number" value={it.cantidad} onChange={(e) => { const upd = [...ocItems]; upd[idx].cantidad = parseInt(e.target.value) || 0; setOcItems(upd); }} className="w-full border border-slate-200 rounded-lg p-1 text-xs bg-white text-center" /></div>
-                      <div className="w-24"><input type="number" value={it.precioUnitario} onChange={(e) => { const upd = [...ocItems]; upd[idx].precioUnitario = parseFloat(e.target.value) || 0; setOcItems(upd); }} className="w-full border border-slate-200 rounded-lg p-1 text-xs bg-white text-right" /></div>
-                      <button onClick={() => { if (ocItems.length === 1) return; setOcItems(ocItems.filter((_, i) => i !== idx)); }} className="text-red-500 hover:bg-red-50 p-1 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                    <div key={idx} className="bg-slate-50 border border-slate-150 rounded-2xl p-3.5 space-y-2.5 relative text-xs font-semibold text-slate-700">
+                      <button onClick={() => { if (ocItems.length === 1) return; setOcItems(ocItems.filter((_, i) => i !== idx)); }} className="absolute top-2 right-2 text-red-500 hover:bg-red-50 p-1.5 rounded-lg cursor-pointer transition">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-2">
+                        <div className="md:col-span-6 space-y-1">
+                          <label className="block text-[8px] font-extrabold uppercase text-slate-450">Descripción / Producto</label>
+                          <input type="text" value={it.descripcion} onChange={(e) => { const upd = [...ocItems]; upd[idx].descripcion = e.target.value; setOcItems(upd); }} placeholder="ej: Cemento Melón Especial" className="w-full border border-slate-200 rounded-lg p-1.5 text-xs bg-white font-bold" />
+                        </div>
+                        <div className="md:col-span-3 space-y-1">
+                          <label className="block text-[8px] font-extrabold uppercase text-slate-450 text-center">Cantidad</label>
+                          <input type="number" value={it.cantidad} onChange={(e) => { const upd = [...ocItems]; upd[idx].cantidad = parseInt(e.target.value) || 0; setOcItems(upd); }} className="w-full border border-slate-200 rounded-lg p-1.5 text-xs bg-white text-center font-bold" />
+                        </div>
+                        <div className="md:col-span-3 space-y-1">
+                          <label className="block text-[8px] font-extrabold uppercase text-slate-450 text-right">P. Unitario</label>
+                          <input type="number" value={it.precioUnitario} onChange={(e) => { const upd = [...ocItems]; upd[idx].precioUnitario = parseFloat(e.target.value) || 0; setOcItems(upd); }} className="w-full border border-slate-200 rounded-lg p-1.5 text-xs bg-white text-right font-bold" />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="block text-[8px] font-extrabold uppercase text-slate-450">Especificaciones / Detalles Adicionales (Notas)</label>
+                        <input type="text" value={it.detalles || ''} onChange={(e) => { const upd = [...ocItems]; upd[idx].detalles = e.target.value; setOcItems(upd); }} placeholder="ej: color, dimensiones, marca, plazo de entrega en bodega..." className="w-full border border-slate-200 rounded-lg p-1.5 text-xs bg-white text-slate-700 font-normal" />
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -2339,6 +2376,7 @@ ${detalleXml}  </Documento>
                       <div key={idx} className="bg-slate-50 border p-3 rounded-xl flex items-center justify-between gap-4">
                         <div className="flex-1 space-y-0.5">
                           <p className="font-bold text-slate-800 text-xs">{it.descripcion}</p>
+                          {it.detalles && <p className="text-[10px] text-slate-500 font-normal">{it.detalles}</p>}
                           <p className="text-[10px] text-slate-500 font-semibold">
                             Comprado: {it.cantidadComprada} u | Recibido antes: {it.cantidadYaRecibida} u
                           </p>
