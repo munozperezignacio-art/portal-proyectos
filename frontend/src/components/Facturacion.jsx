@@ -8,6 +8,41 @@ import {
 } from 'lucide-react';
 import { comunasChile } from '../utils/comunas';
 
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error("ErrorBoundary caught an error", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-6 bg-rose-50 border border-rose-200 text-rose-800 rounded-3xl space-y-4 max-w-xl mx-auto my-10 font-sans">
+          <h3 className="font-extrabold text-sm uppercase tracking-wider text-rose-700">⚠️ Error de Renderizado Detectado</h3>
+          <p className="text-xs font-semibold text-slate-600">
+            Ha ocurrido un error al dibujar esta sección. Por favor copia y comparte este mensaje con el desarrollador:
+          </p>
+          <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-[11px] overflow-auto max-h-60 font-mono whitespace-pre-wrap break-all">
+            {this.state.error?.stack || this.state.error?.message || String(this.state.error)}
+          </pre>
+          <button 
+            onClick={() => this.setState({ hasError: false, error: null })} 
+            className="bg-rose-600 text-white font-extrabold text-xs uppercase px-4 py-2 rounded-xl hover:bg-rose-700 transition cursor-pointer"
+          >
+            Reintentar Cargar
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function Facturacion({ user, companyBranding, onBack }) {
   // Pestaña activa del submódulo
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -807,7 +842,8 @@ export default function Facturacion({ user, companyBranding, onBack }) {
   };
 
   return (
-    <div className="space-y-6">
+    <ErrorBoundary>
+      <div className="space-y-6">
       
       {/* BARRA SUPERIOR DE CONTEXTO */}
       <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center bg-white p-4 border border-slate-200 rounded-2xl shadow-xs gap-3">
@@ -2177,5 +2213,6 @@ export default function Facturacion({ user, companyBranding, onBack }) {
       )}
 
     </div>
+    </ErrorBoundary>
   );
 }
