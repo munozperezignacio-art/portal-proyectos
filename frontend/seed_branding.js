@@ -30,23 +30,23 @@ async function start() {
   const logoDataUri = `data:image/png;base64,${rawBase64}`;
 
   // 2. Sembrar en Supabase
-  const configEmin = {
-    empresa: 'EMIN',
+  const configObraxis = {
+    empresa: 'Obraxis',
     logo_base64: logoDataUri,
-    color_primario: '#1e3a8a', // EMIN blue
-    color_secundario: '#1d4ed8' // EMIN blue hover (secondary)
+    color_primario: '#0f172a', // Obraxis primary slate
+    color_secundario: '#2563eb' // Obraxis secondary blue
   };
 
-  console.log('Insertando configuración de marca para "EMIN" en Supabase...');
+  console.log('Insertando configuración de marca para "Obraxis" en Supabase...');
   
   const { error } = await supabase
     .from('config_empresa')
-    .upsert([configEmin], { onConflict: 'empresa' });
+    .upsert([configObraxis], { onConflict: 'empresa' });
 
   if (error) {
     console.error('❌ Error al insertar branding:', error.message);
   } else {
-    console.log('✅ ¡Marca "EMIN" configurada e insertada con éxito en la base de datos!');
+    console.log('✅ ¡Marca "Obraxis" configurada e insertada con éxito en la base de datos!');
   }
 }
 

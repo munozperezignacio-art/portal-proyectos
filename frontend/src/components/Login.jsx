@@ -4,7 +4,7 @@ import { Eye, EyeOff, Lock, Building2, User, AlertCircle, Loader2 } from 'lucide
 
 function Login({ onLoginSuccess }) {
   const [username, setUsername] = useState('');
-  const [company, setCompany] = useState('EMIN');
+  const [company, setCompany] = useState('Obraxis');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -63,17 +63,17 @@ function Login({ onLoginSuccess }) {
         // Fallback robusto si la tabla está vacía o hay error
         const list = data && data.length > 0 ? data : [
           {
-            empresa: 'EMIN',
+            empresa: 'Obraxis',
             logo_base64: eminLogo,
-            color_primario: '#1e3a8a',
-            color_secundario: '#1d4ed8'
+            color_primario: '#0f172a',
+            color_secundario: '#2563eb'
           }
         ];
         
         setCompaniesList(list);
         
-        // Seleccionar EMIN por defecto
-        const defaultCompany = list.find(c => c.empresa === 'EMIN') || list[0];
+        // Seleccionar Obraxis por defecto
+        const defaultCompany = list.find(c => c.empresa === 'Obraxis') || list[0];
         if (defaultCompany) {
           setCompany(defaultCompany.empresa);
           setSelectedBranding(defaultCompany);
@@ -82,14 +82,14 @@ function Login({ onLoginSuccess }) {
         console.error('Error al cargar branding:', err);
         const fallback = [
           {
-            empresa: 'EMIN',
+            empresa: 'Obraxis',
             logo_base64: eminLogo,
-            color_primario: '#1e3a8a',
-            color_secundario: '#1d4ed8'
+            color_primario: '#0f172a',
+            color_secundario: '#2563eb'
           }
         ];
         setCompaniesList(fallback);
-        setCompany('EMIN');
+        setCompany('Obraxis');
         setSelectedBranding(fallback[0]);
       }
     }

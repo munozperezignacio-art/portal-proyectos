@@ -213,7 +213,7 @@ function ConfigCorreos({ user, onBack }) {
     setUserFormData({
       usuario: '',
       contrasena: '',
-      empresa: allCompaniesList[0]?.empresa || 'EMIN',
+      empresa: allCompaniesList[0]?.empresa || 'Obraxis',
       rol: 'Inspector',
       modulos: []
     });
@@ -227,7 +227,7 @@ function ConfigCorreos({ user, onBack }) {
     setUserFormData({
       usuario: usr.usuario,
       contrasena: usr.contrasena,
-      empresa: usr.empresa || 'EMIN',
+      empresa: usr.empresa || 'Obraxis',
       rol: usr.rol || 'Inspector',
       modulos: usr.modulos ? usr.modulos.split(',').map(m => m.trim()) : []
     });
@@ -408,8 +408,8 @@ function ConfigCorreos({ user, onBack }) {
   };
 
   const handleDeleteCompany = async (comp) => {
-    if (comp.empresa === 'EMIN') {
-      alert("No se puede eliminar la empresa principal EMIN.");
+    if (comp.empresa === 'Obraxis') {
+      alert("No se puede eliminar la empresa principal Obraxis.");
       return;
     }
     if (comp.empresa === user.empresa) {
@@ -981,7 +981,7 @@ function ConfigCorreos({ user, onBack }) {
                   rows={3}
                   value={formData.correos}
                   onChange={(e) => setFormData({ ...formData, correos: e.target.value })}
-                  placeholder="ejemplo1@eminsg.cl, ejemplo2@eminsg.cl"
+                  placeholder="ejemplo1@obraxis.cl, ejemplo2@obraxis.cl"
                   className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
                 />
               </div>

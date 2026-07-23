@@ -1,5 +1,5 @@
 {
-  "appId": "com.emin.gestionproyectos",
-  "appName": "EMIN Portal de Proyectos",
+  "appId": "com.obraxis.gestionproyectos",
+  "appName": "Obraxis Portal de Proyectos",
   "webDir": "dist"
 }
