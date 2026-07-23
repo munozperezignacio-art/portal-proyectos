@@ -65,6 +65,16 @@ function ConfigCorreos({ user, onBack }) {
   const [companyModalLoading, setCompanyModalLoading] = useState(false);
   const [testMailLoading, setTestMailLoading] = useState(false);
 
+  // Estados de Configuración de la Plataforma Global (Obraxis)
+  const [platApiKey, setPlatApiKey] = useState('');
+  const [platSender, setPlatSender] = useState('notificaciones@obraxis.cl');
+  const [platGeminiKey, setPlatGeminiKey] = useState('');
+  const [platGeminiModel, setPlatGeminiModel] = useState('gemini-3.5-flash');
+  const [platSuccess, setPlatSuccess] = useState('');
+  const [platError, setPlatError] = useState('');
+  const [platLoading, setPlatLoading] = useState(false);
+  const [platTestMailLoading, setPlatTestMailLoading] = useState(false);
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -77,6 +87,8 @@ function ConfigCorreos({ user, onBack }) {
       fetchCompaniesForSelect();
     } else if (activeTab === 'empresas') {
       fetchAllCompanies();
+    } else if (activeTab === 'plataforma') {
+      fetchPlatformSettings();
     }
   }, [activeTab]);
 
@@ -473,6 +485,98 @@ function ConfigCorreos({ user, onBack }) {
     }
   };
 
+  const fetchPlatformSettings = async () => {
+    setPlatLoading(true);
+    setPlatSuccess('');
+    setPlatError('');
+    try {
+      const { data, error } = await supabase
+        .from('config_empresa')
+        .select('*')
+        .eq('empresa', 'Obraxis')
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (data) {
+        setPlatApiKey(data.email_api_key || '');
+        setPlatSender(data.email_sender || 'notificaciones@obraxis.cl');
+        setPlatGeminiKey(data.gemini_api_key || '');
+        setPlatGeminiModel(data.gemini_model || 'gemini-3.5-flash');
+      }
+    } catch (err) {
+      setPlatError(err.message);
+    } finally {
+      setPlatLoading(false);
+    }
+  };
+
+  const handleSavePlatformSettings = async (e) => {
+    e.preventDefault();
+    setPlatLoading(true);
+    setPlatSuccess('');
+    setPlatError('');
+    try {
+      const { error } = await supabase
+        .from('config_empresa')
+        .update({
+          email_api_key: platApiKey ? platApiKey.trim() : null,
+          email_sender: platSender ? platSender.trim() : 'notificaciones@obraxis.cl',
+          gemini_api_key: platGeminiKey ? platGeminiKey.trim() : null,
+          gemini_model: platGeminiModel ? platGeminiModel.trim() : 'gemini-3.5-flash'
+        })
+        .eq('empresa', 'Obraxis');
+
+      if (error) throw error;
+      setPlatSuccess('Configuración global de Obraxis actualizada correctamente.');
+    } catch (err) {
+      setPlatError(err.message);
+    } finally {
+      setPlatLoading(false);
+    }
+  };
+
+  const handleSendPlatformTestEmail = async () => {
+    const keyToUse = platApiKey.trim();
+    const senderToUse = platSender.trim();
+    if (!keyToUse) {
+      alert("Por favor ingrese la API Key de Resend primero.");
+      return;
+    }
+    setPlatTestMailLoading(true);
+    try {
+      const { sendSystemEmail } = await import('../utils/emailService');
+      const testHtml = `
+        <div style="font-family: sans-serif; padding: 25px; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+          <h2 style="color: #2563eb; margin-top: 0;">🧪 Prueba de Conexión de Correo Global</h2>
+          <p style="color: #334155; font-size: 14px; line-height: 1.5;">Este correo confirma que la configuración de la API de Resend para el dominio global <b>obraxis.cl</b> funciona correctamente.</p>
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin: 20px 0;">
+            <p style="margin: 0; font-size: 12px; color: #475569;"><b>Remitente Global:</b> ${senderToUse}</p>
+            <p style="margin: 5px 0 0 0; font-size: 12px; color: #475569;"><b>Estado:</b> Conexión exitosa ✅</p>
+          </div>
+          <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+          <p style="font-size: 11px; color: #64748b; text-align: center; margin: 0;">Enviado por Obraxis - Portal de Proyectos</p>
+        </div>
+      `;
+      const recipient = user.correo || 'notificaciones@obraxis.cl';
+      const res = await sendSystemEmail({
+        to: recipient,
+        subject: '🧪 Prueba de Envío de Correo Global - Obraxis',
+        htmlContent: testHtml
+      });
+
+      if (res.success) {
+        alert(`¡Correo de prueba enviado con éxito a ${recipient}!`);
+      } else {
+        alert(`Error al enviar: ${res.error}`);
+      }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setPlatTestMailLoading(false);
+    }
+  };
+
   // --- CRUD DE ALERTAS (EXISTENTE) ---
   const handleOpenAddModal = () => {
     setEditingConfig(null);
@@ -665,6 +769,18 @@ function ConfigCorreos({ user, onBack }) {
             }`}
           >
             Gestión de Empresas
+          </button>
+        )}
+        {user.empresa === 'Obraxis' && user.rol.toLowerCase() === 'superusuario' && (
+          <button
+            onClick={() => setActiveTab('plataforma')}
+            className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 whitespace-nowrap cursor-pointer ${
+              activeTab === 'plataforma' 
+                ? 'border-primary text-primary' 
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            ⚙️ Ajustes Globales Obraxis
           </button>
         )}
       </div>
@@ -925,7 +1041,7 @@ function ConfigCorreos({ user, onBack }) {
             </div>
           )}
         </>
-      ) : (
+      ) : activeTab === 'empresas' ? (
         /* PANEL DE EMPRESAS (Solo superusuario) */
         <>
           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-sm">
@@ -992,6 +1108,90 @@ function ConfigCorreos({ user, onBack }) {
             </div>
           )}
         </>
+      ) : (
+        /* PANEL DE PLATAFORMA GLOBAL (Ajustes Obraxis) */
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm max-w-lg space-y-6">
+          <div>
+            <h3 className="font-bold text-slate-800 text-sm">Ajustes Globales de la Plataforma (Obraxis)</h3>
+            <p className="text-xs text-slate-500 mt-1">Configura las credenciales generales de correo (Resend) y el motor de inteligencia artificial (Gemini) para toda la plataforma.</p>
+          </div>
+
+          {platSuccess && <div className="bg-emerald-50 text-emerald-700 p-3 rounded-lg text-xs font-semibold">{platSuccess}</div>}
+          {platError && <div className="bg-red-50 text-red-700 p-3 rounded-lg text-xs font-semibold">{platError}</div>}
+
+          {platLoading && !platApiKey ? (
+            <p className="text-xs text-slate-500">⏳ Cargando configuraciones globales...</p>
+          ) : (
+            <form onSubmit={handleSavePlatformSettings} className="space-y-6">
+              
+              {/* Sección Resend */}
+              <div className="space-y-3 pt-2">
+                <h4 className="font-bold text-xs text-primary border-b border-slate-100 pb-1 uppercase tracking-wide">Servicio de Correos (Resend API)</h4>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Resend API Key</label>
+                  <input
+                    type="password"
+                    value={platApiKey}
+                    onChange={(e) => setPlatApiKey(e.target.value)}
+                    placeholder="re_xxxxxxxxxxxxxxxx"
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Correo Remitente Autorizado</label>
+                  <input
+                    type="email"
+                    value={platSender}
+                    onChange={(e) => setPlatSender(e.target.value)}
+                    placeholder="notificaciones@obraxis.cl"
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSendPlatformTestEmail}
+                  disabled={platTestMailLoading}
+                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-lg text-xs transition disabled:opacity-70 flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  {platTestMailLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span>Enviar Correo de Prueba</span>}
+                </button>
+              </div>
+
+              {/* Sección Gemini AI */}
+              <div className="space-y-3 pt-2">
+                <h4 className="font-bold text-xs text-primary border-b border-slate-100 pb-1 uppercase tracking-wide">Motor de Inteligencia Artificial (Gemini AI)</h4>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Gemini API Key</label>
+                  <input
+                    type="password"
+                    value={platGeminiKey}
+                    onChange={(e) => setPlatGeminiKey(e.target.value)}
+                    placeholder="AIzaSyxxxxxxxxxxxx"
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Modelo de IA Activo</label>
+                  <input
+                    type="text"
+                    value={platGeminiModel}
+                    onChange={(e) => setPlatGeminiModel(e.target.value)}
+                    placeholder="gemini-3.5-flash"
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={platLoading}
+                className="w-full bg-primary hover:bg-primary-hover text-white font-bold py-3 rounded-lg text-xs shadow-sm transition disabled:opacity-75"
+              >
+                Guardar Ajustes Globales
+              </button>
+            </form>
+          )}
+        </div>
       )}
 
       {/* Modal: Crear / Editar Alerta */}
