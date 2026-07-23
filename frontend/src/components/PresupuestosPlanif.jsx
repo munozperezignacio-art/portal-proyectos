@@ -196,6 +196,7 @@ export default function PresupuestosPlanif({ user, onBack }) {
 
   // Estados del Importador de Presupuestos con IA
   const [geminiApiKey, setGeminiApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
+  const [geminiModel, setGeminiModel] = useState(() => localStorage.getItem('gemini_model') || 'gemini-3.5-flash');
   const [importAILoading, setImportAILoading] = useState(false);
   const [importAIError, setImportAIError] = useState('');
   const [importAIFile, setImportAIFile] = useState(null);
@@ -500,7 +501,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
         parts.push({ inlineData });
       }
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -5223,8 +5224,8 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                           </span>
                         </div>
                         
-                        <div className="flex flex-col sm:flex-row items-end gap-3">
-                          <div className="flex-1 space-y-1">
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                          <div className="md:col-span-6 space-y-1">
                             <label className="block text-[9px] font-bold uppercase text-slate-450">Ingresa tu API Key de Gemini</label>
                             <input
                               type="password"
@@ -5234,16 +5235,33 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                               className="w-full border border-slate-250 rounded-xl p-2.5 text-xs text-slate-800 bg-white placeholder-slate-350 focus:ring-1 focus:ring-primary focus:outline-none"
                             />
                           </div>
-                          <button
-                            onClick={() => {
-                              localStorage.setItem('gemini_api_key', geminiApiKey);
-                              alert("¡Clave de API guardada localmente de forma segura!");
-                            }}
-                            className="bg-primary text-white font-extrabold text-xs uppercase px-4 py-2.5 rounded-xl hover:bg-primary-hover shadow-xs cursor-pointer transition shrink-0 h-10 flex items-center justify-center gap-1.5"
-                          >
-                            <Save className="w-3.5 h-3.5" />
-                            Guardar Clave
-                          </button>
+
+                          <div className="md:col-span-4 space-y-1">
+                            <label className="block text-[9px] font-bold uppercase text-slate-450">Modelo de Inteligencia Artificial</label>
+                            <select
+                              value={geminiModel}
+                              onChange={(e) => setGeminiModel(e.target.value)}
+                              className="w-full border border-slate-250 rounded-xl p-2.5 text-xs text-slate-800 bg-white focus:ring-1 focus:ring-primary focus:outline-none cursor-pointer font-bold"
+                            >
+                              <option value="gemini-3.5-flash">gemini-3.5-flash (Último - Recomendado)</option>
+                              <option value="gemini-1.5-flash">gemini-1.5-flash (Estable)</option>
+                              <option value="gemini-2.5-flash">gemini-2.5-flash (Deprecado)</option>
+                            </select>
+                          </div>
+
+                          <div className="md:col-span-2">
+                            <button
+                              onClick={() => {
+                                localStorage.setItem('gemini_api_key', geminiApiKey);
+                                localStorage.setItem('gemini_model', geminiModel);
+                                alert("¡Configuración de IA guardada localmente!");
+                              }}
+                              className="w-full bg-primary text-white font-extrabold text-xs uppercase py-2.5 rounded-xl hover:bg-primary-hover shadow-xs cursor-pointer transition h-10 flex items-center justify-center gap-1.5"
+                            >
+                              <Save className="w-3.5 h-3.5" />
+                              Guardar
+                            </button>
+                          </div>
                         </div>
                         <p className="text-[10px] text-slate-455 font-semibold leading-normal">
                           💡 La clave se almacena exclusivamente en tu navegador. Si no tienes una clave, puedes obtener una de forma <strong>completamente gratuita y sin costo</strong> ingresando con tu cuenta de Google a <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-extrabold">Google AI Studio</a> y presionando "Get API Key".
