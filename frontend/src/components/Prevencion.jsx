@@ -5,7 +5,7 @@ import {
   Share2, Copy, Eye, Edit, ChevronLeft, QrCode, AlertTriangle, 
   Type, AlignLeft, Hash, Calendar, CheckSquare, Radio, ToggleLeft, 
   PenTool, Camera, Sparkles, Send, Check, Download, Layers, Building2, User, BoxSelect, Layers3,
-  Award, BookOpen, GraduationCap, Video, HelpCircle, ExternalLink, FileSpreadsheet
+  Award, BookOpen, GraduationCap, Video, HelpCircle, ExternalLink, FileSpreadsheet, Loader2
 } from 'lucide-react';
 
 export default function Prevencion({ user, onBack }) {
