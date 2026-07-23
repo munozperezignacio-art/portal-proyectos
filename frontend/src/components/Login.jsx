@@ -118,9 +118,9 @@ function Login({ onLoginSuccess }) {
         {/* Encabezado y Logo */}
         <div className="text-center mb-6">
           <img 
-            src={selectedBranding ? selectedBranding.logo_base64 : eminLogo} 
-            className="mx-auto max-h-20 object-contain mb-3" 
-            alt="Logo" 
+            src="/obraxis_logo_full.png" 
+            className="mx-auto max-h-24 object-contain mb-3" 
+            alt="Obraxis Logo" 
           />
           <h2 className="text-xl font-bold text-slate-800">Portal de Proyectos</h2>
           <p className="text-xs text-slate-500 mt-1 font-medium">Control Operativo Centralizado</p>

@@ -292,19 +292,19 @@ function App() {
       }`}>
         
         {/* Brand/Logo Header */}
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 min-h-[73px]">
-          <div className="flex-1 min-w-0 pr-2">
-            {companyBranding && companyBranding.logo_base64 ? (
-              <img 
-                src={companyBranding.logo_base64} 
-                className="max-h-10 max-w-full object-contain mx-auto" 
-                alt="Logo" 
-              />
-            ) : (
-              <div className="bg-primary/10 px-3 py-2 rounded-xl flex items-center justify-center w-full">
-                <span className="text-primary font-black text-sm tracking-wider uppercase truncate">{user.empresa}</span>
-              </div>
-            )}
+        <div className="p-4 border-b border-slate-100 flex items-center justify-between gap-2 min-h-[73px]">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <img 
+              src="/obraxis_logo_icon.png" 
+              className="w-10 h-10 object-contain shrink-0" 
+              alt="Obraxis Icon" 
+            />
+            <div className="flex flex-col min-w-0">
+              <span className="text-slate-800 font-extrabold text-[13px] tracking-wide uppercase leading-tight">Obraxis</span>
+              <span className="text-slate-400 font-black text-[9px] uppercase tracking-wider truncate leading-none mt-0.5">
+                {user.empresa}
+              </span>
+            </div>
           </div>
           <button
             onClick={() => setDesktopSidebarOpen(false)}
@@ -419,7 +419,7 @@ function App() {
             >
               <Menu className="w-6 h-6 text-white" />
             </button>
-            <h1 className="text-sm font-bold text-white uppercase tracking-wider">Portal de Faenas</h1>
+            <h1 className="text-sm font-bold text-white uppercase tracking-wider">Obraxis</h1>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-bold bg-white/15 px-2.5 py-1 rounded-full uppercase">{user.empresa}</span>
@@ -436,8 +436,20 @@ function App() {
             />
             {/* Sidebar drawer content */}
             <aside className="fixed inset-y-0 left-0 w-64 bg-white z-50 flex flex-col shadow-2xl animate-in slide-in-from-left duration-200 md:hidden">
-              <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <span className="text-primary font-black text-sm tracking-wider uppercase">{user.empresa}</span>
+              <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <img 
+                    src="/obraxis_logo_icon.png" 
+                    className="w-8 h-8 object-contain shrink-0" 
+                    alt="Obraxis Icon" 
+                  />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-slate-800 font-extrabold text-[12px] tracking-wide uppercase leading-tight">Obraxis</span>
+                    <span className="text-slate-400 font-black text-[8px] uppercase tracking-wider truncate leading-none mt-0.5">
+                      {user.empresa}
+                    </span>
+                  </div>
+                </div>
                 <button onClick={() => setSidebarOpen(false)} className="p-1 hover:bg-slate-200 rounded-lg cursor-pointer">
                   <X className="w-5 h-5 text-slate-500" />
                 </button>
