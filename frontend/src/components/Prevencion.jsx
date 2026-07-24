@@ -5,7 +5,7 @@ import { generateFormPdf } from '../utils/pdfGenerator';
 import { 
   ArrowLeft, ShieldAlert, Plus, Save, Trash2, FileText, CheckCircle2, 
   ChevronUp, ChevronDown, GripVertical, 
-  Share2, Copy, Eye, Edit, ChevronLeft, QrCode, AlertTriangle, 
+  Share2, Copy, Eye, Edit, ChevronLeft, ChevronRight, Search, QrCode, AlertTriangle, 
   Type, AlignLeft, Hash, Calendar, CheckSquare, Radio, ToggleLeft, 
   PenTool, Camera, Sparkles, Send, Check, Download, Layers, Building2, User, BoxSelect, Layers3,
   Award, BookOpen, GraduationCap, Video, HelpCircle, ExternalLink, FileSpreadsheet, Loader2
@@ -116,6 +116,17 @@ export default function Prevencion({ user, onBack }) {
   // Historial de una asignación
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedAsigForHistory, setSelectedAsigForHistory] = useState(null);
+
+  // Estados nuevos para la vista de Calendario y búsqueda por persona
+  const [complianceSearch, setComplianceSearch] = useState('');
+  const [currentWeekStart, setCurrentWeekStart] = useState(() => {
+    const d = new Date();
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(d.setDate(diff));
+    monday.setHours(0, 0, 0, 0);
+    return monday;
+  });
 
   const categoriasPrevencion = [
     'Inspección EPP',
@@ -433,6 +444,28 @@ export default function Prevencion({ user, onBack }) {
     }
     
     return { label: 'Pendiente', color: 'bg-amber-50 text-amber-700 border-amber-250', status: 'pendiente', lastDate: latestLog.fecha_cumplimiento };
+  };
+
+  const getWeekDates = (start) => {
+    const dates = [];
+    for (let i = 0; i < 7; i++) {
+      const nextDay = new Date(start);
+      nextDay.setDate(start.getDate() + i);
+      dates.push(nextDay);
+    }
+    return dates;
+  };
+
+  const getDayLabel = (date) => {
+    const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    return `${days[date.getDay()]} ${date.getDate()}/${date.getMonth() + 1}`;
+  };
+
+  const formatDateYYYYMMDD = (date) => {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
   };
 
   const handleSaveCapacitacion = async () => {
@@ -3002,21 +3035,81 @@ export default function Prevencion({ user, onBack }) {
             ) : (
               /* SEGUIMIENTO / MATRIZ DE CONTROL */
               <div className="space-y-4">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50 p-4 border border-slate-200 rounded-2xl">
-                  <div>
-                    <h4 className="text-xs font-black uppercase text-slate-800 tracking-wider">Matriz de Control Operacional</h4>
-                    <p className="text-[10px] text-slate-450 font-bold uppercase mt-0.5">Control visual del estado de cumplimientos de seguridad en faena</p>
+                {/* Filtro por Persona y Selector de Semana */}
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 bg-slate-50 p-4 border border-slate-200 rounded-2xl">
+                  <div className="flex-1 min-w-[250px]">
+                    <label className="block text-[9px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Buscar por Persona / RUT</label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Escribe el nombre o RUT del trabajador..."
+                        value={complianceSearch}
+                        onChange={(e) => setComplianceSearch(e.target.value)}
+                        className="w-full bg-white border border-slate-250 rounded-xl pl-9 pr-3 py-2 text-xs font-semibold text-slate-700 placeholder-slate-455 focus:outline-none focus:border-primary shadow-2xs"
+                      />
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    </div>
                   </div>
-                  
+
+                  {/* Selector de Semana */}
+                  <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl p-1 shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const prev = new Date(currentWeekStart);
+                        prev.setDate(prev.getDate() - 7);
+                        setCurrentWeekStart(prev);
+                      }}
+                      className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 transition cursor-pointer"
+                      title="Semana anterior"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <span className="text-[10px] font-black uppercase text-slate-650 px-2 min-w-[170px] text-center select-none">
+                      Semana: {getWeekDates(currentWeekStart)[0].toLocaleDateString('es-CL', {day: 'numeric', month: 'short'})} - {getWeekDates(currentWeekStart)[6].toLocaleDateString('es-CL', {day: 'numeric', month: 'short'})}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = new Date(currentWeekStart);
+                        next.setDate(next.getDate() + 7);
+                        setCurrentWeekStart(next);
+                      }}
+                      className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 transition cursor-pointer"
+                      title="Semana siguiente"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date();
+                        const day = d.getDay();
+                        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+                        const monday = new Date(d.setDate(diff));
+                        monday.setHours(0,0,0,0);
+                        setCurrentWeekStart(monday);
+                      }}
+                      className="px-2.5 py-1.5 hover:bg-slate-100 rounded-lg text-primary text-[9px] font-black uppercase transition cursor-pointer border border-primary/20"
+                      title="Volver a la semana actual"
+                    >
+                      Hoy
+                    </button>
+                  </div>
+
                   {/* Leyenda */}
-                  <div className="flex items-center gap-3 text-[9px] font-black uppercase text-slate-500">
+                  <div className="flex items-center gap-3 text-[9px] font-black uppercase text-slate-500 shrink-0 mb-1.5 md:mb-0">
                     <div className="flex items-center gap-1">
                       <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 block"></span>
-                      <span>Al Día</span>
+                      <span>Cumple</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <span className="w-2.5 h-2.5 rounded-full bg-rose-500 block"></span>
-                      <span>Atrasado / Vencido</span>
+                      <span>No Cumple</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="w-2.5 h-2.5 rounded-full bg-slate-400 block"></span>
+                      <span>N/A</span>
                     </div>
                   </div>
                 </div>
@@ -3025,74 +3118,139 @@ export default function Prevencion({ user, onBack }) {
                   <div className="p-12 text-center text-xs text-slate-400 italic bg-white border border-dashed rounded-3xl">
                     No tienes asignaciones de registros. Ve a la pestaña "Asignar Registro Operacional" para empezar.
                   </div>
+                ) : asignacionesCumplimiento.filter(a => {
+                  const term = complianceSearch.trim().toLowerCase();
+                  if (!term) return true;
+                  return (a.trabajador_nombre || '').toLowerCase().includes(term) || (a.trabajador_rut || '').toLowerCase().includes(term);
+                }).length === 0 ? (
+                  <div className="p-12 text-center text-xs text-slate-400 italic bg-white border border-dashed rounded-3xl">
+                    No se encontraron trabajadores que coincidan con el término de búsqueda.
+                  </div>
                 ) : (
-                  <div className="border border-slate-200 rounded-3xl overflow-hidden bg-white">
-                    <table className="w-full text-left text-xs border-collapse">
+                  <div className="border border-slate-200 rounded-3xl overflow-x-auto bg-white">
+                    <table className="w-full text-left text-xs border-collapse min-w-[900px]">
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-200 text-slate-655 font-bold text-[9px] uppercase tracking-wider select-none">
-                          <th className="p-4">Trabajador</th>
-                          <th className="p-4">Registro Requerido</th>
-                          <th className="p-4">Frecuencia</th>
-                          <th className="p-4 text-center">Última Verificación</th>
-                          <th className="p-4 text-center">Estado</th>
-                          <th className="p-4 w-44 text-center">Acciones</th>
+                          <th className="p-3 w-64">Trabajador</th>
+                          <th className="p-3 w-48">Registro / Frec.</th>
+                          {getWeekDates(currentWeekStart).map((date, idx) => (
+                            <th key={idx} className="p-3 text-center w-24">
+                              {getDayLabel(date)}
+                            </th>
+                          ))}
+                          <th className="p-3 w-20 text-center">Historial</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-150 font-semibold text-slate-700">
-                        {asignacionesCumplimiento.map((a) => {
-                          const statusInfo = getCumplimientoStatus(a);
-                          return (
-                            <tr key={a.id} className="hover:bg-slate-50/50">
-                              <td className="p-4">
-                                <span className="block font-bold text-slate-800 uppercase">{a.trabajador_nombre}</span>
-                                <span className="block text-[10px] text-slate-450 font-mono">{a.trabajador_rut}</span>
-                              </td>
-                              <td className="p-4 uppercase text-slate-850">{a.registro_nombre}</td>
-                              <td className="p-4">
-                                <span className="text-[9px] font-black uppercase bg-slate-100 text-slate-550 px-2.5 py-0.5 rounded">
-                                  {a.frecuencia}
-                                </span>
-                              </td>
-                              <td className="p-4 text-center font-mono text-slate-600">
-                                {statusInfo.lastDate ? (
-                                  new Date(statusInfo.lastDate + 'T00:00:00').toLocaleDateString()
-                                ) : (
-                                  <span className="italic text-slate-400">Nunca</span>
-                                )}
-                              </td>
-                              <td className="p-4 text-center">
-                                <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-full border ${statusInfo.color}`}>
-                                  {statusInfo.label}
-                                </span>
-                              </td>
-                              <td className="p-4">
-                                <div className="flex items-center justify-center gap-2">
+                        {asignacionesCumplimiento
+                          .filter(a => {
+                            const term = complianceSearch.trim().toLowerCase();
+                            if (!term) return true;
+                            return (a.trabajador_nombre || '').toLowerCase().includes(term) || (a.trabajador_rut || '').toLowerCase().includes(term);
+                          })
+                          .map((a) => {
+                            return (
+                              <tr key={a.id} className="hover:bg-slate-50/50">
+                                <td className="p-3">
+                                  <span className="block font-bold text-slate-800 uppercase leading-snug">{a.trabajador_nombre}</span>
+                                  <span className="block text-[9px] text-slate-450 font-mono mt-0.5">{a.trabajador_rut}</span>
+                                </td>
+                                <td className="p-3">
+                                  <span className="block uppercase text-slate-850 truncate leading-snug max-w-[170px]" title={a.registro_nombre}>
+                                    {a.registro_nombre}
+                                  </span>
+                                  <span className="inline-block text-[8px] font-black uppercase bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded mt-1">
+                                    {a.frecuencia}
+                                  </span>
+                                </td>
+                                {getWeekDates(currentWeekStart).map((date, idx) => {
+                                  const dateStr = formatDateYYYYMMDD(date);
+                                  const log = registrosCumplimientoLog.find(l => l.asignacion_id === a.id && l.fecha_cumplimiento === dateStr);
+                                  
+                                  return (
+                                    <td key={idx} className="p-3 text-center align-middle">
+                                      {log ? (
+                                        log.estado === 'Cumple' ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setSelectedAsigForLog(a);
+                                              setLogFecha(dateStr);
+                                              setLogEstado(log.estado);
+                                              setLogObservaciones(log.observaciones || '');
+                                              setShowLogModal(true);
+                                            }}
+                                            title={`Cumple - Observaciones: ${log.observaciones || 'Ninguna'}. Click para editar.`}
+                                            className="w-7 h-7 rounded-full bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 text-emerald-700 flex items-center justify-center mx-auto cursor-pointer shadow-3xs font-black transition-all"
+                                          >
+                                            ✓
+                                          </button>
+                                        ) : log.estado === 'No Cumple' ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setSelectedAsigForLog(a);
+                                              setLogFecha(dateStr);
+                                              setLogEstado(log.estado);
+                                              setLogObservaciones(log.observaciones || '');
+                                              setShowLogModal(true);
+                                            }}
+                                            title={`No Cumple - Observaciones: ${log.observaciones || 'Ninguna'}. Click para editar.`}
+                                            className="w-7 h-7 rounded-full bg-rose-100 hover:bg-rose-200 border border-rose-350 text-rose-700 flex items-center justify-center mx-auto cursor-pointer shadow-3xs font-black transition-all"
+                                          >
+                                            ✗
+                                          </button>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setSelectedAsigForLog(a);
+                                              setLogFecha(dateStr);
+                                              setLogEstado(log.estado);
+                                              setLogObservaciones(log.observaciones || '');
+                                              setShowLogModal(true);
+                                            }}
+                                            title={`N/A - Click para editar.`}
+                                            className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-250 text-slate-500 flex items-center justify-center mx-auto cursor-pointer shadow-3xs font-bold transition-all"
+                                          >
+                                            -
+                                          </button>
+                                        )
+                                      ) : (
+                                        <button 
+                                          type="button"
+                                          onClick={() => {
+                                            setSelectedAsigForLog(a);
+                                            setLogFecha(dateStr);
+                                            setLogEstado('Cumple');
+                                            setLogObservaciones('');
+                                            setShowLogModal(true);
+                                          }}
+                                          title="Registrar cumplimiento para este día"
+                                          className="w-7 h-7 rounded-full bg-slate-50 hover:bg-slate-200 border border-slate-200 text-slate-400 flex items-center justify-center mx-auto cursor-pointer hover:text-slate-700 transition-all font-bold"
+                                        >
+                                          +
+                                        </button>
+                                      )}
+                                    </td>
+                                  );
+                                })}
+                                <td className="p-3 text-center align-middle">
                                   <button
-                                    onClick={() => {
-                                      setSelectedAsigForLog(a);
-                                      setLogFecha(new Date().toISOString().split('T')[0]);
-                                      setLogEstado('Cumple');
-                                      setLogObservaciones('');
-                                      setShowLogModal(true);
-                                    }}
-                                    className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-extrabold text-[9px] uppercase px-2.5 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1 border border-emerald-250"
-                                  >
-                                    <Check className="w-3.5 h-3.5" /> Registrar
-                                  </button>
-                                  <button
+                                    type="button"
                                     onClick={() => {
                                       setSelectedAsigForHistory(a);
                                       setShowHistoryModal(true);
                                     }}
-                                    className="bg-primary/5 hover:bg-primary/10 text-primary font-extrabold text-[9px] uppercase px-2.5 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1"
+                                    title="Ver historial completo"
+                                    className="p-1.5 hover:bg-slate-100 rounded-lg text-primary transition cursor-pointer inline-flex items-center justify-center"
                                   >
-                                    <Eye className="w-3.5 h-3.5" /> Historial
+                                    <Eye className="w-4 h-4" />
                                   </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
+                                </td>
+                              </tr>
+                            );
+                          })}
                       </tbody>
                     </table>
                   </div>
