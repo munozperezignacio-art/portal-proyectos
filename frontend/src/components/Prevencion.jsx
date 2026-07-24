@@ -1384,8 +1384,8 @@ export default function Prevencion({ user, onBack }) {
                         e.preventDefault();
                         const email = newEmailInput.trim().toLowerCase();
                         if (!email) return;
-                        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-                          alert("Por favor ingrese un correo válido.");
+                        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.includes('..')) {
+                          alert("Por favor ingrese un correo válido sin puntos consecutivos.");
                           return;
                         }
                         if (emailsList.includes(email)) {
