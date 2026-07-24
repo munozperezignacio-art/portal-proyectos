@@ -1254,7 +1254,7 @@ export default function Prevencion({ user, onBack }) {
                 {/* Meta del Formulario */}
                 <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="sm:col-span-2">
+                    <div className="sm:col-span-3">
                       <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Título del Formulario *</label>
                       <input
                         type="text"
@@ -1263,18 +1263,6 @@ export default function Prevencion({ user, onBack }) {
                         placeholder="ej: Charla 5 Minutos y Registro de AST"
                         className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-850 font-extrabold focus:outline-none focus:border-primary uppercase"
                       />
-                    </div>
-                    <div>
-                      <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Categoría</label>
-                      <select
-                        value={formMeta.categoria}
-                        onChange={(e) => setFormMeta({ ...formMeta, categoria: e.target.value })}
-                        className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-750 font-semibold focus:outline-none focus:border-primary bg-white"
-                      >
-                        {categoriasPrevencion.map((cat, idx) => (
-                          <option key={idx} value={cat}>{cat}</option>
-                        ))}
-                      </select>
                     </div>
                   </div>
 
@@ -2824,14 +2812,6 @@ export default function Prevencion({ user, onBack }) {
                           ))}
                         </optgroup>
                       )}
-                      <optgroup label="Otros Registros Sugeridos">
-                        <option value="Charla de 5 Minutos">Charla de 5 Minutos</option>
-                        <option value="Inspección de EPP">Inspección de EPP</option>
-                        <option value="Examen de Altura Física">Examen de Altura Física</option>
-                        <option value="Entrega de EPP">Entrega de EPP</option>
-                        <option value="Uso de Arnés de Seguridad">Uso de Arnés de Seguridad</option>
-                        <option value="Checklist de Maquinaria">Checklist de Maquinaria</option>
-                      </optgroup>
                       <option value="OTRO">* Otro (Ingresar Texto Personalizado)</option>
                     </select>
                   </div>
