@@ -28,6 +28,7 @@ export default function PublicFormFiller({ formToken }) {
 
   const [obrasList, setObrasList] = useState([]);
   const [formCompanyBranding, setFormCompanyBranding] = useState(null);
+  const [personalMaestro, setPersonalMaestro] = useState([]);
 
   useEffect(() => {
     if (formToken) {
@@ -70,6 +71,12 @@ export default function PublicFormFiller({ formToken }) {
             .select('nombre')
             .order('nombre');
           if (activeObras) setObrasList(activeObras);
+
+          const { data: personal } = await supabase
+            .from('maestro_personal')
+            .select('nombre, rut, cargo')
+            .order('nombre');
+          if (personal) setPersonalMaestro(personal);
         } catch (errMeta) {
           console.error('Error al cargar datos auxiliares:', errMeta.message);
         }
@@ -461,14 +468,25 @@ export default function PublicFormFiller({ formToken }) {
             </div>
             <div>
               <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Inspector / Trabajador *</label>
-              <input
-                type="text"
+              <select
                 required
                 value={fillMetadata.inspector}
                 onChange={(e) => setFillMetadata({ ...fillMetadata, inspector: e.target.value })}
-                placeholder="ej: Pedro Morales"
-                className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-semibold uppercase text-slate-800 focus:outline-none focus:border-primary"
-              />
+                className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-semibold uppercase text-slate-800 focus:outline-none focus:border-primary cursor-pointer"
+              >
+                <option value="">-- Selecciona Trabajador --</option>
+                {(() => {
+                  const selectedCargosArr = form.cargos_obligados 
+                    ? form.cargos_obligados.split(',').map(c => c.trim().toLowerCase()) 
+                    : [];
+                  const filteredPersonnel = selectedCargosArr.length > 0 
+                    ? personalMaestro.filter(p => p.cargo && selectedCargosArr.includes(p.cargo.trim().toLowerCase()))
+                    : personalMaestro;
+                  return filteredPersonnel.map((p, pIdx) => (
+                    <option key={pIdx} value={p.nombre}>{p.nombre} ({p.cargo || 'Sin Cargo'})</option>
+                  ));
+                })()}
+              </select>
             </div>
           </div>
 

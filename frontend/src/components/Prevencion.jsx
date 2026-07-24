@@ -33,7 +33,8 @@ export default function Prevencion({ user, onBack }) {
     correos_notificacion: '',
     codigo: '',
     revision: '',
-    fecha_revision: ''
+    fecha_revision: '',
+    cargos_obligados: ''
   });
   const [formFields, setFormFields] = useState([]);
   const [draggedIndex, setDraggedIndex] = useState(null);
@@ -695,7 +696,8 @@ export default function Prevencion({ user, onBack }) {
       correos_notificacion: '',
       codigo: '',
       revision: '',
-      fecha_revision: ''
+      fecha_revision: '',
+      cargos_obligados: ''
     });
     setFormFields([]);
     setBuilderTab('edit');
@@ -727,7 +729,8 @@ export default function Prevencion({ user, onBack }) {
         codigo: formMeta.codigo ? formMeta.codigo.trim() : null,
         revision: formMeta.revision ? formMeta.revision.trim() : null,
         fecha_revision: formMeta.fecha_revision ? formMeta.fecha_revision.trim() : null,
-        empresa: user ? user.empresa : 'Obraxis'
+        empresa: user ? user.empresa : 'Obraxis',
+        cargos_obligados: formMeta.cargos_obligados ? formMeta.cargos_obligados.trim() : null
       };
 
       if (editingFormId) {
@@ -770,7 +773,8 @@ export default function Prevencion({ user, onBack }) {
       correos_notificacion: form.correos_notificacion || '',
       codigo: form.codigo || '',
       revision: form.revision || '',
-      fecha_revision: form.fecha_revision || ''
+      fecha_revision: form.fecha_revision || '',
+      cargos_obligados: form.cargos_obligados || ''
     });
     setFormFields(form.campos || []);
     setBuilderTab('edit');
@@ -1407,6 +1411,42 @@ export default function Prevencion({ user, onBack }) {
                     />
                   </div>
 
+                  {/* Cargos obligados */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[9px] font-bold uppercase text-slate-450">Cargos obligados a completar este registro (Opcional)</label>
+                    {Array.from(new Set(personalMaestro.map(p => p.cargo).filter(Boolean).map(c => c.trim()))).length === 0 ? (
+                      <p className="text-[10px] text-slate-400 italic">No hay cargos registrados en el maestro de personal.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto border border-slate-150 rounded-xl p-3 bg-slate-50/50">
+                        {Array.from(new Set(personalMaestro.map(p => p.cargo).filter(Boolean).map(c => c.trim()))).map((cargo, idx) => {
+                          const selectedCargosArr = formMeta.cargos_obligados 
+                            ? formMeta.cargos_obligados.split(',').map(c => c.trim()) 
+                            : [];
+                          const isChecked = selectedCargosArr.includes(cargo);
+                          return (
+                            <label key={idx} className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-700 cursor-pointer hover:bg-slate-100 transition shadow-2xs select-none">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  let updated;
+                                  if (e.target.checked) {
+                                    updated = [...selectedCargosArr, cargo];
+                                  } else {
+                                    updated = selectedCargosArr.filter(c => c !== cargo);
+                                  }
+                                  setFormMeta({ ...formMeta, cargos_obligados: updated.join(', ') });
+                                }}
+                                className="w-3.5 h-3.5 rounded text-primary focus:ring-primary border-slate-350"
+                              />
+                              <span>{cargo}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
                   <div>
                     {(() => {
                       const emailsList = formMeta.correos_notificacion 
@@ -1892,14 +1932,25 @@ export default function Prevencion({ user, onBack }) {
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Inspector / Realizado Por *</label>
-                  <input
-                    type="text"
+                  <select
                     required
                     value={fillMetadata.inspector}
                     onChange={(e) => setFillMetadata({ ...fillMetadata, inspector: e.target.value })}
-                    placeholder="ej: Juan Pérez"
-                    className="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs font-semibold uppercase text-slate-800"
-                  />
+                    className="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs font-semibold uppercase text-slate-800 focus:outline-none focus:border-primary cursor-pointer"
+                  >
+                    <option value="">-- Selecciona Inspector / Trabajador --</option>
+                    {(() => {
+                      const selectedCargosArr = selectedFormToFill.cargos_obligados 
+                        ? selectedFormToFill.cargos_obligados.split(',').map(c => c.trim().toLowerCase()) 
+                        : [];
+                      const filteredPersonnel = selectedCargosArr.length > 0 
+                        ? personalMaestro.filter(p => p.cargo && selectedCargosArr.includes(p.cargo.trim().toLowerCase()))
+                        : personalMaestro;
+                      return filteredPersonnel.map((p, pIdx) => (
+                        <option key={pIdx} value={p.nombre}>{p.nombre} ({p.cargo || 'Sin Cargo'})</option>
+                      ));
+                    })()}
+                  </select>
                 </div>
               </div>
 
@@ -3142,115 +3193,165 @@ export default function Prevencion({ user, onBack }) {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-150 font-semibold text-slate-700">
-                        {asignacionesCumplimiento
-                          .filter(a => {
+                        {(() => {
+                          // 1. Filtrar asignaciones
+                          const filteredAsignaciones = asignacionesCumplimiento.filter((a) => {
                             const term = complianceSearch.trim().toLowerCase();
                             if (!term) return true;
-                            return (a.trabajador_nombre || '').toLowerCase().includes(term) || (a.trabajador_rut || '').toLowerCase().includes(term);
-                          })
-                          .map((a) => {
                             return (
-                              <tr key={a.id} className="hover:bg-slate-50/50">
-                                <td className="p-3">
-                                  <span className="block font-bold text-slate-800 uppercase leading-snug">{a.trabajador_nombre}</span>
-                                  <span className="block text-[9px] text-slate-450 font-mono mt-0.5">{a.trabajador_rut}</span>
-                                </td>
-                                <td className="p-3">
-                                  <span className="block uppercase text-slate-850 truncate leading-snug max-w-[170px]" title={a.registro_nombre}>
-                                    {a.registro_nombre}
-                                  </span>
-                                  <span className="inline-block text-[8px] font-black uppercase bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded mt-1">
-                                    {a.frecuencia}
-                                  </span>
-                                </td>
-                                {getWeekDates(currentWeekStart).map((date, idx) => {
-                                  const dateStr = formatDateYYYYMMDD(date);
-                                  const log = registrosCumplimientoLog.find(l => l.asignacion_id === a.id && l.fecha_cumplimiento === dateStr);
-                                  
-                                  return (
-                                    <td key={idx} className="p-3 text-center align-middle">
-                                      {log ? (
-                                        log.estado === 'Cumple' ? (
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setSelectedAsigForLog(a);
-                                              setLogFecha(dateStr);
-                                              setLogEstado(log.estado);
-                                              setLogObservaciones(log.observaciones || '');
-                                              setShowLogModal(true);
-                                            }}
-                                            title={`Cumple - Observaciones: ${log.observaciones || 'Ninguna'}. Click para editar.`}
-                                            className="w-7 h-7 rounded-full bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 text-emerald-700 flex items-center justify-center mx-auto cursor-pointer shadow-3xs font-black transition-all"
-                                          >
-                                            ✓
-                                          </button>
-                                        ) : log.estado === 'No Cumple' ? (
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setSelectedAsigForLog(a);
-                                              setLogFecha(dateStr);
-                                              setLogEstado(log.estado);
-                                              setLogObservaciones(log.observaciones || '');
-                                              setShowLogModal(true);
-                                            }}
-                                            title={`No Cumple - Observaciones: ${log.observaciones || 'Ninguna'}. Click para editar.`}
-                                            className="w-7 h-7 rounded-full bg-rose-100 hover:bg-rose-200 border border-rose-350 text-rose-700 flex items-center justify-center mx-auto cursor-pointer shadow-3xs font-black transition-all"
-                                          >
-                                            ✗
-                                          </button>
-                                        ) : (
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setSelectedAsigForLog(a);
-                                              setLogFecha(dateStr);
-                                              setLogEstado(log.estado);
-                                              setLogObservaciones(log.observaciones || '');
-                                              setShowLogModal(true);
-                                            }}
-                                            title={`N/A - Click para editar.`}
-                                            className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-250 text-slate-500 flex items-center justify-center mx-auto cursor-pointer shadow-3xs font-bold transition-all"
-                                          >
-                                            -
-                                          </button>
-                                        )
-                                      ) : (
-                                        <button 
-                                          type="button"
-                                          onClick={() => {
-                                            setSelectedAsigForLog(a);
-                                            setLogFecha(dateStr);
-                                            setLogEstado('Cumple');
-                                            setLogObservaciones('');
-                                            setShowLogModal(true);
-                                          }}
-                                          title="Registrar cumplimiento para este día"
-                                          className="w-7 h-7 rounded-full bg-slate-50 hover:bg-slate-200 border border-slate-200 text-slate-400 flex items-center justify-center mx-auto cursor-pointer hover:text-slate-700 transition-all font-bold"
-                                        >
-                                          +
-                                        </button>
-                                      )}
-                                    </td>
-                                  );
-                                })}
-                                <td className="p-3 text-center align-middle">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setSelectedAsigForHistory(a);
-                                      setShowHistoryModal(true);
-                                    }}
-                                    title="Ver historial completo"
-                                    className="p-1.5 hover:bg-slate-100 rounded-lg text-primary transition cursor-pointer inline-flex items-center justify-center"
-                                  >
-                                    <Eye className="w-4 h-4" />
-                                  </button>
-                                </td>
-                              </tr>
+                              (a.trabajador_nombre || '').toLowerCase().includes(term) ||
+                              (a.trabajador_rut || '').toLowerCase().includes(term)
                             );
-                          })}
+                          });
+
+                          // 2. Agrupar por trabajador (rut)
+                          const workerMap = new Map();
+                          filteredAsignaciones.forEach((a) => {
+                            const key = a.trabajador_rut || 'sin_rut';
+                            if (!workerMap.has(key)) {
+                              workerMap.set(key, {
+                                rut: a.trabajador_rut,
+                                nombre: a.trabajador_nombre,
+                                items: []
+                              });
+                            }
+                            workerMap.get(key).items.push(a);
+                          });
+                          const groupedList = Array.from(workerMap.values());
+
+                          return groupedList.flatMap((worker) => {
+                            return worker.items.map((a, idx) => {
+                              return (
+                                <tr key={a.id} className="hover:bg-slate-50/50">
+                                  {idx === 0 && (
+                                    <td className="p-3 align-middle border-r border-slate-100 bg-slate-50/10 w-64" rowSpan={worker.items.length}>
+                                      <span className="block font-bold text-slate-800 uppercase leading-snug">{worker.nombre}</span>
+                                      <span className="block text-[9px] text-slate-450 font-mono mt-0.5">{worker.rut}</span>
+                                    </td>
+                                  )}
+                                  <td className="p-3">
+                                    <span className="block uppercase text-slate-850 truncate leading-snug max-w-[170px]" title={a.registro_nombre}>
+                                      {a.registro_nombre}
+                                    </span>
+                                    <span className="inline-block text-[8px] font-black uppercase bg-slate-100 text-slate-550 px-1.5 py-0.5 rounded mt-1">
+                                      {a.frecuencia}
+                                    </span>
+                                  </td>
+                                  {getWeekDates(currentWeekStart).map((date, dayIdx) => {
+                                    const dateStr = formatDateYYYYMMDD(date);
+                                    
+                                    // 1. Buscar log manual
+                                    let log = registrosCumplimientoLog.find(l => l.asignacion_id === a.id && l.fecha_cumplimiento === dateStr);
+                                    
+                                    // 2. Buscar si hay respuesta automática
+                                    if (!log) {
+                                      const matchingForm = formularios.find(f => f.titulo.trim().toLowerCase() === a.registro_nombre.trim().toLowerCase());
+                                      if (matchingForm) {
+                                        const autoResp = respuestas.find(r => 
+                                          r.formulario_id === matchingForm.id && 
+                                          (r.inspector || '').trim().toLowerCase() === a.trabajador_nombre.trim().toLowerCase() && 
+                                          r.created_at && r.created_at.split('T')[0] === dateStr
+                                        );
+                                        if (autoResp) {
+                                          log = {
+                                            estado: 'Cumple',
+                                            observaciones: 'COMPLETADO AUTOMÁTICAMENTE (FORMULARIO ENVIADO)',
+                                            autoGenerated: true
+                                          };
+                                        }
+                                      }
+                                    }
+
+                                    return (
+                                      <td key={dayIdx} className="p-3 text-center align-middle">
+                                        {log ? (
+                                          log.estado === 'Cumple' ? (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                if (log.autoGenerated) {
+                                                  alert("Este registro se marcó de forma automática al completar el formulario.");
+                                                  return;
+                                                }
+                                                setSelectedAsigForLog(a);
+                                                setLogFecha(dateStr);
+                                                setLogEstado(log.estado);
+                                                setLogObservaciones(log.observaciones || '');
+                                                setShowLogModal(true);
+                                              }}
+                                              title={log.autoGenerated ? "Cumple - Completado automáticamente al llenar el formulario." : `Cumple - Observaciones: ${log.observaciones || 'Ninguna'}. Click para editar.`}
+                                              className={`w-7 h-7 rounded-full bg-emerald-100 ${log.autoGenerated ? 'cursor-default' : 'hover:bg-emerald-250'} border border-emerald-350 text-emerald-700 flex items-center justify-center mx-auto shadow-3xs font-black transition-all`}
+                                            >
+                                              ✓
+                                            </button>
+                                          ) : log.estado === 'No Cumple' ? (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setSelectedAsigForLog(a);
+                                                setLogFecha(dateStr);
+                                                setLogEstado(log.estado);
+                                                setLogObservaciones(log.observaciones || '');
+                                                setShowLogModal(true);
+                                              }}
+                                              title={`No Cumple - Observaciones: ${log.observaciones || 'Ninguna'}. Click para editar.`}
+                                              className="w-7 h-7 rounded-full bg-rose-100 hover:bg-rose-200 border border-rose-350 text-rose-700 flex items-center justify-center mx-auto shadow-3xs font-black transition-all"
+                                            >
+                                              ✗
+                                            </button>
+                                          ) : (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setSelectedAsigForLog(a);
+                                                setLogFecha(dateStr);
+                                                setLogEstado(log.estado);
+                                                setLogObservaciones(log.observaciones || '');
+                                                setShowLogModal(true);
+                                              }}
+                                              title={`N/A - Click para editar.`}
+                                              className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-250 text-slate-500 flex items-center justify-center mx-auto shadow-3xs font-bold transition-all"
+                                            >
+                                              -
+                                            </button>
+                                          )
+                                        ) : (
+                                          <button 
+                                            type="button"
+                                            onClick={() => {
+                                              setSelectedAsigForLog(a);
+                                              setLogFecha(dateStr);
+                                              setLogEstado('Cumple');
+                                              setLogObservaciones('');
+                                              setShowLogModal(true);
+                                            }}
+                                            title="Registrar cumplimiento para este día"
+                                            className="w-7 h-7 rounded-full bg-slate-50 hover:bg-slate-200 border border-slate-200 text-slate-400 flex items-center justify-center mx-auto cursor-pointer hover:text-slate-700 transition-all font-bold"
+                                          >
+                                            +
+                                          </button>
+                                        )}
+                                      </td>
+                                    );
+                                  })}
+                                  <td className="p-3 text-center align-middle">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedAsigForHistory(a);
+                                        setShowHistoryModal(true);
+                                      }}
+                                      title="Ver historial completo"
+                                      className="p-1.5 hover:bg-slate-100 rounded-lg text-primary transition cursor-pointer inline-flex items-center justify-center"
+                                    >
+                                      <Eye className="w-4 h-4" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            });
+                          });
+                        })()}
                       </tbody>
                     </table>
                   </div>
