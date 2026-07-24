@@ -27,6 +27,8 @@ const defaultCovers = [
 
 function App() {
   const [user, setUser] = useState(null);
+  const [selectedCompanyOverride, setSelectedCompanyOverride] = useState(null);
+  const [empresasList, setEmpresasList] = useState([]);
   const [currentModule, setCurrentModule] = useState('dashboard');
   const [companyBranding, setCompanyBranding] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile drawer toggle
@@ -34,6 +36,10 @@ function App() {
   const [obras, setObras] = useState([]);
   const [obrasLoading, setObrasLoading] = useState(false);
   const [selectedObraName, setSelectedObraName] = useState(null);
+
+  const activeUserContext = user 
+    ? (selectedCompanyOverride ? { ...user, empresa: selectedCompanyOverride } : user)
+    : null;
 
   // Favoritos guardados en localStorage
   const [favorites, setFavorites] = useState(() => {
@@ -53,16 +59,36 @@ function App() {
     }
   }, []);
 
-  // Cargar identidad visual de la empresa del usuario
+  // Cargar lista de empresas si el usuario es superusuario
   useEffect(() => {
-    if (!user) return;
+    if (user && user.empresa === 'Obraxis' && user.rol.toLowerCase() === 'superusuario') {
+      async function fetchCompanies() {
+        try {
+          const { data } = await supabase.from('config_empresa').select('empresa');
+          if (data) {
+            setEmpresasList(data.map(d => d.empresa));
+          }
+        } catch (e) {
+          console.error('Error al cargar empresas:', e);
+        }
+      }
+      fetchCompanies();
+    } else {
+      setEmpresasList([]);
+      setSelectedCompanyOverride(null);
+    }
+  }, [user]);
+
+  // Cargar identidad visual de la empresa activa
+  useEffect(() => {
+    if (!activeUserContext) return;
     async function fetchBranding() {
       try {
         let data = null;
         const { data: brandData, error: brandErr } = await supabase
           .from('config_empresa')
           .select('logo_base64, color_primario, color_secundario, modulos_activos, gemini_api_key, gemini_model')
-          .eq('empresa', user.empresa)
+          .eq('empresa', activeUserContext.empresa)
           .maybeSingle();
 
         if (brandErr && brandErr.message.includes('column')) {
@@ -70,7 +96,7 @@ function App() {
           const { data: fallbackData, error: fallbackErr } = await supabase
             .from('config_empresa')
             .select('logo_base64, color_primario, color_secundario, modulos_activos')
-            .eq('empresa', user.empresa)
+            .eq('empresa', activeUserContext.empresa)
             .maybeSingle();
           if (fallbackErr) throw fallbackErr;
           data = fallbackData;
@@ -95,10 +121,10 @@ function App() {
     }
     fetchBranding();
     fetchObras();
-  }, [user]);
+  }, [activeUserContext]);
 
   const fetchObras = async () => {
-    if (!user) return;
+    if (!activeUserContext) return;
     setObrasLoading(true);
     try {
       const { data, error } = await supabase
@@ -108,9 +134,9 @@ function App() {
       if (error) throw error;
 
       // Filtrar por permisos del usuario
-      const permisoStr = user.obras ? user.obras.toString().trim().toLowerCase() : '';
+      const permisoStr = activeUserContext.obras ? activeUserContext.obras.toString().trim().toLowerCase() : '';
       const obrasPermitidasArr = permisoStr.split(',').map(item => item.trim());
-      const esTodas = obrasPermitidasArr.includes('todas') || user.rol.toLowerCase() === 'superusuario';
+      const esTodas = obrasPermitidasArr.includes('todas') || activeUserContext.rol.toLowerCase() === 'superusuario';
 
       const filtradas = (data || []).filter(o => {
         if (!o.nombre) return false;
@@ -302,7 +328,7 @@ function App() {
             <div className="flex flex-col min-w-0">
               <span className="text-slate-800 font-extrabold text-[13px] tracking-wide uppercase leading-tight">Obraxis</span>
               <span className="text-slate-400 font-black text-[9px] uppercase tracking-wider truncate leading-none mt-0.5">
-                {user.empresa}
+                {activeUserContext?.empresa || 'Obraxis'}
               </span>
             </div>
           </div>
@@ -314,6 +340,29 @@ function App() {
             <ChevronLeft className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Cambiador de Empresa para Superusuario Obraxis (Escritorio) */}
+        {user && user.empresa === 'Obraxis' && user.rol.toLowerCase() === 'superusuario' && empresasList.length > 0 && (
+          <div className="p-4 border-b border-slate-100 bg-slate-50/50 space-y-1.5 animate-in fade-in duration-200">
+            <div className="flex items-center gap-1.5 text-[9px] font-extrabold text-slate-500 uppercase tracking-wider">
+              <Building2 className="w-3.5 h-3.5 text-primary" />
+              <span>Trabajar en Empresa</span>
+            </div>
+            <select
+              value={selectedCompanyOverride || 'Obraxis'}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedCompanyOverride(val === 'Obraxis' ? null : val);
+              }}
+              className="w-full bg-white border border-slate-250 rounded-xl p-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-primary cursor-pointer shadow-2xs"
+            >
+              <option value="Obraxis">Obraxis (Global)</option>
+              {empresasList.filter(c => c !== 'Obraxis').map((c, idx) => (
+                <option key={idx} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* User Info Card */}
         <div className="p-4 border-b border-slate-100 flex items-center gap-3">
@@ -422,7 +471,7 @@ function App() {
             <h1 className="text-sm font-bold text-white uppercase tracking-wider">Obraxis</h1>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold bg-white/15 px-2.5 py-1 rounded-full uppercase">{user.empresa}</span>
+            <span className="text-[10px] font-bold bg-white/15 px-2.5 py-1 rounded-full uppercase">{activeUserContext?.empresa || 'Obraxis'}</span>
           </div>
         </header>
 
@@ -446,7 +495,7 @@ function App() {
                   <div className="flex flex-col min-w-0">
                     <span className="text-slate-800 font-extrabold text-[12px] tracking-wide uppercase leading-tight">Obraxis</span>
                     <span className="text-slate-400 font-black text-[8px] uppercase tracking-wider truncate leading-none mt-0.5">
-                      {user.empresa}
+                      {activeUserContext?.empresa || 'Obraxis'}
                     </span>
                   </div>
                 </div>
@@ -454,6 +503,29 @@ function App() {
                   <X className="w-5 h-5 text-slate-500" />
                 </button>
               </div>
+
+              {/* Cambiador de Empresa para Superusuario Obraxis (Móvil) */}
+              {user && user.empresa === 'Obraxis' && user.rol.toLowerCase() === 'superusuario' && empresasList.length > 0 && (
+                <div className="p-4 border-b border-slate-100 bg-slate-50/50 space-y-1 animate-in fade-in duration-200">
+                  <div className="flex items-center gap-1.5 text-[8.5px] font-extrabold text-slate-500 uppercase tracking-wider">
+                    <Building2 className="w-3.5 h-3.5 text-primary" />
+                    <span>Trabajar en Empresa</span>
+                  </div>
+                  <select
+                    value={selectedCompanyOverride || 'Obraxis'}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSelectedCompanyOverride(val === 'Obraxis' ? null : val);
+                    }}
+                    className="w-full bg-white border border-slate-200 rounded-xl p-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-primary cursor-pointer shadow-2xs"
+                  >
+                    <option value="Obraxis">Obraxis (Global)</option>
+                    {empresasList.filter(c => c !== 'Obraxis').map((c, idx) => (
+                      <option key={idx} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* User info */}
               <div className="p-4 border-b border-slate-100 flex items-center gap-3">
@@ -550,7 +622,7 @@ function App() {
                 </div>
                 <div className="flex gap-2">
                   <span className="text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 px-3 py-1.5 rounded-xl uppercase tracking-wide">
-                    Empresa: {user.empresa}
+                    Empresa: {activeUserContext?.empresa || 'Obraxis'}
                   </span>
                   <span className="text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 px-3 py-1.5 rounded-xl uppercase tracking-wide">
                     Rol: {user.rol}
@@ -589,7 +661,7 @@ function App() {
             </div>
           ) : currentModule === 'obras' ? (
             <Obras 
-              user={user} 
+              user={activeUserContext} 
               onBack={() => {
                 setSelectedObraName(null);
                 setCurrentModule('dashboard');
@@ -597,23 +669,23 @@ function App() {
               initialObraName={selectedObraName}
             />
           ) : currentModule === 'rrhh' ? (
-            <Personal user={user} onBack={() => {
+            <Personal user={activeUserContext} onBack={() => {
               setSelectedObraName(null);
               setCurrentModule('dashboard');
             }} />
           ) : currentModule === 'maquinaria' ? (
-            <Maquinaria user={user} onBack={() => {
+            <Maquinaria user={activeUserContext} onBack={() => {
               setSelectedObraName(null);
               setCurrentModule('dashboard');
             }} />
           ) : currentModule === 'admin' ? (
-            <ConfigCorreos user={user} onBack={() => {
+            <ConfigCorreos user={activeUserContext} onBack={() => {
               setSelectedObraName(null);
               setCurrentModule('dashboard');
             }} />
           ) : currentModule === 'presupuestos' ? (
             <PresupuestosPlanif 
-              user={user} 
+              user={activeUserContext} 
               companyBranding={companyBranding} 
               onBack={() => {
                 setSelectedObraName(null);
@@ -621,13 +693,13 @@ function App() {
               }} 
             />
           ) : currentModule === 'prevencion' ? (
-            <Prevencion user={user} onBack={() => {
+            <Prevencion user={activeUserContext} onBack={() => {
               setSelectedObraName(null);
               setCurrentModule('dashboard');
             }} />
           ) : currentModule === 'facturacion' ? (
             <Facturacion 
-              user={user} 
+              user={activeUserContext} 
               companyBranding={companyBranding} 
               onBack={() => {
                 setSelectedObraName(null);
