@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
+import { sendSystemEmail } from '../utils/emailService';
 import { 
   ShieldAlert, Send, CheckCircle2, Camera, PenTool, AlertCircle, Loader2, Check, Plus 
 } from 'lucide-react';
@@ -178,6 +179,129 @@ export default function PublicFormFiller({ formToken }) {
         ]);
 
       if (insErr) throw insErr;
+
+      // --- Despachar Reporte de Prevención y Seguridad por Correo ---
+      try {
+        let destinationEmails = form.correos_notificacion;
+
+        if (!destinationEmails) {
+          const { data: configAlertas } = await supabase
+            .from('config_correos')
+            .select('correos')
+            .eq('tipo', 'Prevencion y Seguridad')
+            .maybeSingle();
+          if (configAlertas && configAlertas.correos) {
+            destinationEmails = configAlertas.correos;
+          }
+        }
+
+        if (destinationEmails) {
+          // Construir HTML del reporte
+          let tableRowsHtml = "";
+          (form.campos || []).forEach((field) => {
+            const ans = finalAnswers[field.id];
+            let formattedAns = "";
+            if (field.type === 'repeater') {
+              if (Array.isArray(ans)) {
+                formattedAns = `<table style="width: 100%; border-collapse: collapse; margin-top: 5px;">`;
+                ans.forEach((instance, idx) => {
+                  formattedAns += `<tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 5px; font-size: 11px; font-weight: bold; color: #64748b;">Instancia ${idx + 1}:</td><td style="padding: 5px;">`;
+                  Object.entries(instance).forEach(([subId, subVal]) => {
+                    const subField = field.subFields?.find(sf => sf.id === subId);
+                    const subLabel = subField ? subField.label : subId;
+                    if (subField?.type === 'signature' && subVal) {
+                      formattedAns += `<b>${subLabel}:</b> <img src="${subVal}" style="max-height: 40px; vertical-align: middle;" /><br/>`;
+                    } else {
+                      formattedAns += `<b>${subLabel}:</b> ${subVal || 'N/R'}<br/>`;
+                    }
+                  });
+                  formattedAns += `</td></tr>`;
+                });
+                formattedAns += `</table>`;
+              } else {
+                formattedAns = '<span style="color: #94a3b8; font-style: italic;">Sin respuestas</span>';
+              }
+            } else if (field.type === 'signature') {
+              formattedAns = ans ? `<img src="${ans}" style="max-height: 50px;" />` : '<span style="color: #94a3b8; font-style: italic;">No firmado</span>';
+            } else if (field.type === 'checkbox') {
+              formattedAns = ans ? 'Sí (Aceptado) ✅' : 'No ❌';
+            } else {
+              formattedAns = ans || 'N/R';
+            }
+
+            tableRowsHtml += `
+              <tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 10px 12px; font-size: 11px; font-weight: bold; color: #334155; width: 40%; background-color: #f8fafc;">${field.label}</td>
+                <td style="padding: 10px 12px; font-size: 11px; color: #0f172a;">${formattedAns}</td>
+              </tr>
+            `;
+          });
+
+          // Firma principal
+          let mainSignatureHtml = "";
+          if (mainSignatureDataUrl) {
+            mainSignatureHtml = `
+              <h3 style="color: #0f172a; font-size: 13px; margin: 20px 0 10px 0; border-left: 4px solid #2563eb; padding-left: 8px; text-transform: uppercase; letter-spacing: 0.03em;">Firma del Inspector</h3>
+              <div style="border: 1px solid #e2e8f0; border-radius: 12px; padding: 15px; display: inline-block; background-color: #f8fafc;">
+                <img src="${mainSignatureDataUrl}" style="max-height: 80px;" alt="Firma Inspector" />
+              </div>
+            `;
+          }
+
+          // HTML global del Mail
+          const mailHtml = `
+            <div style="font-family: 'Inter', sans-serif; max-width: 650px; margin: auto; border: 1px solid #e2e8f0; border-radius: 16px; padding: 30px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);">
+              <div style="text-align: center; margin-bottom: 25px;">
+                <h1 style="color: #0f172a; font-size: 18px; font-weight: 800; margin: 0; text-transform: uppercase; letter-spacing: 0.05em;">Reporte de Prevención de Riesgos</h1>
+                <p style="color: #64748b; font-size: 11px; margin: 5px 0 0 0;">Portal de Proyectos Obraxis</p>
+              </div>
+
+              <h3 style="color: #0f172a; font-size: 13px; margin: 0 0 10px 0; border-left: 4px solid #2563eb; padding-left: 8px; text-transform: uppercase; letter-spacing: 0.03em;">Información General</h3>
+              <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+                <tr style="border-bottom: 1px solid #e2e8f0;">
+                  <td style="padding: 8px 10px; font-size: 11px; color: #64748b; font-weight: bold; width: 35%; background-color: #f8fafc;">Formulario:</td>
+                  <td style="padding: 8px 10px; font-size: 11px; color: #0f172a; font-weight: bold;">${form.titulo}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #e2e8f0;">
+                  <td style="padding: 8px 10px; font-size: 11px; color: #64748b; font-weight: bold; background-color: #f8fafc;">Categoría:</td>
+                  <td style="padding: 8px 10px; font-size: 11px; color: #0f172a;">${form.categoria || 'Inspección'}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #e2e8f0;">
+                  <td style="padding: 8px 10px; font-size: 11px; color: #64748b; font-weight: bold; background-color: #f8fafc;">Proyecto / Obra:</td>
+                  <td style="padding: 8px 10px; font-size: 11px; color: #0f172a;">${fillMetadata.proyecto_nombre || 'General'}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #e2e8f0;">
+                  <td style="padding: 8px 10px; font-size: 11px; color: #64748b; font-weight: bold; background-color: #f8fafc;">Inspector / Autor:</td>
+                  <td style="padding: 8px 10px; font-size: 11px; color: #0f172a;">${fillMetadata.inspector || 'Anónimo'}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 10px; font-size: 11px; color: #64748b; font-weight: bold; background-color: #f8fafc;">Fecha de Registro:</td>
+                  <td style="padding: 8px 10px; font-size: 11px; color: #0f172a;">${new Date().toLocaleDateString('es-CL')} ${new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</td>
+                </tr>
+              </table>
+
+              <h3 style="color: #0f172a; font-size: 13px; margin: 15px 0 10px 0; border-left: 4px solid #2563eb; padding-left: 8px; text-transform: uppercase; letter-spacing: 0.03em;">Respuestas del Formulario</h3>
+              <table style="width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+                ${tableRowsHtml}
+              </table>
+
+              ${mainSignatureHtml}
+
+              <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 25px 0;" />
+              <p style="font-size: 10px; color: #94a3b8; text-align: center; margin: 0;">Este es un reporte automático enviado por el Portal de Proyectos de Obraxis.cl</p>
+            </div>
+          `;
+
+          await sendSystemEmail({
+            to: destinationEmails,
+            subject: `📋 Nueva Inspección Pública: ${form.titulo} - ${fillMetadata.proyecto_nombre || 'General'}`,
+            htmlContent: mailHtml
+          });
+        }
+      } catch (errMail) {
+        console.error('Error al despachar correo público de prevención:', errMail.toString());
+      }
+
       setSubmittedSuccess(true);
     } catch (err) {
       setError('Error al enviar respuestas: ' + err.message);

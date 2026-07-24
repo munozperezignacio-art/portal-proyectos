@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
+import { sendSystemEmail } from '../utils/emailService';
 import { 
   ArrowLeft, ShieldAlert, Plus, Save, Trash2, FileText, CheckCircle2, 
   Share2, Copy, Eye, Edit, ChevronLeft, QrCode, AlertTriangle, 
@@ -862,7 +863,6 @@ export default function Prevencion({ user, onBack }) {
             </div>
           `;
 
-          const { sendSystemEmail } = await import('../utils/emailService');
           await sendSystemEmail({
             to: destinationEmails,
             subject: `📋 Nueva Inspección: ${selectedFormToFill.titulo} - ${fillMetadata.proyecto_nombre || 'General'}`,

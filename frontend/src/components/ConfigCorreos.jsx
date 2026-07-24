@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { sendSystemEmail } from '../utils/emailService';
 import { 
   Settings, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Check, Mail, Filter, User, Lock, Building2, ShieldAlert
 } from 'lucide-react';
@@ -433,7 +434,6 @@ function ConfigCorreos({ user, onBack }) {
     }
     setTestMailLoading(true);
     try {
-      const { sendSystemEmail } = await import('../utils/emailService');
       const testHtml = `
         <div style="font-family: sans-serif; padding: 25px; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; rounded: 12px; background-color: #ffffff;">
           <h2 style="color: #2563eb; margin-top: 0;">🧪 Prueba de Conexión de Correo</h2>
@@ -545,7 +545,6 @@ function ConfigCorreos({ user, onBack }) {
     }
     setPlatTestMailLoading(true);
     try {
-      const { sendSystemEmail } = await import('../utils/emailService');
       const testHtml = `
         <div style="font-family: sans-serif; padding: 25px; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
           <h2 style="color: #2563eb; margin-top: 0;">🧪 Prueba de Conexión de Correo Global</h2>
