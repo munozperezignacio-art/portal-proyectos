@@ -4,6 +4,7 @@ import { sendSystemEmail } from '../utils/emailService';
 import { generateFormPdf } from '../utils/pdfGenerator';
 import { 
   ArrowLeft, ShieldAlert, Plus, Save, Trash2, FileText, CheckCircle2, 
+  ChevronUp, ChevronDown, GripVertical, 
   Share2, Copy, Eye, Edit, ChevronLeft, QrCode, AlertTriangle, 
   Type, AlignLeft, Hash, Calendar, CheckSquare, Radio, ToggleLeft, 
   PenTool, Camera, Sparkles, Send, Check, Download, Layers, Building2, User, BoxSelect, Layers3,
@@ -35,6 +36,7 @@ export default function Prevencion({ user, onBack }) {
     fecha_revision: ''
   });
   const [formFields, setFormFields] = useState([]);
+  const [draggedIndex, setDraggedIndex] = useState(null);
   const [savingForm, setSavingForm] = useState(false);
   const [newEmailInput, setNewEmailInput] = useState('');
 
@@ -548,6 +550,68 @@ export default function Prevencion({ user, onBack }) {
 
   const handleDeleteField = (id) => {
     setFormFields(prev => prev.filter(f => f.id !== id));
+  };
+
+  // Métodos para editar opciones de Selección Única y Múltiple
+  const handleAddOption = (fieldId) => {
+    setFormFields(prev => prev.map(f => {
+      if (f.id === fieldId) {
+        const currentOptions = Array.isArray(f.options) ? f.options : [];
+        return { ...f, options: [...currentOptions, `Nueva Opción ${currentOptions.length + 1}`] };
+      }
+      return f;
+    }));
+  };
+
+  const handleUpdateOption = (fieldId, optionIdx, value) => {
+    setFormFields(prev => prev.map(f => {
+      if (f.id === fieldId) {
+        const currentOptions = Array.isArray(f.options) ? [...f.options] : [];
+        currentOptions[optionIdx] = value;
+        return { ...f, options: currentOptions };
+      }
+      return f;
+    }));
+  };
+
+  const handleDeleteOption = (fieldId, optionIdx) => {
+    setFormFields(prev => prev.map(f => {
+      if (f.id === fieldId) {
+        const currentOptions = Array.isArray(f.options) ? [...f.options] : [];
+        const filtered = currentOptions.filter((_, idx) => idx !== optionIdx);
+        return { ...f, options: filtered };
+      }
+      return f;
+    }));
+  };
+
+  // Métodos para reordenar campos (Botones + Drag & Drop)
+  const handleMoveField = (index, direction) => {
+    if (direction === 'up' && index === 0) return;
+    if (direction === 'down' && index === formFields.length - 1) return;
+    const targetIdx = direction === 'up' ? index - 1 : index + 1;
+    const updated = [...formFields];
+    const temp = updated[index];
+    updated[index] = updated[targetIdx];
+    updated[targetIdx] = temp;
+    setFormFields(updated);
+  };
+
+  const handleDragStart = (index) => {
+    setDraggedIndex(index);
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (index) => {
+    if (draggedIndex === null || draggedIndex === index) return;
+    const updated = [...formFields];
+    const [removed] = updated.splice(draggedIndex, 1);
+    updated.splice(index, 0, removed);
+    setFormFields(updated);
+    setDraggedIndex(null);
   };
 
   const handleAddSubFieldToRepeater = (repeaterId, type) => {
@@ -1412,17 +1476,48 @@ export default function Prevencion({ user, onBack }) {
                         return (
                           <div 
                             key={field.id} 
-                            className={`p-4 border rounded-2xl space-y-3 relative ${
+                            draggable
+                            onDragStart={() => handleDragStart(index)}
+                            onDragOver={(e) => handleDragOver(e, index)}
+                            onDrop={() => handleDrop(index)}
+                            className={`p-4 border rounded-2xl space-y-3 relative transition ${
                               isRepeater ? 'bg-amber-50/40 border-amber-300' : 'bg-slate-50 border-slate-200'
-                            }`}
+                            } ${draggedIndex === index ? 'opacity-40 border-dashed border-primary bg-primary/5' : ''}`}
                           >
                             <div className="flex justify-between items-center gap-2">
-                              <span className={`text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-md ${
-                                isRepeater ? 'bg-amber-500 text-white' : 'bg-primary/10 text-primary'
-                              }`}>
-                                #{index + 1} - {isRepeater ? 'BLOQUE REPETIBLE (GRUPO +)' : field.type.toUpperCase()}
-                              </span>
+                              <div className="flex items-center gap-2">
+                                <div className="cursor-grab active:cursor-grabbing p-1 hover:bg-slate-200 rounded-lg text-slate-400" title="Arrastra para reordenar">
+                                  <GripVertical className="w-4 h-4" />
+                                </div>
+                                <span className={`text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-md ${
+                                  isRepeater ? 'bg-amber-500 text-white' : 'bg-primary/10 text-primary'
+                                }`}>
+                                  #{index + 1} - {isRepeater ? 'BLOQUE REPETIBLE (GRUPO +)' : field.type.toUpperCase()}
+                                </span>
+                              </div>
                               <div className="flex items-center gap-3">
+                                {/* Botones para Reordenar con Click */}
+                                <div className="flex items-center bg-white border border-slate-200 rounded-lg overflow-hidden shadow-2xs">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMoveField(index, 'up')}
+                                    disabled={index === 0}
+                                    className={`p-1.5 hover:bg-slate-100 transition border-r border-slate-200 ${index === 0 ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}`}
+                                    title="Mover arriba"
+                                  >
+                                    <ChevronUp className="w-3.5 h-3.5 text-slate-500" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMoveField(index, 'down')}
+                                    disabled={index === formFields.length - 1}
+                                    className={`p-1.5 hover:bg-slate-100 transition ${index === formFields.length - 1 ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}`}
+                                    title="Mover abajo"
+                                  >
+                                    <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                                  </button>
+                                </div>
+
                                 {!isRepeater && (
                                   <label className="flex items-center gap-1.5 text-xs text-slate-600 font-semibold cursor-pointer">
                                     <input
@@ -1435,8 +1530,9 @@ export default function Prevencion({ user, onBack }) {
                                   </label>
                                 )}
                                 <button
+                                  type="button"
                                   onClick={() => handleDeleteField(field.id)}
-                                  className="p-1 text-red-650 hover:bg-red-50 rounded-lg transition"
+                                  className="p-1 text-red-650 hover:bg-red-50 rounded-lg transition cursor-pointer"
                                   title="Eliminar elemento"
                                 >
                                   <Trash2 className="w-4 h-4" />
