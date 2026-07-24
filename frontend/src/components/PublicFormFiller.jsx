@@ -302,7 +302,7 @@ export default function PublicFormFiller({ formToken }) {
                 </tr>
               </table>
 
-              <h3 style="color: #0f172a; font-size: 13px; margin: 15px 0 10px 0; border-left: 4px solid #2563eb; padding-left: 8px; text-transform: uppercase; letter-spacing: 0.03em;">Respuestas del Formulario</h3>
+              <h3 style="color: #0f172a; font-size: 13px; margin: 15px 0 10px 0; border-left: 4px solid #2563eb; padding-left: 8px; text-transform: uppercase; letter-spacing: 0.03em;">Registro</h3>
               <table style="width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
                 ${tableRowsHtml}
               </table>

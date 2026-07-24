@@ -82,7 +82,7 @@ export function generateFormPdf({ form, metadata, answers, mainSignature, compan
   doc.setFillColor(248, 250, 252); // Slate 50
   
   // Fondo de tabla metadatos
-  doc.rect(margin, y, contentWidth, 32, 'FD');
+  doc.rect(margin, y, contentWidth, 22, 'FD');
   
   doc.setTextColor(71, 85, 105);
   doc.setFont('helvetica', 'bold');
@@ -90,13 +90,11 @@ export function generateFormPdf({ form, metadata, answers, mainSignature, compan
   
   doc.text('Inspector / Autor:', margin + 5, y + 8);
   doc.text('Obra / Proyecto:', margin + 5, y + 16);
-  doc.text('Categoría:', margin + 5, y + 24);
   
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(15, 23, 42);
   doc.text(metadata.inspector || 'Anónimo', margin + 40, y + 8);
   doc.text(metadata.proyecto_nombre || 'General', margin + 40, y + 16);
-  doc.text(form.categoria || 'Inspección', margin + 40, y + 24);
 
   // Fecha y hora a la derecha
   doc.setFont('helvetica', 'bold');
@@ -106,13 +104,13 @@ export function generateFormPdf({ form, metadata, answers, mainSignature, compan
   doc.setTextColor(15, 23, 42);
   doc.text(new Date().toLocaleDateString('es-CL'), margin + 125, y + 8);
   
-  y += 42;
+  y += 32;
 
   // 3. Detalle de Respuestas del Formulario
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
   doc.setTextColor(15, 23, 42);
-  doc.text('Respuestas del Formulario:', margin, y);
+  doc.text('Registro:', margin, y);
   y += 6;
 
   (form.campos || []).forEach((field) => {
