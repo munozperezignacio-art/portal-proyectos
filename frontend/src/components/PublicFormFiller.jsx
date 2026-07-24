@@ -26,6 +26,9 @@ export default function PublicFormFiller({ formToken }) {
   const [mainSignatureDataUrl, setMainSignatureDataUrl] = useState('');
   const [repeaterSignatures, setRepeaterSignatures] = useState({});
 
+  const [obrasList, setObrasList] = useState([]);
+  const [formCompanyBranding, setFormCompanyBranding] = useState(null);
+
   useEffect(() => {
     if (formToken) {
       loadPublicForm();
@@ -52,6 +55,24 @@ export default function PublicFormFiller({ formToken }) {
         setError('El formulario solicitado no existe o no se encuentra disponible.');
       } else {
         setForm(data);
+        
+        // Cargar marca de la empresa propietaria y listado de obras activas
+        try {
+          const { data: config } = await supabase
+            .from('config_empresa')
+            .select('logo_base64, color_primario, color_secundario')
+            .eq('empresa', data.empresa || 'Obraxis')
+            .maybeSingle();
+          if (config) setFormCompanyBranding(config);
+
+          const { data: activeObras } = await supabase
+            .from('obras')
+            .select('nombre')
+            .order('nombre');
+          if (activeObras) setObrasList(activeObras);
+        } catch (errMeta) {
+          console.error('Error al cargar datos auxiliares:', errMeta.message);
+        }
         
         // Inicializar respuestas para bloques repetibles con 1 elemento por defecto
         const initial = {};
@@ -297,7 +318,8 @@ export default function PublicFormFiller({ formToken }) {
             form: form,
             metadata: fillMetadata,
             answers: finalAnswers,
-            mainSignature: mainSignatureDataUrl
+            mainSignature: mainSignatureDataUrl,
+            companyLogo: formCompanyBranding?.logo_base64
           });
 
           await sendSystemEmail({
@@ -385,20 +407,38 @@ export default function PublicFormFiller({ formToken }) {
     <div className="min-h-screen bg-slate-100/60 py-8 px-4 flex items-center justify-center font-sans">
       <div className="bg-white border border-slate-200 rounded-3xl shadow-xl w-full max-w-2xl p-6 sm:p-8 space-y-6">
         
-        {/* Cabecera del Formulario Público */}
-        <div className="border-b border-slate-150 pb-5 space-y-2 text-center sm:text-left">
-          <div className="flex items-center justify-center sm:justify-start gap-2">
-            <ShieldAlert className="w-5 h-5 text-primary" />
-            <span className="text-[10px] font-extrabold uppercase bg-primary/10 text-primary px-3 py-1 rounded-full">
-              {form.categoria || 'Prevención de Riesgos'}
-            </span>
+        {/* Cabecera del Formulario Público (EMIN/OBRAXIS FORMATO ENCABEZADO) */}
+        <div className="border border-slate-300 rounded-2xl overflow-hidden grid grid-cols-1 sm:grid-cols-12">
+          {/* Logo Empresa */}
+          <div className="sm:col-span-3 flex items-center justify-center p-4 border-b sm:border-b-0 sm:border-r border-slate-300 bg-white">
+            {formCompanyBranding?.logo_base64 ? (
+              <img 
+                src={formCompanyBranding.logo_base64} 
+                className="max-h-12 max-w-full object-contain" 
+                alt="Logo Empresa" 
+              />
+            ) : (
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">OBRAXIS</div>
+            )}
           </div>
-          <h1 className="text-xl font-black text-slate-850 uppercase tracking-tight leading-snug">
-            {form.titulo}
-          </h1>
-          {form.descripcion && (
-            <p className="text-xs text-slate-500 leading-relaxed">{form.descripcion}</p>
-          )}
+
+          {/* Título y Subtítulo Central */}
+          <div className="sm:col-span-6 flex flex-col justify-center p-4 border-b sm:border-b-0 sm:border-r border-slate-300 text-center bg-white">
+            <div className="text-[9px] font-black text-slate-450 uppercase tracking-widest">REGISTRO OPERACIONAL DIGITAL</div>
+            <h2 className="text-xs font-black text-primary uppercase tracking-wide mt-1">
+              {form.titulo}
+            </h2>
+            {form.descripcion && (
+              <p className="text-[9px] text-slate-500 mt-0.5">{form.descripcion}</p>
+            )}
+          </div>
+
+          {/* Metadatos de la Revisión */}
+          <div className="sm:col-span-3 flex flex-col justify-center p-4 text-[9px] text-slate-600 font-bold space-y-1 text-left sm:pl-6 bg-slate-50/50">
+            <div><span className="text-slate-400 font-normal">Código:</span> {form.codigo || 'N/A'}</div>
+            <div><span className="text-slate-400 font-normal">Fecha:</span> {form.fecha_revision || 'N/A'}</div>
+            <div><span className="text-slate-400 font-normal">Revisión:</span> {form.revision || 'N/A'}</div>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -406,15 +446,18 @@ export default function PublicFormFiller({ formToken }) {
           {/* Identificación del Terreno */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
             <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Proyecto / Faena *</label>
-              <input
-                type="text"
+              <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Obra Activa Seleccionada *</label>
+              <select
                 required
                 value={fillMetadata.proyecto_nombre}
                 onChange={(e) => setFillMetadata({ ...fillMetadata, proyecto_nombre: e.target.value })}
-                placeholder="ej: Faena Costanera"
-                className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-semibold uppercase text-slate-800 focus:outline-none focus:border-primary"
-              />
+                className="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs font-semibold uppercase text-slate-800 focus:outline-none focus:border-primary"
+              >
+                <option value="">-- Selecciona Obra --</option>
+                {obrasList.map((ob, oIdx) => (
+                  <option key={oIdx} value={ob.nombre}>{ob.nombre}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Inspector / Trabajador *</label>

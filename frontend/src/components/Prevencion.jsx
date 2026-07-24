@@ -29,11 +29,17 @@ export default function Prevencion({ user, onBack }) {
     titulo: '',
     descripcion: '',
     categoria: 'Inspección EPP',
-    correos_notificacion: ''
+    correos_notificacion: '',
+    codigo: '',
+    revision: '',
+    fecha_revision: ''
   });
   const [formFields, setFormFields] = useState([]);
   const [savingForm, setSavingForm] = useState(false);
   const [newEmailInput, setNewEmailInput] = useState('');
+
+  const [obrasList, setObrasList] = useState([]);
+  const [formCompanyBranding, setFormCompanyBranding] = useState(null);
 
   // ESTADO DE LLENADO DE FORMULARIO (COMPLETAR EN TERRENO)
   const [selectedFormToFill, setSelectedFormToFill] = useState(null);
@@ -153,7 +159,40 @@ export default function Prevencion({ user, onBack }) {
     fetchPersonalMaestro();
     fetchAsignacionesCumplimiento();
     fetchRegistrosCumplimientoLog();
+    fetchObrasList();
   }, []);
+
+  const fetchObrasList = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('obras')
+        .select('nombre')
+        .order('nombre');
+      if (error) throw error;
+      setObrasList(data || []);
+    } catch (err) {
+      console.error('Error al cargar lista de obras:', err.message);
+    }
+  };
+
+  const fetchFormCompanyBranding = async (empresaName) => {
+    if (!empresaName) {
+      setFormCompanyBranding(null);
+      return;
+    }
+    try {
+      const { data, error } = await supabase
+        .from('config_empresa')
+        .select('logo_base64, color_primario, color_secundario')
+        .eq('empresa', empresaName)
+        .maybeSingle();
+      if (error) throw error;
+      setFormCompanyBranding(data || null);
+    } catch (err) {
+      console.error('Error al cargar branding de la empresa:', err.message);
+      setFormCompanyBranding(null);
+    }
+  };
 
   const fetchFormularios = async () => {
     setLoadingForms(true);
@@ -556,7 +595,10 @@ export default function Prevencion({ user, onBack }) {
       titulo: '',
       descripcion: '',
       categoria: 'Inspección EPP',
-      correos_notificacion: ''
+      correos_notificacion: '',
+      codigo: '',
+      revision: '',
+      fecha_revision: ''
     });
     setFormFields([]);
     setBuilderTab('edit');
@@ -584,7 +626,11 @@ export default function Prevencion({ user, onBack }) {
         descripcion: formMeta.descripcion.trim(),
         categoria: formMeta.categoria,
         campos: formFields,
-        correos_notificacion: formMeta.correos_notificacion ? formMeta.correos_notificacion.trim() : null
+        correos_notificacion: formMeta.correos_notificacion ? formMeta.correos_notificacion.trim() : null,
+        codigo: formMeta.codigo ? formMeta.codigo.trim() : null,
+        revision: formMeta.revision ? formMeta.revision.trim() : null,
+        fecha_revision: formMeta.fecha_revision ? formMeta.fecha_revision.trim() : null,
+        empresa: user ? user.empresa : 'Obraxis'
       };
 
       if (editingFormId) {
@@ -624,7 +670,10 @@ export default function Prevencion({ user, onBack }) {
       titulo: form.titulo,
       descripcion: form.descripcion || '',
       categoria: form.categoria || 'Inspección EPP',
-      correos_notificacion: form.correos_notificacion || ''
+      correos_notificacion: form.correos_notificacion || '',
+      codigo: form.codigo || '',
+      revision: form.revision || '',
+      fecha_revision: form.fecha_revision || ''
     });
     setFormFields(form.campos || []);
     setBuilderTab('edit');
@@ -690,6 +739,7 @@ export default function Prevencion({ user, onBack }) {
   // --- LÓGICA DE RESPONDER FORMULARIO ---
   const handleOpenFillForm = (form) => {
     setSelectedFormToFill(form);
+    fetchFormCompanyBranding(form.empresa || user?.empresa || 'Obraxis');
     
     // Inicializar estructuras para bloques repetibles
     const initialAnswers = {};
@@ -868,7 +918,8 @@ export default function Prevencion({ user, onBack }) {
             form: selectedFormToFill,
             metadata: fillMetadata,
             answers: finalAnswers,
-            mainSignature: mainSignatureDataUrl
+            mainSignature: mainSignatureDataUrl,
+            companyLogo: formCompanyBranding?.logo_base64
           });
 
           await sendSystemEmail({
@@ -1224,6 +1275,39 @@ export default function Prevencion({ user, onBack }) {
                           <option key={idx} value={cat}>{cat}</option>
                         ))}
                       </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Código (Opcional)</label>
+                      <input
+                        type="text"
+                        value={formMeta.codigo}
+                        onChange={(e) => setFormMeta({ ...formMeta, codigo: e.target.value })}
+                        placeholder="ej: RG-PCM-14-03"
+                        className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Fecha Revisión (Opcional)</label>
+                      <input
+                        type="text"
+                        value={formMeta.fecha_revision}
+                        onChange={(e) => setFormMeta({ ...formMeta, fecha_revision: e.target.value })}
+                        placeholder="ej: 09/07/2026"
+                        className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Revisión (Opcional)</label>
+                      <input
+                        type="text"
+                        value={formMeta.revision}
+                        onChange={(e) => setFormMeta({ ...formMeta, revision: e.target.value })}
+                        placeholder="ej: 13"
+                        className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
+                      />
                     </div>
                   </div>
 
@@ -1639,30 +1723,55 @@ export default function Prevencion({ user, onBack }) {
             </div>
           ) : (
             <form onSubmit={handleSubmitFill} className="max-w-2xl mx-auto bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-md space-y-6">
-              <div className="border-b border-slate-150 pb-4 space-y-1">
-                <span className="text-[9px] font-extrabold uppercase bg-primary/10 text-primary px-3 py-1 rounded-full">
-                  {selectedFormToFill.categoria}
-                </span>
-                <h2 className="text-base font-black text-slate-850 uppercase tracking-wide mt-2">
-                  {selectedFormToFill.titulo}
-                </h2>
-                {selectedFormToFill.descripcion && (
-                  <p className="text-xs text-slate-500">{selectedFormToFill.descripcion}</p>
-                )}
+              {/* EMIN/OBRAXIS FORMATO ENCABEZADO */}
+              <div className="border border-slate-300 rounded-2xl overflow-hidden grid grid-cols-1 sm:grid-cols-12 mb-6">
+                {/* Logo Empresa */}
+                <div className="sm:col-span-3 flex items-center justify-center p-4 border-b sm:border-b-0 sm:border-r border-slate-300 bg-white">
+                  {formCompanyBranding?.logo_base64 ? (
+                    <img 
+                      src={formCompanyBranding.logo_base64} 
+                      className="max-h-12 max-w-full object-contain" 
+                      alt="Logo Empresa" 
+                    />
+                  ) : (
+                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">OBRAXIS</div>
+                  )}
+                </div>
+
+                {/* Título y Subtítulo Central */}
+                <div className="sm:col-span-6 flex flex-col justify-center p-4 border-b sm:border-b-0 sm:border-r border-slate-300 text-center bg-white">
+                  <div className="text-[9px] font-black text-slate-450 uppercase tracking-widest">REGISTRO OPERACIONAL DIGITAL</div>
+                  <h2 className="text-xs font-black text-primary uppercase tracking-wide mt-1">
+                    {selectedFormToFill.titulo}
+                  </h2>
+                  {selectedFormToFill.descripcion && (
+                    <p className="text-[9px] text-slate-500 mt-0.5">{selectedFormToFill.descripcion}</p>
+                  )}
+                </div>
+
+                {/* Metadatos de la Revisión */}
+                <div className="sm:col-span-3 flex flex-col justify-center p-4 text-[9px] text-slate-600 font-bold space-y-1 text-left sm:pl-6 bg-slate-50/50">
+                  <div><span className="text-slate-400 font-normal">Código:</span> {selectedFormToFill.codigo || 'N/A'}</div>
+                  <div><span className="text-slate-400 font-normal">Fecha:</span> {selectedFormToFill.fecha_revision || 'N/A'}</div>
+                  <div><span className="text-slate-400 font-normal">Revisión:</span> {selectedFormToFill.revision || 'N/A'}</div>
+                </div>
               </div>
 
               {/* METADATOS */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
                 <div>
-                  <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Proyecto / Faena *</label>
-                  <input
-                    type="text"
+                  <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Obra Activa Seleccionada *</label>
+                  <select
                     required
                     value={fillMetadata.proyecto_nombre}
                     onChange={(e) => setFillMetadata({ ...fillMetadata, proyecto_nombre: e.target.value })}
-                    placeholder="ej: Faena San Bernardo"
-                    className="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs font-semibold uppercase text-slate-800"
-                  />
+                    className="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs font-semibold uppercase text-slate-800 focus:outline-none focus:border-primary"
+                  >
+                    <option value="">-- Selecciona Obra --</option>
+                    {obrasList.map((ob, oIdx) => (
+                      <option key={oIdx} value={ob.nombre}>{ob.nombre}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Inspector / Realizado Por *</label>

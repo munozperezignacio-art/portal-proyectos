@@ -4,7 +4,7 @@ import { jsPDF } from 'jspdf';
  * Genera un archivo PDF a partir del formulario y las respuestas dadas.
  * Retorna la representación en string Base64 del archivo PDF generado.
  */
-export function generateFormPdf({ form, metadata, answers, mainSignature }) {
+export function generateFormPdf({ form, metadata, answers, mainSignature, companyLogo }) {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -25,30 +25,57 @@ export function generateFormPdf({ form, metadata, answers, mainSignature }) {
   };
 
   const drawHeader = () => {
-    doc.setFillColor(15, 23, 42); // Slate 900
-    doc.rect(margin, y, contentWidth, 12, 'F');
-    
-    doc.setTextColor(255, 255, 255);
+    // Caja del encabezado de 3 columnas EMIN/Obraxis
+    doc.setDrawColor(148, 163, 184); // Borde gris (slate 400)
+    doc.setFillColor(255, 255, 255);
+    doc.rect(margin, y, contentWidth, 24, 'FD');
+
+    // Separadores verticales
+    doc.line(margin + 45, y, margin + 45, y + 24);
+    doc.line(margin + 125, y, margin + 125, y + 24);
+
+    // Columna 1: Logo
+    if (companyLogo) {
+      try {
+        doc.addImage(companyLogo, 'PNG', margin + 3, y + 3, 39, 18);
+      } catch (e) {
+        doc.setTextColor(15, 23, 42);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.text(form.empresa || 'OBRAXIS', margin + 22.5, y + 13, { align: 'center' });
+      }
+    } else {
+      doc.setTextColor(15, 23, 42);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text(form.empresa || 'OBRAXIS', margin + 22.5, y + 13, { align: 'center' });
+    }
+
+    // Columna 2: Título y Subtítulo Central
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.text('OBRAXIS - PORTAL DE PROYECTOS', margin + 5, y + 8);
-    y += 18;
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('REGISTRO OPERACIONAL DIGITAL', margin + 85, y + 8, { align: 'center' });
+    
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(15, 23, 42);
+    const titleText = (form.titulo || 'Formulario de Prevención').toUpperCase();
+    doc.text(titleText, margin + 85, y + 15, { align: 'center' });
+
+    // Columna 3: Metadatos de la Revisión
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(51, 65, 85);
+    doc.text(`Código: ${form.codigo || 'N/A'}`, margin + 128, y + 7);
+    doc.text(`Fecha: ${form.fecha_revision || 'N/A'}`, margin + 128, y + 13);
+    doc.text(`Revisión: ${form.revision || 'N/A'}`, margin + 128, y + 19);
+
+    y += 32;
   };
 
-  // 1. Título del Reporte
+  // 1. Dibujar Encabezado
   drawHeader();
-  
-  doc.setTextColor(15, 23, 42);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.text('REPORTE DE PREVENCION Y SEGURIDAD', margin, y);
-  y += 8;
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(11);
-  doc.setTextColor(71, 85, 105);
-  doc.text(`Formulario: ${form.titulo}`, margin, y);
-  y += 12;
 
   // 2. Tabla de Metadatos de la Inspección
   doc.setDrawColor(226, 232, 240); // Slate 200
