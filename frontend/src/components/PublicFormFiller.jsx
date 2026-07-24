@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { sendSystemEmail } from '../utils/emailService';
+import { generateFormPdf } from '../utils/pdfGenerator';
 import { 
   ShieldAlert, Send, CheckCircle2, Camera, PenTool, AlertCircle, Loader2, Check, Plus 
 } from 'lucide-react';
@@ -292,14 +293,29 @@ export default function PublicFormFiller({ formToken }) {
             </div>
           `;
 
+          const pdfBase64 = generateFormPdf({
+            form: form,
+            metadata: fillMetadata,
+            answers: finalAnswers,
+            mainSignature: mainSignatureDataUrl
+          });
+
           await sendSystemEmail({
             to: destinationEmails,
             subject: `📋 Nueva Inspección Pública: ${form.titulo} - ${fillMetadata.proyecto_nombre || 'General'}`,
-            htmlContent: mailHtml
+            htmlContent: mailHtml,
+            attachments: [
+              {
+                content: pdfBase64,
+                filename: `${form.titulo.replace(/[^a-zA-Z0-9]/g, '_')}_Reporte.pdf`,
+                content_type: 'application/pdf'
+              }
+            ]
           });
         }
       } catch (errMail) {
         console.error('Error al despachar correo público de prevención:', errMail.toString());
+        alert('Error al enviar correo: ' + errMail.toString());
       }
 
       setSubmittedSuccess(true);

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { sendSystemEmail } from '../utils/emailService';
+import { generateFormPdf } from '../utils/pdfGenerator';
 import { 
   ArrowLeft, ShieldAlert, Plus, Save, Trash2, FileText, CheckCircle2, 
   Share2, Copy, Eye, Edit, ChevronLeft, QrCode, AlertTriangle, 
@@ -863,14 +864,29 @@ export default function Prevencion({ user, onBack }) {
             </div>
           `;
 
+          const pdfBase64 = generateFormPdf({
+            form: selectedFormToFill,
+            metadata: fillMetadata,
+            answers: finalAnswers,
+            mainSignature: mainSignatureDataUrl
+          });
+
           await sendSystemEmail({
             to: destinationEmails,
             subject: `📋 Nueva Inspección: ${selectedFormToFill.titulo} - ${fillMetadata.proyecto_nombre || 'General'}`,
-            htmlContent: mailHtml
+            htmlContent: mailHtml,
+            attachments: [
+              {
+                content: pdfBase64,
+                filename: `${selectedFormToFill.titulo.replace(/[^a-zA-Z0-9]/g, '_')}_Reporte.pdf`,
+                content_type: 'application/pdf'
+              }
+            ]
           });
         }
       } catch (errMail) {
         console.error('Error al despachar correo de prevención:', errMail.toString());
+        alert('Error al enviar correo: ' + errMail.toString());
       }
 
       setSuccessMsg(`Inspección "${selectedFormToFill.titulo}" guardada correctamente.`);

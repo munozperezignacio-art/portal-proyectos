@@ -19,7 +19,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Método no permitido' });
   }
 
-  const { to, subject, htmlContent, apiKey, sender } = req.body;
+  const { to, subject, htmlContent, apiKey, sender, attachments } = req.body;
 
   if (!to || !subject || !htmlContent || !apiKey || !sender) {
     return res.status(400).json({ error: 'Faltan campos requeridos (to, subject, htmlContent, apiKey, sender)' });
@@ -38,7 +38,8 @@ export default async function handler(req, res) {
         from: sender,
         to: recipients,
         subject: subject,
-        html: htmlContent
+        html: htmlContent,
+        attachments: attachments || []
       })
     });
 

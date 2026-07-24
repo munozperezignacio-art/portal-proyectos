@@ -4,7 +4,7 @@ import { supabase } from '../supabaseClient';
  * Servicio para el envío de correos electrónicos transaccionales desde el dominio obraxis.cl.
  * Consume la API de Resend utilizando la configuración almacenada en Supabase o en variables de entorno.
  */
-export async function sendSystemEmail({ to, subject, htmlContent }) {
+export async function sendSystemEmail({ to, subject, htmlContent, attachments }) {
   try {
     // 1. Obtener la configuración global de correo desde la fila 'Obraxis' en config_empresa
     const { data: config, error } = await supabase
@@ -52,6 +52,7 @@ export async function sendSystemEmail({ to, subject, htmlContent }) {
         to: recipients,
         subject: subject,
         htmlContent: htmlContent,
+        attachments: attachments || [],
       }),
     });
 
