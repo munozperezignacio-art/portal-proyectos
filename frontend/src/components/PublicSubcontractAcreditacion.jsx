@@ -45,6 +45,13 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
     { key: 'examen', label: 'Examen de Salud Ocupacional' }
   ]);
 
+  const [mandatoryEquipoDocs, setMandatoryEquipoDocs] = useState([
+    { key: 'padron', label: 'Padrón / Certificado de Dominio' },
+    { key: 'revision', label: 'Revisión Técnica / Homologación Vigente' },
+    { key: 'seguro', label: 'Póliza Seguro de Equipo / SOAP' },
+    { key: 'checklist', label: 'Check-list Pre-operacional de Seguridad' }
+  ]);
+
   // Mensaje
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -54,6 +61,8 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
     if (savedComp) setMandatoryCompanyDocs(JSON.parse(savedComp));
     const savedWork = localStorage.getItem('obraxis_mandatory_worker_docs');
     if (savedWork) setMandatoryWorkerDocs(JSON.parse(savedWork));
+    const savedEq = localStorage.getItem('obraxis_mandatory_equipo_docs');
+    if (savedEq) setMandatoryEquipoDocs(JSON.parse(savedEq));
   }, [token]);
 
   const loadSubcontractData = async () => {
@@ -391,7 +400,6 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
                         </button>
                       </div>
 
-                      {/* SI ESTÁ RECHAZADO MOSTRAR MOTIVO Y BOTÓN REEMPLAZAR */}
                       {docStatus === 'Rechazado' && (
                         <div className="bg-rose-50 border border-rose-200 p-3 rounded-xl space-y-2 text-xs text-rose-800 animate-in fade-in">
                           <div className="flex items-start gap-1.5 font-semibold">
@@ -565,14 +573,14 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                    {['padron', 'revision', 'seguro'].map(docKey => {
-                      const uploaded = eq.docs && eq.docs[docKey];
+                    {mandatoryEquipoDocs.map(doc => {
+                      const uploaded = eq.docs && eq.docs[doc.key];
                       const docStatus = uploaded ? (uploaded.status || 'Pendiente de Revisión') : 'No cargado';
 
                       return (
-                        <div key={docKey} className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1">
+                        <div key={doc.key} className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1">
                           <div className="flex justify-between text-[10px]">
-                            <span className="font-bold text-slate-700 uppercase">{docKey}</span>
+                            <span className="font-bold text-slate-700 uppercase">{doc.label}</span>
                             {uploaded && (
                               <span className={`text-[8.5px] font-extrabold px-1 rounded uppercase ${
                                 docStatus === 'Aprobado' ? 'bg-emerald-50 text-emerald-700' :
@@ -601,7 +609,7 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
                                     <input
                                       type="file"
                                       className="hidden"
-                                      onChange={(e) => handleFileUpload('equipos', docKey, e.target.files[0], eIdx)}
+                                      onChange={(e) => handleFileUpload('equipos', doc.key, e.target.files[0], eIdx)}
                                     />
                                   </label>
                                 </div>
@@ -614,7 +622,7 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
                               <input
                                 type="file"
                                 className="hidden"
-                                onChange={(e) => handleFileUpload('equipos', docKey, e.target.files[0], eIdx)}
+                                onChange={(e) => handleFileUpload('equipos', doc.key, e.target.files[0], eIdx)}
                               />
                             </label>
                           )}

@@ -38,11 +38,13 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
   // Modal para Revisar Documentos y Acreditación de Subcontratista
   const [selectedSubDetail, setSelectedSubDetail] = useState(null);
   const [subModalTab, setSubModalTab] = useState('empresa'); // 'empresa' | 'personal' | 'equipos'
-  const [rejectingKey, setRejectingKey] = useState(null); // 'empresa_f30_1' | 'worker_0_cedula'
+  const [rejectingKey, setRejectingKey] = useState(null);
   const [rejectReasonInput, setRejectReasonInput] = useState('');
 
   // Configuración de Documentos Obligatorios
   const [showConfigDocsModal, setShowConfigDocsModal] = useState(false);
+  
+  // 1. Docs Empresa
   const [mandatoryCompanyDocs, setMandatoryCompanyDocs] = useState([
     { key: 'rut_empresa', label: 'E-RUT / RUT Empresa' },
     { key: 'f30_1', label: 'Certificado F30-1 (Dirección del Trabajo)' },
@@ -52,12 +54,22 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
   ]);
   const [newCompanyDocLabel, setNewCompanyDocLabel] = useState('');
 
+  // 2. Docs Trabajador
   const [mandatoryWorkerDocs, setMandatoryWorkerDocs] = useState([
     { key: 'cedula', label: 'Cédula de Identidad Vigente' },
     { key: 'contrato', label: 'Contrato de Trabajo' },
     { key: 'examen', label: 'Examen de Salud Ocupacional' }
   ]);
   const [newWorkerDocLabel, setNewWorkerDocLabel] = useState('');
+
+  // 3. Docs Maquinarias y Equipos
+  const [mandatoryEquipoDocs, setMandatoryEquipoDocs] = useState([
+    { key: 'padron', label: 'Padrón / Certificado de Dominio' },
+    { key: 'revision', label: 'Revisión Técnica / Homologación Vigente' },
+    { key: 'seguro', label: 'Póliza Seguro de Equipo / SOAP' },
+    { key: 'checklist', label: 'Check-list Pre-operacional de Seguridad' }
+  ]);
+  const [newEquipoDocLabel, setNewEquipoDocLabel] = useState('');
 
   // Toast / Mensajes
   const [successMsg, setSuccessMsg] = useState('');
@@ -87,12 +99,16 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
 
     const savedWork = localStorage.getItem('obraxis_mandatory_worker_docs');
     if (savedWork) setMandatoryWorkerDocs(JSON.parse(savedWork));
+
+    const savedEq = localStorage.getItem('obraxis_mandatory_equipo_docs');
+    if (savedEq) setMandatoryEquipoDocs(JSON.parse(savedEq));
   };
 
-  const saveMandatoryDocsConfig = (compDocs, workDocs) => {
+  const saveMandatoryDocsConfig = (compDocs, workDocs, eqDocs) => {
     localStorage.setItem('obraxis_mandatory_company_docs', JSON.stringify(compDocs));
     localStorage.setItem('obraxis_mandatory_worker_docs', JSON.stringify(workDocs));
-    setSuccessMsg('¡Listado de documentos obligatorios actualizado para todos los subcontratistas!');
+    localStorage.setItem('obraxis_mandatory_equipo_docs', JSON.stringify(eqDocs));
+    setSuccessMsg('¡Listado de documentos obligatorios (Empresa, Personal y Maquinaria) actualizado!');
     setTimeout(() => setSuccessMsg(''), 4000);
   };
 
@@ -103,7 +119,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     const updated = [...mandatoryCompanyDocs, { key, label: newCompanyDocLabel.trim() }];
     setMandatoryCompanyDocs(updated);
     setNewCompanyDocLabel('');
-    saveMandatoryDocsConfig(updated, mandatoryWorkerDocs);
+    saveMandatoryDocsConfig(updated, mandatoryWorkerDocs, mandatoryEquipoDocs);
   };
 
   const handleAddMandatoryWorkerDoc = (e) => {
@@ -113,19 +129,35 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     const updated = [...mandatoryWorkerDocs, { key, label: newWorkerDocLabel.trim() }];
     setMandatoryWorkerDocs(updated);
     setNewWorkerDocLabel('');
-    saveMandatoryDocsConfig(mandatoryCompanyDocs, updated);
+    saveMandatoryDocsConfig(mandatoryCompanyDocs, updated, mandatoryEquipoDocs);
+  };
+
+  const handleAddMandatoryEquipoDoc = (e) => {
+    e.preventDefault();
+    if (!newEquipoDocLabel.trim()) return;
+    const key = 'custom_' + Date.now();
+    const updated = [...mandatoryEquipoDocs, { key, label: newEquipoDocLabel.trim() }];
+    setMandatoryEquipoDocs(updated);
+    setNewEquipoDocLabel('');
+    saveMandatoryDocsConfig(mandatoryCompanyDocs, mandatoryWorkerDocs, updated);
   };
 
   const handleRemoveMandatoryCompanyDoc = (key) => {
     const updated = mandatoryCompanyDocs.filter(d => d.key !== key);
     setMandatoryCompanyDocs(updated);
-    saveMandatoryDocsConfig(updated, mandatoryWorkerDocs);
+    saveMandatoryDocsConfig(updated, mandatoryWorkerDocs, mandatoryEquipoDocs);
   };
 
   const handleRemoveMandatoryWorkerDoc = (key) => {
     const updated = mandatoryWorkerDocs.filter(d => d.key !== key);
     setMandatoryWorkerDocs(updated);
-    saveMandatoryDocsConfig(mandatoryCompanyDocs, updated);
+    saveMandatoryDocsConfig(mandatoryCompanyDocs, updated, mandatoryEquipoDocs);
+  };
+
+  const handleRemoveMandatoryEquipoDoc = (key) => {
+    const updated = mandatoryEquipoDocs.filter(d => d.key !== key);
+    setMandatoryEquipoDocs(updated);
+    saveMandatoryDocsConfig(mandatoryCompanyDocs, mandatoryWorkerDocs, updated);
   };
 
   const fetchObras = async () => {
@@ -191,21 +223,6 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     } else {
       setSelectedWorkers([...selectedWorkers, rut]);
     }
-  };
-
-  const handleCustomFileUpload = (rut, docKey, file) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setCustomDocs(prev => ({
-        ...prev,
-        [`${rut}_${docKey}`]: {
-          fileName: file.name,
-          base64: e.target.result
-        }
-      }));
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleSendAcreditacion = async (e) => {
@@ -417,7 +434,6 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
       }
     }
 
-    // Recalcular % de documentos aprobados
     const empApprovedCount = Object.values(nextCompanyDocs).filter(d => d && d.status === 'Aprobado').length;
     const progressPercent = Math.round((empApprovedCount / mandatoryCompanyDocs.length) * 100);
 
@@ -431,7 +447,6 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
 
     setSelectedSubDetail(updatedSub);
 
-    // Guardar en localStorage del subcontrato
     const payload = {
       companyDocs: nextCompanyDocs,
       personalList: nextPersonalList,
@@ -441,7 +456,6 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     };
     localStorage.setItem('obraxis_subcontrato_data_' + token, JSON.stringify(payload));
 
-    // Actualizar lista maestra de subcontratos
     const localMaster = localStorage.getItem('obraxis_acreditaciones_subcontratos');
     let masterList = localMaster ? JSON.parse(localMaster) : [];
     const subIdx = masterList.findIndex(s => s.token_acceso === token);
@@ -715,7 +729,6 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
 
                   const empDocs = savedData.companyDocs || sub.companyDocs || {};
                   const empApprovedCount = Object.values(empDocs).filter(d => d && d.status === 'Aprobado').length;
-                  const empTotalCount = Object.values(empDocs).filter(Boolean).length;
                   const percent = Math.round((empApprovedCount / mandatoryCompanyDocs.length) * 100) || 0;
 
                   return (
@@ -790,20 +803,24 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
         </div>
       )}
 
-      {/* MODAL CONFIGURAR DOCUMENTOS OBLIGATORIOS */}
+      {/* MODAL CONFIGURAR DOCUMENTOS OBLIGATORIOS (EMPRESA, PERSONAL Y MAQUINARIAS) */}
       {showConfigDocsModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-xl p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 space-y-5">
+          <div className="bg-white rounded-3xl w-full max-w-xl p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 space-y-5 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-2">
                 <Settings2 className="w-4 h-4 text-primary" />
-                <span>Listado de Documentos Obligatorios para Subcontratos</span>
+                <span>Configuración de Documentos Obligatorios Exigidos</span>
               </h3>
               <button onClick={() => setShowConfigDocsModal(false)} className="text-slate-400 hover:text-slate-650 font-bold text-sm cursor-pointer">✕</button>
             </div>
 
+            {/* SECCIÓN 1: DOCS EMPRESA OBLIGATORIOS */}
             <div className="space-y-3">
-              <h4 className="text-xs font-black uppercase text-slate-700 tracking-wider">1. Documentos Exigidos a la Empresa Subcontratista:</h4>
+              <h4 className="text-xs font-black uppercase text-slate-700 tracking-wider flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-primary" />
+                <span>1. Documentos Exigidos a la Empresa Subcontratista:</span>
+              </h4>
               <div className="space-y-1.5">
                 {mandatoryCompanyDocs.map(d => (
                   <div key={d.key} className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex justify-between items-center text-xs font-bold text-slate-800">
@@ -825,7 +842,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
               <form onSubmit={handleAddMandatoryCompanyDoc} className="flex gap-2 pt-1">
                 <input
                   type="text"
-                  placeholder="Agregar nuevo documento empresa"
+                  placeholder="Agregar nuevo documento empresa..."
                   value={newCompanyDocLabel}
                   onChange={(e) => setNewCompanyDocLabel(e.target.value)}
                   className="flex-1 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800"
@@ -836,8 +853,12 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
               </form>
             </div>
 
+            {/* SECCIÓN 2: DOCS TRABAJADOR OBLIGATORIOS */}
             <div className="space-y-3 pt-2 border-t border-slate-100">
-              <h4 className="text-xs font-black uppercase text-slate-700 tracking-wider">2. Documentos Exigidos por cada Trabajador Externo:</h4>
+              <h4 className="text-xs font-black uppercase text-slate-700 tracking-wider flex items-center gap-2">
+                <User className="w-4 h-4 text-emerald-600" />
+                <span>2. Documentos Exigidos por cada Trabajador Externo:</span>
+              </h4>
               <div className="space-y-1.5">
                 {mandatoryWorkerDocs.map(d => (
                   <div key={d.key} className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex justify-between items-center text-xs font-bold text-slate-800">
@@ -859,9 +880,47 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
               <form onSubmit={handleAddMandatoryWorkerDoc} className="flex gap-2 pt-1">
                 <input
                   type="text"
-                  placeholder="Agregar nuevo documento trabajador"
+                  placeholder="Agregar nuevo documento trabajador..."
                   value={newWorkerDocLabel}
                   onChange={(e) => setNewWorkerDocLabel(e.target.value)}
+                  className="flex-1 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800"
+                />
+                <button type="submit" className="bg-primary hover:bg-primary-hover text-white font-bold px-4 rounded-xl text-xs transition cursor-pointer">
+                  + Agregar
+                </button>
+              </form>
+            </div>
+
+            {/* SECCIÓN 3: DOCS MAQUINARIAS Y EQUIPOS OBLIGATORIOS */}
+            <div className="space-y-3 pt-2 border-t border-slate-100">
+              <h4 className="text-xs font-black uppercase text-slate-700 tracking-wider flex items-center gap-2">
+                <Truck className="w-4 h-4 text-amber-600" />
+                <span>3. Documentos Exigidos por cada Maquinaria / Equipo Externo:</span>
+              </h4>
+              <div className="space-y-1.5">
+                {mandatoryEquipoDocs.map(d => (
+                  <div key={d.key} className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex justify-between items-center text-xs font-bold text-slate-800">
+                    <span className="flex items-center gap-2">
+                      <CheckSquare className="w-3.5 h-3.5 text-amber-600" />
+                      <span>{d.label}</span>
+                    </span>
+                    <button
+                      onClick={() => handleRemoveMandatoryEquipoDoc(d.key)}
+                      className="text-rose-600 hover:bg-rose-100 p-1 rounded-md transition cursor-pointer"
+                      title="Quitar"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <form onSubmit={handleAddMandatoryEquipoDoc} className="flex gap-2 pt-1">
+                <input
+                  type="text"
+                  placeholder="Agregar nuevo documento equipo (Ej: Certificado de Calibración)..."
+                  value={newEquipoDocLabel}
+                  onChange={(e) => setNewEquipoDocLabel(e.target.value)}
                   className="flex-1 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800"
                 />
                 <button type="submit" className="bg-primary hover:bg-primary-hover text-white font-bold px-4 rounded-xl text-xs transition cursor-pointer">
@@ -1010,7 +1069,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
               </button>
             </div>
 
-            {/* VISTA CONTENIDO SUBMODAL CON VISUALIZACIÓN, APROBACIÓN Y RECHAZO */}
+            {/* VISTA CONTENIDO SUBMODAL */}
             {subModalTab === 'empresa' && (
               <div className="space-y-3 pt-2">
                 <h4 className="text-xs font-bold uppercase text-slate-700">Archivos Legales de la Empresa Subcontratista:</h4>
@@ -1048,7 +1107,6 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                               </button>
                             </div>
 
-                            {/* MOTIVO DE RECHAZO ACTUAL SI EXISTE */}
                             {uploaded.motivo_rechazo && (
                               <div className="bg-rose-50 border border-rose-200 p-2 rounded-xl text-[10px] text-rose-800 flex items-start gap-1.5 font-medium">
                                 <MessageSquare className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
@@ -1056,7 +1114,6 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                               </div>
                             )}
 
-                            {/* BOTONES DE APROBACIÓN Y RECHAZO */}
                             <div className="flex gap-1.5 pt-1">
                               <button
                                 onClick={() => handleUpdateDocStatus('empresa', item.key, 'Aprobado')}
@@ -1074,7 +1131,6 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                               </button>
                             </div>
 
-                            {/* INPUT PARA COMENTAR MOTIVO DE RECHAZO */}
                             {isRejecting && (
                               <div className="bg-white p-3 rounded-xl border border-rose-300 space-y-2 animate-in fade-in">
                                 <label className="block text-[9.5px] font-bold text-rose-900 uppercase">Indique el Motivo de Rechazo:</label>
@@ -1094,10 +1150,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                                   </button>
                                   <button
                                     onClick={() => {
-                                      if (!rejectReasonInput.trim()) {
-                                        alert('Por favor ingrese el motivo de rechazo.');
-                                        return;
-                                      }
+                                      if (!rejectReasonInput.trim()) return alert('Ingrese el motivo de rechazo.');
                                       handleUpdateDocStatus('empresa', item.key, 'Rechazado', null, rejectReasonInput.trim());
                                     }}
                                     className="px-2.5 py-1 text-[10px] font-bold bg-rose-600 text-white rounded-lg hover:bg-rose-700"
@@ -1238,15 +1291,15 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
-                          {['padron', 'revision', 'seguro'].map(docKey => {
-                            const file = eq.docs && eq.docs[docKey];
+                          {mandatoryEquipoDocs.map(doc => {
+                            const file = eq.docs && eq.docs[doc.key];
                             const docStatus = file ? (file.status || 'Pendiente de Revisión') : 'No cargado';
-                            const isRejecting = rejectingKey === `equipo_${eIdx}_${docKey}`;
+                            const isRejecting = rejectingKey === `equipo_${eIdx}_${doc.key}`;
 
                             return (
-                              <div key={docKey} className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-2">
+                              <div key={doc.key} className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-2">
                                 <div className="flex justify-between items-center text-[10px]">
-                                  <span className="font-bold uppercase text-slate-700">{docKey}</span>
+                                  <span className="font-bold uppercase text-slate-700">{doc.label}</span>
                                   {file && (
                                     <span className={`text-[8.5px] font-extrabold px-1.5 py-0.5 rounded uppercase ${
                                       docStatus === 'Aprobado' ? 'bg-emerald-50 text-emerald-700' :
@@ -1275,13 +1328,13 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
 
                                     <div className="flex gap-1 pt-0.5">
                                       <button
-                                        onClick={() => handleUpdateDocStatus('equipos', docKey, 'Aprobado', eIdx)}
+                                        onClick={() => handleUpdateDocStatus('equipos', doc.key, 'Aprobado', eIdx)}
                                         className="flex-1 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded text-[9.5px] font-bold"
                                       >
                                         ✓ Aprobar
                                       </button>
                                       <button
-                                        onClick={() => setRejectingKey(`equipo_${eIdx}_${docKey}`)}
+                                        onClick={() => setRejectingKey(`equipo_${eIdx}_${doc.key}`)}
                                         className="flex-1 py-1 bg-rose-50 hover:bg-rose-100 text-rose-800 rounded text-[9.5px] font-bold"
                                       >
                                         ✕ Rechazar
@@ -1302,7 +1355,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                                           <button
                                             onClick={() => {
                                               if (!rejectReasonInput.trim()) return alert('Ingrese el motivo.');
-                                              handleUpdateDocStatus('equipos', docKey, 'Rechazado', eIdx, rejectReasonInput.trim());
+                                              handleUpdateDocStatus('equipos', doc.key, 'Rechazado', eIdx, rejectReasonInput.trim());
                                             }}
                                             className="text-[9px] px-2 py-0.5 bg-rose-600 text-white rounded font-bold"
                                           >
