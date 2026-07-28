@@ -92,7 +92,33 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     loadMandatoryDocsConfig();
   }, []);
 
-  const loadMandatoryDocsConfig = () => {
+    const loadMandatoryDocsConfig = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('acreditaciones_config_docs')
+        .select('*')
+        .eq('id', 'global')
+        .maybeSingle();
+
+      if (!error && data) {
+        if (data.company_docs) {
+          setMandatoryCompanyDocs(data.company_docs);
+          localStorage.setItem('obraxis_mandatory_company_docs', JSON.stringify(data.company_docs));
+        }
+        if (data.worker_docs) {
+          setMandatoryWorkerDocs(data.worker_docs);
+          localStorage.setItem('obraxis_mandatory_worker_docs', JSON.stringify(data.worker_docs));
+        }
+        if (data.equipo_docs) {
+          setMandatoryEquipoDocs(data.equipo_docs);
+          localStorage.setItem('obraxis_mandatory_equipo_docs', JSON.stringify(data.equipo_docs));
+        }
+        return;
+      }
+    } catch (e) {
+      console.warn('Fallback local para config docs');
+    }
+
     const savedComp = localStorage.getItem('obraxis_mandatory_company_docs');
     if (savedComp) setMandatoryCompanyDocs(JSON.parse(savedComp));
 
@@ -103,11 +129,26 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     if (savedEq) setMandatoryEquipoDocs(JSON.parse(savedEq));
   };
 
-  const saveMandatoryDocsConfig = (compDocs, workDocs, eqDocs) => {
+  const saveMandatoryDocsConfig = async (compDocs, workDocs, eqDocs) => {
     localStorage.setItem('obraxis_mandatory_company_docs', JSON.stringify(compDocs));
     localStorage.setItem('obraxis_mandatory_worker_docs', JSON.stringify(workDocs));
     localStorage.setItem('obraxis_mandatory_equipo_docs', JSON.stringify(eqDocs));
-    setSuccessMsg('¡Listado de documentos obligatorios guardado correctamente!');
+
+    try {
+      await supabase
+        .from('acreditaciones_config_docs')
+        .upsert([{
+          id: 'global',
+          company_docs: compDocs,
+          worker_docs: workDocs,
+          equipo_docs: eqDocs,
+          updated_at: new Date().toISOString()
+        }]);
+    } catch (e) {
+      console.warn('Error al guardar config docs en Supabase:', e);
+    }
+
+    setSuccessMsg('¡Listado de documentos obligatorios guardado y sincronizado con el Minisitio!');
     setTimeout(() => setSuccessMsg(''), 4000);
   };
 

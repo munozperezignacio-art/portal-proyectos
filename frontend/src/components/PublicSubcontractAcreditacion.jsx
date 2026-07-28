@@ -35,10 +35,35 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
   ]);
 
   const [mandatoryWorkerDocs, setMandatoryWorkerDocs] = useState([
-    { key: 'cedula', label: 'Cédula de Identidad Vigente' },
-    { key: 'contrato', label: 'Contrato de Trabajo' },
-    { key: 'examen', label: 'Examen de Salud Ocupacional' }
-  ]);
+    {
+        "key": "cedula",
+        "label": "Cédula de Identidad Vigente"
+    },
+    {
+        "key": "contrato",
+        "label": "Contrato de Trabajo"
+    },
+    {
+        "key": "afp",
+        "label": "Certificado Cotizaciones AFP"
+    },
+    {
+        "key": "salud",
+        "label": "Certificado Previsión Salud (FONASA/Isapre)"
+    },
+    {
+        "key": "examen",
+        "label": "Examen de Salud / Altura Ocupacional"
+    },
+    {
+        "key": "induccion",
+        "label": "Registro de Inducción de Seguridad"
+    },
+    {
+        "key": "epp",
+        "label": "Cargo y Registro de Entrega EPP"
+    }
+]);
 
   const [mandatoryEquipoDocs, setMandatoryEquipoDocs] = useState([
     { key: 'padron', label: 'Padrón / Certificado de Dominio' },
@@ -56,7 +81,33 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
     loadSubcontractData();
   }, [token]);
 
-  const loadMandatoryDocsConfig = () => {
+    const loadMandatoryDocsConfig = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('acreditaciones_config_docs')
+        .select('*')
+        .eq('id', 'global')
+        .maybeSingle();
+
+      if (!error && data) {
+        if (data.company_docs && data.company_docs.length > 0) {
+          setMandatoryCompanyDocs(data.company_docs);
+          localStorage.setItem('obraxis_mandatory_company_docs', JSON.stringify(data.company_docs));
+        }
+        if (data.worker_docs && data.worker_docs.length > 0) {
+          setMandatoryWorkerDocs(data.worker_docs);
+          localStorage.setItem('obraxis_mandatory_worker_docs', JSON.stringify(data.worker_docs));
+        }
+        if (data.equipo_docs && data.equipo_docs.length > 0) {
+          setMandatoryEquipoDocs(data.equipo_docs);
+          localStorage.setItem('obraxis_mandatory_equipo_docs', JSON.stringify(data.equipo_docs));
+        }
+        return;
+      }
+    } catch (e) {
+      console.warn('Fallback local para minisitio mandatory docs');
+    }
+
     const savedComp = localStorage.getItem('obraxis_mandatory_company_docs');
     if (savedComp) setMandatoryCompanyDocs(JSON.parse(savedComp));
 
