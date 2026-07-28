@@ -1,13 +1,27 @@
 <!doctype html>
 <html lang="en">
   <head>
+  <script>
+    window.onerror = function(msg, url, line, col, error) {
+      var root = document.getElementById('root');
+      if (root) {
+        root.innerHTML = '<div style="padding:2rem;background:#0f172a;color:#ffffff;font-family:sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;">' +
+          '<h2 style="font-size:1.5rem;font-weight:bold;color:#f87171;margin-bottom:1rem;">⚠️ Error de Carga JavaScript</h2>' +
+          '<p style="font-size:0.9rem;color:#cbd5e1;max-width:600px;margin-bottom:0.5rem;"><b>Mensaje:</b> ' + msg + '</p>' +
+          '<p style="font-size:0.8rem;color:#94a3b8;max-width:600px;margin-bottom:1.5rem;"><b>Origen:</b> ' + (url || 'script') + ' (Línea ' + line + ')</p>' +
+          '<button onclick="localStorage.clear();sessionStorage.clear();window.location.reload();" style="padding:0.75rem 1.5rem;background:#ef4444;color:white;border:none;border-radius:0.5rem;cursor:pointer;font-weight:bold;">Limpiar Caché y Reiniciar Portal</button>' +
+          '</div>';
+      }
+    };
+  </script>
+
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Obraxis - Portal de Proyectos</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><div style="min-height:100vh;background:#0f172a;color:#94a3b8;display:flex;align-items:center;justify-content:center;font-family:sans-serif;font-weight:bold;font-size:1rem;">Cargando Portal Obraxis...</div></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
