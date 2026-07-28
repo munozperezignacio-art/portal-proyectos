@@ -246,7 +246,7 @@ function App() {
     return <PublicTrainingFiller trainingToken={publicTrainingToken} />;
   }
 
-  const publicSubcontractToken = urlParams.get('token') || urlParams.get('acreditacion_token');
+  const publicSubcontractToken = urlParams.get('acreditacion_token') || (urlParams.get('acreditacion_subcontrato') ? urlParams.get('token') : null);
   const publicSubcontractEmpresa = urlParams.get('acreditacion_subcontrato');
   const publicSupplierEmpresa = urlParams.get('acreditacion_proveedor');
 
@@ -258,7 +258,8 @@ function App() {
   }
 
   // --- CONTROL DE RUTAS OFICIAL OBRAXIS ---
-  const normalizedPath = (path || '').toLowerCase();
+  const rawPath = (path || '').toLowerCase();
+  const normalizedPath = rawPath.endsWith('/') && rawPath.length > 1 ? rawPath.slice(0, -1) : rawPath;
 
   // 1. Ruta /login -> Inicio de Sesión y Marcación QR
   if (normalizedPath === '/login') {
@@ -271,7 +272,7 @@ function App() {
   }
 
   // 2. Ruta / (Raíz), /home o /landing -> Home & Landing Page Oficial Obraxis
-  if (normalizedPath === '/' || normalizedPath === '' || normalizedPath === '/home' || normalizedPath === '/landing') {
+  if (normalizedPath === '/' || normalizedPath === '' || normalizedPath === '/home' || normalizedPath === '/landing' || normalizedPath.endsWith('/index.html')) {
     return (
       <LandingPage
         user={user}
