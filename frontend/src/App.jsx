@@ -13,6 +13,7 @@ import PublicTrainingFiller from './components/PublicTrainingFiller';
 import Facturacion from './components/Facturacion';
 import Acreditaciones from './components/Acreditaciones';
 import PublicSubcontractAcreditacion from './components/PublicSubcontractAcreditacion';
+import PublicSupplierAcreditacion from './components/PublicSupplierAcreditacion';
 import { 
   LogOut, LayoutDashboard, Building2, Users, Truck, ShieldAlert, Settings, Info, Menu, X, Loader2,
   Layers, Handshake, Receipt, Coins, ClipboardCheck, Boxes, BadgeCheck,
@@ -247,6 +248,11 @@ function App() {
 
   const publicSubcontractToken = urlParams.get('token') || urlParams.get('acreditacion_token');
   const publicSubcontractEmpresa = urlParams.get('acreditacion_subcontrato');
+  const publicSupplierEmpresa = urlParams.get('acreditacion_proveedor');
+
+  if (publicSupplierEmpresa || (publicSubcontractToken && urlParams.get('type') === 'proveedor')) {
+    return <PublicSupplierAcreditacion token={publicSubcontractToken} companyNameParam={publicSupplierEmpresa} />;
+  }
   if (publicSubcontractToken || publicSubcontractEmpresa) {
     return <PublicSubcontractAcreditacion token={publicSubcontractToken} companyNameParam={publicSubcontractEmpresa} />;
   }

@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient';
 import { formatRut } from '../utils/rutUtils';
 import { sendSystemEmail } from '../utils/emailService';
 import { 
-  ArrowLeft, ShieldCheck, Plus, Send, CheckCircle2, AlertCircle, FileText, 
+  ArrowLeft, PackageCheck, Store, ShieldCheck, Plus, Send, CheckCircle2, AlertCircle, FileText, 
   Trash2, Eye, Download, Copy, ExternalLink, Building2, User, Truck, 
   RefreshCw, Check, Clock, Lock, Key, Mail, Search, FileUp, Sparkles, Filter, Settings2, CheckSquare, XCircle, MessageSquare, Layers, FileCheck
 } from 'lucide-react';
@@ -33,6 +33,18 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
 
   // --- ESTADOS PARA "ACREDITACIÓN SUBCONTRATO" ---
   const [subcontratosList, setSubcontratosList] = useState([]);
+  const [proveedoresList, setProveedoresList] = useState([]);
+  const [showProvModal, setShowProvModal] = useState(false);
+  const [provForm, setProvForm] = useState({ empresa_nombre: '', rut_empresa: '', obra_asociada: '', correo_contacto: '', credencial_pass: '' });
+  const [selectedProvDetail, setSelectedProvDetail] = useState(null);
+  const [mandatorySupplierDocs, setMandatorySupplierDocs] = useState([
+    { key: 'rut_empresa', label: 'E-RUT / RUT Proveedor' },
+    { key: 'patente_actividades', label: 'Patente Municipal / Inicio de Actividades' },
+    { key: 'antecedentes_comerciales', label: 'Certificado Antecedentes Comerciales' },
+    { key: 'seguro_rc', label: 'Póliza Seguro Responsabilidad Civil / Calidad' },
+    { key: 'f30_1', label: 'Certificado F30-1 (Cumplimiento Laboral)' }
+  ]);
+  const [newSupplierDocLabel, setNewSupplierDocLabel] = useState('');
   const [loadingSubcontratos, setLoadingSubcontratos] = useState(false);
   const [showSubModal, setShowSubModal] = useState(false);
   const [subForm, setSubForm] = useState({
@@ -89,6 +101,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     fetchPersonal();
     fetchHistorialInterno();
     fetchSubcontratos();
+    fetchProveedores();
     loadMandatoryDocsConfig();
   }, []);
 
@@ -113,6 +126,10 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
           setMandatoryEquipoDocs(data.equipo_docs);
           localStorage.setItem('obraxis_mandatory_equipo_docs', JSON.stringify(data.equipo_docs));
         }
+        if (data.supplier_docs) {
+          setMandatorySupplierDocs(data.supplier_docs);
+          localStorage.setItem('obraxis_mandatory_supplier_docs', JSON.stringify(data.supplier_docs));
+        }
         return;
       }
     } catch (e) {
@@ -129,10 +146,11 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     if (savedEq) setMandatoryEquipoDocs(JSON.parse(savedEq));
   };
 
-  const saveMandatoryDocsConfig = async (compDocs, workDocs, eqDocs) => {
+  const saveMandatoryDocsConfig = async (compDocs, workDocs, eqDocs, supDocs = mandatorySupplierDocs) => {
     localStorage.setItem('obraxis_mandatory_company_docs', JSON.stringify(compDocs));
     localStorage.setItem('obraxis_mandatory_worker_docs', JSON.stringify(workDocs));
     localStorage.setItem('obraxis_mandatory_equipo_docs', JSON.stringify(eqDocs));
+    localStorage.setItem('obraxis_mandatory_supplier_docs', JSON.stringify(supDocs));
 
     try {
       await supabase
@@ -142,6 +160,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
           company_docs: compDocs,
           worker_docs: workDocs,
           equipo_docs: eqDocs,
+          supplier_docs: supDocs,
           updated_at: new Date().toISOString()
         }]);
     } catch (e) {
@@ -194,6 +213,169 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     saveMandatoryDocsConfig(mandatoryCompanyDocs, updated, mandatoryEquipoDocs);
   };
 
+  
+  const handleAddMandatorySupplierDoc = (e) => {
+    e.preventDefault();
+    if (!newSupplierDocLabel.trim()) return;
+    const key = 'custom_' + Date.now();
+    const updated = [...mandatorySupplierDocs, { key, label: newSupplierDocLabel.trim() }];
+    setMandatorySupplierDocs(updated);
+    setNewSupplierDocLabel('');
+    saveMandatoryDocsConfig(mandatoryCompanyDocs, mandatoryWorkerDocs, mandatoryEquipoDocs, updated);
+  };
+
+  const handleRemoveMandatorySupplierDoc = (key) => {
+    const updated = mandatorySupplierDocs.filter(d => d.key !== key);
+    setMandatorySupplierDocs(updated);
+    saveMandatoryDocsConfig(mandatoryCompanyDocs, mandatoryWorkerDocs, mandatoryEquipoDocs, updated);
+  };
+
+  const handleCreateProveedor = async (e) => {
+    e.preventDefault();
+    if (!provForm.empresa_nombre) {
+      alert('Ingrese el Nombre de la Empresa Proveedora.');
+      return;
+    }
+
+    const token = 'prov_' + Math.random().toString(36).substring(2, 9);
+    const pass = provForm.credencial_pass || Math.random().toString(36).substring(2, 8).toUpperCase();
+
+    const newProv = {
+      empresa_nombre: provForm.empresa_nombre,
+      rut_empresa: formatRut(provForm.rut_empresa) || '77.000.000-0',
+      obra_asociada: provForm.obra_asociada || selectedObra || 'Todas las Obras',
+      correo_contacto: provForm.correo_contacto,
+      token_acceso: token,
+      credencial_pass: pass,
+      estado_cumplimiento: 0,
+      created_at: new Date().toISOString()
+    };
+
+    try {
+      const { data, error } = await supabase.from('acreditaciones_proveedores').insert([newProv]).select();
+      if (!error && data) {
+        setProveedoresList([data[0], ...proveedoresList]);
+      } else {
+        const updated = [newProv, ...proveedoresList];
+        setProveedoresList(updated);
+        localStorage.setItem('obraxis_acreditaciones_proveedores', JSON.stringify(updated));
+      }
+    } catch (e) {
+      const updated = [newProv, ...proveedoresList];
+      setProveedoresList(updated);
+      localStorage.setItem('obraxis_acreditaciones_proveedores', JSON.stringify(updated));
+    }
+
+    setShowProvModal(false);
+    setProvForm({ empresa_nombre: '', rut_empresa: '', obra_asociada: '', correo_contacto: '', credencial_pass: '' });
+    setSuccessMsg(`¡Proveedor ${newProv.empresa_nombre} creado! Credenciales generadas.`);
+    setTimeout(() => setSuccessMsg(''), 5000);
+  };
+
+  const getSupplierMinisiteUrl = (provItem) => {
+    const origin = window.location.origin;
+    const cleanName = encodeURIComponent(provItem.empresa_nombre.toLowerCase().replace(/\s+/g, '-'));
+    return `${origin}/?acreditacion_proveedor=${cleanName}&token=${provItem.token_acceso}`;
+  };
+
+  const openProvDetailModal = (provItem) => {
+    const savedDataStr = localStorage.getItem('obraxis_proveedor_data_' + provItem.token_acceso);
+    let provData = { companyDocs: {}, personalList: [], equiposList: [] };
+    if (savedDataStr) {
+      try { provData = JSON.parse(savedDataStr); } catch (err) {}
+    }
+
+    setSelectedProvDetail({
+      ...provItem,
+      companyDocs: provData.companyDocs || provItem.companyDocs || {},
+      personalList: provData.personalList || provItem.personalList || [],
+      equiposList: provData.equiposList || provItem.equiposList || []
+    });
+    setSubModalTab('empresa');
+    setRejectingKey(null);
+    setRejectReasonInput('');
+  };
+
+  const handleUpdateProvDocStatus = (category, docKey, status, itemIndex = null, reason = '') => {
+    if (!selectedProvDetail) return;
+    const token = selectedProvDetail.token_acceso;
+
+    let nextCompanyDocs = { ...(selectedProvDetail.companyDocs || {}) };
+    let nextPersonalList = [...(selectedProvDetail.personalList || [])];
+    let nextEquiposList = [...(selectedProvDetail.equiposList || [])];
+
+    if (category === 'empresa') {
+      if (nextCompanyDocs[docKey]) {
+        nextCompanyDocs[docKey] = {
+          ...nextCompanyDocs[docKey],
+          status: status,
+          motivo_rechazo: status === 'Rechazado' ? reason : null,
+          reviewedAt: new Date().toLocaleDateString('es-CL')
+        };
+      }
+    } else if (category === 'personal' && itemIndex !== null) {
+      if (nextPersonalList[itemIndex] && nextPersonalList[itemIndex].docs && nextPersonalList[itemIndex].docs[docKey]) {
+        nextPersonalList[itemIndex].docs[docKey] = {
+          ...nextPersonalList[itemIndex].docs[docKey],
+          status: status,
+          motivo_rechazo: status === 'Rechazado' ? reason : null,
+          reviewedAt: new Date().toLocaleDateString('es-CL')
+        };
+      }
+    } else if (category === 'equipos' && itemIndex !== null) {
+      if (nextEquiposList[itemIndex] && nextEquiposList[itemIndex].docs && nextEquiposList[itemIndex].docs[docKey]) {
+        nextEquiposList[itemIndex].docs[docKey] = {
+          ...nextEquiposList[itemIndex].docs[docKey],
+          status: status,
+          motivo_rechazo: status === 'Rechazado' ? reason : null,
+          reviewedAt: new Date().toLocaleDateString('es-CL')
+        };
+      }
+    }
+
+    const empApprovedCount = Object.values(nextCompanyDocs).filter(d => d && d.status === 'Aprobado').length;
+    const progressPercent = Math.round((empApprovedCount / mandatorySupplierDocs.length) * 100);
+
+    const updatedProv = {
+      ...selectedProvDetail,
+      estado_cumplimiento: progressPercent,
+      companyDocs: nextCompanyDocs,
+      personalList: nextPersonalList,
+      equiposList: nextEquiposList
+    };
+
+    setSelectedProvDetail(updatedProv);
+
+    const payload = {
+      companyDocs: nextCompanyDocs,
+      personalList: nextPersonalList,
+      equiposList: nextEquiposList,
+      progressPercent: progressPercent,
+      updated_at: new Date().toISOString()
+    };
+    localStorage.setItem('obraxis_proveedor_data_' + token, JSON.stringify(payload));
+
+    const localMaster = localStorage.getItem('obraxis_acreditaciones_proveedores');
+    let masterList = localMaster ? JSON.parse(localMaster) : [];
+    const provIdx = masterList.findIndex(s => s.token_acceso === token);
+    if (provIdx !== -1) {
+      masterList[provIdx] = {
+        ...masterList[provIdx],
+        estado_cumplimiento: progressPercent,
+        companyDocs: nextCompanyDocs,
+        personalList: nextPersonalList,
+        equiposList: nextEquiposList
+      };
+      setProveedoresList(masterList);
+      localStorage.setItem('obraxis_acreditaciones_proveedores', JSON.stringify(masterList));
+    }
+
+    setRejectingKey(null);
+    setRejectReasonInput('');
+    setSuccessMsg(`Documento de proveedor actualizado a: ${status}`);
+    setTimeout(() => setSuccessMsg(''), 3000);
+  };
+
   const handleRemoveMandatoryEquipoDoc = (key) => {
     const updated = mandatoryEquipoDocs.filter(d => d.key !== key);
     setMandatoryEquipoDocs(updated);
@@ -235,6 +417,21 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     } catch (e) {
       const local = localStorage.getItem('obraxis_acreditaciones_internas');
       if (local) setHistorialInterno(JSON.parse(local));
+    }
+  };
+
+  const fetchProveedores = async () => {
+    try {
+      const { data, error } = await supabase.from('acreditaciones_proveedores').select('*').order('created_at', { ascending: false });
+      if (!error && data) {
+        setProveedoresList(data);
+      } else {
+        const local = localStorage.getItem('obraxis_acreditaciones_proveedores');
+        if (local) setProveedoresList(JSON.parse(local));
+      }
+    } catch (e) {
+      const local = localStorage.getItem('obraxis_acreditaciones_proveedores');
+      if (local) setProveedoresList(JSON.parse(local));
     }
   };
 
@@ -641,6 +838,28 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
             </div>
           </div>
 
+        
+          {/* Tarjeta 4: Acreditación Proveedores */}
+          <div
+            onClick={() => setActiveSection('proveedores')}
+            className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-amber-500 hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[180px]"
+          >
+            <div className="flex items-start justify-between">
+              <div className="p-4 bg-amber-50 text-amber-600 rounded-2xl group-hover:bg-amber-600 group-hover:text-white transition-all duration-300">
+                <Store className="w-6 h-6" />
+              </div>
+              <span className="text-[9px] font-extrabold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 uppercase">Proveedores ({proveedoresList.length})</span>
+            </div>
+            <div className="space-y-1 mt-4">
+              <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-amber-600 transition">
+                Acreditación Proveedores
+              </h3>
+              <p className="text-xs text-slate-500 leading-normal">
+                Genera credenciales de acceso por token y minisitio dedicado para evaluación y acreditación de proveedores y choferes de entrega.
+              </p>
+            </div>
+          </div>
+
         </div>
       )}
 
@@ -986,6 +1205,120 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
         </div>
       )}
 
+      
+      {/* ================= SUBMÓDULO 4: ACREDITACIÓN PROVEEDORES ================= */}
+      {activeSection === 'proveedores' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
+            <div className="flex flex-wrap justify-between items-center border-b border-slate-100 pb-3 gap-3">
+              <div>
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
+                  Empresas Proveedoras Habilitadas ({proveedoresList.length})
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Gestione credenciales y revise/apruebe documentos subidos por cada proveedor comercial o de servicio.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowProvModal(true)}
+                className="bg-amber-600 hover:bg-amber-700 text-white font-extrabold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Registrar Proveedor</span>
+              </button>
+            </div>
+
+            {proveedoresList.length === 0 ? (
+              <div className="p-8 text-center text-xs text-slate-400 italic">
+                No hay empresas proveedoras registradas aún. Haga clic en "+ Registrar Proveedor" para generar credenciales.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {proveedoresList.map((prov) => {
+                  const minisiteUrl = getSupplierMinisiteUrl(prov);
+
+                  const savedStr = localStorage.getItem('obraxis_proveedor_data_' + prov.token_acceso);
+                  let savedData = { companyDocs: {}, personalList: [], equiposList: [] };
+                  if (savedStr) {
+                    try { savedData = JSON.parse(savedStr); } catch (e) {}
+                  }
+
+                  const empDocs = savedData.companyDocs || prov.companyDocs || {};
+                  const empApprovedCount = Object.values(empDocs).filter(d => d && d.status === 'Aprobado').length;
+                  const percent = Math.round((empApprovedCount / mandatorySupplierDocs.length) * 100) || 0;
+
+                  return (
+                    <div key={prov.id || prov.token_acceso} className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4 hover:shadow-sm transition">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-black text-sm text-slate-900 uppercase">{prov.empresa_nombre}</h4>
+                          <span className="text-[10px] text-slate-500 font-mono block">RUT: {formatRut(prov.rut_empresa) || 'Sin RUT'}</span>
+                        </div>
+                        <span className="bg-amber-100 text-amber-900 text-[9px] font-extrabold px-2 py-0.5 rounded-md uppercase">
+                          {prov.obra_asociada || 'Obraxis'}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-[10px] font-bold text-slate-600">
+                          <span>Docs Aprobados:</span>
+                          <span className="text-emerald-700 font-mono">{empApprovedCount} de {mandatorySupplierDocs.length} Aprobados ({percent}%)</span>
+                        </div>
+                        <div className="bg-slate-200 rounded-full h-2 overflow-hidden">
+                          <div className="bg-emerald-500 h-full transition-all duration-300" style={{ width: `${percent}%` }}></div>
+                        </div>
+                        <div className="flex justify-between text-[9.5px] text-slate-500 pt-1 font-semibold">
+                          <span>Choferes/Personal: {(savedData.personalList || []).length} personas</span>
+                          <span>Vehículos: {(savedData.equiposList || []).length} camiones</span>
+                        </div>
+                      </div>
+
+                      <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1.5 text-xs">
+                        <div className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider">Credenciales de Acceso Proveedor:</div>
+                        <div className="flex justify-between items-center text-slate-700 font-mono text-[11px]">
+                          <span>Token: <strong>{prov.token_acceso}</strong></span>
+                          <span>Clave: <strong>{prov.credencial_pass}</strong></span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 pt-1">
+                        <button
+                          onClick={() => openProvDetailModal(prov)}
+                          className="w-full bg-amber-600 hover:bg-amber-700 text-white font-extrabold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-2xs"
+                        >
+                          <Eye className="w-4 h-4" />
+                          <span>Revisar, Aprobar o Rechazar Documentos</span>
+                        </button>
+
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            readOnly
+                            value={minisiteUrl}
+                            className="bg-white border border-slate-200 rounded-lg p-2 text-[10px] font-mono text-slate-600 flex-1 truncate"
+                          />
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(minisiteUrl);
+                              setSuccessMsg('Enlace de proveedor copiado al portapapeles.');
+                              setTimeout(() => setSuccessMsg(''), 4000);
+                            }}
+                            className="p-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg transition cursor-pointer"
+                            title="Copiar enlace"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ================= SUBMÓDULO 3: CONFIGURACIÓN DE DOCUMENTOS OBLIGATORIOS ================= */}
       {activeSection === 'config_docs' && (
         <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-6 animate-in fade-in duration-200">
@@ -999,7 +1332,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
             
             {/* COLUMNA 1: DOCS EMPRESA */}
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
@@ -1113,6 +1446,45 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                   + Agregar a Equipos
                 </button>
               </form>
+            
+            {/* COLUMNA 4: DOCS PROVEEDORES */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
+              <h4 className="text-xs font-black uppercase text-slate-700 tracking-wider flex items-center gap-2 border-b border-slate-200 pb-2">
+                <Store className="w-4 h-4 text-amber-600" />
+                <span>4. Docs. Proveedores Comerciales</span>
+              </h4>
+              <div className="space-y-2">
+                {mandatorySupplierDocs.map(d => (
+                  <div key={d.key} className="bg-white p-2.5 rounded-xl border border-slate-200 flex justify-between items-center text-xs font-bold text-slate-800">
+                    <span className="flex items-center gap-2">
+                      <CheckSquare className="w-3.5 h-3.5 text-amber-600" />
+                      <span>{d.label}</span>
+                    </span>
+                    <button
+                      onClick={() => handleRemoveMandatorySupplierDoc(d.key)}
+                      className="text-rose-600 hover:bg-rose-100 p-1 rounded-md transition cursor-pointer"
+                      title="Quitar"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <form onSubmit={handleAddMandatorySupplierDoc} className="space-y-2 pt-2">
+                <input
+                  type="text"
+                  placeholder="Agregar nuevo documento proveedor..."
+                  value={newSupplierDocLabel}
+                  onChange={(e) => setNewSupplierDocLabel(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800"
+                />
+                <button type="submit" className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 rounded-xl text-xs transition cursor-pointer">
+                  + Agregar a Proveedores
+                </button>
+              </form>
+            </div>
+
             </div>
 
           </div>
@@ -1570,3 +1942,247 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     </div>
   );
 }
+
+
+      {/* MODAL REGISTRAR PROVEEDOR */}
+      {showProvModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+              <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                <Store className="w-4 h-4 text-amber-600" />
+                <span>Registrar Empresa Proveedora</span>
+              </h3>
+              <button onClick={() => setShowProvModal(false)} className="text-slate-400 hover:text-slate-650 font-bold text-sm cursor-pointer">✕</button>
+            </div>
+
+            <form onSubmit={handleCreateProveedor} className="space-y-3">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nombre Empresa Proveedora</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="ej: Hormigones y Materiales SpA"
+                  value={provForm.empresa_nombre}
+                  onChange={(e) => setProvForm({ ...provForm, empresa_nombre: e.target.value })}
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 font-bold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">RUT Empresa</label>
+                  <input
+                    type="text"
+                    placeholder="77.123.456-7"
+                    value={provForm.rut_empresa}
+                    onChange={(e) => setProvForm({ ...provForm, rut_empresa: e.target.value })}
+                    onBlur={(e) => setProvForm({ ...provForm, rut_empresa: formatRut(e.target.value) })}
+                    className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Obra Asociada</label>
+                  <select
+                    value={provForm.obra_asociada}
+                    onChange={(e) => setProvForm({ ...provForm, obra_asociada: e.target.value })}
+                    className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 font-bold bg-white"
+                  >
+                    <option value="">-- Seleccionar --</option>
+                    {obrasList.map(o => (
+                      <option key={o.id} value={o.nombre}>{o.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Correo Electrónico de Contacto</label>
+                <input
+                  type="email"
+                  placeholder="contacto@proveedor.cl"
+                  value={provForm.correo_contacto}
+                  onChange={(e) => setProvForm({ ...provForm, correo_contacto: e.target.value })}
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Clave de Acceso (Opcional)</label>
+                <input
+                  type="text"
+                  placeholder="ej: PROV2026"
+                  value={provForm.credencial_pass}
+                  onChange={(e) => setProvForm({ ...provForm, credencial_pass: e.target.value })}
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 font-mono"
+                />
+              </div>
+
+              <div className="pt-3 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowProvModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl text-xs font-extrabold text-white bg-amber-600 hover:bg-amber-700 transition cursor-pointer shadow-xs"
+                >
+                  Generar Credenciales y Crear
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DETALLE Y REVISIÓN PROVEEDOR */}
+      {selectedProvDetail && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl w-full max-w-4xl p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <span className="text-[9.5px] font-extrabold uppercase text-amber-700 tracking-wider">Centro de Evaluación Proveedor</span>
+                <h3 className="font-black text-slate-900 text-sm uppercase">{selectedProvDetail.empresa_nombre}</h3>
+                <span className="text-[10.5px] text-slate-500">RUT: {formatRut(selectedProvDetail.rut_empresa) || 'N/A'} | Obra: {selectedProvDetail.obra_asociada}</span>
+              </div>
+              <button onClick={() => setSelectedProvDetail(null)} className="text-slate-400 hover:text-slate-650 font-bold text-sm cursor-pointer">✕</button>
+            </div>
+
+            <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+              <button
+                onClick={() => { setSubModalTab('empresa'); setRejectingKey(null); }}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition cursor-pointer ${subModalTab === 'empresa' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+              >
+                Docs. Proveedor ({Object.keys(selectedProvDetail.companyDocs || {}).length})
+              </button>
+              <button
+                onClick={() => { setSubModalTab('personal'); setRejectingKey(null); }}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition cursor-pointer ${subModalTab === 'personal' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+              >
+                Choferes / Personal ({(selectedProvDetail.personalList || []).length})
+              </button>
+              <button
+                onClick={() => { setSubModalTab('equipos'); setRejectingKey(null); }}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition cursor-pointer ${subModalTab === 'equipos' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+              >
+                Vehículos / Camiones ({(selectedProvDetail.equiposList || []).length})
+              </button>
+            </div>
+
+            {subModalTab === 'empresa' && (
+              <div className="space-y-3 pt-2">
+                <h4 className="text-xs font-bold uppercase text-slate-700">Archivos Legales del Proveedor:</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {mandatorySupplierDocs.map(item => {
+                    const uploaded = selectedProvDetail.companyDocs && selectedProvDetail.companyDocs[item.key];
+                    const docStatus = uploaded ? (uploaded.status || 'Pendiente de Revisión') : 'No cargado';
+                    const isRejecting = rejectingKey === `prov_empresa_${item.key}`;
+
+                    return (
+                      <div key={item.key} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 text-xs">
+                        <div className="flex justify-between items-start">
+                          <div className="font-extrabold text-slate-800 uppercase">{item.label}</div>
+                          {uploaded && (
+                            <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full border uppercase ${
+                              docStatus === 'Aprobado' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                              docStatus === 'Rechazado' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                              'bg-amber-50 text-amber-700 border-amber-200'
+                            }`}>
+                              {docStatus}
+                            </span>
+                          )}
+                        </div>
+
+                        {uploaded ? (
+                          <div className="space-y-2">
+                            <div className="bg-white border border-slate-200 p-2.5 rounded-xl flex justify-between items-center text-xs">
+                              <span className="truncate text-[11px] font-bold text-slate-700">{uploaded.fileName}</span>
+                              <button
+                                onClick={() => openFileViewer(uploaded)}
+                                className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg transition cursor-pointer flex items-center gap-1 text-[10px] font-bold"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>Ver Archivo</span>
+                              </button>
+                            </div>
+
+                            {uploaded.motivo_rechazo && (
+                              <div className="bg-rose-50 border border-rose-200 p-2 rounded-xl text-[10px] text-rose-800 flex items-start gap-1.5 font-medium">
+                                <MessageSquare className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+                                <div><strong>Motivo Rechazo:</strong> {uploaded.motivo_rechazo}</div>
+                              </div>
+                            )}
+
+                            <div className="flex gap-1.5 pt-1">
+                              <button
+                                onClick={() => handleUpdateProvDocStatus('empresa', item.key, 'Aprobado')}
+                                className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition cursor-pointer ${docStatus === 'Aprobado' ? 'bg-emerald-600 text-white shadow-2xs' : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'}`}
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Aprobar</span>
+                              </button>
+                              <button
+                                onClick={() => setRejectingKey(`prov_empresa_${item.key}`)}
+                                className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition cursor-pointer ${docStatus === 'Rechazado' ? 'bg-rose-600 text-white shadow-2xs' : 'bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200'}`}
+                              >
+                                <XCircle className="w-3.5 h-3.5" />
+                                <span>Rechazar</span>
+                              </button>
+                            </div>
+
+                            {isRejecting && (
+                              <div className="bg-white p-3 rounded-xl border border-rose-300 space-y-2 animate-in fade-in">
+                                <label className="block text-[9.5px] font-bold text-rose-900 uppercase">Indique el Motivo de Rechazo:</label>
+                                <textarea
+                                  rows="2"
+                                  placeholder="Ej: Documento no corresponde..."
+                                  value={rejectReasonInput}
+                                  onChange={(e) => setRejectReasonInput(e.target.value)}
+                                  className="w-full text-xs p-2 border border-slate-200 rounded-lg text-slate-800"
+                                ></textarea>
+                                <div className="flex justify-end gap-1.5">
+                                  <button
+                                    onClick={() => setRejectingKey(null)}
+                                    className="px-2.5 py-1 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg"
+                                  >
+                                    Cancelar
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      if (!rejectReasonInput.trim()) return alert('Ingrese el motivo de rechazo.');
+                                      handleUpdateProvDocStatus('empresa', item.key, 'Rechazado', null, rejectReasonInput.trim());
+                                    }}
+                                    className="px-2.5 py-1 text-[10px] font-bold bg-rose-600 text-white rounded-lg hover:bg-rose-700"
+                                  >
+                                    Confirmar Rechazo
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-bold block text-center">
+                            ⚠️ Pendiente de carga por el proveedor
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
+              <button
+                onClick={() => setSelectedProvDetail(null)}
+                className="px-5 py-2.5 rounded-xl text-xs font-extrabold text-slate-700 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
+              >
+                Cerrar Revisión
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
