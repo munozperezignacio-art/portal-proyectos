@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient';
 import { 
   ArrowLeft, ClipboardCheck, Plus, FileText, CheckCircle2, AlertCircle, 
   HelpCircle, Trash2, Edit3, Share2, Download, Copy, Eye, BookOpen, 
-  GraduationCap, Users, Calendar, Award, CheckSquare, Layers, Building2, Send
+  GraduationCap, Users, Calendar, Award, CheckSquare, Layers, Building2, Send, Sparkles
 } from 'lucide-react';
 
 export default function FormulariosCapacitaciones({ user, onBack, companyBranding }) {
@@ -43,9 +43,6 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   const [capQuiz, setCapQuiz] = useState([
     { id: Date.now(), pregunta: '¿Comprendió la charla?', opciones: ['Sí', 'No'], correcta: 0 }
   ]);
-
-  // Detalle de Respuestas / Visores
-  const [selectedFormDetail, setSelectedFormDetail] = useState(null);
 
   useEffect(() => {
     fetchFormularios();
@@ -239,24 +236,21 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 p-4 sm:p-6 font-sans">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 bg-white p-4 sm:p-6 rounded-3xl shadow-sm border border-slate-100">
+      {/* Header Estándar de Obraxis */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
             className="p-2.5 rounded-2xl bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 transition cursor-pointer"
-            title="Volver"
+            title="Volver al Inicio"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
+          <div className="p-3 bg-primary/10 text-primary rounded-2xl">
+            <ClipboardCheck className="w-6 h-6" />
+          </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200">
-                Módulo Independiente
-              </span>
-            </div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-              <ClipboardCheck className="w-6 h-6 text-indigo-600" />
+            <h1 className="text-xl sm:text-2xl font-black text-slate-850 uppercase tracking-wider flex items-center gap-2">
               Formularios y Capacitaciones
             </h1>
             <p className="text-xs text-slate-500 font-medium mt-0.5">
@@ -265,129 +259,146 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
           </div>
         </div>
 
-        {/* Tab Selector Buttons */}
+        {/* Tab Navigation Buttons - Estilo Estándar Obraxis */}
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setActiveTab('menu')}
-            className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition cursor-pointer ${activeTab === 'menu' ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${activeTab === 'menu' ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'}`}
           >
             Panel Principal
           </button>
           <button
             onClick={() => setActiveTab('designer')}
-            className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition cursor-pointer ${activeTab === 'designer' ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${activeTab === 'designer' ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'}`}
           >
             + Diseñador
           </button>
           <button
             onClick={() => setActiveTab('forms_list')}
-            className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition cursor-pointer ${activeTab === 'forms_list' ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${activeTab === 'forms_list' ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'}`}
           >
             Mis Formularios ({formularios.length})
           </button>
           <button
             onClick={() => setActiveTab('capacitaciones')}
-            className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition cursor-pointer ${activeTab === 'capacitaciones' ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${activeTab === 'capacitaciones' ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'}`}
           >
             Capacitaciones ({capacitaciones.length})
           </button>
           <button
             onClick={() => setActiveTab('respuestas')}
-            className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition cursor-pointer ${activeTab === 'respuestas' ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${activeTab === 'respuestas' ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'}`}
           >
             Respuestas ({respuestas.length})
           </button>
         </div>
       </div>
 
-      {/* Notifications */}
-      {successMsg && (
-        <div className="mb-6 p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center justify-between animate-in fade-in">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            <span>{successMsg}</span>
-          </div>
-        </div>
-      )}
+      {/* Alertas Estándar */}
+      {successMsg && <div className="mb-6 bg-emerald-50 text-emerald-700 p-3.5 rounded-xl text-xs font-semibold border border-emerald-250 animate-in fade-in duration-150">{successMsg}</div>}
+      {errorMsg && <div className="mb-6 bg-red-50 text-red-700 p-3.5 rounded-xl text-xs font-semibold border border-red-250 animate-in fade-in duration-150">{errorMsg}</div>}
 
-      {errorMsg && (
-        <div className="mb-6 p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold flex items-center justify-between animate-in fade-in">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-rose-600" />
-            <span>{errorMsg}</span>
-          </div>
-          <button onClick={() => setErrorMsg('')} className="text-rose-500 hover:text-rose-700 text-sm font-bold">✕</button>
-        </div>
-      )}
-
-      {/* TAB 1: MENU PRINCIPAL CARDS */}
+      {/* TAB 1: MENU PRINCIPAL DE TARJETAS (ESTILO ESTÁNDAR OBRAXIS) */}
       {activeTab === 'menu' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 animate-in fade-in duration-200">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 animate-in fade-in duration-200">
+          
+          {/* Card 1: Diseñador */}
           <div 
             onClick={() => setActiveTab('designer')}
-            className="bg-white p-6 rounded-3xl border border-slate-100 shadow-xs hover:shadow-lg hover:border-indigo-200 transition duration-200 cursor-pointer group flex flex-col justify-between"
+            className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[180px]"
           >
-            <div>
-              <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-4 group-hover:scale-110 transition">
-                <Plus className="w-6 h-6" />
+            <div className="flex items-start justify-between">
+              <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300">
+                <Sparkles className="w-6 h-6" />
               </div>
-              <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight mb-1">Diseñador de Formularios</h3>
-              <p className="text-xs text-slate-500 font-medium">Crea encuestas, inspecciones y check-lists personalizados y asígnalos a cualquier módulo.</p>
+              <span className="text-[9px] font-extrabold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary uppercase">Crear</span>
             </div>
-            <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-indigo-600 font-bold text-xs">
+            <div className="space-y-1 mt-4">
+              <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
+                Diseñador de Formularios
+              </h3>
+              <p className="text-xs text-slate-500 leading-normal">
+                Crea encuestas, inspecciones y check-lists personalizados y asígnalos a cualquier módulo.
+              </p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-extrabold text-primary group-hover:text-primary-hover">
               <span>Crear Nuevo</span>
-              <span>→</span>
+              <span className="group-hover:translate-x-1 transition-transform">→</span>
             </div>
           </div>
 
+          {/* Card 2: Mis Formularios */}
           <div 
             onClick={() => setActiveTab('forms_list')}
-            className="bg-white p-6 rounded-3xl border border-slate-100 shadow-xs hover:shadow-lg hover:border-indigo-200 transition duration-200 cursor-pointer group flex flex-col justify-between"
+            className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[180px]"
           >
-            <div>
-              <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-4 group-hover:scale-110 transition">
+            <div className="flex items-start justify-between">
+              <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300">
                 <FileText className="w-6 h-6" />
               </div>
-              <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight mb-1">Mis Formularios ({formularios.length})</h3>
-              <p className="text-xs text-slate-500 font-medium">Administra formularios activos, genera enlaces públicos de llenado y edita sus asignaciones.</p>
+              <span className="text-[9px] font-extrabold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary uppercase">{formularios.length} Activos</span>
             </div>
-            <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-blue-600 font-bold text-xs">
+            <div className="space-y-1 mt-4">
+              <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
+                Mis Formularios ({formularios.length})
+              </h3>
+              <p className="text-xs text-slate-500 leading-normal">
+                Administra plantillas activas, genera enlaces públicos de llenado y edita sus asignaciones.
+              </p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-extrabold text-primary group-hover:text-primary-hover">
               <span>Ver Listado</span>
-              <span>→</span>
+              <span className="group-hover:translate-x-1 transition-transform">→</span>
             </div>
           </div>
 
+          {/* Card 3: Charlas y Capacitaciones */}
           <div 
             onClick={() => setActiveTab('capacitaciones')}
-            className="bg-white p-6 rounded-3xl border border-slate-100 shadow-xs hover:shadow-lg hover:border-indigo-200 transition duration-200 cursor-pointer group flex flex-col justify-between"
+            className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[180px]"
           >
-            <div>
-              <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center mb-4 group-hover:scale-110 transition">
+            <div className="flex items-start justify-between">
+              <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300">
                 <GraduationCap className="w-6 h-6" />
               </div>
-              <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight mb-1">Charlas y Capacitaciones</h3>
-              <p className="text-xs text-slate-500 font-medium">Registra capacitaciones, charlas de 5 minutos, evaluación de conocimientos y control de asistencia.</p>
+              <span className="text-[9px] font-extrabold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary uppercase">{capacitaciones.length} Charlas</span>
             </div>
-            <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-purple-600 font-bold text-xs">
+            <div className="space-y-1 mt-4">
+              <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
+                Charlas y Capacitaciones
+              </h3>
+              <p className="text-xs text-slate-500 leading-normal">
+                Registra capacitaciones, charlas de 5 minutos, evaluación de conocimientos y control de asistencia.
+              </p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-extrabold text-primary group-hover:text-primary-hover">
               <span>Gestionar Charlas</span>
-              <span>→</span>
+              <span className="group-hover:translate-x-1 transition-transform">→</span>
             </div>
           </div>
 
+          {/* Card 4: Respuestas */}
           <div 
             onClick={() => setActiveTab('respuestas')}
-            className="bg-white p-6 rounded-3xl border border-slate-100 shadow-xs hover:shadow-lg hover:border-indigo-200 transition duration-200 cursor-pointer group flex flex-col justify-between"
+            className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[180px]"
           >
-            <div>
-              <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4 group-hover:scale-110 transition">
+            <div className="flex items-start justify-between">
+              <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300">
                 <CheckSquare className="w-6 h-6" />
               </div>
-              <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight mb-1">Respuestas ({respuestas.length})</h3>
-              <p className="text-xs text-slate-500 font-medium">Inspecciona y exporta los registros de respuestas completadas por trabajadores y contratistas.</p>
+              <span className="text-[9px] font-extrabold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary uppercase">{respuestas.length} Envíos</span>
             </div>
-            <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-emerald-600 font-bold text-xs">
+            <div className="space-y-1 mt-4">
+              <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
+                Registro de Respuestas ({respuestas.length})
+              </h3>
+              <p className="text-xs text-slate-500 leading-normal">
+                Inspecciona y exporta los registros de respuestas completadas por trabajadores y contratistas.
+              </p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-extrabold text-primary group-hover:text-primary-hover">
               <span>Revisar Respuestas</span>
-              <span>→</span>
+              <span className="group-hover:translate-x-1 transition-transform">→</span>
             </div>
           </div>
         </div>
@@ -395,16 +406,16 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
 
       {/* TAB 2: DISEÑADOR DE FORMULARIOS */}
       {activeTab === 'designer' && (
-        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm animate-in fade-in duration-200 space-y-6">
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in duration-200 space-y-6">
           <div className="border-b border-slate-100 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
             <div>
-              <h2 className="text-base font-extrabold text-slate-900 uppercase tracking-tight">Crear Formulario Dinámico</h2>
+              <h2 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider">Crear Formulario Dinámico</h2>
               <p className="text-xs text-slate-500">Configura preguntas y define en qué módulo estará disponible.</p>
             </div>
           </div>
 
           <form onSubmit={handleSaveForm} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-150">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
               <div className="md:col-span-2 space-y-1">
                 <label className="block text-[10.5px] font-extrabold uppercase text-slate-600">Título del Formulario *</label>
                 <input
@@ -412,7 +423,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                   placeholder="Ej: Check-list de Entrega de EPP o Inspección de Herramientas"
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 bg-white"
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 bg-white focus:outline-none focus:border-primary"
                   required
                 />
               </div>
@@ -422,7 +433,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                 <select
                   value={formModulo}
                   onChange={(e) => setFormModulo(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 bg-white"
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 bg-white focus:outline-none focus:border-primary"
                 >
                   {modulosAsignables.map(m => (
                     <option key={m.id} value={m.id}>{m.name}</option>
@@ -437,7 +448,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                   placeholder="Instrucciones para la persona que responderá este formulario..."
                   value={formDesc}
                   onChange={(e) => setFormDesc(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 bg-white"
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 bg-white focus:outline-none focus:border-primary"
                 ></textarea>
               </div>
             </div>
@@ -446,11 +457,11 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
             <div className="space-y-3">
               <label className="block text-xs font-extrabold uppercase text-slate-700">Diseño de Campos y Preguntas</label>
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => handleAddField('text')} className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">+ Texto Corto</button>
-                <button type="button" onClick={() => handleAddField('textarea')} className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">+ Párrafo</button>
-                <button type="button" onClick={() => handleAddField('select')} className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">+ Desplegable (Select)</button>
-                <button type="button" onClick={() => handleAddField('checkbox')} className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">+ Checkbox / Casilla</button>
-                <button type="button" onClick={() => handleAddField('date')} className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">+ Fecha</button>
+                <button type="button" onClick={() => handleAddField('text')} className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">+ Texto Corto</button>
+                <button type="button" onClick={() => handleAddField('textarea')} className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">+ Párrafo</button>
+                <button type="button" onClick={() => handleAddField('select')} className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">+ Desplegable (Select)</button>
+                <button type="button" onClick={() => handleAddField('checkbox')} className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">+ Checkbox / Casilla</button>
+                <button type="button" onClick={() => handleAddField('date')} className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">+ Fecha</button>
               </div>
             </div>
 
@@ -459,7 +470,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
               {formFields.map((field, index) => (
                 <div key={field.id} className="p-4 rounded-2xl border border-slate-200 bg-white shadow-xs space-y-3 relative">
                   <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
-                    <span className="text-[10px] font-black text-indigo-600 uppercase tracking-wider">Campo #{index + 1} ({field.type})</span>
+                    <span className="text-[10px] font-black text-primary uppercase tracking-wider">Campo #{index + 1} ({field.type})</span>
                     <button
                       type="button"
                       onClick={() => handleRemoveField(field.id)}
@@ -476,7 +487,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                         type="text"
                         value={field.label}
                         onChange={(e) => handleUpdateField(field.id, 'label', e.target.value)}
-                        className="w-full border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-800"
+                        className="w-full border border-slate-200 rounded-xl p-2 text-xs font-bold text-slate-800"
                       />
                     </div>
 
@@ -486,7 +497,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                           type="checkbox"
                           checked={field.required}
                           onChange={(e) => handleUpdateField(field.id, 'required', e.target.checked)}
-                          className="w-4 h-4 text-indigo-600 rounded"
+                          className="w-4 h-4 text-primary rounded"
                         />
                         <span>Obligatorio</span>
                       </label>
@@ -507,7 +518,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
               <button
                 type="submit"
                 disabled={loading}
-                className="px-6 py-2.5 rounded-xl text-xs font-extrabold text-white bg-indigo-600 hover:bg-indigo-700 transition cursor-pointer shadow-md flex items-center gap-2"
+                className="px-6 py-2.5 rounded-xl text-xs font-extrabold text-white bg-primary hover:bg-primary-hover transition cursor-pointer shadow-sm flex items-center gap-2"
               >
                 <ClipboardCheck className="w-4 h-4" />
                 <span>{loading ? 'Guardando...' : 'Guardar y Publicar Formulario'}</span>
@@ -519,12 +530,12 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
 
       {/* TAB 3: LISTADO DE FORMULARIOS CREADOS */}
       {activeTab === 'forms_list' && (
-        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm animate-in fade-in duration-200 space-y-4">
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in duration-200 space-y-4">
           <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-            <h2 className="text-base font-extrabold text-slate-900 uppercase">Mis Formularios Configurados</h2>
+            <h2 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider">Mis Formularios Configurados</h2>
             <button
               onClick={() => setActiveTab('designer')}
-              className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm"
+              className="px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm hover:bg-primary-hover transition"
             >
               <Plus className="w-4 h-4" />
               <span>Nuevo Formulario</span>
@@ -543,10 +554,10 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                 const modObj = modulosAsignables.find(m => m.id === form.modulo_asignado) || { name: 'General' };
 
                 return (
-                  <div key={form.id} className="p-4 rounded-2xl border border-slate-200 bg-white hover:border-indigo-200 shadow-xs transition flex flex-col justify-between space-y-3">
+                  <div key={form.id} className="p-5 rounded-3xl border border-slate-200 bg-white hover:border-primary shadow-xs transition flex flex-col justify-between space-y-3">
                     <div>
-                      <div className="flex items-center justify-between gap-2 mb-1.5">
-                        <span className="text-[9.5px] font-black uppercase px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-150">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="text-[9.5px] font-black uppercase px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                           Módulo: {modObj.name}
                         </span>
                         <span className="text-[10px] text-slate-400">
@@ -554,16 +565,16 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                         </span>
                       </div>
 
-                      <h4 className="text-xs font-extrabold text-slate-900 uppercase leading-snug">{form.titulo}</h4>
+                      <h4 className="text-xs font-extrabold text-slate-850 uppercase leading-snug">{form.titulo}</h4>
                       {form.descripcion && <p className="text-[11px] text-slate-500 line-clamp-2 mt-1">{form.descripcion}</p>}
                     </div>
 
                     <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
                       <button
                         onClick={() => copyToClipboard(publicUrl)}
-                        className="flex-1 py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10.5px] font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                        className="flex-1 py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10.5px] font-bold flex items-center justify-center gap-1.5 cursor-pointer border border-slate-200"
                       >
-                        <Share2 className="w-3.5 h-3.5" />
+                        <Share2 className="w-3.5 h-3.5 text-primary" />
                         <span>Copiar Enlace</span>
                       </button>
                     </div>
@@ -577,10 +588,10 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
 
       {/* TAB 4: CAPACITACIONES Y CHARLAS */}
       {activeTab === 'capacitaciones' && (
-        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm animate-in fade-in duration-200 space-y-6">
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in duration-200 space-y-6">
           <div className="flex justify-between items-center border-b border-slate-100 pb-3">
             <div>
-              <h2 className="text-base font-extrabold text-slate-900 uppercase">Gestor de Charlas y Capacitaciones</h2>
+              <h2 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider">Gestor de Charlas y Capacitaciones</h2>
               <p className="text-xs text-slate-500">Publica charlas de seguridad, material interactivo y cuestionarios de conocimiento.</p>
             </div>
           </div>
@@ -596,7 +607,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                   placeholder="Ej: Charla de Uso Correcto de EPP e Higiene Industrial"
                   value={capTitle}
                   onChange={(e) => setCapTitle(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 bg-white"
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 bg-white focus:outline-none focus:border-primary"
                   required
                 />
               </div>
@@ -606,7 +617,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                 <select
                   value={capTipo}
                   onChange={(e) => setCapTipo(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 bg-white"
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 bg-white focus:outline-none focus:border-primary"
                 >
                   <option value="Charla 5 Minutos">Charla 5 Minutos</option>
                   <option value="Capacitación Teórica">Capacitación Teórica</option>
@@ -621,7 +632,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                   placeholder="Resumen de los temas abordados..."
                   value={capDesc}
                   onChange={(e) => setCapDesc(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 bg-white"
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 bg-white focus:outline-none focus:border-primary"
                 ></textarea>
               </div>
             </div>
@@ -630,7 +641,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
               <button
                 type="submit"
                 disabled={loading}
-                className="px-5 py-2 rounded-xl bg-purple-600 text-white text-xs font-bold hover:bg-purple-700 transition cursor-pointer flex items-center gap-1.5"
+                className="px-5 py-2.5 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-hover transition cursor-pointer flex items-center gap-1.5 shadow-sm"
               >
                 <GraduationCap className="w-4 h-4" />
                 <span>{loading ? 'Guardando...' : 'Publicar Capacitación'}</span>
@@ -640,21 +651,21 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
 
           {/* Listado de Capacitaciones */}
           <div className="space-y-3">
-            <h3 className="text-xs font-extrabold text-slate-900 uppercase">Capacitaciones Publicadas ({capacitaciones.length})</h3>
+            <h3 className="text-xs font-extrabold text-slate-850 uppercase">Capacitaciones Publicadas ({capacitaciones.length})</h3>
             
             {capacitaciones.length === 0 ? (
               <p className="text-xs text-slate-400 italic">No hay capacitaciones registradas.</p>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {capacitaciones.map(cap => (
-                  <div key={cap.id} className="p-4 rounded-2xl border border-slate-200 bg-white space-y-2">
+                  <div key={cap.id} className="p-5 rounded-3xl border border-slate-200 bg-white space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-[9.5px] font-bold px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 uppercase">
+                      <span className="text-[9.5px] font-bold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 uppercase">
                         {cap.tipo || 'Charla'}
                       </span>
                       <span className="text-[10px] text-slate-400">{new Date(cap.created_at || Date.now()).toLocaleDateString('es-CL')}</span>
                     </div>
-                    <h4 className="text-xs font-black text-slate-800 uppercase">{cap.titulo}</h4>
+                    <h4 className="text-xs font-black text-slate-850 uppercase">{cap.titulo}</h4>
                     {cap.descripcion && <p className="text-[11px] text-slate-500 line-clamp-2">{cap.descripcion}</p>}
                   </div>
                 ))}
@@ -666,9 +677,9 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
 
       {/* TAB 5: RESPUESTAS REGISTRADAS */}
       {activeTab === 'respuestas' && (
-        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm animate-in fade-in duration-200 space-y-4">
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in duration-200 space-y-4">
           <div className="border-b border-slate-100 pb-3">
-            <h2 className="text-base font-extrabold text-slate-900 uppercase">Registros de Respuestas Recibidas</h2>
+            <h2 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider">Registros de Respuestas Recibidas</h2>
             <p className="text-xs text-slate-500">Historial completo de formularios completados por personal o subcontratistas.</p>
           </div>
 
@@ -682,7 +693,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
               {respuestas.map(resp => (
                 <div key={resp.id} className="py-3 flex items-center justify-between">
                   <div>
-                    <h4 className="text-xs font-bold text-slate-800">{resp.formulario_titulo || 'Formulario'}</h4>
+                    <h4 className="text-xs font-bold text-slate-850 uppercase">{resp.formulario_titulo || 'Formulario'}</h4>
                     <p className="text-[10.5px] text-slate-500">Respondido por: {resp.usuario_nombre || 'Anónimo'} ({resp.usuario_rut || 'Sin RUT'})</p>
                   </div>
                   <span className="text-[10px] text-slate-400">{new Date(resp.created_at || Date.now()).toLocaleDateString('es-CL')}</span>
