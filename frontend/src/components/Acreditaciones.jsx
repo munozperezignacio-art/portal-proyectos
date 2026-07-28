@@ -4,11 +4,18 @@ import { sendSystemEmail } from '../utils/emailService';
 import { 
   ArrowLeft, ShieldCheck, Plus, Send, CheckCircle2, AlertCircle, FileText, 
   Trash2, Eye, Download, Copy, ExternalLink, Building2, User, Truck, 
-  RefreshCw, Check, Clock, Lock, Key, Mail, Search, FileUp, Sparkles, Filter, Settings2, CheckSquare, XCircle, MessageSquare
+  RefreshCw, Check, Clock, Lock, Key, Mail, Search, FileUp, Sparkles, Filter, Settings2, CheckSquare, XCircle, MessageSquare, Layers, FileCheck
 } from 'lucide-react';
 
 export default function Acreditaciones({ user, onBack, companyBranding }) {
-  const [activeTab, setActiveTab] = useState('acreditarme'); // 'acreditarme' | 'subcontratos'
+  // Apartado activo del módulo: '' (Menú Principal), 'acreditarme', 'subcontratos', 'config_docs'
+  const [activeSection, setActiveSection] = useState('');
+
+  // Sub-pestañas internas dentro de "Acreditarme"
+  const [acreditarmeSubTab, setAcreditarmeSubTab] = useState('enviar'); // 'enviar' | 'docs_personal' | 'historial'
+
+  // Sub-pestañas internas dentro del modal de revisión de Subcontrato
+  const [subModalTab, setSubModalTab] = useState('empresa'); // 'empresa' | 'personal' | 'equipos'
 
   // --- ESTADOS PARA "ACREDITARME" (PERSONAL PROPIO) ---
   const [obrasList, setObrasList] = useState([]);
@@ -37,13 +44,10 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
 
   // Modal para Revisar Documentos y Acreditación de Subcontratista
   const [selectedSubDetail, setSelectedSubDetail] = useState(null);
-  const [subModalTab, setSubModalTab] = useState('empresa'); // 'empresa' | 'personal' | 'equipos'
   const [rejectingKey, setRejectingKey] = useState(null);
   const [rejectReasonInput, setRejectReasonInput] = useState('');
 
-  // Configuración de Documentos Obligatorios
-  const [showConfigDocsModal, setShowConfigDocsModal] = useState(false);
-  
+  // --- CONFIGURACIÓN DE DOCUMENTOS OBLIGATORIOS ---
   // 1. Docs Empresa
   const [mandatoryCompanyDocs, setMandatoryCompanyDocs] = useState([
     { key: 'rut_empresa', label: 'E-RUT / RUT Empresa' },
@@ -54,11 +58,15 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
   ]);
   const [newCompanyDocLabel, setNewCompanyDocLabel] = useState('');
 
-  // 2. Docs Trabajador
+  // 2. Docs Trabajador (Externo e Interno)
   const [mandatoryWorkerDocs, setMandatoryWorkerDocs] = useState([
     { key: 'cedula', label: 'Cédula de Identidad Vigente' },
     { key: 'contrato', label: 'Contrato de Trabajo' },
-    { key: 'examen', label: 'Examen de Salud Ocupacional' }
+    { key: 'afp', label: 'Certificado Cotizaciones AFP' },
+    { key: 'salud', label: 'Certificado Previsión Salud (FONASA/Isapre)' },
+    { key: 'examen', label: 'Examen de Salud / Altura Ocupacional' },
+    { key: 'induccion', label: 'Registro de Inducción de Seguridad' },
+    { key: 'epp', label: 'Cargo y Registro de Entrega EPP' }
   ]);
   const [newWorkerDocLabel, setNewWorkerDocLabel] = useState('');
 
@@ -73,17 +81,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
 
   // Toast / Mensajes
   const [successMsg, setSuccessMsg] = useState('');
-
-  // Documentos requeridos estándar por trabajador para "Acreditarme"
-  const reqDocsStandard = [
-    { key: 'cedula', label: 'Cédula de Identidad Vigente', rrhhField: 'rut' },
-    { key: 'contrato', label: 'Contrato de Trabajo', rrhhField: 'tipo_contrato' },
-    { key: 'afp', label: 'Certificado Cotizaciones AFP', rrhhField: 'afp' },
-    { key: 'salud', label: 'Certificado Previsión Salud (FONASA/Isapre)', rrhhField: 'prevision_salud' },
-    { key: 'examen', label: 'Examen de Salud / Altura Ocupacional', rrhhField: 'sueldo_base' },
-    { key: 'induccion', label: 'Registro de Inducción de Seguridad', rrhhField: null },
-    { key: 'epp', label: 'Cargo y Registro de Entrega EPP', rrhhField: null }
-  ];
+  const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
     fetchObras();
@@ -108,7 +106,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     localStorage.setItem('obraxis_mandatory_company_docs', JSON.stringify(compDocs));
     localStorage.setItem('obraxis_mandatory_worker_docs', JSON.stringify(workDocs));
     localStorage.setItem('obraxis_mandatory_equipo_docs', JSON.stringify(eqDocs));
-    setSuccessMsg('¡Listado de documentos obligatorios (Empresa, Personal y Maquinaria) actualizado!');
+    setSuccessMsg('¡Listado de documentos obligatorios guardado correctamente!');
     setTimeout(() => setSuccessMsg(''), 4000);
   };
 
@@ -213,6 +211,16 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
       if (local) setSubcontratosList(JSON.parse(local));
     } finally {
       setLoadingSubcontratos(false);
+    }
+  };
+
+  const handleHeaderBack = () => {
+    if (activeSection !== '') {
+      setActiveSection('');
+      setSuccessMsg('');
+      setErrorMsg('');
+    } else {
+      onBack();
     }
   };
 
@@ -396,7 +404,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     setRejectReasonInput('');
   };
 
-  // --- LÓGICA DE APROBACIÓN Y RECHAZO CON MOTIVO DE DOCUMENTOS ---
+  // LÓGICA DE APROBACIÓN Y RECHAZO CON MOTIVO
   const handleUpdateDocStatus = (category, docKey, status, itemIndex = null, reason = '') => {
     if (!selectedSubDetail) return;
     const token = selectedSubDetail.token_acceso;
@@ -489,39 +497,32 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-6 space-y-6">
-      {/* HEADER PRINCIPAL */}
-      <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex flex-wrap justify-between items-center gap-4">
+    <div className="space-y-6 font-sans">
+      {/* 1. CABECERA PRINCIPAL */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 border border-slate-200 rounded-3xl shadow-xs">
         <div className="flex items-center gap-3">
-          <button onClick={onBack} className="p-2.5 bg-slate-100 hover:bg-slate-200 rounded-2xl transition cursor-pointer text-slate-700">
-            <ArrowLeft className="w-5 h-5" />
+          <button onClick={handleHeaderBack} className="p-2 hover:bg-slate-100 rounded-xl transition cursor-pointer" title="Volver">
+            <ArrowLeft className="w-5 h-5 text-slate-600" />
           </button>
           <div>
-            <h1 className="text-lg font-black text-slate-900 flex items-center gap-2 uppercase tracking-wide">
+            <h2 className="text-xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
               <ShieldCheck className="w-6 h-6 text-primary" />
               <span>Módulo de Acreditaciones</span>
-            </h1>
-            <p className="text-xs text-slate-500">Gestión de acreditaciones propias para faena y control de subcontratos externos</p>
+            </h2>
+            <p className="text-[10px] text-slate-450 font-bold uppercase mt-0.5">
+              Gestión de acreditaciones propias para faena y control de subcontratos externos
+            </p>
           </div>
         </div>
 
-        {/* NAVEGACIÓN PESTAÑAS */}
-        <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1 border border-slate-200">
+        {activeSection !== '' && (
           <button
-            onClick={() => setActiveTab('acreditarme')}
-            className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-2 ${activeTab === 'acreditarme' ? 'bg-primary text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+            onClick={() => setActiveSection('')}
+            className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3.5 py-2 rounded-xl transition cursor-pointer border border-slate-200"
           >
-            <User className="w-4 h-4" />
-            <span>Acreditarme (Personal Propio)</span>
+            <span>← Volver al Menú Principal</span>
           </button>
-          <button
-            onClick={() => setActiveTab('subcontratos')}
-            className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-2 ${activeTab === 'subcontratos' ? 'bg-primary text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
-          >
-            <Building2 className="w-4 h-4" />
-            <span>Acreditación Subcontrato (Externos)</span>
-          </button>
-        </div>
+        )}
       </div>
 
       {successMsg && (
@@ -531,158 +532,307 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
         </div>
       )}
 
-      {/* ================= PESTAÑA 1: ACREDITARME ================= */}
-      {activeTab === 'acreditarme' && (
-        <div className="space-y-6 animate-in fade-in duration-200">
-          <form onSubmit={handleSendAcreditacion} className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-6">
-            <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 border-b border-slate-100 pb-3 flex items-center gap-2">
-              <FileUp className="w-4 h-4 text-primary" />
-              <span>1. Configurar Petición de Acreditación para Proyecto</span>
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">Proyecto / Obra de Destino</label>
-                <select
-                  value={selectedObra}
-                  onChange={(e) => setSelectedObra(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 font-bold bg-slate-50"
-                  required
-                >
-                  <option value="">-- Seleccionar Obra --</option>
-                  {obrasList.map((o) => (
-                    <option key={o.id} value={o.nombre}>{o.nombre}</option>
-                  ))}
-                </select>
+      {/* ================= VISTA PRINCIPAL: MENÚ DE TARJETAS / RECTÁNGULOS ================= */}
+      {activeSection === '' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in duration-200">
+          
+          {/* Tarjeta 1: Acreditarme (Personal Propio) */}
+          <div
+            onClick={() => { setActiveSection('acreditarme'); setAcreditarmeSubTab('enviar'); }}
+            className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[180px]"
+          >
+            <div className="flex items-start justify-between">
+              <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300">
+                <User className="w-6 h-6" />
               </div>
-
-              <div>
-                <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">Correo Electrónico Destinatario / Mandante</label>
-                <input
-                  type="email"
-                  required
-                  placeholder="ej: acreditaciones@minera.cl"
-                  value={destinatarioEmail}
-                  onChange={(e) => setDestinatarioEmail(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 bg-white font-medium"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">Asunto del Correo (Opcional)</label>
-                <input
-                  type="text"
-                  placeholder="ej: Acreditación Personal Obraxis - Proyecto Parque Central"
-                  value={asuntoEmail}
-                  onChange={(e) => setAsuntoEmail(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 bg-white font-medium"
-                />
-              </div>
+              <span className="text-[9px] font-extrabold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary uppercase">Personal Propio</span>
             </div>
-
-            <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">Observaciones o Instrucciones Especiales</label>
-              <textarea
-                rows="2"
-                placeholder="Indique si hay pases de ingreso especiales o requerimientos adicionales..."
-                value={observaciones}
-                onChange={(e) => setObservaciones(e.target.value)}
-                className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 bg-white"
-              ></textarea>
+            <div className="space-y-1 mt-4">
+              <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
+                Acreditarme (Personal Propio)
+              </h3>
+              <p className="text-xs text-slate-500 leading-normal">
+                Selecciona proyecto y trabajadores. Sincroniza automáticamente los respaldos desde Recursos Humanos y envía las acreditaciones a faena.
+              </p>
             </div>
-
-            {/* SELECCIÓN DE TRABAJADORES */}
-            <div className="space-y-4 pt-2">
-              <div className="flex justify-between items-center border-b border-slate-100 pb-2">
-                <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-2">
-                  <User className="w-4 h-4 text-primary" />
-                  <span>2. Seleccionar Trabajadores y Verificar Documentos ({selectedWorkers.length} Seleccionados)</span>
-                </h4>
-                <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 flex items-center gap-1">
-                  <Sparkles className="w-3 h-3" /> Sincronización Automática activa con RRHH
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto p-1">
-                {personalList.map((worker) => {
-                  const isSelected = selectedWorkers.includes(worker.rut);
-                  return (
-                    <div
-                      key={worker.id || worker.rut}
-                      onClick={() => toggleWorkerSelection(worker.rut)}
-                      className={`p-3.5 rounded-2xl border transition cursor-pointer flex items-center justify-between ${isSelected ? 'bg-primary/5 border-primary shadow-2xs' : 'bg-white border-slate-200 hover:border-slate-300'}`}
-                    >
-                      <div>
-                        <div className="font-extrabold text-xs text-slate-900 uppercase">{worker.nombre}</div>
-                        <div className="text-[10px] text-slate-500 font-mono mt-0.5">RUT: {worker.rut} | {worker.cargo || 'Maestro'}</div>
-                      </div>
-                      <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition ${isSelected ? 'bg-primary border-primary text-white' : 'border-slate-300 bg-white'}`}>
-                        {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="pt-2">
-              <button
-                type="submit"
-                disabled={sendingEmail}
-                className="w-full bg-primary hover:bg-primary-hover text-white font-extrabold py-3.5 rounded-2xl shadow-sm text-xs cursor-pointer flex items-center justify-center gap-2 transition disabled:opacity-50"
-              >
-                <Send className="w-4 h-4" />
-                <span>{sendingEmail ? 'Enviando Solicitud...' : 'Enviar Solicitud de Acreditación por Correo'}</span>
-              </button>
-            </div>
-          </form>
-
-          {/* HISTORIAL INTERNO */}
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
-            <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 border-b border-slate-100 pb-3">
-              Historial de Solicitudes Enviadas ({historialInterno.length})
-            </h3>
-            {historialInterno.length === 0 ? (
-              <div className="p-8 text-center text-xs text-slate-400 italic">No hay solicitudes registradas aún.</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-650 font-bold text-[9px] uppercase tracking-wider">
-                      <th className="p-3">Obra</th>
-                      <th className="p-3">Destinatario</th>
-                      <th className="p-3">Trabajadores</th>
-                      <th className="p-3">Fecha</th>
-                      <th className="p-3 text-center">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-150">
-                    {historialInterno.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50/50">
-                        <td className="p-3 font-extrabold text-slate-900 uppercase">{item.obra_nombre}</td>
-                        <td className="p-3 text-slate-700 font-mono">{item.destinatario_email}</td>
-                        <td className="p-3 font-bold">{Array.isArray(item.trabajadores_json) ? item.trabajadores_json.length : 0} Personas</td>
-                        <td className="p-3 text-slate-500">{new Date(item.created_at).toLocaleString('es-CL')}</td>
-                        <td className="p-3 text-center">
-                          <button
-                            onClick={() => setSelectedHistorialDetail(item)}
-                            className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
           </div>
+
+          {/* Tarjeta 2: Acreditación Subcontrato */}
+          <div
+            onClick={() => setActiveSection('subcontratos')}
+            className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[180px]"
+          >
+            <div className="flex items-start justify-between">
+              <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
+                <Building2 className="w-6 h-6" />
+              </div>
+              <span className="text-[9px] font-extrabold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 uppercase">Subcontratos ({subcontratosList.length})</span>
+            </div>
+            <div className="space-y-1 mt-4">
+              <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-blue-600 transition">
+                Acreditación Subcontrato
+              </h3>
+              <p className="text-xs text-slate-500 leading-normal">
+                Genera credenciales de acceso por token y minisitio dedicado para recepción, evaluación y aprobación/rechazo de documentos de externos.
+              </p>
+            </div>
+          </div>
+
+          {/* Tarjeta 3: Configurar Documentos Obligatorios */}
+          <div
+            onClick={() => setActiveSection('config_docs')}
+            className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[180px]"
+          >
+            <div className="flex items-start justify-between">
+              <div className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300">
+                <Settings2 className="w-6 h-6" />
+              </div>
+              <span className="text-[9px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 uppercase">Configuración</span>
+            </div>
+            <div className="space-y-1 mt-4">
+              <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-emerald-600 transition">
+                Documentos Obligatorios Exigidos
+              </h3>
+              <p className="text-xs text-slate-500 leading-normal">
+                Enlista, modifica y administra la lista obligatoria de documentos solicitados a personal propio, subcontratistas y maquinarias.
+              </p>
+            </div>
+          </div>
+
         </div>
       )}
 
-      {/* ================= PESTAÑA 2: ACREDITACIÓN SUBCONTRATO ================= */}
-      {activeTab === 'subcontratos' && (
+      {/* ================= SUBMÓDULO 1: ACREDITARME (PERSONAL PROPIO) ================= */}
+      {activeSection === 'acreditarme' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          
+          {/* PESTAÑAS INTERNAS DE ACREDITARME */}
+          <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1 border border-slate-200 w-fit">
+            <button
+              onClick={() => setAcreditarmeSubTab('enviar')}
+              className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-2 ${acreditarmeSubTab === 'enviar' ? 'bg-primary text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+            >
+              <Send className="w-4 h-4" />
+              <span>1. Configurar y Enviar Acreditación</span>
+            </button>
+            <button
+              onClick={() => setAcreditarmeSubTab('docs_personal')}
+              className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-2 ${acreditarmeSubTab === 'docs_personal' ? 'bg-primary text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+            >
+              <FileCheck className="w-4 h-4" />
+              <span>2. Documentos Requeridos Personal Propio ({mandatoryWorkerDocs.length})</span>
+            </button>
+            <button
+              onClick={() => setAcreditarmeSubTab('historial')}
+              className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-2 ${acreditarmeSubTab === 'historial' ? 'bg-primary text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+            >
+              <Clock className="w-4 h-4" />
+              <span>3. Historial de Envíos ({historialInterno.length})</span>
+            </button>
+          </div>
+
+          {/* SUB-PESTAÑA 1: CONFIGURAR Y ENVIAR */}
+          {acreditarmeSubTab === 'enviar' && (
+            <form onSubmit={handleSendAcreditacion} className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-6">
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 border-b border-slate-100 pb-3 flex items-center gap-2">
+                <FileUp className="w-4 h-4 text-primary" />
+                <span>Configurar Petición de Acreditación de Personal Propio</span>
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">Proyecto / Obra de Destino</label>
+                  <select
+                    value={selectedObra}
+                    onChange={(e) => setSelectedObra(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 font-bold bg-slate-50"
+                    required
+                  >
+                    <option value="">-- Seleccionar Obra --</option>
+                    {obrasList.map((o) => (
+                      <option key={o.id} value={o.nombre}>{o.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">Correo Electrónico Destinatario / Mandante</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="ej: acreditaciones@minera.cl"
+                    value={destinatarioEmail}
+                    onChange={(e) => setDestinatarioEmail(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 bg-white font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">Asunto del Correo (Opcional)</label>
+                  <input
+                    type="text"
+                    placeholder="ej: Acreditación Personal Obraxis - Proyecto Parque Central"
+                    value={asuntoEmail}
+                    onChange={(e) => setAsuntoEmail(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 bg-white font-medium"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">Observaciones o Instrucciones Especiales</label>
+                <textarea
+                  rows="2"
+                  placeholder="Indique si hay pases de ingreso especiales o requerimientos adicionales..."
+                  value={observaciones}
+                  onChange={(e) => setObservaciones(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 bg-white"
+                ></textarea>
+              </div>
+
+              {/* SELECCIÓN DE TRABAJADORES */}
+              <div className="space-y-4 pt-2">
+                <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                    <User className="w-4 h-4 text-primary" />
+                    <span>Seleccionar Trabajadores ({selectedWorkers.length} Seleccionados)</span>
+                  </h4>
+                  <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" /> Sincronización Automática activa con RRHH
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto p-1">
+                  {personalList.map((worker) => {
+                    const isSelected = selectedWorkers.includes(worker.rut);
+                    return (
+                      <div
+                        key={worker.id || worker.rut}
+                        onClick={() => toggleWorkerSelection(worker.rut)}
+                        className={`p-3.5 rounded-2xl border transition cursor-pointer flex items-center justify-between ${isSelected ? 'bg-primary/5 border-primary shadow-2xs' : 'bg-white border-slate-200 hover:border-slate-300'}`}
+                      >
+                        <div>
+                          <div className="font-extrabold text-xs text-slate-900 uppercase">{worker.nombre}</div>
+                          <div className="text-[10px] text-slate-500 font-mono mt-0.5">RUT: {worker.rut} | {worker.cargo || 'Maestro'}</div>
+                        </div>
+                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition ${isSelected ? 'bg-primary border-primary text-white' : 'border-slate-300 bg-white'}`}>
+                          {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={sendingEmail}
+                  className="w-full bg-primary hover:bg-primary-hover text-white font-extrabold py-3.5 rounded-2xl shadow-sm text-xs cursor-pointer flex items-center justify-center gap-2 transition disabled:opacity-50"
+                >
+                  <Send className="w-4 h-4" />
+                  <span>{sendingEmail ? 'Enviando Solicitud...' : 'Enviar Solicitud de Acreditación por Correo'}</span>
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* SUB-PESTAÑA 2: ENLISTAR Y MODIFICAR DOCUMENTOS DEL PERSONAL PROPIO */}
+          {acreditarmeSubTab === 'docs_personal' && (
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div>
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
+                    Listado de Documentos Requeridos para Personal Propio ({mandatoryWorkerDocs.length})
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Modifique o agregue documentos exigidos. Los documentos existentes en la Ficha de Recursos Humanos se sincronizan automáticamente.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {mandatoryWorkerDocs.map((d) => (
+                  <div key={d.key} className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 flex justify-between items-center text-xs font-bold text-slate-800">
+                    <span className="flex items-center gap-2">
+                      <CheckSquare className="w-4 h-4 text-emerald-600" />
+                      <span>{d.label}</span>
+                    </span>
+                    <button
+                      onClick={() => handleRemoveMandatoryWorkerDoc(d.key)}
+                      className="text-rose-600 hover:bg-rose-100 p-1.5 rounded-lg transition cursor-pointer"
+                      title="Eliminar de requerimientos"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <form onSubmit={handleAddMandatoryWorkerDoc} className="flex gap-2 pt-2">
+                <input
+                  type="text"
+                  placeholder="Agregar nuevo documento requerido para personal propio (Ej: Certificado Inducción Cliente)..."
+                  value={newWorkerDocLabel}
+                  onChange={(e) => setNewWorkerDocLabel(e.target.value)}
+                  className="flex-1 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 font-medium"
+                />
+                <button type="submit" className="bg-primary hover:bg-primary-hover text-white font-extrabold px-5 rounded-xl text-xs transition cursor-pointer">
+                  + Agregar Documento
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* SUB-PESTAÑA 3: HISTORIAL INTERNO */}
+          {acreditarmeSubTab === 'historial' && (
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 border-b border-slate-100 pb-3">
+                Historial de Solicitudes Enviadas ({historialInterno.length})
+              </h3>
+              {historialInterno.length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-400 italic">No hay solicitudes registradas aún.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-slate-650 font-bold text-[9px] uppercase tracking-wider">
+                        <th className="p-3">Obra</th>
+                        <th className="p-3">Destinatario</th>
+                        <th className="p-3">Trabajadores</th>
+                        <th className="p-3">Fecha</th>
+                        <th className="p-3 text-center">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-150">
+                      {historialInterno.map((item, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50/50">
+                          <td className="p-3 font-extrabold text-slate-900 uppercase">{item.obra_nombre}</td>
+                          <td className="p-3 text-slate-700 font-mono">{item.destinatario_email}</td>
+                          <td className="p-3 font-bold">{Array.isArray(item.trabajadores_json) ? item.trabajadores_json.length : 0} Personas</td>
+                          <td className="p-3 text-slate-500">{new Date(item.created_at).toLocaleString('es-CL')}</td>
+                          <td className="p-3 text-center">
+                            <button
+                              onClick={() => setSelectedHistorialDetail(item)}
+                              className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+        </div>
+      )}
+
+      {/* ================= SUBMÓDULO 2: ACREDITACIÓN SUBCONTRATO ================= */}
+      {activeSection === 'subcontratos' && (
         <div className="space-y-6 animate-in fade-in duration-200">
           <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
             <div className="flex flex-wrap justify-between items-center border-b border-slate-100 pb-3 gap-3">
@@ -691,25 +841,16 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                   Empresas Subcontratistas Habilitadas ({subcontratosList.length})
                 </h3>
                 <p className="text-[11px] text-slate-500 mt-0.5">
-                  Gestione credenciales, configure documentos obligatorios y revise/apruebe documentos subidos por cada contratista.
+                  Gestione credenciales y revise/apruebe documentos subidos por cada contratista.
                 </p>
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setShowConfigDocsModal(true)}
-                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer border border-slate-200"
-                >
-                  <Settings2 className="w-4 h-4 text-slate-600" />
-                  <span>Configurar Docs. Obligatorios</span>
-                </button>
-                <button
-                  onClick={() => setShowSubModal(true)}
-                  className="bg-primary hover:bg-primary-hover text-white font-extrabold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>+ Registrar Subcontrato</span>
-                </button>
-              </div>
+              <button
+                onClick={() => setShowSubModal(true)}
+                className="bg-primary hover:bg-primary-hover text-white font-extrabold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Registrar Subcontrato</span>
+              </button>
             </div>
 
             {subcontratosList.length === 0 ? (
@@ -803,27 +944,30 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
         </div>
       )}
 
-      {/* MODAL CONFIGURAR DOCUMENTOS OBLIGATORIOS (EMPRESA, PERSONAL Y MAQUINARIAS) */}
-      {showConfigDocsModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-xl p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 space-y-5 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-2">
-                <Settings2 className="w-4 h-4 text-primary" />
-                <span>Configuración de Documentos Obligatorios Exigidos</span>
-              </h3>
-              <button onClick={() => setShowConfigDocsModal(false)} className="text-slate-400 hover:text-slate-650 font-bold text-sm cursor-pointer">✕</button>
-            </div>
+      {/* ================= SUBMÓDULO 3: CONFIGURACIÓN DE DOCUMENTOS OBLIGATORIOS ================= */}
+      {activeSection === 'config_docs' && (
+        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-6 animate-in fade-in duration-200">
+          <div className="border-b border-slate-100 pb-3">
+            <h3 className="font-extrabold text-slate-900 text-sm uppercase tracking-wider flex items-center gap-2">
+              <Settings2 className="w-5 h-5 text-primary" />
+              <span>Configuración Global de Documentos Obligatorios Exigidos</span>
+            </h3>
+            <p className="text-xs text-slate-500 mt-1">
+              Administre el catálogo obligatorio de respaldos requeridos para empresas subcontratistas, personal propio/externo y maquinarias.
+            </p>
+          </div>
 
-            {/* SECCIÓN 1: DOCS EMPRESA OBLIGATORIOS */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-black uppercase text-slate-700 tracking-wider flex items-center gap-2">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* COLUMNA 1: DOCS EMPRESA */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
+              <h4 className="text-xs font-black uppercase text-slate-700 tracking-wider flex items-center gap-2 border-b border-slate-200 pb-2">
                 <Building2 className="w-4 h-4 text-primary" />
-                <span>1. Documentos Exigidos a la Empresa Subcontratista:</span>
+                <span>1. Docs. Empresa Subcontratista</span>
               </h4>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 {mandatoryCompanyDocs.map(d => (
-                  <div key={d.key} className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex justify-between items-center text-xs font-bold text-slate-800">
+                  <div key={d.key} className="bg-white p-2.5 rounded-xl border border-slate-200 flex justify-between items-center text-xs font-bold text-slate-800">
                     <span className="flex items-center gap-2">
                       <CheckSquare className="w-3.5 h-3.5 text-primary" />
                       <span>{d.label}</span>
@@ -839,29 +983,29 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                 ))}
               </div>
 
-              <form onSubmit={handleAddMandatoryCompanyDoc} className="flex gap-2 pt-1">
+              <form onSubmit={handleAddMandatoryCompanyDoc} className="space-y-2 pt-2">
                 <input
                   type="text"
                   placeholder="Agregar nuevo documento empresa..."
                   value={newCompanyDocLabel}
                   onChange={(e) => setNewCompanyDocLabel(e.target.value)}
-                  className="flex-1 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800"
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800"
                 />
-                <button type="submit" className="bg-primary hover:bg-primary-hover text-white font-bold px-4 rounded-xl text-xs transition cursor-pointer">
-                  + Agregar
+                <button type="submit" className="w-full bg-primary hover:bg-primary-hover text-white font-bold py-2 rounded-xl text-xs transition cursor-pointer">
+                  + Agregar a Empresa
                 </button>
               </form>
             </div>
 
-            {/* SECCIÓN 2: DOCS TRABAJADOR OBLIGATORIOS */}
-            <div className="space-y-3 pt-2 border-t border-slate-100">
-              <h4 className="text-xs font-black uppercase text-slate-700 tracking-wider flex items-center gap-2">
+            {/* COLUMNA 2: DOCS TRABAJADOR */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
+              <h4 className="text-xs font-black uppercase text-slate-700 tracking-wider flex items-center gap-2 border-b border-slate-200 pb-2">
                 <User className="w-4 h-4 text-emerald-600" />
-                <span>2. Documentos Exigidos por cada Trabajador Externo:</span>
+                <span>2. Docs. Trabajadores (Personal)</span>
               </h4>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 {mandatoryWorkerDocs.map(d => (
-                  <div key={d.key} className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex justify-between items-center text-xs font-bold text-slate-800">
+                  <div key={d.key} className="bg-white p-2.5 rounded-xl border border-slate-200 flex justify-between items-center text-xs font-bold text-slate-800">
                     <span className="flex items-center gap-2">
                       <CheckSquare className="w-3.5 h-3.5 text-emerald-600" />
                       <span>{d.label}</span>
@@ -877,29 +1021,29 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                 ))}
               </div>
 
-              <form onSubmit={handleAddMandatoryWorkerDoc} className="flex gap-2 pt-1">
+              <form onSubmit={handleAddMandatoryWorkerDoc} className="space-y-2 pt-2">
                 <input
                   type="text"
                   placeholder="Agregar nuevo documento trabajador..."
                   value={newWorkerDocLabel}
                   onChange={(e) => setNewWorkerDocLabel(e.target.value)}
-                  className="flex-1 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800"
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800"
                 />
-                <button type="submit" className="bg-primary hover:bg-primary-hover text-white font-bold px-4 rounded-xl text-xs transition cursor-pointer">
-                  + Agregar
+                <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-xl text-xs transition cursor-pointer">
+                  + Agregar a Trabajador
                 </button>
               </form>
             </div>
 
-            {/* SECCIÓN 3: DOCS MAQUINARIAS Y EQUIPOS OBLIGATORIOS */}
-            <div className="space-y-3 pt-2 border-t border-slate-100">
-              <h4 className="text-xs font-black uppercase text-slate-700 tracking-wider flex items-center gap-2">
+            {/* COLUMNA 3: DOCS MAQUINARIAS */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
+              <h4 className="text-xs font-black uppercase text-slate-700 tracking-wider flex items-center gap-2 border-b border-slate-200 pb-2">
                 <Truck className="w-4 h-4 text-amber-600" />
-                <span>3. Documentos Exigidos por cada Maquinaria / Equipo Externo:</span>
+                <span>3. Docs. Maquinarias y Equipos</span>
               </h4>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 {mandatoryEquipoDocs.map(d => (
-                  <div key={d.key} className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex justify-between items-center text-xs font-bold text-slate-800">
+                  <div key={d.key} className="bg-white p-2.5 rounded-xl border border-slate-200 flex justify-between items-center text-xs font-bold text-slate-800">
                     <span className="flex items-center gap-2">
                       <CheckSquare className="w-3.5 h-3.5 text-amber-600" />
                       <span>{d.label}</span>
@@ -915,28 +1059,20 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                 ))}
               </div>
 
-              <form onSubmit={handleAddMandatoryEquipoDoc} className="flex gap-2 pt-1">
+              <form onSubmit={handleAddMandatoryEquipoDoc} className="space-y-2 pt-2">
                 <input
                   type="text"
-                  placeholder="Agregar nuevo documento equipo (Ej: Certificado de Calibración)..."
+                  placeholder="Agregar nuevo documento equipo..."
                   value={newEquipoDocLabel}
                   onChange={(e) => setNewEquipoDocLabel(e.target.value)}
-                  className="flex-1 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800"
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800"
                 />
-                <button type="submit" className="bg-primary hover:bg-primary-hover text-white font-bold px-4 rounded-xl text-xs transition cursor-pointer">
-                  + Agregar
+                <button type="submit" className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 rounded-xl text-xs transition cursor-pointer">
+                  + Agregar a Equipos
                 </button>
               </form>
             </div>
 
-            <div className="pt-2 flex justify-end">
-              <button
-                onClick={() => setShowConfigDocsModal(false)}
-                className="bg-slate-900 text-white font-extrabold px-5 py-2.5 rounded-xl text-xs transition cursor-pointer"
-              >
-                Guardar Configuración
-              </button>
-            </div>
           </div>
         </div>
       )}
@@ -1047,7 +1183,6 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
               <button onClick={() => setSelectedSubDetail(null)} className="text-slate-400 hover:text-slate-650 font-bold text-sm cursor-pointer">✕</button>
             </div>
 
-            {/* PESTAÑAS DEL MODAL DETALLE */}
             <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
               <button
                 onClick={() => { setSubModalTab('empresa'); setRejectingKey(null); }}
@@ -1069,7 +1204,6 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
               </button>
             </div>
 
-            {/* VISTA CONTENIDO SUBMODAL */}
             {subModalTab === 'empresa' && (
               <div className="space-y-3 pt-2">
                 <h4 className="text-xs font-bold uppercase text-slate-700">Archivos Legales de la Empresa Subcontratista:</h4>
