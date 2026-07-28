@@ -4,7 +4,7 @@ import { sendSystemEmail } from '../utils/emailService';
 import { 
   ArrowLeft, ShieldCheck, Plus, Send, CheckCircle2, AlertCircle, FileText, 
   Trash2, Eye, Download, Copy, ExternalLink, Building2, User, Truck, 
-  RefreshCw, Check, Clock, Lock, Key, Mail, Search, FileUp, Sparkles, Filter, Settings2, CheckSquare
+  RefreshCw, Check, Clock, Lock, Key, Mail, Search, FileUp, Sparkles, Filter, Settings2, CheckSquare, XCircle, MessageSquare
 } from 'lucide-react';
 
 export default function Acreditaciones({ user, onBack, companyBranding }) {
@@ -38,6 +38,8 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
   // Modal para Revisar Documentos y Acreditación de Subcontratista
   const [selectedSubDetail, setSelectedSubDetail] = useState(null);
   const [subModalTab, setSubModalTab] = useState('empresa'); // 'empresa' | 'personal' | 'equipos'
+  const [rejectingKey, setRejectingKey] = useState(null); // 'empresa_f30_1' | 'worker_0_cedula'
+  const [rejectReasonInput, setRejectReasonInput] = useState('');
 
   // Configuración de Documentos Obligatorios
   const [showConfigDocsModal, setShowConfigDocsModal] = useState(false);
@@ -360,13 +362,10 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
   };
 
   const openSubDetailModal = (subItem) => {
-    // Cargar información completa del subcontratista desde localStorage o Supabase
     const savedDataStr = localStorage.getItem('obraxis_subcontrato_data_' + subItem.token_acceso);
     let subData = { companyDocs: {}, personalList: [], equiposList: [] };
     if (savedDataStr) {
-      try {
-        subData = JSON.parse(savedDataStr);
-      } catch (err) {}
+      try { subData = JSON.parse(savedDataStr); } catch (err) {}
     }
 
     setSelectedSubDetail({
@@ -376,6 +375,92 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
       equiposList: subData.equiposList || subItem.equiposList || []
     });
     setSubModalTab('empresa');
+    setRejectingKey(null);
+    setRejectReasonInput('');
+  };
+
+  // --- LÓGICA DE APROBACIÓN Y RECHAZO CON MOTIVO DE DOCUMENTOS ---
+  const handleUpdateDocStatus = (category, docKey, status, itemIndex = null, reason = '') => {
+    if (!selectedSubDetail) return;
+    const token = selectedSubDetail.token_acceso;
+
+    let nextCompanyDocs = { ...(selectedSubDetail.companyDocs || {}) };
+    let nextPersonalList = [...(selectedSubDetail.personalList || [])];
+    let nextEquiposList = [...(selectedSubDetail.equiposList || [])];
+
+    if (category === 'empresa') {
+      if (nextCompanyDocs[docKey]) {
+        nextCompanyDocs[docKey] = {
+          ...nextCompanyDocs[docKey],
+          status: status,
+          motivo_rechazo: status === 'Rechazado' ? reason : null,
+          reviewedAt: new Date().toLocaleDateString('es-CL')
+        };
+      }
+    } else if (category === 'personal' && itemIndex !== null) {
+      if (nextPersonalList[itemIndex] && nextPersonalList[itemIndex].docs && nextPersonalList[itemIndex].docs[docKey]) {
+        nextPersonalList[itemIndex].docs[docKey] = {
+          ...nextPersonalList[itemIndex].docs[docKey],
+          status: status,
+          motivo_rechazo: status === 'Rechazado' ? reason : null,
+          reviewedAt: new Date().toLocaleDateString('es-CL')
+        };
+      }
+    } else if (category === 'equipos' && itemIndex !== null) {
+      if (nextEquiposList[itemIndex] && nextEquiposList[itemIndex].docs && nextEquiposList[itemIndex].docs[docKey]) {
+        nextEquiposList[itemIndex].docs[docKey] = {
+          ...nextEquiposList[itemIndex].docs[docKey],
+          status: status,
+          motivo_rechazo: status === 'Rechazado' ? reason : null,
+          reviewedAt: new Date().toLocaleDateString('es-CL')
+        };
+      }
+    }
+
+    // Recalcular % de documentos aprobados
+    const empApprovedCount = Object.values(nextCompanyDocs).filter(d => d && d.status === 'Aprobado').length;
+    const progressPercent = Math.round((empApprovedCount / mandatoryCompanyDocs.length) * 100);
+
+    const updatedSub = {
+      ...selectedSubDetail,
+      estado_cumplimiento: progressPercent,
+      companyDocs: nextCompanyDocs,
+      personalList: nextPersonalList,
+      equiposList: nextEquiposList
+    };
+
+    setSelectedSubDetail(updatedSub);
+
+    // Guardar en localStorage del subcontrato
+    const payload = {
+      companyDocs: nextCompanyDocs,
+      personalList: nextPersonalList,
+      equiposList: nextEquiposList,
+      progressPercent: progressPercent,
+      updated_at: new Date().toISOString()
+    };
+    localStorage.setItem('obraxis_subcontrato_data_' + token, JSON.stringify(payload));
+
+    // Actualizar lista maestra de subcontratos
+    const localMaster = localStorage.getItem('obraxis_acreditaciones_subcontratos');
+    let masterList = localMaster ? JSON.parse(localMaster) : [];
+    const subIdx = masterList.findIndex(s => s.token_acceso === token);
+    if (subIdx !== -1) {
+      masterList[subIdx] = {
+        ...masterList[subIdx],
+        estado_cumplimiento: progressPercent,
+        companyDocs: nextCompanyDocs,
+        personalList: nextPersonalList,
+        equiposList: nextEquiposList
+      };
+      setSubcontratosList(masterList);
+      localStorage.setItem('obraxis_acreditaciones_subcontratos', JSON.stringify(masterList));
+    }
+
+    setRejectingKey(null);
+    setRejectReasonInput('');
+    setSuccessMsg(`Documento actualizado a: ${status}`);
+    setTimeout(() => setSuccessMsg(''), 3000);
   };
 
   const openFileViewer = (fileData) => {
@@ -497,7 +582,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
               <div className="flex justify-between items-center border-b border-slate-100 pb-2">
                 <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-2">
                   <User className="w-4 h-4 text-primary" />
-                  <span>2. Seleccionar Trabajadores y Verificar Documentos (${selectedWorkers.length} Seleccionados)</span>
+                  <span>2. Seleccionar Trabajadores y Verificar Documentos ({selectedWorkers.length} Seleccionados)</span>
                 </h4>
                 <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 flex items-center gap-1">
                   <Sparkles className="w-3 h-3" /> Sincronización Automática activa con RRHH
@@ -592,7 +677,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                   Empresas Subcontratistas Habilitadas ({subcontratosList.length})
                 </h3>
                 <p className="text-[11px] text-slate-500 mt-0.5">
-                  Gestione credenciales y revise en tiempo real los documentos subidos por cada empresa contratista externa.
+                  Gestione credenciales, configure documentos obligatorios y revise/apruebe documentos subidos por cada contratista.
                 </p>
               </div>
               <div className="flex gap-2">
@@ -622,15 +707,16 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                 {subcontratosList.map((sub) => {
                   const minisiteUrl = getMinisiteUrl(sub);
 
-                  // Cargar data detallada guardada
                   const savedStr = localStorage.getItem('obraxis_subcontrato_data_' + sub.token_acceso);
                   let savedData = { companyDocs: {}, personalList: [], equiposList: [] };
                   if (savedStr) {
                     try { savedData = JSON.parse(savedStr); } catch (e) {}
                   }
 
-                  const empDocsCount = Object.values(savedData.companyDocs || sub.companyDocs || {}).filter(Boolean).length;
-                  const percent = Math.round((empDocsCount / mandatoryCompanyDocs.length) * 100) || 0;
+                  const empDocs = savedData.companyDocs || sub.companyDocs || {};
+                  const empApprovedCount = Object.values(empDocs).filter(d => d && d.status === 'Aprobado').length;
+                  const empTotalCount = Object.values(empDocs).filter(Boolean).length;
+                  const percent = Math.round((empApprovedCount / mandatoryCompanyDocs.length) * 100) || 0;
 
                   return (
                     <div key={sub.id || sub.token_acceso} className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4 hover:shadow-sm transition">
@@ -644,11 +730,10 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                         </span>
                       </div>
 
-                      {/* BARRA DE AVANCE & DOCUMENTOS RECIBIDOS */}
                       <div className="space-y-1">
                         <div className="flex justify-between text-[10px] font-bold text-slate-600">
-                          <span>Docs Empresa Cargados:</span>
-                          <span className="text-emerald-700 font-mono">${empDocsCount} / ${mandatoryCompanyDocs.length} (${percent}%)</span>
+                          <span>Docs Aprobados:</span>
+                          <span className="text-emerald-700 font-mono">{empApprovedCount} de {mandatoryCompanyDocs.length} Aprobados ({percent}%)</span>
                         </div>
                         <div className="bg-slate-200 rounded-full h-2 overflow-hidden">
                           <div className="bg-emerald-500 h-full transition-all duration-300" style={{ width: `${percent}%` }}></div>
@@ -659,7 +744,6 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                         </div>
                       </div>
 
-                      {/* CREDANCIALES GENERADAS */}
                       <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1.5 text-xs">
                         <div className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider">Credenciales de Acceso:</div>
                         <div className="flex justify-between items-center text-slate-700 font-mono text-[11px]">
@@ -668,14 +752,13 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                         </div>
                       </div>
 
-                      {/* ACCIONES Y BOTÓN REVISAR DOCUMENTOS */}
                       <div className="space-y-2 pt-1">
                         <button
                           onClick={() => openSubDetailModal(sub)}
                           className="w-full bg-primary hover:bg-primary-hover text-white font-extrabold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-2xs"
                         >
                           <Eye className="w-4 h-4" />
-                          <span>Revisar Documentos y Acreditación</span>
+                          <span>Revisar, Aprobar o Rechazar Documentos</span>
                         </button>
 
                         <div className="flex items-center gap-2">
@@ -719,7 +802,6 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
               <button onClick={() => setShowConfigDocsModal(false)} className="text-slate-400 hover:text-slate-650 font-bold text-sm cursor-pointer">✕</button>
             </div>
 
-            {/* SECCIÓN 1: DOCS EMPRESA OBLIGATORIOS */}
             <div className="space-y-3">
               <h4 className="text-xs font-black uppercase text-slate-700 tracking-wider">1. Documentos Exigidos a la Empresa Subcontratista:</h4>
               <div className="space-y-1.5">
@@ -732,7 +814,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                     <button
                       onClick={() => handleRemoveMandatoryCompanyDoc(d.key)}
                       className="text-rose-600 hover:bg-rose-100 p-1 rounded-md transition cursor-pointer"
-                      title="Quitar de requerimientos"
+                      title="Quitar"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -743,7 +825,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
               <form onSubmit={handleAddMandatoryCompanyDoc} className="flex gap-2 pt-1">
                 <input
                   type="text"
-                  placeholder="Agregar nuevo documento empresa (Ej: Reglamento Interno de Orden y Seguridad)"
+                  placeholder="Agregar nuevo documento empresa"
                   value={newCompanyDocLabel}
                   onChange={(e) => setNewCompanyDocLabel(e.target.value)}
                   className="flex-1 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800"
@@ -754,7 +836,6 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
               </form>
             </div>
 
-            {/* SECCIÓN 2: DOCS TRABAJADOR OBLIGATORIOS */}
             <div className="space-y-3 pt-2 border-t border-slate-100">
               <h4 className="text-xs font-black uppercase text-slate-700 tracking-wider">2. Documentos Exigidos por cada Trabajador Externo:</h4>
               <div className="space-y-1.5">
@@ -778,7 +859,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
               <form onSubmit={handleAddMandatoryWorkerDoc} className="flex gap-2 pt-1">
                 <input
                   type="text"
-                  placeholder="Agregar nuevo documento trabajador (Ej: Pase de Altura Física)"
+                  placeholder="Agregar nuevo documento trabajador"
                   value={newWorkerDocLabel}
                   onChange={(e) => setNewWorkerDocLabel(e.target.value)}
                   className="flex-1 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800"
@@ -801,7 +882,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
         </div>
       )}
 
-      {/* MODAL REGISTRAR EMPRESA SUBCONTRATISTA */}
+      {/* MODAL REGISTRAR SUBCONTRATO */}
       {showSubModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 space-y-4">
@@ -894,13 +975,13 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
         </div>
       )}
 
-      {/* MODAL DETALLE Y REVISIÓN DE DOCUMENTOS SUBCONTRATISTA */}
+      {/* MODAL DETALLE Y REVISIÓN / APROBACIÓN / RECHAZO DE DOCUMENTOS */}
       {selectedSubDetail && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl w-full max-w-4xl p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
-                <span className="text-[9.5px] font-extrabold uppercase text-blue-600 tracking-wider">Revisión de Acreditación Externa</span>
+                <span className="text-[9.5px] font-extrabold uppercase text-blue-600 tracking-wider">Centro de Evaluación y Acreditación</span>
                 <h3 className="font-black text-slate-900 text-sm uppercase">{selectedSubDetail.empresa_nombre}</h3>
                 <span className="text-[10.5px] text-slate-500">RUT: {selectedSubDetail.rut_empresa || 'N/A'} | Obra: {selectedSubDetail.obra_asociada}</span>
               </div>
@@ -910,48 +991,125 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
             {/* PESTAÑAS DEL MODAL DETALLE */}
             <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
               <button
-                onClick={() => setSubModalTab('empresa')}
+                onClick={() => { setSubModalTab('empresa'); setRejectingKey(null); }}
                 className={`flex-1 py-2 text-xs font-bold rounded-lg transition cursor-pointer ${subModalTab === 'empresa' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
               >
                 Docs. Empresa ({Object.keys(selectedSubDetail.companyDocs || {}).length})
               </button>
               <button
-                onClick={() => setSubModalTab('personal')}
+                onClick={() => { setSubModalTab('personal'); setRejectingKey(null); }}
                 className={`flex-1 py-2 text-xs font-bold rounded-lg transition cursor-pointer ${subModalTab === 'personal' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
               >
                 Personal Externo ({(selectedSubDetail.personalList || []).length})
               </button>
               <button
-                onClick={() => setSubModalTab('equipos')}
+                onClick={() => { setSubModalTab('equipos'); setRejectingKey(null); }}
                 className={`flex-1 py-2 text-xs font-bold rounded-lg transition cursor-pointer ${subModalTab === 'equipos' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
               >
                 Equipos Externos ({(selectedSubDetail.equiposList || []).length})
               </button>
             </div>
 
-            {/* VISTA CONTENIDO SUBMODAL */}
+            {/* VISTA CONTENIDO SUBMODAL CON VISUALIZACIÓN, APROBACIÓN Y RECHAZO */}
             {subModalTab === 'empresa' && (
               <div className="space-y-3 pt-2">
-                <h4 className="text-xs font-bold uppercase text-slate-700">Archivos Legales Cargados por la Empresa:</h4>
+                <h4 className="text-xs font-bold uppercase text-slate-700">Archivos Legales de la Empresa Subcontratista:</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {mandatoryCompanyDocs.map(item => {
                     const uploaded = selectedSubDetail.companyDocs && selectedSubDetail.companyDocs[item.key];
+                    const docStatus = uploaded ? (uploaded.status || 'Pendiente de Revisión') : 'No cargado';
+                    const isRejecting = rejectingKey === `empresa_${item.key}`;
+
                     return (
-                      <div key={item.key} className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2 text-xs">
-                        <div className="font-extrabold text-slate-800 uppercase">{item.label}</div>
+                      <div key={item.key} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 text-xs">
+                        <div className="flex justify-between items-start">
+                          <div className="font-extrabold text-slate-800 uppercase">{item.label}</div>
+                          {uploaded && (
+                            <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full border uppercase ${
+                              docStatus === 'Aprobado' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                              docStatus === 'Rechazado' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                              'bg-amber-50 text-amber-700 border-amber-200'
+                            }`}>
+                              {docStatus}
+                            </span>
+                          )}
+                        </div>
+
                         {uploaded ? (
-                          <div className="bg-emerald-50 border border-emerald-200 p-2 rounded-lg flex justify-between items-center text-emerald-800 font-bold">
-                            <span className="truncate text-[11px]">{uploaded.fileName}</span>
-                            <button
-                              onClick={() => openFileViewer(uploaded)}
-                              className="px-2 py-1 bg-white hover:bg-slate-100 text-emerald-700 border border-emerald-300 rounded-md transition cursor-pointer flex items-center gap-1 text-[10px]"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              <span>Ver Archivo</span>
-                            </button>
+                          <div className="space-y-2">
+                            <div className="bg-white border border-slate-200 p-2.5 rounded-xl flex justify-between items-center text-xs">
+                              <span className="truncate text-[11px] font-bold text-slate-700">{uploaded.fileName}</span>
+                              <button
+                                onClick={() => openFileViewer(uploaded)}
+                                className="px-2.5 py-1 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg transition cursor-pointer flex items-center gap-1 text-[10px] font-bold"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>Ver Archivo</span>
+                              </button>
+                            </div>
+
+                            {/* MOTIVO DE RECHAZO ACTUAL SI EXISTE */}
+                            {uploaded.motivo_rechazo && (
+                              <div className="bg-rose-50 border border-rose-200 p-2 rounded-xl text-[10px] text-rose-800 flex items-start gap-1.5 font-medium">
+                                <MessageSquare className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+                                <div><strong>Motivo Rechazo:</strong> {uploaded.motivo_rechazo}</div>
+                              </div>
+                            )}
+
+                            {/* BOTONES DE APROBACIÓN Y RECHAZO */}
+                            <div className="flex gap-1.5 pt-1">
+                              <button
+                                onClick={() => handleUpdateDocStatus('empresa', item.key, 'Aprobado')}
+                                className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition cursor-pointer ${docStatus === 'Aprobado' ? 'bg-emerald-600 text-white shadow-2xs' : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'}`}
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Aprobar</span>
+                              </button>
+                              <button
+                                onClick={() => setRejectingKey(`empresa_${item.key}`)}
+                                className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition cursor-pointer ${docStatus === 'Rechazado' ? 'bg-rose-600 text-white shadow-2xs' : 'bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200'}`}
+                              >
+                                <XCircle className="w-3.5 h-3.5" />
+                                <span>Rechazar</span>
+                              </button>
+                            </div>
+
+                            {/* INPUT PARA COMENTAR MOTIVO DE RECHAZO */}
+                            {isRejecting && (
+                              <div className="bg-white p-3 rounded-xl border border-rose-300 space-y-2 animate-in fade-in">
+                                <label className="block text-[9.5px] font-bold text-rose-900 uppercase">Indique el Motivo de Rechazo:</label>
+                                <textarea
+                                  rows="2"
+                                  placeholder="Ej: Documento borroso o certificado vencido..."
+                                  value={rejectReasonInput}
+                                  onChange={(e) => setRejectReasonInput(e.target.value)}
+                                  className="w-full text-xs p-2 border border-slate-200 rounded-lg text-slate-800"
+                                ></textarea>
+                                <div className="flex justify-end gap-1.5">
+                                  <button
+                                    onClick={() => setRejectingKey(null)}
+                                    className="px-2.5 py-1 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg"
+                                  >
+                                    Cancelar
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      if (!rejectReasonInput.trim()) {
+                                        alert('Por favor ingrese el motivo de rechazo.');
+                                        return;
+                                      }
+                                      handleUpdateDocStatus('empresa', item.key, 'Rechazado', null, rejectReasonInput.trim());
+                                    }}
+                                    className="px-2.5 py-1 text-[10px] font-bold bg-rose-600 text-white rounded-lg hover:bg-rose-700"
+                                  >
+                                    Confirmar Rechazo
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         ) : (
-                          <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-bold">
+                          <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-bold block text-center">
                             ⚠️ Pendiente de carga por el subcontratista
                           </span>
                         )}
@@ -970,26 +1128,89 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                 ) : (
                   <div className="space-y-3">
                     {(selectedSubDetail.personalList || []).map((p, pIdx) => (
-                      <div key={pIdx} className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2 text-xs">
+                      <div key={pIdx} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3 text-xs">
                         <div className="flex justify-between font-extrabold text-slate-900">
                           <span>{p.nombre} ({p.rut})</span>
                           <span className="bg-blue-100 text-blue-900 text-[10px] px-2 py-0.5 rounded uppercase">{p.cargo || 'Operario'}</span>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1">
-                          {['cedula', 'contrato', 'examen'].map(docKey => {
-                            const file = p.docs && p.docs[docKey];
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
+                          {mandatoryWorkerDocs.map(doc => {
+                            const file = p.docs && p.docs[doc.key];
+                            const docStatus = file ? (file.status || 'Pendiente de Revisión') : 'No cargado';
+                            const isRejecting = rejectingKey === `worker_${pIdx}_${doc.key}`;
+
                             return (
-                              <div key={docKey} className="bg-white p-2 rounded-lg border border-slate-200 flex justify-between items-center text-[10px]">
-                                <span className="font-bold uppercase text-slate-600">{docKey}</span>
+                              <div key={doc.key} className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-2">
+                                <div className="flex justify-between items-center text-[10px]">
+                                  <span className="font-bold uppercase text-slate-700">{doc.label}</span>
+                                  {file && (
+                                    <span className={`text-[8.5px] font-extrabold px-1.5 py-0.5 rounded uppercase ${
+                                      docStatus === 'Aprobado' ? 'bg-emerald-50 text-emerald-700' :
+                                      docStatus === 'Rechazado' ? 'bg-rose-50 text-rose-700' :
+                                      'bg-amber-50 text-amber-700'
+                                    }`}>
+                                      {docStatus}
+                                    </span>
+                                  )}
+                                </div>
+
                                 {file ? (
-                                  <button
-                                    onClick={() => openFileViewer(file)}
-                                    className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 cursor-pointer"
-                                  >
-                                    <Eye className="w-3 h-3" /> Ver
-                                  </button>
+                                  <div className="space-y-1.5">
+                                    <div className="flex justify-between items-center text-[10px] font-bold text-emerald-800 bg-emerald-50 p-1.5 rounded-md">
+                                      <span className="truncate">{file.fileName}</span>
+                                      <button onClick={() => openFileViewer(file)} className="text-emerald-700 hover:text-emerald-900 p-0.5" title="Ver">
+                                        <Eye className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+
+                                    {file.motivo_rechazo && (
+                                      <div className="text-[9px] text-rose-800 bg-rose-50 p-1 rounded font-medium">
+                                        <strong>Motivo:</strong> {file.motivo_rechazo}
+                                      </div>
+                                    )}
+
+                                    <div className="flex gap-1 pt-0.5">
+                                      <button
+                                        onClick={() => handleUpdateDocStatus('personal', doc.key, 'Aprobado', pIdx)}
+                                        className="flex-1 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded text-[9.5px] font-bold"
+                                      >
+                                        ✓ Aprobar
+                                      </button>
+                                      <button
+                                        onClick={() => setRejectingKey(`worker_${pIdx}_${doc.key}`)}
+                                        className="flex-1 py-1 bg-rose-50 hover:bg-rose-100 text-rose-800 rounded text-[9.5px] font-bold"
+                                      >
+                                        ✕ Rechazar
+                                      </button>
+                                    </div>
+
+                                    {isRejecting && (
+                                      <div className="bg-white p-2 rounded border border-rose-300 space-y-1 mt-1">
+                                        <textarea
+                                          rows="2"
+                                          placeholder="Motivo de rechazo..."
+                                          value={rejectReasonInput}
+                                          onChange={(e) => setRejectReasonInput(e.target.value)}
+                                          className="w-full text-[10px] p-1 border rounded"
+                                        ></textarea>
+                                        <div className="flex justify-end gap-1">
+                                          <button onClick={() => setRejectingKey(null)} className="text-[9px] px-2 py-0.5 bg-slate-100 rounded">Cancelar</button>
+                                          <button
+                                            onClick={() => {
+                                              if (!rejectReasonInput.trim()) return alert('Ingrese el motivo.');
+                                              handleUpdateDocStatus('personal', doc.key, 'Rechazado', pIdx, rejectReasonInput.trim());
+                                            }}
+                                            className="text-[9px] px-2 py-0.5 bg-rose-600 text-white rounded font-bold"
+                                          >
+                                            Confirmar
+                                          </button>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
                                 ) : (
-                                  <span className="text-slate-400 italic">No cargado</span>
+                                  <span className="text-[9px] text-slate-400 italic block">No cargado</span>
                                 )}
                               </div>
                             );
@@ -1010,26 +1231,89 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                 ) : (
                   <div className="space-y-3">
                     {(selectedSubDetail.equiposList || []).map((eq, eIdx) => (
-                      <div key={eIdx} className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2 text-xs">
+                      <div key={eIdx} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3 text-xs">
                         <div className="flex justify-between font-extrabold text-slate-900">
                           <span>{eq.tipo_equipo} (Patente: {eq.patente_codigo})</span>
                           <span className="bg-amber-100 text-amber-900 text-[10px] px-2 py-0.5 rounded uppercase">{eq.marca_modelo || 'Equipo'}</span>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1">
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
                           {['padron', 'revision', 'seguro'].map(docKey => {
                             const file = eq.docs && eq.docs[docKey];
+                            const docStatus = file ? (file.status || 'Pendiente de Revisión') : 'No cargado';
+                            const isRejecting = rejectingKey === `equipo_${eIdx}_${docKey}`;
+
                             return (
-                              <div key={docKey} className="bg-white p-2 rounded-lg border border-slate-200 flex justify-between items-center text-[10px]">
-                                <span className="font-bold uppercase text-slate-600">{docKey}</span>
+                              <div key={docKey} className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-2">
+                                <div className="flex justify-between items-center text-[10px]">
+                                  <span className="font-bold uppercase text-slate-700">{docKey}</span>
+                                  {file && (
+                                    <span className={`text-[8.5px] font-extrabold px-1.5 py-0.5 rounded uppercase ${
+                                      docStatus === 'Aprobado' ? 'bg-emerald-50 text-emerald-700' :
+                                      docStatus === 'Rechazado' ? 'bg-rose-50 text-rose-700' :
+                                      'bg-amber-50 text-amber-700'
+                                    }`}>
+                                      {docStatus}
+                                    </span>
+                                  )}
+                                </div>
+
                                 {file ? (
-                                  <button
-                                    onClick={() => openFileViewer(file)}
-                                    className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 cursor-pointer"
-                                  >
-                                    <Eye className="w-3 h-3" /> Ver
-                                  </button>
+                                  <div className="space-y-1.5">
+                                    <div className="flex justify-between items-center text-[10px] font-bold text-emerald-800 bg-emerald-50 p-1.5 rounded-md">
+                                      <span className="truncate">{file.fileName}</span>
+                                      <button onClick={() => openFileViewer(file)} className="text-emerald-700 hover:text-emerald-900 p-0.5" title="Ver">
+                                        <Eye className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+
+                                    {file.motivo_rechazo && (
+                                      <div className="text-[9px] text-rose-800 bg-rose-50 p-1 rounded font-medium">
+                                        <strong>Motivo:</strong> {file.motivo_rechazo}
+                                      </div>
+                                    )}
+
+                                    <div className="flex gap-1 pt-0.5">
+                                      <button
+                                        onClick={() => handleUpdateDocStatus('equipos', docKey, 'Aprobado', eIdx)}
+                                        className="flex-1 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded text-[9.5px] font-bold"
+                                      >
+                                        ✓ Aprobar
+                                      </button>
+                                      <button
+                                        onClick={() => setRejectingKey(`equipo_${eIdx}_${docKey}`)}
+                                        className="flex-1 py-1 bg-rose-50 hover:bg-rose-100 text-rose-800 rounded text-[9.5px] font-bold"
+                                      >
+                                        ✕ Rechazar
+                                      </button>
+                                    </div>
+
+                                    {isRejecting && (
+                                      <div className="bg-white p-2 rounded border border-rose-300 space-y-1 mt-1">
+                                        <textarea
+                                          rows="2"
+                                          placeholder="Motivo de rechazo..."
+                                          value={rejectReasonInput}
+                                          onChange={(e) => setRejectReasonInput(e.target.value)}
+                                          className="w-full text-[10px] p-1 border rounded"
+                                        ></textarea>
+                                        <div className="flex justify-end gap-1">
+                                          <button onClick={() => setRejectingKey(null)} className="text-[9px] px-2 py-0.5 bg-slate-100 rounded">Cancelar</button>
+                                          <button
+                                            onClick={() => {
+                                              if (!rejectReasonInput.trim()) return alert('Ingrese el motivo.');
+                                              handleUpdateDocStatus('equipos', docKey, 'Rechazado', eIdx, rejectReasonInput.trim());
+                                            }}
+                                            className="text-[9px] px-2 py-0.5 bg-rose-600 text-white rounded font-bold"
+                                          >
+                                            Confirmar
+                                          </button>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
                                 ) : (
-                                  <span className="text-slate-400 italic">No cargado</span>
+                                  <span className="text-[9px] text-slate-400 italic block">No cargado</span>
                                 )}
                               </div>
                             );
