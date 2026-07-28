@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { formatRut } from '../utils/rutUtils';
 import { 
   Users, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Check, Building2, UserPlus, 
   FileText, DollarSign, Upload, FileCheck, RefreshCw, Calculator, BookOpen, Download, Building, Printer
@@ -274,7 +275,7 @@ function Personal({ user, onBack }) {
 
     const fullDataToSave = {
       nombre: formData.nombre.trim(),
-      rut: formData.rut ? formData.rut.trim() : null,
+      rut: formData.rut ? formatRut(formData.rut.trim()) : null,
       cargo: formData.cargo.trim(),
       fono: formData.fono ? formData.fono.trim() : null,
       email: formData.email ? formData.email.trim() : null,
@@ -574,7 +575,7 @@ function Personal({ user, onBack }) {
                       <tr key={p.id} className="hover:bg-slate-50 transition">
                         <td className="p-3 font-bold text-slate-800">
                           <div>{p.nombre}</div>
-                          <span className="text-[10px] text-slate-500 font-mono font-medium">{p.rut || 'Sin RUT'} {p.fono ? `• ${p.fono}` : ''}</span>
+                          <span className="text-[10px] text-slate-500 font-mono font-medium">{formatRut(p.rut) || 'Sin RUT'} {p.fono ? `• ${p.fono}` : ''}</span>
                         </td>
                         <td className="p-3">
                           <span className="font-semibold text-blue-950">{p.cargo}</span>
@@ -1210,6 +1211,7 @@ function Personal({ user, onBack }) {
                       type="text"
                       value={formData.rut}
                       onChange={(e) => setFormData({ ...formData, rut: e.target.value })}
+                      onBlur={(e) => setFormData({ ...formData, rut: formatRut(e.target.value) })}
                       placeholder="12.345.678-9"
                       className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800"
                     />

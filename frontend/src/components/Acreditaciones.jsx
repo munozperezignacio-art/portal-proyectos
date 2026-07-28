@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { formatRut } from '../utils/rutUtils';
 import { sendSystemEmail } from '../utils/emailService';
 import { 
   ArrowLeft, ShieldCheck, Plus, Send, CheckCircle2, AlertCircle, FileText, 
@@ -350,7 +351,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
 
     const newSub = {
       empresa_nombre: subForm.empresa_nombre,
-      rut_empresa: subForm.rut_empresa || '76.000.000-0',
+      rut_empresa: formatRut(subForm.rut_empresa) || '76.000.000-0',
       obra_asociada: subForm.obra_asociada || selectedObra || 'Todas las Obras',
       correo_contacto: subForm.correo_contacto,
       token_acceso: token,
@@ -1110,6 +1111,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                     placeholder="76.123.456-7"
                     value={subForm.rut_empresa}
                     onChange={(e) => setSubForm({ ...subForm, rut_empresa: e.target.value })}
+                    onBlur={(e) => setSubForm({ ...subForm, rut_empresa: formatRut(e.target.value) })}
                     className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800"
                   />
                 </div>

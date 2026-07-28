@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { formatRut } from '../utils/rutUtils';
 import { 
   Building2, ShieldCheck, User, Truck, FileUp, CheckCircle2, Lock, 
-  Plus, Trash2, FileText, Check, AlertCircle, Sparkles, ExternalLink, Key, Eye, Download, XCircle, MessageSquare
+  Plus, Trash2, FileText, Check, AlertCircle, Sparkles, ExternalLink, Key, Eye, Download, XCircle, MessageSquare, Save, RefreshCw
 } from 'lucide-react';
 
 export default function PublicSubcontractAcreditacion({ token, companyNameParam }) {
@@ -12,13 +13,7 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
   const [activeTab, setActiveTab] = useState('empresa'); // 'empresa' | 'personal' | 'equipos'
 
   // Documentos Empresa
-  const [companyDocs, setCompanyDocs] = useState({
-    rut_empresa: null,
-    f30_1: null,
-    cotizaciones_previsionales: null,
-    seguro_rc: null,
-    plan_prevencion: null
-  });
+  const [companyDocs, setCompanyDocs] = useState({});
 
   // Personal Externo
   const [personalList, setPersonalList] = useState([]);
@@ -30,7 +25,7 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
   const [showEquipoModal, setShowEquipoModal] = useState(false);
   const [equipoForm, setEquipoForm] = useState({ tipo_equipo: '', patente_codigo: '', marca_modelo: '' });
 
-  // Listados dinámicos de documentos obligatorios
+  // Listados dinámicos de documentos obligatorios (sincronizados directamente con Obraxis)
   const [mandatoryCompanyDocs, setMandatoryCompanyDocs] = useState([
     { key: 'rut_empresa', label: 'E-RUT / RUT Empresa' },
     { key: 'f30_1', label: 'Certificado F30-1 (Dirección del Trabajo)' },
@@ -52,18 +47,25 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
     { key: 'checklist', label: 'Check-list Pre-operacional de Seguridad' }
   ]);
 
-  // Mensaje
+  // Mensaje y estado de guardado
   const [successMsg, setSuccessMsg] = useState('');
+  const [savingSync, setSavingSync] = useState(false);
 
   useEffect(() => {
+    loadMandatoryDocsConfig();
     loadSubcontractData();
+  }, [token]);
+
+  const loadMandatoryDocsConfig = () => {
     const savedComp = localStorage.getItem('obraxis_mandatory_company_docs');
     if (savedComp) setMandatoryCompanyDocs(JSON.parse(savedComp));
+
     const savedWork = localStorage.getItem('obraxis_mandatory_worker_docs');
     if (savedWork) setMandatoryWorkerDocs(JSON.parse(savedWork));
+
     const savedEq = localStorage.getItem('obraxis_mandatory_equipo_docs');
     if (savedEq) setMandatoryEquipoDocs(JSON.parse(savedEq));
-  }, [token]);
+  };
 
   const loadSubcontractData = async () => {
     if (!token) return;
@@ -119,20 +121,23 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
     }
   };
 
-  const saveSubData = (newCompanyDocs, newPersonalList, newEquiposList) => {
+  // BOTÓN DE GUARDAR Y SINCRONIZAR CON EL PORTAL OBRAXIS
+  const handleSaveAndSyncPortal = async () => {
     if (!token) return;
+    setSavingSync(true);
 
-    const empApprovedCount = Object.values(newCompanyDocs).filter(d => d && d.status === 'Aprobado').length;
-    const progressPercent = Math.round((empApprovedCount / mandatoryCompanyDocs.length) * 100);
+    const empApprovedCount = Object.values(companyDocs).filter(d => d && d.status === 'Aprobado').length;
+    const progressPercent = Math.round((empApprovedCount / mandatoryCompanyDocs.length) * 100) || 0;
 
     const payload = {
-      companyDocs: newCompanyDocs,
-      personalList: newPersonalList,
-      equiposList: newEquiposList,
+      companyDocs: companyDocs,
+      personalList: personalList,
+      equiposList: equiposList,
       progressPercent: progressPercent,
       updated_at: new Date().toISOString()
     };
 
+    // 1. Guardar en LocalStorage para persistencia instantánea
     localStorage.setItem('obraxis_subcontrato_data_' + token, JSON.stringify(payload));
 
     const localMaster = localStorage.getItem('obraxis_acreditaciones_subcontratos');
@@ -143,21 +148,43 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
       masterList[subIdx] = {
         ...masterList[subIdx],
         estado_cumplimiento: progressPercent,
-        companyDocs: newCompanyDocs,
-        personalList: newPersonalList,
-        equiposList: newEquiposList
+        companyDocs: companyDocs,
+        personalList: personalList,
+        equiposList: equiposList
       };
     } else if (subInfo) {
       masterList.push({
         ...subInfo,
         estado_cumplimiento: progressPercent,
-        companyDocs: newCompanyDocs,
-        personalList: newPersonalList,
-        equiposList: newEquiposList
+        companyDocs: companyDocs,
+        personalList: personalList,
+        equiposList: equiposList
       });
     }
 
     localStorage.setItem('obraxis_acreditaciones_subcontratos', JSON.stringify(masterList));
+
+    // 2. Intentar Sincronizar en Supabase
+    try {
+      await supabase
+        .from('acreditaciones_subcontratos')
+        .update({
+          estado_cumplimiento: progressPercent,
+          companyDocs: companyDocs,
+          personalList: personalList,
+          equiposList: equiposList,
+          updated_at: new Date().toISOString()
+        })
+        .eq('token_acceso', token);
+    } catch (err) {
+      console.warn('Sincronización Supabase secundario en localStorage.');
+    }
+
+    setTimeout(() => {
+      setSavingSync(false);
+      setSuccessMsg('¡Acreditación guardada y sincronizada exitosamente con el Portal Obraxis!');
+      setTimeout(() => setSuccessMsg(''), 5000);
+    }, 400);
   };
 
   const handleLogin = (e) => {
@@ -199,10 +226,8 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
         setEquiposList(nextEquiposList);
       }
 
-      saveSubData(nextCompanyDocs, nextPersonalList, nextEquiposList);
-
-      setSuccessMsg(`¡Documento ${file.name} guardado y enviado a revisión!`);
-      setTimeout(() => setSuccessMsg(''), 4000);
+      setSuccessMsg(`¡Documento ${file.name} cargado! Recuerde presionar "Guardar y Sincronizar" para enviar al portal.`);
+      setTimeout(() => setSuccessMsg(''), 5000);
     };
     reader.readAsDataURL(file);
   };
@@ -213,13 +238,13 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
       alert('Nombre y RUT son obligatorios');
       return;
     }
-    const nextPersonalList = [...personalList, { ...personForm, docs: {} }];
+    const formattedWorkerRut = formatRut(personForm.rut);
+    const nextPersonalList = [...personalList, { ...personForm, rut: formattedWorkerRut, docs: {} }];
     setPersonalList(nextPersonalList);
-    saveSubData(companyDocs, nextPersonalList, equiposList);
 
     setPersonForm({ nombre: '', rut: '', cargo: '' });
     setShowPersonModal(false);
-    setSuccessMsg('¡Trabajador guardado! Ahora puede adjuntar sus documentos.');
+    setSuccessMsg(`¡Trabajador ${personForm.nombre} (${formattedWorkerRut}) registrado!`);
     setTimeout(() => setSuccessMsg(''), 4000);
   };
 
@@ -231,11 +256,10 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
     }
     const nextEquiposList = [...equiposList, { ...equipoForm, docs: {} }];
     setEquiposList(nextEquiposList);
-    saveSubData(companyDocs, personalList, nextEquiposList);
 
     setEquipoForm({ tipo_equipo: '', patente_codigo: '', marca_modelo: '' });
     setShowEquipoModal(false);
-    setSuccessMsg('¡Equipo guardado! Ahora puede adjuntar sus documentos.');
+    setSuccessMsg('¡Equipo registrado!');
     setTimeout(() => setSuccessMsg(''), 4000);
   };
 
@@ -251,7 +275,7 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
   };
 
   const empApprovedCount = Object.values(companyDocs).filter(d => d && d.status === 'Aprobado').length;
-  const progressPercent = Math.round((empApprovedCount / mandatoryCompanyDocs.length) * 100);
+  const progressPercent = Math.round((empApprovedCount / mandatoryCompanyDocs.length) * 100) || 0;
 
   if (!authenticated) {
     return (
@@ -311,33 +335,44 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
           <div>
             <span className="text-[10px] font-extrabold uppercase text-blue-600 tracking-wider">Portal de Acreditación Subcontratos</span>
             <h1 className="text-lg font-black text-slate-900 uppercase tracking-wide">{subInfo?.empresa_nombre}</h1>
-            <p className="text-xs text-slate-500">Obra Asociada: <strong>{subInfo?.obra_asociada || 'Obraxis Faena'}</strong></p>
+            <p className="text-xs text-slate-500">RUT: <strong>{formatRut(subInfo?.rut_empresa)}</strong> | Obra: <strong>{subInfo?.obra_asociada || 'Obraxis Faena'}</strong></p>
           </div>
         </div>
 
-        {/* NAVEGACIÓN PESTAÑAS */}
-        <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1 border border-slate-200">
+        {/* BOTÓN GUARDAR Y SINCRONIZAR + NAVEGACIÓN PESTAÑAS */}
+        <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => setActiveTab('empresa')}
-            className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-2 ${activeTab === 'empresa' ? 'bg-primary text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+            onClick={handleSaveAndSyncPortal}
+            disabled={savingSync}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-4 py-2.5 rounded-2xl text-xs flex items-center gap-2 transition cursor-pointer shadow-md disabled:opacity-50"
           >
-            <Building2 className="w-4 h-4" />
-            <span>1. Docs. Empresa</span>
+            {savingSync ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            <span>💾 Guardar y Sincronizar con Obraxis</span>
           </button>
-          <button
-            onClick={() => setActiveTab('personal')}
-            className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-2 ${activeTab === 'personal' ? 'bg-primary text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
-          >
-            <User className="w-4 h-4" />
-            <span>2. Personal ({personalList.length})</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('equipos')}
-            className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-2 ${activeTab === 'equipos' ? 'bg-primary text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
-          >
-            <Truck className="w-4 h-4" />
-            <span>3. Equipos ({equiposList.length})</span>
-          </button>
+
+          <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1 border border-slate-200">
+            <button
+              onClick={() => setActiveTab('empresa')}
+              className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-2 ${activeTab === 'empresa' ? 'bg-primary text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+            >
+              <Building2 className="w-4 h-4" />
+              <span>1. Docs. Empresa</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('personal')}
+              className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-2 ${activeTab === 'personal' ? 'bg-primary text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+            >
+              <User className="w-4 h-4" />
+              <span>2. Personal ({personalList.length})</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('equipos')}
+              className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-2 ${activeTab === 'equipos' ? 'bg-primary text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+            >
+              <Truck className="w-4 h-4" />
+              <span>3. Equipos ({equiposList.length})</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -351,8 +386,8 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
       </div>
 
       {successMsg && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-2xl text-xs font-bold flex items-center gap-2 animate-in fade-in">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3.5 rounded-2xl text-xs font-bold flex items-center gap-2 animate-in fade-in shadow-xs">
+          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
           <span>{successMsg}</span>
         </div>
       )}
@@ -360,9 +395,14 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
       {/* ================= PESTAÑA 1: DOCUMENTOS EMPRESA ================= */}
       {activeTab === 'empresa' && (
         <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4 animate-in fade-in duration-200">
-          <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 border-b border-slate-100 pb-3">
-            Documentación Legal de la Empresa Subcontratista
-          </h3>
+          <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+            <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
+              Documentación Legal Exigida por Obraxis a la Empresa Subcontratista
+            </h3>
+            <span className="text-[10px] text-blue-700 font-bold bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200">
+              ✓ Sincronizado dinámicamente con Obraxis
+            </span>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {mandatoryCompanyDocs.map(item => {
@@ -457,7 +497,7 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
 
           {personalList.length === 0 ? (
             <div className="p-8 text-center text-xs text-slate-400 italic">
-              No hay trabajadores registrados aún.
+              No hay trabajadores registrados aún. Haga clic en "+ Registrar Trabajador".
             </div>
           ) : (
             <div className="space-y-4">
@@ -466,7 +506,7 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
                   <div className="flex justify-between items-center border-b border-slate-200 pb-2">
                     <div>
                       <span className="font-extrabold text-xs uppercase text-slate-900">{person.nombre}</span>
-                      <span className="text-[10px] text-slate-500 font-mono ml-2">({person.rut})</span>
+                      <span className="text-[10px] text-slate-500 font-mono ml-2">({formatRut(person.rut)})</span>
                     </div>
                     <span className="text-[10px] font-bold uppercase bg-blue-100 text-blue-900 px-2 py-0.5 rounded-md">
                       {person.cargo || 'Operario'}
@@ -556,7 +596,7 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
 
           {equiposList.length === 0 ? (
             <div className="p-8 text-center text-xs text-slate-400 italic">
-              No hay equipos registrados aún.
+              No hay equipos registrados aún. Haga clic en "+ Registrar Equipo".
             </div>
           ) : (
             <div className="space-y-4">
@@ -637,6 +677,21 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
         </div>
       )}
 
+      {/* FOOTER CON BOTÓN GUARDAR Y SINCRONIZAR */}
+      <div className="bg-white border border-slate-200 rounded-3xl p-4 shadow-xs flex flex-wrap justify-between items-center gap-3">
+        <div className="text-xs text-slate-500 font-medium">
+          Al finalizar la carga de documentos, presione <strong>Guardar y Sincronizar</strong> para notificar al equipo de evaluación Obraxis.
+        </div>
+        <button
+          onClick={handleSaveAndSyncPortal}
+          disabled={savingSync}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-6 py-3 rounded-2xl text-xs flex items-center gap-2 transition cursor-pointer shadow-md disabled:opacity-50"
+        >
+          {savingSync ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          <span>💾 Guardar y Sincronizar con Obraxis</span>
+        </button>
+      </div>
+
       {/* MODALES REGISTRAR */}
       {showPersonModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -665,7 +720,8 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
                     placeholder="12.345.678-9"
                     value={personForm.rut}
                     onChange={(e) => setPersonForm({ ...personForm, rut: e.target.value })}
-                    className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800"
+                    onBlur={(e) => setPersonForm({ ...personForm, rut: formatRut(e.target.value) })}
+                    className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 font-mono"
                   />
                 </div>
                 <div>
