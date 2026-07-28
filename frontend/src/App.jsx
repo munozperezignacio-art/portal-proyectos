@@ -11,6 +11,8 @@ import Prevencion from './components/Prevencion';
 import PublicFormFiller from './components/PublicFormFiller';
 import PublicTrainingFiller from './components/PublicTrainingFiller';
 import Facturacion from './components/Facturacion';
+import Acreditaciones from './components/Acreditaciones';
+import PublicSubcontractAcreditacion from './components/PublicSubcontractAcreditacion';
 import { 
   LogOut, LayoutDashboard, Building2, Users, Truck, ShieldAlert, Settings, Info, Menu, X, Loader2,
   Layers, Handshake, Receipt, Coins, ClipboardCheck, Boxes, BadgeCheck,
@@ -241,6 +243,12 @@ function App() {
   const publicTrainingToken = urlParams.get('prevencion_capacitacion');
   if (publicTrainingToken) {
     return <PublicTrainingFiller trainingToken={publicTrainingToken} />;
+  }
+
+  const publicSubcontractToken = urlParams.get('token') || urlParams.get('acreditacion_token');
+  const publicSubcontractEmpresa = urlParams.get('acreditacion_subcontrato');
+  if (publicSubcontractToken || publicSubcontractEmpresa) {
+    return <PublicSubcontractAcreditacion token={publicSubcontractToken} companyNameParam={publicSubcontractEmpresa} />;
   }
 
   // --- CONTROL DE RUTAS OFICIAL OBRAXIS ---
@@ -776,6 +784,15 @@ function App() {
             />
           ) : currentModule === 'prevencion' ? (
             <Prevencion 
+              user={activeUserContext} 
+              companyBranding={companyBranding}
+              onBack={() => {
+                setSelectedObraName(null);
+                setCurrentModule('dashboard');
+              }} 
+            />
+          ) : currentModule === 'acreditaciones' ? (
+            <Acreditaciones 
               user={activeUserContext} 
               companyBranding={companyBranding}
               onBack={() => {
