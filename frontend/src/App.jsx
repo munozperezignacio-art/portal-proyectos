@@ -14,6 +14,7 @@ import Facturacion from './components/Facturacion';
 import Acreditaciones from './components/Acreditaciones';
 import PublicSubcontractAcreditacion from './components/PublicSubcontractAcreditacion';
 import PublicSupplierAcreditacion from './components/PublicSupplierAcreditacion';
+import FormulariosCapacitaciones from './components/FormulariosCapacitaciones';
 import { 
   LogOut, LayoutDashboard, Building2, Users, Truck, ShieldAlert, Settings, Info, Menu, X, Loader2,
   Layers, Handshake, Receipt, Coins, ClipboardCheck, Boxes, BadgeCheck,
@@ -802,6 +803,15 @@ function App() {
             <Acreditaciones 
               user={activeUserContext} 
               companyBranding={companyBranding}
+              onBack={() => {
+                setSelectedObraName(null);
+                setCurrentModule('dashboard');
+              }} 
+            />
+          ) : currentModule === 'formularios_capacitaciones' ? (
+            <FormulariosCapacitaciones 
+              user={activeUserContext} 
+              companyBranding={companyBranding} 
               onBack={() => {
                 setSelectedObraName(null);
                 setCurrentModule('dashboard');
