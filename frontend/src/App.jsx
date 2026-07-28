@@ -333,6 +333,14 @@ function App() {
       action: () => { setSelectedObraName(null); setCurrentModule('prevencion'); }
     },
     {
+      id: 'formularios_capacitaciones',
+      title: 'Formularios y Capacitaciones',
+      description: 'Gestor dinámico de formularios, listas de chequeo, charlas de seguridad y capacitaciones.',
+      icon: <ClipboardCheck className="w-5 h-5" />,
+      sidebarIcon: <ClipboardCheck className="w-4 h-4" />,
+      action: () => { setSelectedObraName(null); setCurrentModule('formularios_capacitaciones'); }
+    },
+    {
       id: 'acreditaciones',
       title: 'Acreditaciones',
       description: 'Gestión de acreditaciones de personal y maquinaria para ingreso a faenas.',

@@ -1391,7 +1391,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
               <span>Prevención de Riesgos</span>
             </h2>
             <p className="text-[10px] text-slate-450 font-bold uppercase mt-0.5">
-              Gestor de inspecciones, AST, charlas de seguridad y creador de formularios dinámicos
+              Gestor de inspecciones de terreno, Análisis Seguro de Trabajo (AST), Matriz de Riesgo y Auditorías.
             </p>
           </div>
         </div>
@@ -1432,50 +1432,25 @@ export default function Prevencion({ user, onBack, companyBranding }) {
       {activeSection === '' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
 
-          {/* Card 1: Nuevo Formulario */}
-          {isSubmenuEnabled('prevencion_formularios') && (
-            <div 
-              onClick={() => { resetBuilder(); setActiveSection('builder'); setErrorMsg(''); setSuccessMsg(''); }}
-              className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[160px]"
-            >
-              <div className="flex items-start justify-between">
-                <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300">
-                  <Sparkles className="w-6 h-6" />
-                </div>
-                <span className="text-[9px] font-extrabold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary uppercase">Diseñador</span>
-              </div>
-              <div className="space-y-1 mt-4">
-                <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
-                  Nuevo Formulario
-                </h3>
-                <p className="text-xs text-slate-500 leading-normal">
-                  Diseña formularios dinámicos con bloques repetibles de firmas, preguntas y fotografías.
-                </p>
-              </div>
+          {/* Card 1: Inspecciones de Terreno */}
+          <div 
+            onClick={() => { setActiveSection('respuestas'); setErrorMsg(''); setSuccessMsg(''); }}
+            className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[160px]"
+          >
+            <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300 w-fit">
+              <Layers className="w-6 h-6" />
             </div>
-          )}
-
-          {/* Card 2: Mis Formularios */}
-          {isSubmenuEnabled('prevencion_formularios') && (
-            <div 
-              onClick={() => { setActiveSection('mis_formularios'); setErrorMsg(''); setSuccessMsg(''); }}
-              className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[160px]"
-            >
-              <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300 w-fit">
-                <FileText className="w-6 h-6" />
-              </div>
-              <div className="space-y-1 mt-4">
-                <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
-                  Mis Formularios ({formularios.length})
-                </h3>
-                <p className="text-xs text-slate-500 leading-normal">
-                  Catálogo de plantillas creadas. Genera enlaces públicos únicos y códigos QR.
-                </p>
-              </div>
+            <div className="space-y-1 mt-4">
+              <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
+                Registro de Inspecciones ({respuestas.length})
+              </h3>
+              <p className="text-xs text-slate-500 leading-normal">
+                Historial completo de inspecciones enviadas y auditorías de terreno en faena.
+              </p>
             </div>
-          )}
+          </div>
 
-          {/* Card 3: Completar Formulario */}
+          {/* Card 2: Completar Inspección */}
           {isSubmenuEnabled('prevencion_formularios') && (
             <div 
               onClick={() => { setActiveSection('completar'); setErrorMsg(''); setSuccessMsg(''); }}
