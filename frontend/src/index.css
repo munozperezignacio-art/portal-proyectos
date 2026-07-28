@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: var(--primary-color, #1e3a8a);
+  --color-primary-hover: var(--primary-color-hover, #1d4ed8);
+}
+
+@media print {
+  .no-print, nav, header, sidebar, button {
+    display: none !important;
+  }
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+}
+

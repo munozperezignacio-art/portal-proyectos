@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">OBRAXIS</string>
+    <string name="title_activity_main">OBRAXIS</string>
+    <string name="package_name">com.obraxis.app</string>
+    <string name="custom_url_scheme">com.obraxis.app</string>
+</resources>
