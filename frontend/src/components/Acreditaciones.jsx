@@ -1939,10 +1939,6 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
 
       {/* MODAL REGISTRAR PROVEEDOR */}
       {showProvModal && (
@@ -2186,3 +2182,6 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
