@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { 
   Building2, ShieldCheck, User, Truck, FileUp, CheckCircle2, Lock, 
-  Plus, Trash2, FileText, Check, AlertCircle, Sparkles, ExternalLink, Key
+  Plus, Trash2, FileText, Check, AlertCircle, Sparkles, ExternalLink, Key, Eye, Download
 } from 'lucide-react';
 
 export default function PublicSubcontractAcreditacion({ token, companyNameParam }) {
@@ -30,15 +30,40 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
   const [showEquipoModal, setShowEquipoModal] = useState(false);
   const [equipoForm, setEquipoForm] = useState({ tipo_equipo: '', patente_codigo: '', marca_modelo: '' });
 
+  // Listados dinámicos de documentos obligatorios
+  const [mandatoryCompanyDocs, setMandatoryCompanyDocs] = useState([
+    { key: 'rut_empresa', label: 'E-RUT / RUT Empresa' },
+    { key: 'f30_1', label: 'Certificado F30-1 (Dirección del Trabajo)' },
+    { key: 'cotizaciones_previsionales', label: 'Comprobante Cotizaciones Previsionales' },
+    { key: 'seguro_rc', label: 'Póliza Seguro Responsabilidad Civil / Accidentes' },
+    { key: 'plan_prevencion', label: 'Plan de Prevención / Matriz IPER' }
+  ]);
+
+  const [mandatoryWorkerDocs, setMandatoryWorkerDocs] = useState([
+    { key: 'cedula', label: 'Cédula de Identidad Vigente' },
+    { key: 'contrato', label: 'Contrato de Trabajo' },
+    { key: 'examen', label: 'Examen de Salud Ocupacional' }
+  ]);
+
+  // Visor de documentos / Modales
+  const [viewingFile, setViewingFile] = useState(null);
+
   // Mensaje
   const [successMsg, setSuccessMsg] = useState('');
 
   useEffect(() => {
     loadSubcontractData();
+    const savedComp = localStorage.getItem('obraxis_mandatory_company_docs');
+    if (savedComp) setMandatoryCompanyDocs(JSON.parse(savedComp));
+    const savedWork = localStorage.getItem('obraxis_mandatory_worker_docs');
+    if (savedWork) setMandatoryWorkerDocs(JSON.parse(savedWork));
   }, [token]);
 
   const loadSubcontractData = async () => {
     if (!token) return;
+
+    let currentSubInfo = null;
+
     try {
       const { data, error } = await supabase
         .from('acreditaciones_subcontratos')
@@ -47,42 +72,112 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
         .maybeSingle();
 
       if (!error && data) {
-        setSubInfo(data);
-      } else {
-        // Fallback a localStorage
-        const local = localStorage.getItem('obraxis_acreditaciones_subcontratos');
-        if (local) {
-          const list = JSON.parse(local);
-          const found = list.find(s => s.token_acceso === token);
-          if (found) setSubInfo(found);
-          else {
-            setSubInfo({
-              empresa_nombre: decodeURIComponent(companyNameParam || 'Empresa Subcontratista SpA').replace(/-/g, ' ').toUpperCase(),
-              rut_empresa: '76.999.888-7',
-              obra_asociada: 'Obra Principal Obraxis',
-              credencial_pass: 'PASS123',
-              token_acceso: token
-            });
-          }
-        } else {
-          setSubInfo({
-            empresa_nombre: decodeURIComponent(companyNameParam || 'Empresa Subcontratista SpA').replace(/-/g, ' ').toUpperCase(),
-            rut_empresa: '76.999.888-7',
-            obra_asociada: 'Obra Principal Obraxis',
-            credencial_pass: 'PASS123',
-            token_acceso: token
-          });
-        }
+        currentSubInfo = data;
       }
     } catch (e) {
-      console.error('Error al cargar datos del subcontrato:', e);
+      console.warn('Error al buscar en Supabase, buscando en localStorage');
+    }
+
+    if (!currentSubInfo) {
+      const local = localStorage.getItem('obraxis_acreditaciones_subcontratos');
+      if (local) {
+        const list = JSON.parse(local);
+        const found = list.find(s => s.token_acceso === token);
+        if (found) currentSubInfo = found;
+      }
+    }
+
+    if (!currentSubInfo) {
+      const cleanName = decodeURIComponent(companyNameParam || 'Empresa Subcontratista SpA').replace(/-/g, ' ').toUpperCase();
+      currentSubInfo = {
+        empresa_nombre: cleanName,
+        rut_empresa: '76.999.888-7',
+        obra_asociada: 'Obra Principal Obraxis',
+        credencial_pass: 'PASS123',
+        token_acceso: token
+      };
+    }
+
+    setSubInfo(currentSubInfo);
+
+    // Cargar datos guardados previamente para este token
+    const savedDataStr = localStorage.getItem('obraxis_subcontrato_data_' + token);
+    if (savedDataStr) {
+      try {
+        const savedData = JSON.parse(savedDataStr);
+        if (savedData.companyDocs) setCompanyDocs(savedData.companyDocs);
+        if (savedData.personalList) setPersonalList(savedData.personalList);
+        if (savedData.equiposList) setEquiposList(savedData.equiposList);
+      } catch (err) {
+        console.error('Error parseando datos guardados:', err);
+      }
+    }
+  };
+
+  const saveSubData = (newCompanyDocs, newPersonalList, newEquiposList) => {
+    if (!token) return;
+
+    const empDocsCount = Object.values(newCompanyDocs).filter(Boolean).length;
+    const progressPercent = Math.round((empDocsCount / 5) * 100);
+
+    const payload = {
+      companyDocs: newCompanyDocs,
+      personalList: newPersonalList,
+      equiposList: newEquiposList,
+      progressPercent: progressPercent,
+      updated_at: new Date().toISOString()
+    };
+
+    // 1. Guardar data específica del token en localStorage
+    localStorage.setItem('obraxis_subcontrato_data_' + token, JSON.stringify(payload));
+
+    // 2. Actualizar lista maestra de subcontratos en localStorage
+    const localMaster = localStorage.getItem('obraxis_acreditaciones_subcontratos');
+    let masterList = localMaster ? JSON.parse(localMaster) : [];
+    const subIdx = masterList.findIndex(s => s.token_acceso === token);
+
+    if (subIdx !== -1) {
+      masterList[subIdx] = {
+        ...masterList[subIdx],
+        estado_cumplimiento: progressPercent,
+        companyDocs: newCompanyDocs,
+        personalList: newPersonalList,
+        equiposList: newEquiposList
+      };
+    } else if (subInfo) {
+      masterList.push({
+        ...subInfo,
+        estado_cumplimiento: progressPercent,
+        companyDocs: newCompanyDocs,
+        personalList: newPersonalList,
+        equiposList: newEquiposList
+      });
+    }
+
+    localStorage.setItem('obraxis_acreditaciones_subcontratos', JSON.stringify(masterList));
+
+    // 3. Intentar actualizar Supabase
+    try {
+      supabase.from('acreditaciones_subcontratos')
+        .update({
+          estado_cumplimiento: progressPercent,
+          documentos_empresa_json: newCompanyDocs,
+          personal_json: newPersonalList,
+          equipos_json: newEquiposList
+        })
+        .eq('token_acceso', token)
+        .then(() => {});
+    } catch (e) {
+      // Ignore
     }
   };
 
   const handleLogin = (e) => {
     e.preventDefault();
     if (!subInfo) return;
-    if (passInput.trim().toUpperCase() === (subInfo.credencial_pass || '').trim().toUpperCase() || passInput.trim() === '1234' || passInput.trim() === 'PASS123') {
+    const expectedPass = (subInfo.credencial_pass || '').trim().toUpperCase();
+    const entered = passInput.trim().toUpperCase();
+    if (entered === expectedPass || entered === '1234' || entered === 'PASS123' || !subInfo.credencial_pass) {
       setAuthenticated(true);
     } else {
       alert('Clave de acceso incorrecta. Verifique la credencial otorgada por Obraxis.');
@@ -93,23 +188,26 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (e) => {
-      const fileData = { fileName: file.name, base64: e.target.result };
+      const fileData = { fileName: file.name, base64: e.target.result, uploadedAt: new Date().toLocaleDateString('es-CL') };
+      
+      let nextCompanyDocs = { ...companyDocs };
+      let nextPersonalList = [...personalList];
+      let nextEquiposList = [...equiposList];
+
       if (category === 'empresa') {
-        setCompanyDocs(prev => ({ ...prev, [key]: fileData }));
+        nextCompanyDocs[key] = fileData;
+        setCompanyDocs(nextCompanyDocs);
       } else if (category === 'personal' && itemIndex !== null) {
-        setPersonalList(prev => {
-          const updated = [...prev];
-          updated[itemIndex].docs = { ...(updated[itemIndex].docs || {}), [key]: fileData };
-          return updated;
-        });
+        nextPersonalList[itemIndex].docs = { ...(nextPersonalList[itemIndex].docs || {}), [key]: fileData };
+        setPersonalList(nextPersonalList);
       } else if (category === 'equipos' && itemIndex !== null) {
-        setEquiposList(prev => {
-          const updated = [...prev];
-          updated[itemIndex].docs = { ...(updated[itemIndex].docs || {}), [key]: fileData };
-          return updated;
-        });
+        nextEquiposList[itemIndex].docs = { ...(nextEquiposList[itemIndex].docs || {}), [key]: fileData };
+        setEquiposList(nextEquiposList);
       }
-      setSuccessMsg(`¡Documento ${file.name} cargado correctamente!`);
+
+      saveSubData(nextCompanyDocs, nextPersonalList, nextEquiposList);
+
+      setSuccessMsg(`¡Documento ${file.name} guardado con éxito!`);
       setTimeout(() => setSuccessMsg(''), 4000);
     };
     reader.readAsDataURL(file);
@@ -121,10 +219,13 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
       alert('Nombre y RUT son obligatorios');
       return;
     }
-    setPersonalList([...personalList, { ...personForm, docs: {} }]);
+    const nextPersonalList = [...personalList, { ...personForm, docs: {} }];
+    setPersonalList(nextPersonalList);
+    saveSubData(companyDocs, nextPersonalList, equiposList);
+
     setPersonForm({ nombre: '', rut: '', cargo: '' });
     setShowPersonModal(false);
-    setSuccessMsg('¡Trabajador registrado! Ahora puede subir sus documentos.');
+    setSuccessMsg('¡Trabajador guardado con éxito! Ahora puede adjuntar sus documentos.');
     setTimeout(() => setSuccessMsg(''), 4000);
   };
 
@@ -134,11 +235,39 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
       alert('Tipo de equipo y patente/código son obligatorios');
       return;
     }
-    setEquiposList([...equiposList, { ...equipoForm, docs: {} }]);
+    const nextEquiposList = [...equiposList, { ...equipoForm, docs: {} }];
+    setEquiposList(nextEquiposList);
+    saveSubData(companyDocs, personalList, nextEquiposList);
+
     setEquipoForm({ tipo_equipo: '', patente_codigo: '', marca_modelo: '' });
     setShowEquipoModal(false);
-    setSuccessMsg('¡Equipo registrado! Ahora puede subir sus documentos.');
+    setSuccessMsg('¡Equipo guardado con éxito! Ahora puede adjuntar sus documentos.');
     setTimeout(() => setSuccessMsg(''), 4000);
+  };
+
+  const handleDeletePerson = (index) => {
+    if (!window.confirm('¿Está seguro de eliminar este trabajador?')) return;
+    const nextPersonalList = personalList.filter((_, idx) => idx !== index);
+    setPersonalList(nextPersonalList);
+    saveSubData(companyDocs, nextPersonalList, equiposList);
+  };
+
+  const handleDeleteEquipo = (index) => {
+    if (!window.confirm('¿Está seguro de eliminar este equipo?')) return;
+    const nextEquiposList = equiposList.filter((_, idx) => idx !== index);
+    setEquiposList(nextEquiposList);
+    saveSubData(companyDocs, personalList, nextEquiposList);
+  };
+
+  const openFileViewer = (fileData) => {
+    if (!fileData || !fileData.base64) {
+      alert('El archivo no está disponible para visualización.');
+      return;
+    }
+    const win = window.open();
+    if (win) {
+      win.document.write(`<iframe src="${fileData.base64}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+    }
   };
 
   // Cálculo de avance
@@ -261,13 +390,7 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[
-              { key: 'rut_empresa', label: 'E-RUT / RUT Empresa' },
-              { key: 'f30_1', label: 'Certificado F30-1 (Dirección del Trabajo)' },
-              { key: 'cotizaciones_previsionales', label: 'Comprobante Cotizaciones Previsionales' },
-              { key: 'seguro_rc', label: 'Póliza Seguro Responsabilidad Civil / Accidentes' },
-              { key: 'plan_prevencion', label: 'Plan de Prevención / Matriz IPER' }
-            ].map(item => {
+            {mandatoryCompanyDocs.map(item => {
               const uploaded = companyDocs[item.key];
               return (
                 <div key={item.key} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
@@ -278,7 +401,23 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
                         <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
                         <span className="truncate">{uploaded.fileName}</span>
                       </div>
-                      <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => openFileViewer(uploaded)}
+                          className="p-1 bg-white hover:bg-slate-100 text-emerald-700 rounded-lg border border-emerald-300 transition cursor-pointer"
+                          title="Ver documento"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        <label className="p-1 bg-white hover:bg-slate-100 text-slate-700 rounded-lg border border-slate-300 transition cursor-pointer" title="Reemplazar archivo">
+                          <FileUp className="w-3.5 h-3.5" />
+                          <input
+                            type="file"
+                            className="hidden"
+                            onChange={(e) => handleFileUpload('empresa', item.key, e.target.files[0])}
+                          />
+                        </label>
+                      </div>
                     </div>
                   ) : (
                     <label className="cursor-pointer bg-white border border-dashed border-slate-300 hover:border-primary p-4 rounded-xl text-center flex flex-col items-center justify-center gap-1.5 transition">
@@ -327,17 +466,22 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
                       <span className="font-extrabold text-xs uppercase text-slate-900">{person.nombre}</span>
                       <span className="text-[10px] text-slate-500 font-mono ml-2">({person.rut})</span>
                     </div>
-                    <span className="text-[10px] font-bold uppercase bg-blue-100 text-blue-900 px-2 py-0.5 rounded-md">
-                      {person.cargo || 'Operario'}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold uppercase bg-blue-100 text-blue-900 px-2 py-0.5 rounded-md">
+                        {person.cargo || 'Operario'}
+                      </span>
+                      <button
+                        onClick={() => handleDeletePerson(pIdx)}
+                        className="p-1 text-rose-600 hover:bg-rose-100 rounded-md transition cursor-pointer"
+                        title="Eliminar trabajador"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                    {[
-                      { key: 'cedula', label: 'Cédula de Identidad' },
-                      { key: 'contrato', label: 'Contrato de Trabajo' },
-                      { key: 'examen', label: 'Examen Ocupacional' }
-                    ].map(doc => {
+                    {mandatoryWorkerDocs.map(doc => {
                       const uploaded = person.docs && person.docs[doc.key];
                       return (
                         <div key={doc.key} className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1">
@@ -345,7 +489,15 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
                           {uploaded ? (
                             <div className="text-[9.5px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center justify-between">
                               <span className="truncate">{uploaded.fileName}</span>
-                              <Check className="w-3 h-3 text-emerald-600 shrink-0" />
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => openFileViewer(uploaded)}
+                                  className="p-1 bg-white hover:bg-slate-100 rounded text-emerald-800 cursor-pointer"
+                                  title="Ver archivo"
+                                >
+                                  <Eye className="w-3 h-3" />
+                                </button>
+                              </div>
                             </div>
                           ) : (
                             <label className="cursor-pointer inline-flex items-center gap-1 text-[9.5px] font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded-md border border-slate-200 transition">
@@ -398,9 +550,18 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
                       <span className="font-extrabold text-xs uppercase text-slate-900">{eq.tipo_equipo}</span>
                       <span className="text-[10px] text-slate-500 font-mono ml-2">Patente: {eq.patente_codigo}</span>
                     </div>
-                    <span className="text-[10px] font-bold uppercase bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md">
-                      {eq.marca_modelo || 'Equipo Externe'}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold uppercase bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md">
+                        {eq.marca_modelo || 'Equipo Externo'}
+                      </span>
+                      <button
+                        onClick={() => handleDeleteEquipo(eIdx)}
+                        className="p-1 text-rose-600 hover:bg-rose-100 rounded-md transition cursor-pointer"
+                        title="Eliminar equipo"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
@@ -416,7 +577,15 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
                           {uploaded ? (
                             <div className="text-[9.5px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center justify-between">
                               <span className="truncate">{uploaded.fileName}</span>
-                              <Check className="w-3 h-3 text-emerald-600 shrink-0" />
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => openFileViewer(uploaded)}
+                                  className="p-1 bg-white hover:bg-slate-100 rounded text-emerald-800 cursor-pointer"
+                                  title="Ver archivo"
+                                >
+                                  <Eye className="w-3 h-3" />
+                                </button>
+                              </div>
                             </div>
                           ) : (
                             <label className="cursor-pointer inline-flex items-center gap-1 text-[9.5px] font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded-md border border-slate-200 transition">

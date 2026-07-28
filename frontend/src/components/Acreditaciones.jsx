@@ -4,7 +4,7 @@ import { sendSystemEmail } from '../utils/emailService';
 import { 
   ArrowLeft, ShieldCheck, Plus, Send, CheckCircle2, AlertCircle, FileText, 
   Trash2, Eye, Download, Copy, ExternalLink, Building2, User, Truck, 
-  RefreshCw, Check, Clock, Lock, Key, Mail, Search, FileUp, Sparkles, Filter
+  RefreshCw, Check, Clock, Lock, Key, Mail, Search, FileUp, Sparkles, Filter, Settings2, CheckSquare
 } from 'lucide-react';
 
 export default function Acreditaciones({ user, onBack, companyBranding }) {
@@ -17,8 +17,8 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
   const [destinatarioEmail, setDestinatarioEmail] = useState('');
   const [asuntoEmail, setAsuntoEmail] = useState('');
   const [observaciones, setObservaciones] = useState('');
-  const [selectedWorkers, setSelectedWorkers] = useState([]); // [rut1, rut2]
-  const [customDocs, setCustomDocs] = useState({}); // { 'rut_docName': { file, name, url } }
+  const [selectedWorkers, setSelectedWorkers] = useState([]);
+  const [customDocs, setCustomDocs] = useState({});
   const [sendingEmail, setSendingEmail] = useState(false);
   const [historialInterno, setHistorialInterno] = useState([]);
   const [selectedHistorialDetail, setSelectedHistorialDetail] = useState(null);
@@ -34,16 +34,33 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     correo_contacto: '',
     credencial_pass: ''
   });
+
+  // Modal para Revisar Documentos y Acreditación de Subcontratista
   const [selectedSubDetail, setSelectedSubDetail] = useState(null);
-  const [subDocsEmpresa, setSubDocsEmpresa] = useState([]);
-  const [subPersonal, setSubPersonal] = useState([]);
-  const [subEquipos, setSubEquipos] = useState([]);
+  const [subModalTab, setSubModalTab] = useState('empresa'); // 'empresa' | 'personal' | 'equipos'
+
+  // Configuración de Documentos Obligatorios
+  const [showConfigDocsModal, setShowConfigDocsModal] = useState(false);
+  const [mandatoryCompanyDocs, setMandatoryCompanyDocs] = useState([
+    { key: 'rut_empresa', label: 'E-RUT / RUT Empresa' },
+    { key: 'f30_1', label: 'Certificado F30-1 (Dirección del Trabajo)' },
+    { key: 'cotizaciones_previsionales', label: 'Comprobante Cotizaciones Previsionales' },
+    { key: 'seguro_rc', label: 'Póliza Seguro Responsabilidad Civil / Accidentes' },
+    { key: 'plan_prevencion', label: 'Plan de Prevención / Matriz IPER' }
+  ]);
+  const [newCompanyDocLabel, setNewCompanyDocLabel] = useState('');
+
+  const [mandatoryWorkerDocs, setMandatoryWorkerDocs] = useState([
+    { key: 'cedula', label: 'Cédula de Identidad Vigente' },
+    { key: 'contrato', label: 'Contrato de Trabajo' },
+    { key: 'examen', label: 'Examen de Salud Ocupacional' }
+  ]);
+  const [newWorkerDocLabel, setNewWorkerDocLabel] = useState('');
 
   // Toast / Mensajes
   const [successMsg, setSuccessMsg] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
 
-  // Documentos requeridos estándar por trabajador
+  // Documentos requeridos estándar por trabajador para "Acreditarme"
   const reqDocsStandard = [
     { key: 'cedula', label: 'Cédula de Identidad Vigente', rrhhField: 'rut' },
     { key: 'contrato', label: 'Contrato de Trabajo', rrhhField: 'tipo_contrato' },
@@ -59,7 +76,55 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     fetchPersonal();
     fetchHistorialInterno();
     fetchSubcontratos();
+    loadMandatoryDocsConfig();
   }, []);
+
+  const loadMandatoryDocsConfig = () => {
+    const savedComp = localStorage.getItem('obraxis_mandatory_company_docs');
+    if (savedComp) setMandatoryCompanyDocs(JSON.parse(savedComp));
+
+    const savedWork = localStorage.getItem('obraxis_mandatory_worker_docs');
+    if (savedWork) setMandatoryWorkerDocs(JSON.parse(savedWork));
+  };
+
+  const saveMandatoryDocsConfig = (compDocs, workDocs) => {
+    localStorage.setItem('obraxis_mandatory_company_docs', JSON.stringify(compDocs));
+    localStorage.setItem('obraxis_mandatory_worker_docs', JSON.stringify(workDocs));
+    setSuccessMsg('¡Listado de documentos obligatorios actualizado para todos los subcontratistas!');
+    setTimeout(() => setSuccessMsg(''), 4000);
+  };
+
+  const handleAddMandatoryCompanyDoc = (e) => {
+    e.preventDefault();
+    if (!newCompanyDocLabel.trim()) return;
+    const key = 'custom_' + Date.now();
+    const updated = [...mandatoryCompanyDocs, { key, label: newCompanyDocLabel.trim() }];
+    setMandatoryCompanyDocs(updated);
+    setNewCompanyDocLabel('');
+    saveMandatoryDocsConfig(updated, mandatoryWorkerDocs);
+  };
+
+  const handleAddMandatoryWorkerDoc = (e) => {
+    e.preventDefault();
+    if (!newWorkerDocLabel.trim()) return;
+    const key = 'custom_' + Date.now();
+    const updated = [...mandatoryWorkerDocs, { key, label: newWorkerDocLabel.trim() }];
+    setMandatoryWorkerDocs(updated);
+    setNewWorkerDocLabel('');
+    saveMandatoryDocsConfig(mandatoryCompanyDocs, updated);
+  };
+
+  const handleRemoveMandatoryCompanyDoc = (key) => {
+    const updated = mandatoryCompanyDocs.filter(d => d.key !== key);
+    setMandatoryCompanyDocs(updated);
+    saveMandatoryDocsConfig(updated, mandatoryWorkerDocs);
+  };
+
+  const handleRemoveMandatoryWorkerDoc = (key) => {
+    const updated = mandatoryWorkerDocs.filter(d => d.key !== key);
+    setMandatoryWorkerDocs(updated);
+    saveMandatoryDocsConfig(mandatoryCompanyDocs, updated);
+  };
 
   const fetchObras = async () => {
     try {
@@ -117,7 +182,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     }
   };
 
-  // --- LÓGICA DE TRABAJADORES Y SINCRONIZACIÓN CON RRHH ---
+  // Lógica "Acreditarme"
   const toggleWorkerSelection = (rut) => {
     if (selectedWorkers.includes(rut)) {
       setSelectedWorkers(selectedWorkers.filter(r => r !== rut));
@@ -130,19 +195,17 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (e) => {
-      const base64 = e.target.result;
       setCustomDocs(prev => ({
         ...prev,
         [`${rut}_${docKey}`]: {
           fileName: file.name,
-          base64: base64
+          base64: e.target.result
         }
       }));
     };
     reader.readAsDataURL(file);
   };
 
-  // Enviar Solicitud de Acreditación por Correo
   const handleSendAcreditacion = async (e) => {
     e.preventDefault();
     if (!selectedObra) {
@@ -206,14 +269,9 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
           <div style="background-color: #eff6ff; border-left: 4px solid #2563eb; padding: 12px; border-radius: 8px; font-size: 12px; color: #1e40af; margin-bottom: 20px;">
             ℹ️ Los antecedentes y respaldos documentales de cada trabajador han sido validados e integrados directamente desde la Ficha de Recursos Humanos del Portal Obraxis.
           </div>
-
-          <div style="text-align: center; border-top: 1px solid #e2e8f0; pt: 16px; font-size: 11px; color: #94a3b8;">
-            Documento respaldado automáticamente por el Módulo de Acreditaciones de Obraxis.
-          </div>
         </div>
       `;
 
-      // Enviar email vía servicio
       await sendSystemEmail({
         to: destinatarioEmail,
         subject: asuntoEmail || `[Acreditación Personal] ${selectedObra} - Obraxis`,
@@ -231,11 +289,10 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
         created_at: new Date().toISOString()
       };
 
-      // Guardar en Supabase o localStorage
       try {
         await supabase.from('acreditaciones_internas').insert([newRecord]);
       } catch (e) {
-        console.warn('Fallback a localStorage para acreditaciones_internas');
+        console.warn('Fallback a localStorage');
       }
 
       const updatedHist = [newRecord, ...historialInterno];
@@ -247,14 +304,13 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
       setObservaciones('');
       setTimeout(() => setSuccessMsg(''), 5000);
     } catch (err) {
-      console.error('Error al enviar acreditación:', err);
       alert('Error al enviar acreditación: ' + (err.message || 'Verifique la configuración de correo'));
     } finally {
       setSendingEmail(false);
     }
   };
 
-  // --- LÓGICA DE SUBCONTRATOS Y CREDENTCIALES EXTERNAS ---
+  // Lógica Subcontratos
   const handleCreateSubcontrato = async (e) => {
     e.preventDefault();
     if (!subForm.empresa_nombre) {
@@ -303,6 +359,36 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     return `${origin}/?acreditacion_subcontrato=${cleanName}&token=${subItem.token_acceso}`;
   };
 
+  const openSubDetailModal = (subItem) => {
+    // Cargar información completa del subcontratista desde localStorage o Supabase
+    const savedDataStr = localStorage.getItem('obraxis_subcontrato_data_' + subItem.token_acceso);
+    let subData = { companyDocs: {}, personalList: [], equiposList: [] };
+    if (savedDataStr) {
+      try {
+        subData = JSON.parse(savedDataStr);
+      } catch (err) {}
+    }
+
+    setSelectedSubDetail({
+      ...subItem,
+      companyDocs: subData.companyDocs || subItem.companyDocs || {},
+      personalList: subData.personalList || subItem.personalList || [],
+      equiposList: subData.equiposList || subItem.equiposList || []
+    });
+    setSubModalTab('empresa');
+  };
+
+  const openFileViewer = (fileData) => {
+    if (!fileData || !fileData.base64) {
+      alert('El archivo no está disponible.');
+      return;
+    }
+    const win = window.open();
+    if (win) {
+      win.document.write(`<iframe src="${fileData.base64}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-6 space-y-6">
       {/* HEADER PRINCIPAL */}
@@ -339,7 +425,6 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
         </div>
       </div>
 
-      {/* MENSAJE MENSAJES FEEDBACK */}
       {successMsg && (
         <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-2xl text-xs font-bold flex items-center gap-2 animate-in fade-in">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -347,7 +432,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
         </div>
       )}
 
-      {/* ================= PESTAÑA 1: ACREDITARME (PERSONAL PROPIO) ================= */}
+      {/* ================= PESTAÑA 1: ACREDITARME ================= */}
       {activeTab === 'acreditarme' && (
         <div className="space-y-6 animate-in fade-in duration-200">
           <form onSubmit={handleSendAcreditacion} className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-6">
@@ -407,7 +492,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
               ></textarea>
             </div>
 
-            {/* SELECCIÓN DE TRABAJADORES Y MATRIZ DE DOCUMENTOS */}
+            {/* SELECCIÓN DE TRABAJADORES */}
             <div className="space-y-4 pt-2">
               <div className="flex justify-between items-center border-b border-slate-100 pb-2">
                 <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-2">
@@ -431,9 +516,6 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                       <div>
                         <div className="font-extrabold text-xs text-slate-900 uppercase">{worker.nombre}</div>
                         <div className="text-[10px] text-slate-500 font-mono mt-0.5">RUT: {worker.rut} | {worker.cargo || 'Maestro'}</div>
-                        <div className="text-[9.5px] text-emerald-700 font-semibold mt-1">
-                          AFP {worker.afp || 'Habitat'} | {worker.prevision_salud || 'FONASA'}
-                        </div>
                       </div>
                       <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition ${isSelected ? 'bg-primary border-primary text-white' : 'border-slate-300 bg-white'}`}>
                         {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
@@ -442,64 +524,8 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                   );
                 })}
               </div>
-
-              {/* MATRIZ DETALLADA SI HAY SELECCIONADOS */}
-              {selectedWorkers.length > 0 && (
-                <div className="space-y-4 pt-4 border-t border-slate-100">
-                  <h5 className="text-xs font-black uppercase tracking-wider text-slate-700">Matriz de Antecedentes y Documentación por Trabajador:</h5>
-                  <div className="space-y-4">
-                    {personalList.filter(w => selectedWorkers.includes(w.rut)).map(worker => (
-                      <div key={worker.rut} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
-                        <div className="flex justify-between items-center border-b border-slate-200 pb-2">
-                          <div>
-                            <span className="font-extrabold text-xs uppercase text-slate-900">{worker.nombre}</span>
-                            <span className="text-[10px] text-slate-500 font-mono ml-2">({worker.rut})</span>
-                          </div>
-                          <span className="text-[10px] font-bold uppercase bg-blue-100 text-blue-900 px-2 py-0.5 rounded-md">
-                            {worker.cargo || 'Personal Faena'}
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
-                          {reqDocsStandard.map(doc => {
-                            const isSynced = doc.rrhhField && worker[doc.rrhhField];
-                            const customFileKey = `${worker.rut}_${doc.key}`;
-                            const customFile = customDocs[customFileKey];
-
-                            return (
-                              <div key={doc.key} className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1">
-                                <div className="text-[10px] font-bold text-slate-700 truncate" title={doc.label}>{doc.label}</div>
-                                {isSynced ? (
-                                  <div className="inline-flex items-center gap-1 text-[9.5px] font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                                    <Check className="w-3 h-3 text-emerald-600" /> Sincro RRHH (${worker[doc.rrhhField]})
-                                  </div>
-                                ) : customFile ? (
-                                  <div className="inline-flex items-center gap-1 text-[9.5px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
-                                    <FileText className="w-3 h-3" /> ${customFile.fileName}
-                                  </div>
-                                ) : (
-                                  <label className="cursor-pointer inline-flex items-center gap-1 text-[9.5px] font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded-md border border-slate-200 transition">
-                                    <FileUp className="w-3 h-3 text-slate-600" />
-                                    <span>Adjuntar Doc.</span>
-                                    <input
-                                      type="file"
-                                      className="hidden"
-                                      onChange={(e) => handleCustomFileUpload(worker.rut, doc.key, e.target.files[0])}
-                                    />
-                                  </label>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
 
-            {/* BOTÓN ENVIAR */}
             <div className="pt-2">
               <button
                 type="submit"
@@ -507,51 +533,41 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                 className="w-full bg-primary hover:bg-primary-hover text-white font-extrabold py-3.5 rounded-2xl shadow-sm text-xs cursor-pointer flex items-center justify-center gap-2 transition disabled:opacity-50"
               >
                 <Send className="w-4 h-4" />
-                <span>{sendingEmail ? 'Enviando Solicitud y Documentos...' : 'Enviar Solicitud de Acreditación por Correo'}</span>
+                <span>{sendingEmail ? 'Enviando Solicitud...' : 'Enviar Solicitud de Acreditación por Correo'}</span>
               </button>
             </div>
           </form>
 
-          {/* HISTORIAL DE SOLICITUDES INTERNAS */}
+          {/* HISTORIAL INTERNO */}
           <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
             <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 border-b border-slate-100 pb-3">
-              Historial de Solicitudes de Acreditación Enviadas ({historialInterno.length})
+              Historial de Solicitudes Enviadas ({historialInterno.length})
             </h3>
-
             {historialInterno.length === 0 ? (
               <div className="p-8 text-center text-xs text-slate-400 italic">No hay solicitudes registradas aún.</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-650 font-bold text-[9px] uppercase tracking-wider select-none">
-                      <th className="p-3">Obra / Proyecto</th>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-650 font-bold text-[9px] uppercase tracking-wider">
+                      <th className="p-3">Obra</th>
                       <th className="p-3">Destinatario</th>
                       <th className="p-3">Trabajadores</th>
-                      <th className="p-3">Fecha Envío</th>
-                      <th className="p-3 text-center">Estado</th>
+                      <th className="p-3">Fecha</th>
                       <th className="p-3 text-center">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-150">
                     {historialInterno.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50/50 transition">
+                      <tr key={idx} className="hover:bg-slate-50/50">
                         <td className="p-3 font-extrabold text-slate-900 uppercase">{item.obra_nombre}</td>
                         <td className="p-3 text-slate-700 font-mono">{item.destinatario_email}</td>
-                        <td className="p-3 text-slate-700 font-bold">
-                          {Array.isArray(item.trabajadores_json) ? item.trabajadores_json.length : 0} Personas
-                        </td>
+                        <td className="p-3 font-bold">{Array.isArray(item.trabajadores_json) ? item.trabajadores_json.length : 0} Personas</td>
                         <td className="p-3 text-slate-500">{new Date(item.created_at).toLocaleString('es-CL')}</td>
-                        <td className="p-3 text-center">
-                          <span className="bg-emerald-50 text-emerald-700 text-[9.5px] font-extrabold px-2.5 py-0.5 rounded-full border border-emerald-200">
-                            {item.estado || 'Enviado'}
-                          </span>
-                        </td>
                         <td className="p-3 text-center">
                           <button
                             onClick={() => setSelectedHistorialDetail(item)}
-                            className="p-1.5 text-primary hover:bg-primary/10 rounded-lg transition cursor-pointer"
-                            title="Ver resumen"
+                            className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"
                           >
                             <Eye className="w-4 h-4" />
                           </button>
@@ -566,36 +582,55 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
         </div>
       )}
 
-      {/* ================= PESTAÑA 2: ACREDITACIÓN SUBCONTRATO (EXTERNOS) ================= */}
+      {/* ================= PESTAÑA 2: ACREDITACIÓN SUBCONTRATO ================= */}
       {activeTab === 'subcontratos' && (
         <div className="space-y-6 animate-in fade-in duration-200">
           <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+            <div className="flex flex-wrap justify-between items-center border-b border-slate-100 pb-3 gap-3">
               <div>
                 <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
                   Empresas Subcontratistas Habilitadas ({subcontratosList.length})
                 </h3>
                 <p className="text-[11px] text-slate-500 mt-0.5">
-                  Genere credenciales de acceso para que cada empresa contratista suba sus documentos, personal y equipos al minisitio dedicado.
+                  Gestione credenciales y revise en tiempo real los documentos subidos por cada empresa contratista externa.
                 </p>
               </div>
-              <button
-                onClick={() => setShowSubModal(true)}
-                className="bg-primary hover:bg-primary-hover text-white font-extrabold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Registrar Subcontrato</span>
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowConfigDocsModal(true)}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer border border-slate-200"
+                >
+                  <Settings2 className="w-4 h-4 text-slate-600" />
+                  <span>Configurar Docs. Obligatorios</span>
+                </button>
+                <button
+                  onClick={() => setShowSubModal(true)}
+                  className="bg-primary hover:bg-primary-hover text-white font-extrabold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>+ Registrar Subcontrato</span>
+                </button>
+              </div>
             </div>
 
             {subcontratosList.length === 0 ? (
               <div className="p-8 text-center text-xs text-slate-400 italic">
-                No hay empresas subcontratistas registradas aún. Haga clic en "+ Registrar Subcontrato" para crear credenciales.
+                No hay empresas subcontratistas registradas aún. Haga clic en "+ Registrar Subcontrato" para generar credenciales.
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {subcontratosList.map((sub) => {
                   const minisiteUrl = getMinisiteUrl(sub);
+
+                  // Cargar data detallada guardada
+                  const savedStr = localStorage.getItem('obraxis_subcontrato_data_' + sub.token_acceso);
+                  let savedData = { companyDocs: {}, personalList: [], equiposList: [] };
+                  if (savedStr) {
+                    try { savedData = JSON.parse(savedStr); } catch (e) {}
+                  }
+
+                  const empDocsCount = Object.values(savedData.companyDocs || sub.companyDocs || {}).filter(Boolean).length;
+                  const percent = Math.round((empDocsCount / mandatoryCompanyDocs.length) * 100) || 0;
 
                   return (
                     <div key={sub.id || sub.token_acceso} className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4 hover:shadow-sm transition">
@@ -609,19 +644,40 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                         </span>
                       </div>
 
+                      {/* BARRA DE AVANCE & DOCUMENTOS RECIBIDOS */}
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-[10px] font-bold text-slate-600">
+                          <span>Docs Empresa Cargados:</span>
+                          <span className="text-emerald-700 font-mono">${empDocsCount} / ${mandatoryCompanyDocs.length} (${percent}%)</span>
+                        </div>
+                        <div className="bg-slate-200 rounded-full h-2 overflow-hidden">
+                          <div className="bg-emerald-500 h-full transition-all duration-300" style={{ width: `${percent}%` }}></div>
+                        </div>
+                        <div className="flex justify-between text-[9.5px] text-slate-500 pt-1 font-semibold">
+                          <span>Personal: {(savedData.personalList || []).length} personas</span>
+                          <span>Equipos: {(savedData.equiposList || []).length} vehículos</span>
+                        </div>
+                      </div>
+
                       {/* CREDANCIALES GENERADAS */}
                       <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1.5 text-xs">
-                        <div className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider">Credenciales de Acceso Externo:</div>
+                        <div className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider">Credenciales de Acceso:</div>
                         <div className="flex justify-between items-center text-slate-700 font-mono text-[11px]">
                           <span>Token: <strong>{sub.token_acceso}</strong></span>
                           <span>Clave: <strong>{sub.credencial_pass}</strong></span>
                         </div>
-                        <div className="text-[10px] text-slate-500">Contacto: {sub.correo_contacto || 'No especificado'}</div>
                       </div>
 
-                      {/* ENLACE Y ACCIONES MINISITIO */}
+                      {/* ACCIONES Y BOTÓN REVISAR DOCUMENTOS */}
                       <div className="space-y-2 pt-1">
-                        <span className="text-[9px] font-bold uppercase text-slate-400 block">Enlace al Minisitio Dedicado:</span>
+                        <button
+                          onClick={() => openSubDetailModal(sub)}
+                          className="w-full bg-primary hover:bg-primary-hover text-white font-extrabold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-2xs"
+                        >
+                          <Eye className="w-4 h-4" />
+                          <span>Revisar Documentos y Acreditación</span>
+                        </button>
+
                         <div className="flex items-center gap-2">
                           <input
                             type="text"
@@ -632,7 +688,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                           <button
                             onClick={() => {
                               navigator.clipboard.writeText(minisiteUrl);
-                              setSuccessMsg('Enlace de minisitio copiado al portapapeles.');
+                              setSuccessMsg('Enlace copiado al portapapeles.');
                               setTimeout(() => setSuccessMsg(''), 4000);
                             }}
                             className="p-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg transition cursor-pointer"
@@ -640,15 +696,6 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                           >
                             <Copy className="w-3.5 h-3.5" />
                           </button>
-                          <a
-                            href={minisiteUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-2 bg-primary hover:bg-primary-hover text-white rounded-lg transition cursor-pointer"
-                            title="Abrir Minisitio"
-                          >
-                            <ExternalLink className="w-3.5 h-3.5" />
-                          </a>
                         </div>
                       </div>
                     </div>
@@ -656,6 +703,100 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                 })}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CONFIGURAR DOCUMENTOS OBLIGATORIOS */}
+      {showConfigDocsModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-xl p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 space-y-5">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-2">
+                <Settings2 className="w-4 h-4 text-primary" />
+                <span>Listado de Documentos Obligatorios para Subcontratos</span>
+              </h3>
+              <button onClick={() => setShowConfigDocsModal(false)} className="text-slate-400 hover:text-slate-650 font-bold text-sm cursor-pointer">✕</button>
+            </div>
+
+            {/* SECCIÓN 1: DOCS EMPRESA OBLIGATORIOS */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-black uppercase text-slate-700 tracking-wider">1. Documentos Exigidos a la Empresa Subcontratista:</h4>
+              <div className="space-y-1.5">
+                {mandatoryCompanyDocs.map(d => (
+                  <div key={d.key} className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex justify-between items-center text-xs font-bold text-slate-800">
+                    <span className="flex items-center gap-2">
+                      <CheckSquare className="w-3.5 h-3.5 text-primary" />
+                      <span>{d.label}</span>
+                    </span>
+                    <button
+                      onClick={() => handleRemoveMandatoryCompanyDoc(d.key)}
+                      className="text-rose-600 hover:bg-rose-100 p-1 rounded-md transition cursor-pointer"
+                      title="Quitar de requerimientos"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <form onSubmit={handleAddMandatoryCompanyDoc} className="flex gap-2 pt-1">
+                <input
+                  type="text"
+                  placeholder="Agregar nuevo documento empresa (Ej: Reglamento Interno de Orden y Seguridad)"
+                  value={newCompanyDocLabel}
+                  onChange={(e) => setNewCompanyDocLabel(e.target.value)}
+                  className="flex-1 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800"
+                />
+                <button type="submit" className="bg-primary hover:bg-primary-hover text-white font-bold px-4 rounded-xl text-xs transition cursor-pointer">
+                  + Agregar
+                </button>
+              </form>
+            </div>
+
+            {/* SECCIÓN 2: DOCS TRABAJADOR OBLIGATORIOS */}
+            <div className="space-y-3 pt-2 border-t border-slate-100">
+              <h4 className="text-xs font-black uppercase text-slate-700 tracking-wider">2. Documentos Exigidos por cada Trabajador Externo:</h4>
+              <div className="space-y-1.5">
+                {mandatoryWorkerDocs.map(d => (
+                  <div key={d.key} className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex justify-between items-center text-xs font-bold text-slate-800">
+                    <span className="flex items-center gap-2">
+                      <CheckSquare className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>{d.label}</span>
+                    </span>
+                    <button
+                      onClick={() => handleRemoveMandatoryWorkerDoc(d.key)}
+                      className="text-rose-600 hover:bg-rose-100 p-1 rounded-md transition cursor-pointer"
+                      title="Quitar"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <form onSubmit={handleAddMandatoryWorkerDoc} className="flex gap-2 pt-1">
+                <input
+                  type="text"
+                  placeholder="Agregar nuevo documento trabajador (Ej: Pase de Altura Física)"
+                  value={newWorkerDocLabel}
+                  onChange={(e) => setNewWorkerDocLabel(e.target.value)}
+                  className="flex-1 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800"
+                />
+                <button type="submit" className="bg-primary hover:bg-primary-hover text-white font-bold px-4 rounded-xl text-xs transition cursor-pointer">
+                  + Agregar
+                </button>
+              </form>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={() => setShowConfigDocsModal(false)}
+                className="bg-slate-900 text-white font-extrabold px-5 py-2.5 rounded-xl text-xs transition cursor-pointer"
+              >
+                Guardar Configuración
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -753,41 +894,160 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
         </div>
       )}
 
-      {/* MODAL DETALLE SOLICITUD INTERNA */}
-      {selectedHistorialDetail && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-lg p-6 shadow-2xl border border-slate-100 animate-in fade-in duration-200 space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-2">
-              <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">
-                Resumen de Acreditación - {selectedHistorialDetail.obra_nombre}
-              </h3>
-              <button onClick={() => setSelectedHistorialDetail(null)} className="text-slate-400 hover:text-slate-650 font-bold text-sm cursor-pointer">✕</button>
-            </div>
-
-            <div className="space-y-2 text-xs">
-              <div><strong>Destinatario:</strong> {selectedHistorialDetail.destinatario_email}</div>
-              <div><strong>Fecha de Envío:</strong> {new Date(selectedHistorialDetail.created_at).toLocaleString('es-CL')}</div>
-              {selectedHistorialDetail.observaciones && <div><strong>Observaciones:</strong> {selectedHistorialDetail.observaciones}</div>}
-            </div>
-
-            <div className="space-y-2 pt-2">
-              <h4 className="font-bold text-xs uppercase text-slate-700">Trabajadores Presentados:</h4>
-              <div className="max-h-48 overflow-y-auto space-y-1.5">
-                {(selectedHistorialDetail.trabajadores_json || []).map((w, i) => (
-                  <div key={i} className="bg-slate-50 p-2 rounded-xl border border-slate-200 text-xs flex justify-between">
-                    <div><strong>{w.nombre}</strong> <span className="text-[10px] text-slate-500">({w.rut})</span></div>
-                    <span className="text-[10px] font-bold text-emerald-700">✓ Habilitado</span>
-                  </div>
-                ))}
+      {/* MODAL DETALLE Y REVISIÓN DE DOCUMENTOS SUBCONTRATISTA */}
+      {selectedSubDetail && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl w-full max-w-4xl p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <span className="text-[9.5px] font-extrabold uppercase text-blue-600 tracking-wider">Revisión de Acreditación Externa</span>
+                <h3 className="font-black text-slate-900 text-sm uppercase">{selectedSubDetail.empresa_nombre}</h3>
+                <span className="text-[10.5px] text-slate-500">RUT: {selectedSubDetail.rut_empresa || 'N/A'} | Obra: {selectedSubDetail.obra_asociada}</span>
               </div>
+              <button onClick={() => setSelectedSubDetail(null)} className="text-slate-400 hover:text-slate-650 font-bold text-sm cursor-pointer">✕</button>
             </div>
 
-            <div className="pt-2 flex justify-end">
+            {/* PESTAÑAS DEL MODAL DETALLE */}
+            <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
               <button
-                onClick={() => setSelectedHistorialDetail(null)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
+                onClick={() => setSubModalTab('empresa')}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition cursor-pointer ${subModalTab === 'empresa' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
               >
-                Cerrar
+                Docs. Empresa ({Object.keys(selectedSubDetail.companyDocs || {}).length})
+              </button>
+              <button
+                onClick={() => setSubModalTab('personal')}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition cursor-pointer ${subModalTab === 'personal' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+              >
+                Personal Externo ({(selectedSubDetail.personalList || []).length})
+              </button>
+              <button
+                onClick={() => setSubModalTab('equipos')}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition cursor-pointer ${subModalTab === 'equipos' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+              >
+                Equipos Externos ({(selectedSubDetail.equiposList || []).length})
+              </button>
+            </div>
+
+            {/* VISTA CONTENIDO SUBMODAL */}
+            {subModalTab === 'empresa' && (
+              <div className="space-y-3 pt-2">
+                <h4 className="text-xs font-bold uppercase text-slate-700">Archivos Legales Cargados por la Empresa:</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {mandatoryCompanyDocs.map(item => {
+                    const uploaded = selectedSubDetail.companyDocs && selectedSubDetail.companyDocs[item.key];
+                    return (
+                      <div key={item.key} className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2 text-xs">
+                        <div className="font-extrabold text-slate-800 uppercase">{item.label}</div>
+                        {uploaded ? (
+                          <div className="bg-emerald-50 border border-emerald-200 p-2 rounded-lg flex justify-between items-center text-emerald-800 font-bold">
+                            <span className="truncate text-[11px]">{uploaded.fileName}</span>
+                            <button
+                              onClick={() => openFileViewer(uploaded)}
+                              className="px-2 py-1 bg-white hover:bg-slate-100 text-emerald-700 border border-emerald-300 rounded-md transition cursor-pointer flex items-center gap-1 text-[10px]"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Ver Archivo</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-bold">
+                            ⚠️ Pendiente de carga por el subcontratista
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {subModalTab === 'personal' && (
+              <div className="space-y-3 pt-2">
+                <h4 className="text-xs font-bold uppercase text-slate-700">Trabajadores Externos Registrados:</h4>
+                {(selectedSubDetail.personalList || []).length === 0 ? (
+                  <div className="p-6 text-center text-xs text-slate-400 italic">No hay trabajadores registrados por este subcontratista aún.</div>
+                ) : (
+                  <div className="space-y-3">
+                    {(selectedSubDetail.personalList || []).map((p, pIdx) => (
+                      <div key={pIdx} className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2 text-xs">
+                        <div className="flex justify-between font-extrabold text-slate-900">
+                          <span>{p.nombre} ({p.rut})</span>
+                          <span className="bg-blue-100 text-blue-900 text-[10px] px-2 py-0.5 rounded uppercase">{p.cargo || 'Operario'}</span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1">
+                          {['cedula', 'contrato', 'examen'].map(docKey => {
+                            const file = p.docs && p.docs[docKey];
+                            return (
+                              <div key={docKey} className="bg-white p-2 rounded-lg border border-slate-200 flex justify-between items-center text-[10px]">
+                                <span className="font-bold uppercase text-slate-600">{docKey}</span>
+                                {file ? (
+                                  <button
+                                    onClick={() => openFileViewer(file)}
+                                    className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <Eye className="w-3 h-3" /> Ver
+                                  </button>
+                                ) : (
+                                  <span className="text-slate-400 italic">No cargado</span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {subModalTab === 'equipos' && (
+              <div className="space-y-3 pt-2">
+                <h4 className="text-xs font-bold uppercase text-slate-700">Maquinarias y Vehículos Externos Registrados:</h4>
+                {(selectedSubDetail.equiposList || []).length === 0 ? (
+                  <div className="p-6 text-center text-xs text-slate-400 italic">No hay equipos registrados por este subcontratista aún.</div>
+                ) : (
+                  <div className="space-y-3">
+                    {(selectedSubDetail.equiposList || []).map((eq, eIdx) => (
+                      <div key={eIdx} className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2 text-xs">
+                        <div className="flex justify-between font-extrabold text-slate-900">
+                          <span>{eq.tipo_equipo} (Patente: {eq.patente_codigo})</span>
+                          <span className="bg-amber-100 text-amber-900 text-[10px] px-2 py-0.5 rounded uppercase">{eq.marca_modelo || 'Equipo'}</span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1">
+                          {['padron', 'revision', 'seguro'].map(docKey => {
+                            const file = eq.docs && eq.docs[docKey];
+                            return (
+                              <div key={docKey} className="bg-white p-2 rounded-lg border border-slate-200 flex justify-between items-center text-[10px]">
+                                <span className="font-bold uppercase text-slate-600">{docKey}</span>
+                                {file ? (
+                                  <button
+                                    onClick={() => openFileViewer(file)}
+                                    className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <Eye className="w-3 h-3" /> Ver
+                                  </button>
+                                ) : (
+                                  <span className="text-slate-400 italic">No cargado</span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
+              <button
+                onClick={() => setSelectedSubDetail(null)}
+                className="px-5 py-2.5 rounded-xl text-xs font-extrabold text-slate-700 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
+              >
+                Cerrar Revisión
               </button>
             </div>
           </div>
