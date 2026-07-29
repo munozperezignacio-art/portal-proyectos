@@ -422,7 +422,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
 
   const fetchProveedores = async () => {
     try {
-      const { data, error } = await supabase.from('acreditaciones_proveedores').select('*').order('created_at', { ascending: false });
+      const { data, error } = await supabase.from('acreditaciones_proveedores').select('id, empresa_nombre, rut_empresa, obra_asociada, correo_contacto, token_acceso, created_at, estado').order('created_at', { ascending: false });
       if (!error && data) {
         setProveedoresList(data);
       } else {
@@ -438,7 +438,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
   const fetchSubcontratos = async () => {
     setLoadingSubcontratos(true);
     try {
-      const { data, error } = await supabase.from('acreditaciones_subcontratos').select('*').order('created_at', { ascending: false });
+      const { data, error } = await supabase.from('acreditaciones_subcontratos').select('id, empresa_nombre, rut_empresa, obra_asociada, correo_contacto, token_acceso, created_at, estado').order('created_at', { ascending: false });
       if (!error && data) {
         setSubcontratosList(data);
       } else {
