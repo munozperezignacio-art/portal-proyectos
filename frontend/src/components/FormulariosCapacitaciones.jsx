@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { 
-  ArrowLeft, ClipboardCheck, Plus, FileText, CheckCircle2, AlertCircle, 
+  ArrowLeft, ChevronRight, ClipboardCheck, Plus, FileText, CheckCircle2, AlertCircle, 
   HelpCircle, Trash2, Edit3, Share2, Download, Copy, Eye, BookOpen, 
   GraduationCap, Users, Calendar, Award, CheckSquare, Layers, Building2, Send, Sparkles
 } from 'lucide-react';
@@ -260,34 +260,34 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
         </div>
 
         {/* Tab Navigation Buttons - Estilo Estándar Obraxis */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 shrink-0">
           <button
             onClick={() => setActiveTab('menu')}
-            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${activeTab === 'menu' ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'}`}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${activeTab === 'menu' ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'}`}
           >
             Panel Principal
           </button>
           <button
             onClick={() => setActiveTab('designer')}
-            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${activeTab === 'designer' ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'}`}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${activeTab === 'designer' ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'}`}
           >
             + Diseñador
           </button>
           <button
             onClick={() => setActiveTab('forms_list')}
-            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${activeTab === 'forms_list' ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'}`}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${activeTab === 'forms_list' ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'}`}
           >
             Mis Formularios ({formularios.length})
           </button>
           <button
             onClick={() => setActiveTab('capacitaciones')}
-            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${activeTab === 'capacitaciones' ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'}`}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${activeTab === 'capacitaciones' ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'}`}
           >
             Capacitaciones ({capacitaciones.length})
           </button>
           <button
             onClick={() => setActiveTab('respuestas')}
-            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${activeTab === 'respuestas' ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'}`}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${activeTab === 'respuestas' ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'}`}
           >
             Respuestas ({respuestas.length})
           </button>
@@ -323,7 +323,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
             </div>
             <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-extrabold text-primary group-hover:text-primary-hover">
               <span>Crear Nuevo</span>
-              <span className="group-hover:translate-x-1 transition-transform">→</span>
+              <ChevronRight className="w-4 h-4 text-primary group-hover:translate-x-1 transition-transform shrink-0" />
             </div>
           </div>
 
@@ -348,7 +348,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
             </div>
             <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-extrabold text-primary group-hover:text-primary-hover">
               <span>Ver Listado</span>
-              <span className="group-hover:translate-x-1 transition-transform">→</span>
+              <ChevronRight className="w-4 h-4 text-primary group-hover:translate-x-1 transition-transform shrink-0" />
             </div>
           </div>
 
@@ -373,7 +373,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
             </div>
             <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-extrabold text-primary group-hover:text-primary-hover">
               <span>Gestionar Charlas</span>
-              <span className="group-hover:translate-x-1 transition-transform">→</span>
+              <ChevronRight className="w-4 h-4 text-primary group-hover:translate-x-1 transition-transform shrink-0" />
             </div>
           </div>
 
@@ -398,7 +398,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
             </div>
             <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-extrabold text-primary group-hover:text-primary-hover">
               <span>Revisar Respuestas</span>
-              <span className="group-hover:translate-x-1 transition-transform">→</span>
+              <ChevronRight className="w-4 h-4 text-primary group-hover:translate-x-1 transition-transform shrink-0" />
             </div>
           </div>
         </div>
