@@ -214,11 +214,15 @@ export default function Maquinaria({ user, onBack }) {
     setSuccessMsg("");
     setErrorMsg("");
 
+    // Verificar si la obra existe en la tabla obras para evitar violaciones de Foreign Key
+    const matchedObra = obras.find(o => o.nombre.toLowerCase() === (formData.obra_nombre || '').toLowerCase());
+    const validObraNombre = matchedObra ? matchedObra.nombre : null;
+
     const dataToSave = {
       tipo: formData.tipo,
       patente: formData.patente.toUpperCase().trim(),
       marca: formData.marca.trim(),
-      obra_nombre: formData.obra_nombre,
+      obra_nombre: validObraNombre,
       horometro_inicial: parseFloat(formData.horometro_inicial) || 0,
       tipo_activo: formData.tipo_activo,
       estado_equipo: formData.estado_equipo,
@@ -287,12 +291,13 @@ export default function Maquinaria({ user, onBack }) {
 
     setModalLoading(true);
     try {
-      const { error } = await supabase
+      const matchedObra = obras.find(o => o.nombre.toLowerCase() === (targetObraName || '').toLowerCase());
+      const validTargetName = matchedObra ? matchedObra.nombre : null;
+
+      let updatePayload = { obra_nombre: validTargetName };
+      let { error } = await supabase
         .from('inventario_maquinaria')
-        .update({
-          obra_nombre: targetObraName,
-          fecha_ultima_asignacion: new Date().toISOString()
-        })
+        .update(updatePayload)
         .eq('id', selectedEquipToAssign.id);
 
       if (error) throw error;
