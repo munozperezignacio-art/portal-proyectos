@@ -82,6 +82,8 @@ export default function Maquinaria({ user, onBack }) {
   const [estadoPagoModalOpen, setEstadoPagoModalOpen] = useState(false);
   const [viewingBitacoraArriendo, setViewingBitacoraArriendo] = useState(null);
   const [selectedArriendoEstadoPago, setSelectedArriendoEstadoPago] = useState(null);
+  const [corteDesde, setCorteDesde] = useState('');
+  const [corteHasta, setCorteHasta] = useState('');
   const [extenderModalOpen, setExtenderModalOpen] = useState(false);
   const [extenderArriendo, setExtenderArriendo] = useState(null);
   const [nuevaFechaFin, setNuevaFechaFin] = useState('');
