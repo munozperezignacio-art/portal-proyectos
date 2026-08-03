@@ -2702,6 +2702,7 @@ export default function Maquinaria({ user, onBack }) {
               <p><b>Marca:</b> {viewingEquip.marca || 'S/I'}</p>
               <p><b>Propiedad:</b> {viewingEquip.tipo_activo || 'Propio'}</p>
               <p><b>Obra Asignada:</b> {viewingEquip.obra_nombre || 'Bodega Central / Libre'}</p>
+              <p><b>Costo Interno Imputable a Obra:</b> <span className="font-extrabold text-amber-900">${viewingEquip.costo_interno ? parseFloat(viewingEquip.costo_interno).toLocaleString('es-CL') : 0} {viewingEquip.unidad_costo_interno || '$/día'}</span></p>
               {viewingEquip.fecha_hasta_estimada && <p><b>Asignado Hasta:</b> <span className="font-bold text-amber-800">{viewingEquip.fecha_hasta_estimada}</span></p>}
               <p><b>Horómetro Inicial:</b> {viewingEquip.horometro_inicial || 0} hrs</p>
             </div>
