@@ -1547,6 +1547,8 @@ export default function Maquinaria({ user, onBack }) {
                     <button
                       onClick={() => {
                         setSelectedArriendoEstadoPago(arr);
+                        setCorteDesde(arr.fecha_inicio || new Date().toISOString().split('T')[0]);
+                        setCorteHasta(arr.fecha_fin || new Date().toISOString().split('T')[0]);
                         setEstadoPagoModalOpen(true);
                       }}
                       className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold shadow-2xs transition cursor-pointer flex items-center gap-1.5"
@@ -1601,15 +1603,18 @@ export default function Maquinaria({ user, onBack }) {
       {/* MODAL DOCUMENTO ESTADO DE PAGO / VALUACIÓN DE ARRIENDO */}
       {estadoPagoModalOpen && selectedArriendoEstadoPago && (() => {
         const arr = selectedArriendoEstadoPago;
-        const d1 = new Date(arr.fecha_inicio);
-        const d2 = new Date(arr.fecha_fin);
+        const fDesde = corteDesde || arr.fecha_inicio;
+        const fHasta = corteHasta || arr.fecha_fin;
+
+        const d1 = new Date(fDesde);
+        const d2 = new Date(fHasta);
         const diffTime = Math.abs(d2 - d1);
         const diasPactados = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
 
-        // Filtrar reportes de uso reales de este equipo en el periodo del arriendo
+        // Filtrar reportes de uso reales de este equipo en el rango de fechas seleccionado
         const logsContrato = usoList.filter(u => 
           u.equipo_id.toString() === arr.equipo_id.toString() &&
-          u.fecha >= arr.fecha_inicio && u.fecha <= arr.fecha_fin
+          u.fecha >= fDesde && u.fecha <= fHasta
         );
 
         const hrsRealesTrabajadas = logsContrato.reduce((acc, curr) => acc + (parseFloat(curr.horas_trabajadas) || 0), 0);
@@ -1694,8 +1699,35 @@ export default function Maquinaria({ user, onBack }) {
                     <p className="font-extrabold text-amber-900 uppercase">{arr.equipo_tipo} ({arr.equipo_patente})</p>
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Periodo de Arriendo</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Contrato Vigente</span>
                     <p className="font-bold text-slate-700">{arr.fecha_inicio} al {arr.fecha_fin}</p>
+                  </div>
+                </div>
+
+                {/* SELECTOR DE PERIODO DE COBRO / ESTADO DE PAGO */}
+                <div className="bg-amber-100/70 p-3.5 rounded-2xl border border-amber-300 space-y-2">
+                  <span className="text-[10.5px] font-extrabold text-amber-950 uppercase tracking-wider block">
+                    🗓️ Seleccionar Periodo a Cobrar en este Estado de Pago:
+                  </span>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[9.5px] font-bold uppercase text-amber-900 mb-1">Fecha Desde *</label>
+                      <input
+                        type="date"
+                        value={corteDesde}
+                        onChange={(e) => setCorteDesde(e.target.value)}
+                        className="w-full border border-amber-300 rounded-xl p-2 font-bold text-slate-800 bg-white text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9.5px] font-bold uppercase text-amber-900 mb-1">Fecha Hasta *</label>
+                      <input
+                        type="date"
+                        value={corteHasta}
+                        onChange={(e) => setCorteHasta(e.target.value)}
+                        className="w-full border border-amber-300 rounded-xl p-2 font-bold text-slate-800 bg-white text-xs"
+                      />
+                    </div>
                   </div>
                 </div>
 
