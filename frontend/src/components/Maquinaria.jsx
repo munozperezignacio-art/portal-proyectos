@@ -81,10 +81,15 @@ export default function Maquinaria({ user, onBack }) {
   const [arriendoForm, setArriendoForm] = useState({
     equipo_id: '',
     empresa_arrendataria: '',
+    rut_empresa: '',
+    obra_cliente: '',
+    direccion_obra: '',
+    contacto_nombre: '',
+    contacto_telefono: '',
+    contacto_email: '',
     tarifa_diaria: '0',
     fecha_inicio: new Date().toISOString().split('T')[0],
     fecha_fin: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
-    contacto_responsable: '',
     observaciones: ''
   });
 
@@ -485,21 +490,73 @@ export default function Maquinaria({ user, onBack }) {
   const handleArriendoSubmit = async (e) => {
     e.preventDefault();
     if (!arriendoForm.equipo_id || !arriendoForm.empresa_arrendataria.trim()) {
-      alert('Ingrese la empresa arrendataria y seleccione el equipo.');
+      alert('Por favor complete los campos obligatorios del contrato de arriendo.');
       return;
     }
 
     const eq = maquinaria.find(m => m.id.toString() === arriendoForm.equipo_id.toString());
+    if (!eq) {
+      alert('Equipo no encontrado.');
+      return;
+    }
+
+    const aInicio = new Date(arriendoForm.fecha_inicio);
+    const aFin = new Date(arriendoForm.fecha_fin);
+
+    if (aFin < aInicio) {
+      alert('La fecha de término del arriendo no puede ser anterior a la fecha de inicio.');
+      return;
+    }
+
+    // VERIFICACIÓN 1: ¿Está actualmente asignado en faena?
+    if (eq.obra_nombre && eq.obra_nombre.trim() !== '') {
+      const hastaEst = eq.fecha_hasta_estimada ? new Date(eq.fecha_hasta_estimada) : null;
+      if (!hastaEst || hastaEst >= aInicio) {
+        alert(`❌ NO DISPONIBLE: El equipo ${eq.tipo} (${eq.patente}) está actualmente ASIGNADO a la obra "${eq.obra_nombre}"${eq.fecha_hasta_estimada ? ` hasta el ${eq.fecha_hasta_estimada}` : ''}. Debes desasignarlo o modificar las fechas del arriendo.`);
+        return;
+      }
+    }
+
+    // VERIFICACIÓN 2: ¿Tiene alguna reserva agendada en ese rango de fechas?
+    const conflictoReserva = reservasList.find(r => {
+      if (r.equipo_id.toString() !== eq.id.toString()) return false;
+      const rIni = new Date(r.fecha_inicio);
+      const rFin = new Date(r.fecha_fin);
+      return (rIni <= aFin && rFin >= aInicio);
+    });
+
+    if (conflictoReserva) {
+      alert(`❌ SOLAPAMIENTO DE RESERVA: El equipo ${eq.tipo} (${eq.patente}) ya posee una RESERVA AGENDADA para la obra "${conflictoReserva.obra_destino}" desde el ${conflictoReserva.fecha_inicio} hasta el ${conflictoReserva.fecha_fin}.`);
+      return;
+    }
+
+    // VERIFICACIÓN 3: ¿Tiene otro contrato de arriendo activo en las mismas fechas?
+    const conflictoArriendo = arriendosList.find(a => {
+      if (a.equipo_id.toString() !== eq.id.toString() || a.estado !== 'Activo') return false;
+      const arrIni = new Date(a.fecha_inicio);
+      const arrFin = new Date(a.fecha_fin);
+      return (arrIni <= aFin && arrFin >= aInicio);
+    });
+
+    if (conflictoArriendo) {
+      alert(`❌ SOLAPAMIENTO DE ARRIENDO: El equipo ya posee un contrato de arriendo activo con "${conflictoArriendo.empresa_arrendataria}" entre el ${conflictoArriendo.fecha_inicio} y el ${conflictoArriendo.fecha_fin}.`);
+      return;
+    }
 
     const newArriendo = {
       equipo_id: arriendoForm.equipo_id,
-      equipo_tipo: eq ? eq.tipo : 'Equipo',
-      equipo_patente: eq ? eq.patente : 'N/A',
+      equipo_tipo: eq.tipo,
+      equipo_patente: eq.patente,
       empresa_arrendataria: arriendoForm.empresa_arrendataria.trim(),
+      rut_empresa: arriendoForm.rut_empresa.trim(),
+      obra_cliente: arriendoForm.obra_cliente.trim(),
+      direccion_obra: arriendoForm.direccion_obra.trim(),
+      contacto_nombre: arriendoForm.contacto_nombre.trim(),
+      contacto_telefono: arriendoForm.contacto_telefono.trim(),
+      contacto_email: arriendoForm.contacto_email.trim(),
       tarifa_diaria: parseFloat(arriendoForm.tarifa_diaria) || 0,
       fecha_inicio: arriendoForm.fecha_inicio,
       fecha_fin: arriendoForm.fecha_fin,
-      contacto_responsable: arriendoForm.contacto_responsable,
       observaciones: arriendoForm.observaciones,
       estado: 'Activo',
       empresa: user?.empresa || 'EMIN',
@@ -509,13 +566,13 @@ export default function Maquinaria({ user, onBack }) {
     try {
       const { error } = await supabase.from('maquinaria_arriendos').insert([newArriendo]);
       if (error) throw error;
-      setSuccessMsg('Contrato de arriendo registrado con éxito.');
+      setSuccessMsg('Contrato de arriendo a tercero registrado exitosamente.');
       fetchArriendosLogs();
     } catch (err) {
       const updated = [newArriendo, ...arriendosList];
       setArriendosList(updated);
       localStorage.setItem('obraxis_maquinaria_arriendos', JSON.stringify(updated));
-      setSuccessMsg('Arriendo guardado localmente.');
+      setSuccessMsg('Contrato de arriendo guardado.');
     } finally {
       setArriendoModalOpen(false);
       setTimeout(() => setSuccessMsg(''), 3000);
@@ -1333,16 +1390,25 @@ export default function Maquinaria({ user, onBack }) {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {arriendosList.map((arr, idx) => (
-                <div key={idx} className="p-5 rounded-3xl border border-amber-200 bg-amber-50/30 space-y-2 shadow-xs">
+                <div key={idx} className="p-5 rounded-3xl border border-amber-200 bg-amber-50/30 space-y-3 shadow-xs">
                   <div className="flex items-center justify-between">
                     <span className="text-[9.5px] font-extrabold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200 uppercase">
                       {arr.equipo_tipo} ({arr.equipo_patente})
                     </span>
-                    <span className="text-[10px] font-bold text-slate-500">{arr.fecha_inicio} al {arr.fecha_fin}</span>
+                    <span className="text-[10px] font-bold text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded-lg">{arr.fecha_inicio} al {arr.fecha_fin}</span>
                   </div>
-                  <h4 className="text-xs font-black text-slate-850 uppercase">Empresa Arrendataria: {arr.empresa_arrendataria}</h4>
-                  <p className="text-[11px] text-slate-600">Tarifa Diaria: <b className="text-amber-800">${parseFloat(arr.tarifa_diaria || 0).toLocaleString('es-CL')} /día</b></p>
-                  {arr.contacto_responsable && <p className="text-[10px] text-slate-500">Contacto: {arr.contacto_responsable}</p>}
+                  <div>
+                    <h4 className="text-xs font-black text-slate-850 uppercase">{arr.empresa_arrendataria} {arr.rut_empresa ? `(${arr.rut_empresa})` : ''}</h4>
+                    <p className="text-[11px] text-amber-900 font-bold">Obra Cliente: {arr.obra_cliente || 'N/A'}</p>
+                    {arr.direccion_obra && <p className="text-[10px] text-slate-500">Dirección: {arr.direccion_obra}</p>}
+                  </div>
+                  <div className="pt-2 border-t border-amber-200/60 flex justify-between items-center text-[11px]">
+                    <div>
+                      <p className="text-slate-700 font-semibold">Responsable: <b>{arr.contacto_nombre || arr.contacto_responsable || 'S/I'}</b></p>
+                      {arr.contacto_telefono && <p className="text-[10px] text-slate-500">Tel: {arr.contacto_telefono} {arr.contacto_email ? `| ${arr.contacto_email}` : ''}</p>}
+                    </div>
+                    <span className="text-xs font-black text-amber-800 bg-white px-2.5 py-1 rounded-xl border border-amber-300">${parseFloat(arr.tarifa_diaria || 0).toLocaleString('es-CL')}/día</span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1418,13 +1484,13 @@ export default function Maquinaria({ user, onBack }) {
         </div>
       )}
 
-      {/* MODAL ARRIENDOS A TERCEROS */}
+      {/* MODAL ARRIENDOS A TERCEROS CON CAMPOS COMPLETOS Y VALIDACIÓN DE DISPONIBILIDAD */}
       {arriendoModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-md w-full space-y-4 shadow-xl">
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-lg w-full space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider flex items-center gap-2">
               <Handshake className="w-5 h-5 text-amber-600" />
-              <span>Registrar Arriendo a Tercero</span>
+              <span>Registrar Contrato de Arriendo a Tercero</span>
             </h3>
 
             <form onSubmit={handleArriendoSubmit} className="space-y-3 text-xs">
@@ -1437,72 +1503,149 @@ export default function Maquinaria({ user, onBack }) {
                   required
                 >
                   {maquinaria.map(m => (
-                    <option key={m.id} value={m.id}>{m.tipo} ({m.patente})</option>
+                    <option key={m.id} value={m.id}>{m.tipo} ({m.patente}) - {m.obra_nombre ? `En Faena: ${m.obra_nombre}` : 'Bodega Central'}</option>
                   ))}
                 </select>
               </div>
 
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Empresa Arrendataria *</label>
-                <input
-                  type="text"
-                  placeholder="ej: Constructora El Bosque SpA"
-                  value={arriendoForm.empresa_arrendataria}
-                  onChange={(e) => setArriendoForm(prev => ({ ...prev, empresa_arrendataria: e.target.value }))}
-                  className="w-full border border-slate-200 rounded-xl p-2.5 font-bold text-slate-800"
-                  required
-                />
-              </div>
-
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Tarifa Diaria ($)</label>
-                  <input
-                    type="number"
-                    placeholder="150000"
-                    value={arriendoForm.tarifa_diaria}
-                    onChange={(e) => setArriendoForm(prev => ({ ...prev, tarifa_diaria: e.target.value }))}
-                    className="w-full border border-slate-200 rounded-xl p-2.5 font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Contacto Responsable</label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Empresa Arrendataria *</label>
                   <input
                     type="text"
-                    placeholder="Nombre o Teléfono"
-                    value={arriendoForm.contacto_responsable}
-                    onChange={(e) => setArriendoForm(prev => ({ ...prev, contacto_responsable: e.target.value }))}
-                    className="w-full border border-slate-200 rounded-xl p-2.5 font-bold"
+                    placeholder="ej: Constructora El Bosque SpA"
+                    value={arriendoForm.empresa_arrendataria}
+                    onChange={(e) => setArriendoForm(prev => ({ ...prev, empresa_arrendataria: e.target.value }))}
+                    className="w-full border border-slate-200 rounded-xl p-2.5 font-bold text-slate-800"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">RUT Empresa Cliente *</label>
+                  <input
+                    type="text"
+                    placeholder="ej: 76.543.210-K"
+                    value={arriendoForm.rut_empresa}
+                    onChange={(e) => setArriendoForm(prev => ({ ...prev, rut_empresa: e.target.value }))}
+                    className="w-full border border-slate-200 rounded-xl p-2.5 font-bold text-slate-800"
+                    required
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Desde *</label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Obra / Proyecto Destino *</label>
+                  <input
+                    type="text"
+                    placeholder="ej: Proyecto Edificio Alto Las Condes"
+                    value={arriendoForm.obra_cliente}
+                    onChange={(e) => setArriendoForm(prev => ({ ...prev, obra_cliente: e.target.value }))}
+                    className="w-full border border-slate-200 rounded-xl p-2.5 font-bold text-slate-800"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Dirección de Faena</label>
+                  <input
+                    type="text"
+                    placeholder="ej: Av. Vitacura #9900, Santiago"
+                    value={arriendoForm.direccion_obra}
+                    onChange={(e) => setArriendoForm(prev => ({ ...prev, direccion_obra: e.target.value }))}
+                    className="w-full border border-slate-200 rounded-xl p-2.5 font-bold text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Responsable *</label>
+                  <input
+                    type="text"
+                    placeholder="ej: Carlos Mendoza"
+                    value={arriendoForm.contacto_nombre}
+                    onChange={(e) => setArriendoForm(prev => ({ ...prev, contacto_nombre: e.target.value }))}
+                    className="w-full border border-slate-200 rounded-xl p-2 font-bold"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Teléfono *</label>
+                  <input
+                    type="text"
+                    placeholder="+56 9 8765 4321"
+                    value={arriendoForm.contacto_telefono}
+                    onChange={(e) => setArriendoForm(prev => ({ ...prev, contacto_telefono: e.target.value }))}
+                    className="w-full border border-slate-200 rounded-xl p-2 font-bold"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Correo Electrónico</label>
+                  <input
+                    type="email"
+                    placeholder="contacto@empresa.cl"
+                    value={arriendoForm.contacto_email}
+                    onChange={(e) => setArriendoForm(prev => ({ ...prev, contacto_email: e.target.value }))}
+                    className="w-full border border-slate-200 rounded-xl p-2 font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Tarifa Diaria ($) *</label>
+                  <input
+                    type="number"
+                    placeholder="180000"
+                    value={arriendoForm.tarifa_diaria}
+                    onChange={(e) => setArriendoForm(prev => ({ ...prev, tarifa_diaria: e.target.value }))}
+                    className="w-full border border-slate-200 rounded-xl p-2 font-bold"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Fecha Desde *</label>
                   <input
                     type="date"
                     value={arriendoForm.fecha_inicio}
                     onChange={(e) => setArriendoForm(prev => ({ ...prev, fecha_inicio: e.target.value }))}
-                    className="w-full border border-slate-200 rounded-xl p-2.5 font-bold"
+                    className="w-full border border-slate-200 rounded-xl p-2 font-bold"
                     required
                   />
                 </div>
+
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Hasta *</label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Fecha Hasta *</label>
                   <input
                     type="date"
                     value={arriendoForm.fecha_fin}
                     onChange={(e) => setArriendoForm(prev => ({ ...prev, fecha_fin: e.target.value }))}
-                    className="w-full border border-slate-200 rounded-xl p-2.5 font-bold"
+                    className="w-full border border-slate-200 rounded-xl p-2 font-bold"
                     required
                   />
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-3">
-                <button type="button" onClick={() => setArriendoModalOpen(false)} className="px-4 py-2 rounded-xl bg-slate-100 font-bold">Cancelar</button>
-                <button type="submit" className="px-5 py-2 rounded-xl bg-amber-600 text-white font-bold">Guardar Arriendo</button>
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Observaciones / Condiciones</label>
+                <textarea
+                  rows="2"
+                  placeholder="Condiciones de despacho, operador incluido, póliza de seguro..."
+                  value={arriendoForm.observaciones}
+                  onChange={(e) => setArriendoForm(prev => ({ ...prev, observaciones: e.target.value }))}
+                  className="w-full border border-slate-200 rounded-xl p-2 font-medium text-slate-800"
+                ></textarea>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button type="button" onClick={() => setArriendoModalOpen(false)} className="px-4 py-2.5 rounded-xl bg-slate-100 font-bold">Cancelar</button>
+                <button type="submit" className="px-5 py-2.5 rounded-xl bg-amber-600 text-white font-bold shadow-sm">Confirmar Contrato</button>
               </div>
             </form>
           </div>
