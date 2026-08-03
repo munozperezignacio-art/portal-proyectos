@@ -798,22 +798,41 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
   };
 
   const fetchBudgetItems = async (projId) => {
+    if (!projId) return;
     setBudgetLoading(true);
     try {
       const { data, error } = await supabase
         .from('presupuestos_items')
         .select('*')
         .eq('presupuesto_id', projId);
-      if (error) throw error;
+      
+      const localKey = `obraxis_presupuesto_items_${projId}`;
+      const localStr = localStorage.getItem(localKey);
+      const localItems = localStr ? JSON.parse(localStr) : [];
 
-      const sorted = (data || []).sort((a, b) => {
+      let combined = [...(data || [])];
+      
+      // Fusionar cualquier partida local no sincronizada aún
+      localItems.forEach(loc => {
+        const exists = combined.some(rem => (rem.id && loc.id && rem.id.toString() === loc.id.toString()) || (rem.codigo && loc.codigo && rem.codigo === loc.codigo && rem.partida === loc.partida));
+        if (!exists) combined.push(loc);
+      });
+
+      const sorted = combined.sort((a, b) => {
         const codA = a.codigo || '';
         const codB = b.codigo || '';
         return codA.localeCompare(codB, undefined, { numeric: true, sensitivity: 'base' });
       });
+
       setItemsPresupuesto(sorted);
+      try { localStorage.setItem(localKey, JSON.stringify(sorted)); } catch (e) {}
     } catch (err) {
       console.error('Error cargando ítems de presupuesto:', err.message);
+      const localKey = `obraxis_presupuesto_items_${projId}`;
+      const localStr = localStorage.getItem(localKey);
+      if (localStr) {
+        try { setItemsPresupuesto(JSON.parse(localStr)); } catch (e) {}
+      }
     } finally {
       setBudgetLoading(false);
     }
@@ -1115,8 +1134,12 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
     setSuccessMsg('');
 
     try {
+      // 1. Guardado síncrono e inmediato en memoria local
+      const localKey = `obraxis_presupuesto_items_${selectedProyectoId}`;
+      try { localStorage.setItem(localKey, JSON.stringify(itemsPresupuesto)); } catch (e) {}
+
       const cleanDbPayload = (p) => ({
-        presupuesto_id: selectedProyectoId,
+        presupuesto_id: parseInt(selectedProyectoId, 10) || selectedProyectoId,
         codigo: p.codigo || '',
         partida: p.partida || p.descripcion || p.nombre || 'Partida Presupuestada',
         unidad: p.unidad || 'UND',
@@ -1125,9 +1148,8 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
         rendimiento_meta: parseFloat(p.rendimiento_meta || p.rendimiento) || 0
       });
 
-      // Clasificación infalible independiente de si el ID es number, string o UUID
       const toInsert = itemsPresupuesto
-        .filter(p => p.id && p.id.toString().startsWith('temp-'))
+        .filter(p => !p.id || p.id.toString().startsWith('temp-'))
         .map(cleanDbPayload);
 
       const toUpdate = itemsPresupuesto
@@ -1138,19 +1160,19 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
         .select('id')
         .eq('presupuesto_id', selectedProyectoId);
 
-      if (dbErr) console.warn('Aviso consulta partidas:', dbErr.message);
+      if (!dbErr && dbCurrent) {
+        const dbIds = dbCurrent.map(x => x.id.toString());
+        const keepIds = toUpdate.map(x => x.id.toString());
+        const toDeleteIds = dbIds.filter(id => !keepIds.includes(id));
 
-      const dbIds = (dbCurrent || []).map(x => x.id.toString());
-      const keepIds = toUpdate.map(x => x.id.toString());
-      const toDeleteIds = dbIds.filter(id => !keepIds.includes(id));
-
-      if (toDeleteIds.length > 0) {
-        try {
-          await supabase
-            .from('presupuestos_items')
-            .delete()
-            .in('id', toDeleteIds);
-        } catch (errDel) {}
+        if (toDeleteIds.length > 0) {
+          try {
+            await supabase
+              .from('presupuestos_items')
+              .delete()
+              .in('id', toDeleteIds);
+          } catch (errDel) {}
+        }
       }
 
       for (const item of toUpdate) {
@@ -1168,10 +1190,12 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
         const { error: insErr } = await supabase
           .from('presupuestos_items')
           .insert(toInsert);
-        if (insErr) console.warn("Aviso inserción presupuestos_items:", insErr.message);
+        if (insErr) {
+          console.warn("Aviso inserción presupuestos_items:", insErr.message);
+        }
       }
 
-      // Sincronizar automáticamente partidas_obra para cualquier Obra vinculada (utilizable en Avances de Obra)
+      // Sincronizar automáticamente partidas_obra para cualquier Obra vinculada (para Registrar Avance)
       try {
         const { data: bData } = await supabase.from('presupuestos_proyectos').select('nombre').eq('id', selectedProyectoId).single();
         if (bData && bData.nombre) {
@@ -1197,8 +1221,8 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
       }
 
       setSuccessMsg('Presupuesto guardado exitosamente. Partidas vinculadas a Planificación y Avances de Obra.');
-      fetchBudgetItems(selectedProyectoId);
-      fetchCronograma(selectedProyectoId);
+      await fetchBudgetItems(selectedProyectoId);
+      await fetchCronograma(selectedProyectoId);
     } catch (err) {
       setErrorMsg('Error al guardar presupuesto: ' + err.message);
     } finally {
