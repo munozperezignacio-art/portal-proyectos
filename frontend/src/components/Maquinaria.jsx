@@ -1993,7 +1993,7 @@ export default function Maquinaria({ user, onBack }) {
               {/* SECCIÓN 5: FIRMAS Y CONFORMIDAD DE LAS PARTES */}
               <div className="pt-8 pb-4">
                 <div className="grid grid-cols-2 gap-8 text-center text-xs">
-                  <div className="space-y-12">
+                  <div className="space-y-6">
                     <div className="border-b-2 border-slate-800 w-3/4 mx-auto"></div>
                     <div>
                       <p className="font-black text-slate-900 uppercase">OBRAXIS SPA</p>
@@ -2001,7 +2001,7 @@ export default function Maquinaria({ user, onBack }) {
                     </div>
                   </div>
 
-                  <div className="space-y-12">
+                  <div className="space-y-6">
                     <div className="border-b-2 border-slate-800 w-3/4 mx-auto"></div>
                     <div>
                       <p className="font-black text-slate-900 uppercase">{arr.empresa_arrendataria}</p>
@@ -2012,9 +2012,9 @@ export default function Maquinaria({ user, onBack }) {
               </div>
 
               {/* PIE DE PÁGINA DOCUMENTO OFICIAL */}
-              <div className="pt-3 border-t border-slate-300 flex justify-between items-center text-[9.5px] text-slate-400 font-bold uppercase">
-                <span>PORTAL OBRAXIS | VALUACIÓN OFICIAL DE ARRIENDO</span>
-                <span>PÁGINA 1 DE 1</span>
+              <div className="pt-2 border-t border-slate-300 flex justify-between items-center text-[9px] text-slate-500 font-bold uppercase">
+                <span>© Obraxis SpA — www.obraxis.cl | Todos los derechos reservados.</span>
+                <span>Documento Oficial de Estado de Pago</span>
               </div>
 
             </div>
