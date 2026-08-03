@@ -2631,10 +2631,39 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   </div>
 
                   {maquinariaList.length === 0 ? (
-                    <div className="text-center py-8 bg-slate-50 rounded-2xl border border-slate-200 text-slate-400 text-xs">
-                      <Truck className="w-8 h-8 mx-auto mb-2 opacity-40 text-slate-500" />
-                      <p className="font-bold">No hay equipos ni maquinarias asignadas a esta obra actualmente.</p>
-                      <p className="text-[10.5px] text-slate-400 mt-0.5">Asigna equipos desde el módulo de Maquinaria para verlos reflejados aquí.</p>
+                    <div className="space-y-3">
+                      <div className="text-center py-6 bg-slate-50 rounded-2xl border border-slate-200 text-slate-400 text-xs">
+                        <Truck className="w-8 h-8 mx-auto mb-2 opacity-40 text-slate-500" />
+                        <p className="font-bold">No hay equipos ni maquinarias asignadas a esta obra actualmente.</p>
+                        <p className="text-[10.5px] text-slate-400 mt-0.5">Asigna equipos desde el módulo de Maquinaria para verlos reflejados aquí.</p>
+                      </div>
+
+                      {/* DIAGNÓSTICO DE VINCULACIÓN EN TIEMPO REAL */}
+                      <div className="bg-slate-900 text-slate-200 p-4 rounded-2xl text-[11px] font-mono space-y-2 border border-slate-800 shadow-md">
+                        <div className="flex justify-between items-center border-b border-slate-700 pb-2">
+                          <span className="font-bold text-amber-400">🔍 PANEL DE DIAGNÓSTICO DE ENLACE DE MAQUINARIA</span>
+                          <span className="text-[10px] text-slate-400">Obraxis Debug</span>
+                        </div>
+                        <p><span className="text-slate-400">1. Nombre de la Obra Abierta:</span> <strong className="text-white font-bold">"{selectedObra?.nombre}"</strong></p>
+                        <p><span className="text-slate-400">2. Empresa Usuario Logueado:</span> <strong className="text-white font-bold">"{user?.empresa || 'S/I'}"</strong></p>
+                        <p><span className="text-slate-400">3. Total Equipos en Inventario Cargar:</span> <strong className="text-emerald-400 font-bold">{maquinariaList.length} cargados para esta obra</strong></p>
+                        
+                        <div className="pt-2 border-t border-slate-800 space-y-1">
+                          <p className="text-slate-400 font-bold">4. Inspección de Equipos en Memoria/Supabase:</p>
+                          <div className="bg-slate-950 p-2.5 rounded-xl space-y-1 max-h-40 overflow-y-auto border border-slate-800 text-[10px]">
+                            {JSON.parse(localStorage.getItem('obraxis_inventario_maquinaria') || '[]').length === 0 ? (
+                              <p className="text-rose-400">⚠️ LocalStorage de Maquinaria está vacío en tu navegador. Presiona en Maquinaria para resincronizar.</p>
+                            ) : (
+                              JSON.parse(localStorage.getItem('obraxis_inventario_maquinaria') || '[]').map((item, i) => (
+                                <div key={i} className="flex justify-between border-b border-slate-900 pb-1 text-slate-300">
+                                  <span>[{item.tipo || 'Equipo'}] <strong>{item.patente || item.id || 'S/P'}</strong></span>
+                                  <span>Obra: <strong className={item.obra_nombre ? "text-amber-300" : "text-rose-400"}>"{item.obra_nombre || 'Sin Obra (Bodega)'}"</strong></span>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   ) : (
                     <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white">
