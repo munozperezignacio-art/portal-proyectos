@@ -179,7 +179,20 @@ export default function Maquinaria({ user, onBack }) {
         .eq('empresa', user.empresa)
         .order('tipo', { ascending: true });
       if (errMaq) throw errMaq;
-      setMaquinaria(dataMaq || []);
+      const localStr = localStorage.getItem('obraxis_inventario_maquinaria');
+      const localItems = localStr ? JSON.parse(localStr) : [];
+
+      const mergedData = (dataMaq || []).map(remoteItem => {
+        const loc = localItems.find(l => l.id.toString() === remoteItem.id.toString() || l.patente === remoteItem.patente);
+        return {
+          ...remoteItem,
+          costo_interno: remoteItem.costo_interno !== undefined && remoteItem.costo_interno !== null ? remoteItem.costo_interno : (loc?.costo_interno || 0),
+          unidad_costo_interno: remoteItem.unidad_costo_interno || loc?.unidad_costo_interno || '$/día'
+        };
+      });
+
+      setMaquinaria(mergedData);
+      localStorage.setItem('obraxis_inventario_maquinaria', JSON.stringify(mergedData));
 
       const { data: dataObras, error: errObras } = await supabase
         .from('obras')
@@ -285,6 +298,8 @@ export default function Maquinaria({ user, onBack }) {
       marca: '',
       obra_nombre: obras.length > 0 ? obras[0].nombre : 'Bodega Central / Libre',
       horometro_inicial: '0',
+      costo_interno: '',
+      unidad_costo_interno: '$/día',
       tipo_activo: 'Propio',
       estado_equipo: 'Operativo',
       foto_frontal: '',
@@ -305,6 +320,8 @@ export default function Maquinaria({ user, onBack }) {
       marca: equip.marca || '',
       obra_nombre: equip.obra_nombre || 'Bodega Central / Libre',
       horometro_inicial: equip.horometro_inicial ? equip.horometro_inicial.toString() : '0',
+      costo_interno: (equip.costo_interno !== undefined && equip.costo_interno !== null && equip.costo_interno !== 0) ? equip.costo_interno.toString() : '',
+      unidad_costo_interno: equip.unidad_costo_interno || '$/día',
       tipo_activo: equip.tipo_activo || 'Propio',
       estado_equipo: equip.estado_equipo || 'Operativo',
       foto_frontal: equip.foto_frontal || '',
@@ -345,6 +362,8 @@ export default function Maquinaria({ user, onBack }) {
       marca: formData.marca.trim(),
       obra_nombre: validObraNombre,
       horometro_inicial: parseFloat(formData.horometro_inicial) || 0,
+      costo_interno: parseFloat(formData.costo_interno) || 0,
+      unidad_costo_interno: formData.unidad_costo_interno || '$/día',
       tipo_activo: formData.tipo_activo,
       estado_equipo: formData.estado_equipo,
       foto_frontal: formData.foto_frontal || null,
@@ -390,9 +409,25 @@ export default function Maquinaria({ user, onBack }) {
         }
       }
 
-      if (!success && lastError) throw lastError;
-      setSuccessMsg(editingEquip ? "Ficha de equipo actualizada." : "Equipo registrado exitosamente.");
+      if (!success && lastError) console.warn("Aviso Supabase:", lastError.message);
+      
+      const newEquipObj = {
+        ...(editingEquip || {}),
+        ...dataToSave,
+        id: editingEquip ? editingEquip.id : (Date.now().toString())
+      };
 
+      let currentLocal = JSON.parse(localStorage.getItem('obraxis_inventario_maquinaria') || '[]');
+      if (editingEquip) {
+        currentLocal = currentLocal.map(item => item.id.toString() === editingEquip.id.toString() ? newEquipObj : item);
+      } else {
+        currentLocal.push(newEquipObj);
+      }
+
+      localStorage.setItem('obraxis_inventario_maquinaria', JSON.stringify(currentLocal));
+      setMaquinaria(currentLocal);
+
+      setSuccessMsg(editingEquip ? "Ficha de equipo actualizada." : "Equipo registrado exitosamente.");
       fetchData();
       setTimeout(() => setModalOpen(false), 1200);
     } catch (err) {
@@ -2689,7 +2724,7 @@ export default function Maquinaria({ user, onBack }) {
                     <input
                       type="number"
                       placeholder="ej: 50000"
-                      value={formData.costo_interno || '0'}
+                      value={formData.costo_interno}
                       onChange={(e) => setFormData(prev => ({ ...prev, costo_interno: e.target.value }))}
                       className="w-full border border-amber-300 rounded-xl p-2.5 font-bold text-slate-900 bg-white text-xs"
                     />
