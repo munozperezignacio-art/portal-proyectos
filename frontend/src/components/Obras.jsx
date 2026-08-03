@@ -512,7 +512,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         .eq('obra_nombre', obraNombre);
       setPersonalCount(countPers || 0);
 
-      // 2. Cargar número de maquinaria asignada e inventario completo con costo_interno (híbrido insensible a mayúsculas)
+      // 2. Cargar número de maquinaria asignada e inventario completo con costo_interno (coincidencia inteligente de obra)
       const localMaqStr = localStorage.getItem('obraxis_inventario_maquinaria');
       const localMaq = localMaqStr ? JSON.parse(localMaqStr) : [];
       const matchName = (obraNombre || '').trim().toLowerCase();
@@ -521,8 +521,14 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         .from('inventario_maquinaria')
         .select('*');
 
-      const remoteMatched = (allRemoteMaq || []).filter(m => (m.obra_nombre || '').trim().toLowerCase() === matchName);
-      const localMatched = localMaq.filter(m => (m.obra_nombre || '').trim().toLowerCase() === matchName);
+      const isEquipForObra = (m) => {
+        if (!m || !m.obra_nombre) return false;
+        const equipObra = m.obra_nombre.trim().toLowerCase();
+        return equipObra === matchName || equipObra.includes(matchName) || matchName.includes(equipObra);
+      };
+
+      const remoteMatched = (allRemoteMaq || []).filter(isEquipForObra);
+      const localMatched = localMaq.filter(isEquipForObra);
 
       const mapEquip = new Map();
       remoteMatched.forEach(m => mapEquip.set((m.id || m.patente).toString(), m));
