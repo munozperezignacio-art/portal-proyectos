@@ -1753,7 +1753,7 @@ export default function Maquinaria({ user, onBack }) {
         const total = subtotal + iva;
 
         return (
-          <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 z-50 animate-in fade-in overflow-y-auto font-sans">
+          <div className="printable-modal-overlay fixed inset-0 bg-slate-900/70 flex items-center justify-center p-2 sm:p-4 z-50 animate-in fade-in overflow-y-auto font-sans">
             <div className="printable-pdf-document bg-white rounded-3xl border border-slate-200 p-6 md:p-8 max-w-3xl w-full space-y-6 shadow-2xl my-auto max-h-[92vh] overflow-y-auto">
               
               {/* BARRA SUPERIOR DE ACCIONES (NO IMPRIMIBLE) */}

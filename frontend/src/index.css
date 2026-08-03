@@ -6,8 +6,11 @@
 }
 
 @media print {
-  /* Ocultar barra lateral, botones y elementos de la app */
-  .no-print, button, input[type="date"], select, .backdrop-blur-xs {
+  /* Ocultar el contenido de la aplicación detrás del modal */
+  body > div > *:not(.printable-modal-overlay),
+  #root > div > *:not(.printable-modal-overlay),
+  .no-print,
+  button {
     display: none !important;
   }
   
@@ -24,11 +27,27 @@
     print-color-adjust: exact !important;
   }
 
-  /* El modal impreso se expande a 100% de la hoja sin sombras ni bordes */
-  .printable-pdf-document {
+  /* Hacer que el overlay del modal sea visible y plano */
+  .printable-modal-overlay {
     position: absolute !important;
     left: 0 !important;
     top: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 100% !important;
+    display: block !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    z-index: 99999 !important;
+    overflow: visible !important;
+    inset: auto !important;
+  }
+
+  /* Expandir el documento impreso a 100% de la hoja */
+  .printable-pdf-document {
+    position: static !important;
+    display: block !important;
     width: 100% !important;
     max-width: 100% !important;
     margin: 0 !important;
@@ -38,6 +57,7 @@
     background: #ffffff !important;
     max-height: none !important;
     overflow: visible !important;
+    border-radius: 0 !important;
   }
 
   /* Desactivar todas las barras de desplazamiento */
