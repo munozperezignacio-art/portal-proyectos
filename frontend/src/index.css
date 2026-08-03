@@ -8,7 +8,12 @@
 @media print {
   @page {
     size: A4 portrait;
-    margin: 0.5cm 0.8cm;
+    margin: 0.5cm 0.6cm;
+  }
+
+  html, body {
+    height: 100% !important;
+    overflow: hidden !important;
   }
 
   body {
@@ -46,7 +51,7 @@
     border-radius: 0 !important;
   }
 
-  /* Ocultar botones y bloques interactivos */
+  /* Ocultar botones e inputs de control */
   .no-print,
   .no-print * {
     display: none !important;
