@@ -538,12 +538,12 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     fetchObras();
   }, []);
 
-  // Cargar métricas y listas cuando se selecciona una obra
+  // Cargar métricas y listas cuando se selecciona una obra o cambia de submódulo
   useEffect(() => {
     if (selectedObra) {
       fetchObraDetails(selectedObra.nombre);
     }
-  }, [selectedObra]);
+  }, [selectedObra, obraActiveSubmodule]);
 
   const fetchObras = async () => {
     setLoading(true);
@@ -667,7 +667,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         .eq('obra_nombre', obraNombre);
       setPersonalCount(countPers || 0);
 
-      // 2. Cargar número de maquinaria asignada e inventario completo con costo_interno (coincidencia híbrida inteligente)
+      // 2. Cargar número de maquinaria asignada e inventario completo con costo_interno (priorizando Supabase + reactividad)
       const localMaqStr = localStorage.getItem('obraxis_inventario_maquinaria');
       const localMaq = localMaqStr ? JSON.parse(localMaqStr) : [];
       const matchName = (obraNombre || '').trim().toLowerCase();
@@ -675,35 +675,37 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       let allRemoteMaq = [];
       try {
         const { data } = await supabase.from('inventario_maquinaria').select('*');
-        if (data) allRemoteMaq = data;
+        if (data && data.length > 0) allRemoteMaq = data;
       } catch (e) {
         console.warn('Error leyendo inventario_maquinaria:', e);
       }
+
+      // Combinar listas con prioridad a Supabase si existe
+      const mapAll = new Map();
+      localMaq.forEach(m => {
+        if (m.id || m.patente) mapAll.set((m.id || m.patente).toString(), m);
+      });
+      allRemoteMaq.forEach(m => {
+        if (m.id || m.patente) {
+          const key = (m.id || m.patente).toString();
+          const prev = mapAll.get(key) || {};
+          mapAll.set(key, { ...prev, ...m });
+        }
+      });
+
+      const combinedFleet = Array.from(mapAll.values());
 
       const isEquipForObra = (m) => {
         if (!m || !m.obra_nombre) return false;
         const equipObra = m.obra_nombre.toString().trim().toLowerCase();
         if (!equipObra || equipObra === 'bodega central / libre' || equipObra === 'libre') return false;
-        return equipObra === matchName || equipObra.includes(matchName) || matchName.includes(equipObra);
+        // Limpiar sufijos comunes si existen
+        const cleanMatch = matchName.replace(/^obras+/i, '');
+        const cleanEquip = equipObra.replace(/^obras+/i, '');
+        return equipObra === matchName || cleanEquip === cleanMatch || equipObra.includes(cleanMatch) || matchName.includes(cleanEquip);
       };
 
-      const remoteMatched = allRemoteMaq.filter(isEquipForObra);
-      const localMatched = localMaq.filter(isEquipForObra);
-
-      const mapEquip = new Map();
-      remoteMatched.forEach(m => mapEquip.set((m.id || m.patente).toString(), m));
-      localMatched.forEach(m => {
-        const key = (m.id || m.patente).toString();
-        const existing = mapEquip.get(key) || {};
-        mapEquip.set(key, {
-          ...existing,
-          ...m,
-          costo_interno: m.costo_interno !== undefined && m.costo_interno !== null && m.costo_interno !== 0 ? m.costo_interno : (existing.costo_interno || 0),
-          unidad_costo_interno: m.unidad_costo_interno || existing.unidad_costo_interno || '$/día'
-        });
-      });
-
-      const finalMaqObra = Array.from(mapEquip.values());
+      const finalMaqObra = combinedFleet.filter(isEquipForObra);
       setMaquinariaCount(finalMaqObra.length);
       setMaquinariaList(finalMaqObra);
 
