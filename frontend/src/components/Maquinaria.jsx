@@ -236,26 +236,44 @@ export default function Maquinaria({ user, onBack }) {
         ? await supabase.from('inventario_maquinaria').update(cleanPayload).eq('id', editingEquip.id)
         : await supabase.from('inventario_maquinaria').insert([cleanPayload]);
 
-      // Si falla por alguna columna no creada en Supabase (ej: estado_equipo, fotos), limpiamos dinámicamente
-      if (error && (error.message.includes('column') || error.message.includes('schema cache'))) {
-        console.warn('Detectada columna faltante en Supabase, reintentando con payload base:', error.message);
+      // Si falla por alguna columna no creada en Supabase (ej: tipo_activo, estado_equipo, fotos), limpiamos dinámicamente
+      if (error && (error.message.includes('column') || error.message.includes('schema cache') || error.message.includes('Could not find'))) {
+        console.warn('Detectada columna faltante en Supabase, aplicando filtro de resiliencia:', error.message);
         
-        // Intentar extraer el nombre de la columna del mensaje de error
+        // Intentar borrar la columna específica que dio error
         const match = error.message.match(/Could not find the '([^']+)' column/i) || error.message.match(/column "([^"]+)"/i);
         if (match && match[1]) {
           delete cleanPayload[match[1]];
         }
         
-        // Limpieza de respaldo general para campos extendidos si aún persiste
+        // Limpieza de respaldo total para todos los campos extendidos opcionales
+        delete cleanPayload.tipo_activo;
         delete cleanPayload.estado_equipo;
         delete cleanPayload.foto_frontal;
         delete cleanPayload.foto_izquierda;
         delete cleanPayload.foto_derecha;
         delete cleanPayload.foto_posterior;
 
-        const retry = editingEquip
+        let retry = editingEquip
           ? await supabase.from('inventario_maquinaria').update(cleanPayload).eq('id', editingEquip.id)
           : await supabase.from('inventario_maquinaria').insert([cleanPayload]);
+
+        // Si aún reincide en error por otra columna, forzar uso de payload mínimo garantizado
+        if (retry.error) {
+          const baseOnlyPayload = {
+            tipo: dataToSave.tipo,
+            patente: dataToSave.patente,
+            marca: dataToSave.marca,
+            obra_nombre: dataToSave.obra_nombre,
+            horometro_inicial: dataToSave.horometro_inicial,
+            registrado_por: dataToSave.registrado_por,
+            empresa: dataToSave.empresa
+          };
+
+          retry = editingEquip
+            ? await supabase.from('inventario_maquinaria').update(baseOnlyPayload).eq('id', editingEquip.id)
+            : await supabase.from('inventario_maquinaria').insert([baseOnlyPayload]);
+        }
 
         error = retry.error;
       }
