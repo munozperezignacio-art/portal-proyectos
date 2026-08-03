@@ -667,22 +667,27 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         .eq('obra_nombre', obraNombre);
       setPersonalCount(countPers || 0);
 
-      // 2. Cargar número de maquinaria asignada e inventario completo con costo_interno (coincidencia inteligente de obra)
+      // 2. Cargar número de maquinaria asignada e inventario completo con costo_interno (coincidencia híbrida inteligente)
       const localMaqStr = localStorage.getItem('obraxis_inventario_maquinaria');
       const localMaq = localMaqStr ? JSON.parse(localMaqStr) : [];
       const matchName = (obraNombre || '').trim().toLowerCase();
 
-      const { data: allRemoteMaq } = await supabase
-        .from('inventario_maquinaria')
-        .select('*');
+      let allRemoteMaq = [];
+      try {
+        const { data } = await supabase.from('inventario_maquinaria').select('*');
+        if (data) allRemoteMaq = data;
+      } catch (e) {
+        console.warn('Error leyendo inventario_maquinaria:', e);
+      }
 
       const isEquipForObra = (m) => {
         if (!m || !m.obra_nombre) return false;
-        const equipObra = m.obra_nombre.trim().toLowerCase();
+        const equipObra = m.obra_nombre.toString().trim().toLowerCase();
+        if (!equipObra || equipObra === 'bodega central / libre' || equipObra === 'libre') return false;
         return equipObra === matchName || equipObra.includes(matchName) || matchName.includes(equipObra);
       };
 
-      const remoteMatched = (allRemoteMaq || []).filter(isEquipForObra);
+      const remoteMatched = allRemoteMaq.filter(isEquipForObra);
       const localMatched = localMaq.filter(isEquipForObra);
 
       const mapEquip = new Map();
@@ -2529,15 +2534,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   </button>
                 </div>
 
-                {maqSubTab === 'asignaciones' ? (
-                  <button
-                    onClick={openAssignModalFromObra}
-                    className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>+ Vincular Equipo Flota a esta Obra</span>
-                  </button>
-                ) : (
+                {maqSubTab === 'arriendos' && (
                   <button
                     onClick={() => setShowArriendoModal(true)}
                     className="bg-indigo-900 hover:bg-indigo-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"

@@ -489,12 +489,15 @@ export default function Maquinaria({ user, onBack }) {
 
       while (attempts < 5 && !success) {
         attempts++;
-        const res = await supabase.from('inventario_maquinaria').update(updatePayload).eq('id', selectedEquipToAssign.id);
+        let res = await supabase.from('inventario_maquinaria').update(updatePayload).eq('id', selectedEquipToAssign.id);
+        if (res.error) {
+          res = await supabase.from('inventario_maquinaria').update(updatePayload).eq('patente', selectedEquipToAssign.patente);
+        }
         if (!res.error) {
           success = true;
           break;
         }
-        const msg = res.error.message || '';
+        const msg = res.error ? (res.error.message || '') : '';
         const match = msg.match(/Could not find the '([^']+)' column/i);
         if (match && match[1] && updatePayload[match[1]] !== undefined) {
           delete updatePayload[match[1]];
