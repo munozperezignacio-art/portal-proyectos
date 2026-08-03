@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { obraxisLogoBase64 } from '../obraxisLogoBase64';
 import { supabase } from '../supabaseClient';
 import { 
   Truck, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Check, QrCode, 
