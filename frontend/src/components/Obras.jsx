@@ -738,13 +738,24 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
       const isEquipForObra = (item) => {
         if (!item || !item.obra_nombre) return false;
-        const oName = String(item.obra_nombre).trim().toLowerCase();
-        if (!oName || oName.includes('bodega') || oName === 'libre') return false;
-        if (oName === targetName) return true;
+        const rawObra = String(item.obra_nombre).trim().toLowerCase();
+        const rawTarget = String(obraNombre || '').trim().toLowerCase();
+        if (!rawObra || rawObra.includes('bodega') || rawObra === 'libre') return false;
 
-        const cleanOName = oName.replace(/^obra\s+/i, '').trim();
-        const cleanTarget = targetName.replace(/^obra\s+/i, '').trim();
-        return cleanOName === cleanTarget || (cleanTarget && cleanOName.includes(cleanTarget)) || (cleanOName && cleanTarget.includes(cleanOName));
+        // 1. Comparación exacta directa
+        if (rawObra === rawTarget) return true;
+
+        // 2. Normalización alfanumérica stripping espacios y caracteres especiales
+        const normObra = rawObra.replace(/[^a-z0-9]/g, '');
+        const normTarget = rawTarget.replace(/[^a-z0-9]/g, '');
+
+        if (normObra === normTarget || (normTarget && normObra.includes(normTarget)) || (normObra && normTarget.includes(normObra))) return true;
+
+        // 3. Normalización sin prefijos 'obra' o 'proyecto'
+        const coreObra = normObra.replace(/^(obra|proyecto)/, '');
+        const coreTarget = normTarget.replace(/^(obra|proyecto)/, '');
+
+        return coreObra === coreTarget || (coreTarget && coreObra.includes(coreTarget)) || (coreObra && coreTarget.includes(coreObra));
       };
 
       const finalMaqObra = combinedFleet.filter(isEquipForObra);
