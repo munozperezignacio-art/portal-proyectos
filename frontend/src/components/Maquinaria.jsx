@@ -1752,48 +1752,71 @@ export default function Maquinaria({ user, onBack }) {
         const total = subtotal + iva;
 
         return (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-            <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-xl w-full space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
-              <div className="flex justify-between items-start border-b border-slate-200 pb-4">
-                <div>
-                  <h3 className="text-base font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
-                    <DollarSign className="w-5 h-5 text-amber-600" />
-                    <span>Estado de Pago / Valuación de Arriendo</span>
-                  </h3>
-                  <p className="text-[11px] text-slate-500 font-semibold mt-0.5">Comprobante oficial de cobro por arriendo a terceros.</p>
+          <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 z-50 animate-in fade-in overflow-y-auto font-sans">
+            <div className="printable-pdf-document bg-white rounded-3xl border border-slate-200 p-6 md:p-8 max-w-3xl w-full space-y-6 shadow-2xl my-auto max-h-[92vh] overflow-y-auto">
+              
+              {/* BARRA SUPERIOR DE ACCIONES (NO IMPRIMIBLE) */}
+              <div className="no-print flex flex-wrap justify-between items-center gap-3 border-b border-slate-200 pb-4 bg-slate-50 p-3.5 rounded-2xl">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black text-slate-700">N° ESTADO DE PAGO:</span>
+                  <input
+                    type="number"
+                    min="1"
+                    value={numEstadoPago}
+                    onChange={(e) => setNumEstadoPago(e.target.value)}
+                    className="w-20 px-2 py-1 border border-slate-300 rounded-xl text-xs font-black text-slate-900 text-center bg-amber-50 focus:outline-none focus:border-amber-500"
+                  />
                 </div>
-                <button onClick={() => setEstadoPagoModalOpen(false)} className="p-1.5 rounded-xl bg-slate-100 font-bold text-xs text-slate-600 hover:bg-slate-200">✕</button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      alert(`📧 ESTADO DE PAGO N° ${numEstadoPago} ENVIADO: Se ha despachado la valuación por $${total.toLocaleString('es-CL')} (Periodo del ${fDesde} al ${fHasta}) al correo "${arr.contacto_email || arr.contacto_telefono || 'contacto@empresa.cl'}" para facturación.`);
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Enviar Correo</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black text-xs transition cursor-pointer shadow-sm flex items-center gap-1.5 uppercase tracking-wider"
+                  >
+                    🖨️ Imprimir / PDF
+                  </button>
+
+                  <button onClick={() => setEstadoPagoModalOpen(false)} className="p-2 rounded-xl bg-slate-200 font-bold text-xs text-slate-700 hover:bg-slate-300 cursor-pointer">
+                    ✕
+                  </button>
+                </div>
               </div>
 
-              {/* Ficha Documento */}
-              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3 text-xs">
-                <div className="grid grid-cols-2 gap-2 border-b border-slate-200/60 pb-3">
+              {/* ENCABEZADO CORPORATIVO OFICIAL CON MEMBRETE */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b-2 border-slate-900 pb-5">
+                <div className="flex items-center gap-4">
+                  <img src={obraxisLogoBase64} alt="Obraxis Logo" className="h-12 object-contain" />
                   <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Cliente Arrendatario</span>
-                    <p className="font-extrabold text-slate-850 uppercase">{arr.empresa_arrendataria}</p>
-                    <p className="text-slate-500">RUT: {arr.rut_empresa || 'S/I'}</p>
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Obra / Faena Cliente</span>
-                    <p className="font-extrabold text-slate-850">{arr.obra_cliente || 'N/A'}</p>
-                    <p className="text-slate-500">{arr.direccion_obra || 'Sin Dirección'}</p>
+                    <h1 className="text-lg font-black text-slate-900 tracking-tight uppercase">OBRAXIS SPA</h1>
+                    <p className="text-[10.5px] font-bold text-slate-600 uppercase">SISTEMAS Y GESTIÓN DE MAQUINARIA EN FAENA</p>
+                    <p className="text-[10px] text-slate-500 font-medium">RUT: 76.123.456-7 | Las Condes, Santiago | contacto@obraxis.cl</p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 border-b border-slate-200/60 pb-3">
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Equipo Prestado</span>
-                    <p className="font-extrabold text-amber-900 uppercase">{arr.equipo_tipo} ({arr.equipo_patente})</p>
+                <div className="text-left sm:text-right border-l-4 sm:border-l-0 pl-3 sm:pl-0 border-amber-600">
+                  <div className="bg-slate-900 text-white text-xs font-black px-4 py-1.5 rounded-lg uppercase tracking-wider inline-block">
+                    ESTADO DE PAGO N° {numEstadoPago || '1'}
                   </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Contrato Vigente</span>
-                    <p className="font-bold text-slate-700">{arr.fecha_inicio} al {arr.fecha_fin}</p>
-                  </div>
+                  <p className="text-[11px] font-bold text-slate-700 mt-1.5">Fecha Emisión: <b>{new Date().toLocaleDateString('es-CL')}</b></p>
                 </div>
+              </div>
 
-                {/* SELECTOR DE PERIODO DE COBRO / ESTADO DE PAGO */}
-                <div className="bg-amber-100/70 p-3.5 rounded-2xl border border-amber-300 space-y-2">
-                  <span className="text-[10.5px] font-extrabold text-amber-950 uppercase tracking-wider block">
+              {/* PERIODO LIQUIDADO EN ESTE DOCUMENTO */}
+              <div className="bg-slate-100 p-3.5 rounded-xl border border-slate-300">
+                <div className="no-print mb-2 pb-2 border-b border-slate-200">
+                  <span className="text-[10.5px] font-extrabold text-amber-950 uppercase tracking-wider block mb-1">
                     🗓️ Seleccionar Periodo a Cobrar en este Estado de Pago:
                   </span>
                   <div className="grid grid-cols-2 gap-3">
@@ -1818,20 +1841,64 @@ export default function Maquinaria({ user, onBack }) {
                   </div>
                 </div>
 
-                {/* Tabla Desglose de Valores */}
-                <div className="space-y-2 pt-1">
-                  {/* Desglose de Días Laborables / Feriados */}
-                  <div className="p-3 bg-slate-100 rounded-xl space-y-1 text-[11px] text-slate-700 border border-slate-200">
-                    <div className="flex justify-between font-semibold">
+                <div className="text-center font-black text-xs uppercase tracking-wider text-slate-900">
+                  PERIODO DE COBRO LIQUIDADO: <span className="bg-amber-200 text-amber-950 px-3 py-1 rounded-md text-xs">{fDesde} AL {fHasta}</span>
+                </div>
+              </div>
+
+              {/* SECCIÓN 1 Y 2: IDENTIFICACIÓN DE ARRENDATARIO, OBRA Y EQUIPO */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                
+                {/* 1. INFORMACIÓN DE LA EMPRESA ARRENDATARIA */}
+                <div className="border border-slate-300 rounded-xl overflow-hidden bg-white">
+                  <div className="bg-slate-800 text-white p-2 font-black text-[10.5px] uppercase tracking-wider">
+                    1. DATOS DEL CLIENTE ARRENDATARIO
+                  </div>
+                  <div className="p-3.5 space-y-1.5 text-slate-800 font-medium">
+                    <p className="font-extrabold text-slate-900 uppercase text-xs">{arr.empresa_arrendataria}</p>
+                    <p className="text-slate-600">RUT: <b className="text-slate-900">{arr.rut_empresa || 'S/I'}</b></p>
+                    <p className="text-[11px] text-slate-600 pt-1 border-t border-slate-100">Contacto: <b>{arr.contacto_nombre || arr.contacto_responsable || 'S/I'}</b></p>
+                    <p className="text-[11px] text-slate-600">Teléfono: <b>{arr.contacto_telefono || 'S/I'}</b></p>
+                    <p className="text-[11px] text-slate-600">Correo: <b>{arr.contacto_email || 'S/I'}</b></p>
+                  </div>
+                </div>
+
+                {/* 2. DATOS DE LA OBRA Y EQUIPO */}
+                <div className="border border-slate-300 rounded-xl overflow-hidden bg-white">
+                  <div className="bg-slate-800 text-white p-2 font-black text-[10.5px] uppercase tracking-wider">
+                    2. DATOS DE LA OBRA Y EQUIPO
+                  </div>
+                  <div className="p-3.5 space-y-1.5 text-slate-800 font-medium">
+                    <p className="font-extrabold text-amber-900 uppercase text-xs">Obra: {arr.obra_cliente || 'N/A'}</p>
+                    <p className="text-slate-600 text-[11px]">Dirección: {arr.direccion_obra || 'Sin Dirección Registrada'}</p>
+                    <p className="text-[11px] text-slate-800 pt-1 border-t border-slate-100 font-bold">
+                      Equipo: <span className="uppercase text-slate-900">{arr.equipo_tipo}</span> ({arr.equipo_patente})
+                    </p>
+                    <p className="text-[10.5px] text-slate-500">Contrato Vigente: {arr.fecha_inicio} al {arr.fecha_fin}</p>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* SECCIÓN 3: RESUMEN DE LIQUIDACIÓN DE VALORES */}
+              <div className="border border-slate-300 rounded-xl overflow-hidden bg-white text-xs">
+                <div className="bg-slate-800 text-white p-2 font-black text-[10.5px] uppercase tracking-wider flex justify-between">
+                  <span>3. RESUMEN DE LIQUIDACIÓN DE VALORES</span>
+                  <span>UNIDAD TARIFA: {unidadTarifa}</span>
+                </div>
+
+                <div className="p-4 space-y-3">
+                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-[11px] space-y-1 text-slate-700">
+                    <div className="flex justify-between">
                       <span>Días Corridos del Periodo:</span>
                       <b>{cal.diasTotales} días</b>
                     </div>
-                    <div className="flex justify-between text-emerald-800 font-bold">
+                    <div className="flex justify-between font-bold text-slate-900">
                       <span>Días Hábiles / Laborales (Lun-Vie):</span>
                       <span>+{cal.diasLaborables} días cobrables</span>
                     </div>
                     {cal.diasNoLaborablesConUso > 0 && (
-                      <div className="flex justify-between text-purple-900 font-bold">
+                      <div className="flex justify-between font-bold text-purple-900">
                         <span>Feriados / Fines de Semana con Uso Efectivo:</span>
                         <span>+{cal.diasNoLaborablesConUso} días cobrables</span>
                       </div>
@@ -1844,120 +1911,116 @@ export default function Maquinaria({ user, onBack }) {
                     )}
                   </div>
 
-                  <div className="flex justify-between items-center text-slate-700">
-                    <span>Horas Trabajadas Reales (Bitácora):</span>
-                    <span className="font-extrabold text-purple-900">{hrsRealesTrabajadas} hrs</span>
-                  </div>
-                  <div className="flex justify-between items-center text-slate-700">
-                    <span>Total Días/Horas a Cobrar ({unidadCobroLabel}):</span>
-                    <span className="font-extrabold text-amber-900">{cantidadCobro} {unidadCobroLabel.toLowerCase()}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-slate-700">
-                    <span>Tarifa Pactada ({unidadTarifa}):</span>
-                    <span className="font-extrabold">${tarifaMonto.toLocaleString('es-CL')} {unidadTarifa}</span>
-                  </div>
-
-                  {reglaMinimoAplicada && (
-                    <div className="p-2.5 bg-amber-100 text-amber-950 font-bold text-[10.5px] rounded-xl border border-amber-300">
-                      ⚠️ APLICACIÓN DE TARIFA MÍNIMA: Se cobra el mínimo convenido de {cantidadCobro} {unidadCobroLabel.toLowerCase()} ({arr.monto_tarifa_minima} {arr.unidad_tarifa_minima}) por ser superior al uso real registrado.
+                  <div className="space-y-1.5 font-medium text-slate-800 pt-1">
+                    <div className="flex justify-between items-center">
+                      <span>Horas Trabajadas Reales en Faena (Bitácora):</span>
+                      <b className="text-purple-900 text-sm">{hrsRealesTrabajadas} hrs</b>
                     </div>
-                  )}
-
-                  <div className="flex justify-between items-center text-slate-800 font-bold border-t border-slate-200 pt-2">
-                    <span>Subtotal Neto:</span>
-                    <span>${subtotal.toLocaleString('es-CL')}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-slate-600">
-                    <span>IVA (19%):</span>
-                    <span>${iva.toLocaleString('es-CL')}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-sm font-black text-amber-900 bg-amber-100/60 p-3 rounded-xl border border-amber-200 mt-2">
-                    <span>TOTAL A PAGAR:</span>
-                    <span className="text-base">${total.toLocaleString('es-CL')}</span>
-                  </div>
-                </div>
-
-                {/* ANEXO DE REPORTES Y PARTES DIARIOS DEL PERIODO (IMPRIMIBLE) */}
-                <div className="pt-3 border-t border-slate-200 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[11px] font-black uppercase text-slate-800 tracking-wider">
-                      📋 Detalle de Reportes y Partes Diarios del Periodo (${logsContrato.length} registros)
-                    </span>
-                  </div>
-
-                  {logsContrato.length === 0 ? (
-                    <div className="p-3 bg-slate-100 rounded-xl text-center text-slate-400 font-medium text-[10.5px]">
-                      No hay partes diarios individuales registrados en la bitácora para este periodo.
+                    <div className="flex justify-between items-center">
+                      <span>Total Unidades a Cobrar ({unidadCobroLabel}):</span>
+                      <b className="text-slate-900 text-sm">{cantidadCobro} {unidadCobroLabel.toLowerCase()}</b>
                     </div>
-                  ) : (
-                    <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white">
-                      <table className="w-full text-left text-[10.5px]">
-                        <thead>
-                          <tr className="bg-slate-100 text-slate-700 font-extrabold uppercase border-b border-slate-200">
-                            <th className="p-2">Fecha</th>
-                            <th className="p-2">H. Inicial</th>
-                            <th className="p-2">H. Final</th>
-                            <th className="p-2">Hrs Trabajadas</th>
-                            <th className="p-2">Combustible</th>
-                            <th className="p-2">Operador</th>
-                            <th className="p-2">Observaciones</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 font-medium">
-                          {logsContrato.map((log, i) => (
-                            <tr key={i} className="hover:bg-slate-50 text-slate-800">
-                              <td className="p-2 font-bold text-slate-700">{log.fecha}</td>
-                              <td className="p-2">{log.horometro_inicial} hrs</td>
-                              <td className="p-2">{log.horometro_final} hrs</td>
-                              <td className="p-2 font-black text-amber-900">+{log.horas_trabajadas} hrs</td>
-                              <td className="p-2">{log.combustible_cargado || 0} Lts</td>
-                              <td className="p-2 text-slate-600">{log.operador}</td>
-                              <td className="p-2 text-slate-500 italic max-w-[140px] truncate">{log.observaciones || '-'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    <div className="flex justify-between items-center">
+                      <span>Tarifa Convenida:</span>
+                      <b>${tarifaMonto.toLocaleString('es-CL')} {unidadTarifa}</b>
                     </div>
-                  )}
+
+                    {reglaMinimoAplicada && (
+                      <div className="p-2 bg-amber-100 text-amber-950 font-bold text-[10.5px] rounded-md border border-amber-300">
+                        ⚠️ TARIFA MÍNIMA APLICADA: Se cobró el mínimo convenido de {cantidadCobro} {unidadCobroLabel.toLowerCase()} ({arr.monto_tarifa_minima} {arr.unidad_tarifa_minima}).
+                      </div>
+                    )}
+
+                    <div className="border-t-2 border-slate-200 pt-2 space-y-1">
+                      <div className="flex justify-between items-center font-bold text-slate-900 text-xs">
+                        <span>SUBTOTAL NETO:</span>
+                        <span>${subtotal.toLocaleString('es-CL')}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-slate-600 text-xs">
+                        <span>IVA (19%):</span>
+                        <span>${iva.toLocaleString('es-CL')}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-base font-black bg-slate-900 text-white p-3 rounded-lg mt-2">
+                        <span>TOTAL A PAGAR:</span>
+                        <span className="text-lg text-amber-400">${total.toLocaleString('es-CL')}</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Botones de Envío e Impresión */}
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    alert(`📧 ESTADO DE PAGO ENVIADO: Se ha despachado la valuación por ${total.toLocaleString('es-CL')} al correo "${arr.contacto_email || arr.contacto_telefono || 'contacto@empresa.cl'}" para facturación.`);
-                  }}
-                  className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition cursor-pointer flex items-center gap-1.5"
-                >
-                  <Send className="w-4 h-4" />
-                  <span>Enviar por Correo a Cliente</span>
-                </button>
+              {/* SECCIÓN 4: ANEXO REGISTRO DIARIO DE HORÓMETROS (BITÁCORA EN FAENA) */}
+              <div className="border border-slate-300 rounded-xl overflow-hidden bg-white text-xs">
+                <div className="bg-slate-800 text-white p-2 font-black text-[10.5px] uppercase tracking-wider">
+                  4. ANEXO: DETALLE REGISTRO DIARIO DE HORÓMETROS (${logsContrato.length} partes diarios)
+                </div>
 
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => window.print()}
-                    className="px-4 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs transition cursor-pointer"
-                  >
-                    🖨️ Imprimir / PDF
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEstadoPagoModalOpen(false)}
-                    className="px-4 py-2.5 rounded-xl bg-amber-600 text-white font-bold text-xs hover:bg-amber-700"
-                  >
-                    Cerrar Documento
-                  </button>
+                {logsContrato.length === 0 ? (
+                  <div className="p-4 text-center text-slate-400 font-medium text-xs">
+                    No se registran partes diarios individuales para el periodo seleccionado.
+                  </div>
+                ) : (
+                  <table className="w-full text-left text-[10px] border-collapse">
+                    <thead>
+                      <tr className="bg-slate-200 text-slate-900 font-black uppercase border-b border-slate-300">
+                        <th className="p-2 border-r border-slate-300">Fecha</th>
+                        <th className="p-2 border-r border-slate-300">H. Inicial</th>
+                        <th className="p-2 border-r border-slate-300">H. Final</th>
+                        <th className="p-2 border-r border-slate-300">Hrs Trabajadas</th>
+                        <th className="p-2 border-r border-slate-300">Combustible</th>
+                        <th className="p-2 border-r border-slate-300">Operador</th>
+                        <th className="p-2">Observaciones</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {logsContrato.map((log, i) => (
+                        <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                          <td className="p-2 font-bold text-slate-900 border-r border-slate-200">{log.fecha}</td>
+                          <td className="p-2 border-r border-slate-200">{log.horometro_inicial} hrs</td>
+                          <td className="p-2 border-r border-slate-200">{log.horometro_final} hrs</td>
+                          <td className="p-2 font-black text-slate-900 border-r border-slate-200">+{log.horas_trabajadas} hrs</td>
+                          <td className="p-2 border-r border-slate-200">{log.combustible_cargado || 0} Lts</td>
+                          <td className="p-2 border-r border-slate-200 text-slate-700">{log.operador}</td>
+                          <td className="p-2 text-slate-600 italic">{log.observaciones || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* SECCIÓN 5: FIRMAS Y CONFORMIDAD DE LAS PARTES */}
+              <div className="pt-8 pb-4">
+                <div className="grid grid-cols-2 gap-8 text-center text-xs">
+                  <div className="space-y-12">
+                    <div className="border-b-2 border-slate-800 w-3/4 mx-auto"></div>
+                    <div>
+                      <p className="font-black text-slate-900 uppercase">OBRAXIS SPA</p>
+                      <p className="text-[10px] text-slate-500 font-bold uppercase">Entregado por / Administración Maquinaria</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-12">
+                    <div className="border-b-2 border-slate-800 w-3/4 mx-auto"></div>
+                    <div>
+                      <p className="font-black text-slate-900 uppercase">{arr.empresa_arrendataria}</p>
+                      <p className="text-[10px] text-slate-500 font-bold uppercase">Conforme Cliente Arrendatario / Receptor Faena</p>
+                    </div>
+                  </div>
                 </div>
               </div>
+
+              {/* PIE DE PÁGINA DOCUMENTO OFICIAL */}
+              <div className="pt-3 border-t border-slate-300 flex justify-between items-center text-[9.5px] text-slate-400 font-bold uppercase">
+                <span>PORTAL OBRAXIS | VALUACIÓN OFICIAL DE ARRIENDO</span>
+                <span>PÁGINA 1 DE 1</span>
+              </div>
+
             </div>
           </div>
         );
       })()}
 
-      
       {/* MODAL BITÁCORA / REPORTES DE USO DEL CONTRATO */}
       {viewingBitacoraArriendo && (() => {
         const arr = viewingBitacoraArriendo;
