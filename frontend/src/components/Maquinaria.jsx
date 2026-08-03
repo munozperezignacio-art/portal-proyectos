@@ -1875,6 +1875,50 @@ export default function Maquinaria({ user, onBack }) {
                     <span className="text-base">${total.toLocaleString('es-CL')}</span>
                   </div>
                 </div>
+
+                {/* ANEXO DE REPORTES Y PARTES DIARIOS DEL PERIODO (IMPRIMIBLE) */}
+                <div className="pt-3 border-t border-slate-200 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[11px] font-black uppercase text-slate-800 tracking-wider">
+                      📋 Detalle de Reportes y Partes Diarios del Periodo (${logsContrato.length} registros)
+                    </span>
+                  </div>
+
+                  {logsContrato.length === 0 ? (
+                    <div className="p-3 bg-slate-100 rounded-xl text-center text-slate-400 font-medium text-[10.5px]">
+                      No hay partes diarios individuales registrados en la bitácora para este periodo.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white">
+                      <table className="w-full text-left text-[10.5px]">
+                        <thead>
+                          <tr className="bg-slate-100 text-slate-700 font-extrabold uppercase border-b border-slate-200">
+                            <th className="p-2">Fecha</th>
+                            <th className="p-2">H. Inicial</th>
+                            <th className="p-2">H. Final</th>
+                            <th className="p-2">Hrs Trabajadas</th>
+                            <th className="p-2">Combustible</th>
+                            <th className="p-2">Operador</th>
+                            <th className="p-2">Observaciones</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-medium">
+                          {logsContrato.map((log, i) => (
+                            <tr key={i} className="hover:bg-slate-50 text-slate-800">
+                              <td className="p-2 font-bold text-slate-700">{log.fecha}</td>
+                              <td className="p-2">{log.horometro_inicial} hrs</td>
+                              <td className="p-2">{log.horometro_final} hrs</td>
+                              <td className="p-2 font-black text-amber-900">+{log.horas_trabajadas} hrs</td>
+                              <td className="p-2">{log.combustible_cargado || 0} Lts</td>
+                              <td className="p-2 text-slate-600">{log.operador}</td>
+                              <td className="p-2 text-slate-500 italic max-w-[140px] truncate">{log.observaciones || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Botones de Envío e Impresión */}
