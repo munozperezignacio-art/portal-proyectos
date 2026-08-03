@@ -80,6 +80,7 @@ export default function Maquinaria({ user, onBack }) {
   const [arriendoModalOpen, setArriendoModalOpen] = useState(false);
   const [editingArriendo, setEditingArriendo] = useState(null);
   const [estadoPagoModalOpen, setEstadoPagoModalOpen] = useState(false);
+  const [viewingBitacoraArriendo, setViewingBitacoraArriendo] = useState(null);
   const [selectedArriendoEstadoPago, setSelectedArriendoEstadoPago] = useState(null);
   const [extenderModalOpen, setExtenderModalOpen] = useState(false);
   const [extenderArriendo, setExtenderArriendo] = useState(null);
@@ -94,6 +95,11 @@ export default function Maquinaria({ user, onBack }) {
     contacto_telefono: '',
     contacto_email: '',
     tarifa_diaria: '0',
+    tarifa_monto: '150000',
+    unidad_tarifa: '$/día',
+    aplica_tarifa_minima: false,
+    unidad_tarifa_minima: 'hrs/día',
+    monto_tarifa_minima: '5',
     fecha_inicio: new Date().toISOString().split('T')[0],
     fecha_fin: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
     observaciones: ''
@@ -549,6 +555,7 @@ export default function Maquinaria({ user, onBack }) {
       return;
     }
 
+    const tMonto = parseFloat(arriendoForm.tarifa_monto) || parseFloat(arriendoForm.tarifa_diaria) || 0;
     const newArriendo = {
       equipo_id: arriendoForm.equipo_id,
       equipo_tipo: eq.tipo,
@@ -560,7 +567,12 @@ export default function Maquinaria({ user, onBack }) {
       contacto_nombre: arriendoForm.contacto_nombre.trim(),
       contacto_telefono: arriendoForm.contacto_telefono.trim(),
       contacto_email: arriendoForm.contacto_email.trim(),
-      tarifa_diaria: parseFloat(arriendoForm.tarifa_diaria) || 0,
+      tarifa_diaria: tMonto,
+      tarifa_monto: tMonto,
+      unidad_tarifa: arriendoForm.unidad_tarifa || '$/día',
+      aplica_tarifa_minima: Boolean(arriendoForm.aplica_tarifa_minima),
+      unidad_tarifa_minima: arriendoForm.unidad_tarifa_minima || 'hrs/día',
+      monto_tarifa_minima: parseFloat(arriendoForm.monto_tarifa_minima) || 0,
       fecha_inicio: arriendoForm.fecha_inicio,
       fecha_fin: arriendoForm.fecha_fin,
       observaciones: arriendoForm.observaciones,
@@ -1470,12 +1482,28 @@ export default function Maquinaria({ user, onBack }) {
                         <p className="text-slate-700 font-semibold">Responsable: <b>{arr.contacto_nombre || arr.contacto_responsable || 'S/I'}</b></p>
                         {arr.contacto_telefono && <p className="text-[10px] text-slate-500">Tel: {arr.contacto_telefono} {arr.contacto_email ? `| ${arr.contacto_email}` : ''}</p>}
                       </div>
-                      <span className="text-xs font-black text-amber-800 bg-white px-2.5 py-1 rounded-xl border border-amber-300">${parseFloat(arr.tarifa_diaria || 0).toLocaleString('es-CL')}/día</span>
+                      <div className="text-right">
+                        <span className="text-xs font-black text-amber-800 bg-white px-2.5 py-1 rounded-xl border border-amber-300 block">
+                          ${parseFloat(arr.tarifa_monto || arr.tarifa_diaria || 0).toLocaleString('es-CL')} ${arr.unidad_tarifa || '$/día'}
+                        </span>
+                        {arr.aplica_tarifa_minima && (
+                          <span className="text-[9px] font-extrabold text-amber-900 bg-amber-100 px-2 py-0.5 rounded mt-1 inline-block">
+                            Mín: ${arr.monto_tarifa_minima} ${arr.unidad_tarifa_minima}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
                   {/* Acciones del Contrato */}
                   <div className="pt-3 border-t border-amber-200/80 flex flex-wrap gap-2 justify-end text-xs">
+                    <button
+                      onClick={() => setViewingBitacoraArriendo(arr)}
+                      className="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 font-bold border border-purple-200 transition cursor-pointer flex items-center gap-1"
+                    >
+                      <span>📋 Bitácora Uso</span>
+                    </button>
+
                     <button
                       onClick={() => {
                         setEditingArriendo(arr);
@@ -1489,6 +1517,11 @@ export default function Maquinaria({ user, onBack }) {
                           contacto_telefono: arr.contacto_telefono || '',
                           contacto_email: arr.contacto_email || '',
                           tarifa_diaria: arr.tarifa_diaria ? arr.tarifa_diaria.toString() : '0',
+                          tarifa_monto: (arr.tarifa_monto || arr.tarifa_diaria || 0).toString(),
+                          unidad_tarifa: arr.unidad_tarifa || '$/día',
+                          aplica_tarifa_minima: Boolean(arr.aplica_tarifa_minima),
+                          unidad_tarifa_minima: arr.unidad_tarifa_minima || 'hrs/día',
+                          monto_tarifa_minima: (arr.monto_tarifa_minima || 5).toString(),
                           fecha_inicio: arr.fecha_inicio,
                           fecha_fin: arr.fecha_fin,
                           observaciones: arr.observaciones || ''
@@ -1571,9 +1604,58 @@ export default function Maquinaria({ user, onBack }) {
         const d1 = new Date(arr.fecha_inicio);
         const d2 = new Date(arr.fecha_fin);
         const diffTime = Math.abs(d2 - d1);
-        const diasArriendo = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
-        const tarifa = parseFloat(arr.tarifa_diaria || 0);
-        const subtotal = diasArriendo * tarifa;
+        const diasPactados = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
+
+        // Filtrar reportes de uso reales de este equipo en el periodo del arriendo
+        const logsContrato = usoList.filter(u => 
+          u.equipo_id.toString() === arr.equipo_id.toString() &&
+          u.fecha >= arr.fecha_inicio && u.fecha <= arr.fecha_fin
+        );
+
+        const hrsRealesTrabajadas = logsContrato.reduce((acc, curr) => acc + (parseFloat(curr.horas_trabajadas) || 0), 0);
+
+        const tarifaMonto = parseFloat(arr.tarifa_monto || arr.tarifa_diaria || 0);
+        const unidadTarifa = arr.unidad_tarifa || '$/día';
+        const aplicaMinimo = Boolean(arr.aplica_tarifa_minima);
+        const unidadMinimo = arr.unidad_tarifa_minima || 'hrs/día';
+        const valorMinimo = parseFloat(arr.monto_tarifa_minima || 0);
+
+        let cantidadCobro = 0;
+        let unidadCobroLabel = 'Días';
+        let reglaMinimoAplicada = false;
+
+        if (unidadTarifa === '$/hr') {
+          unidadCobroLabel = 'Horas';
+          let minimoTotalHoras = 0;
+          if (aplicaMinimo) {
+            if (unidadMinimo === 'hrs/día') minimoTotalHoras = diasPactados * valorMinimo;
+            else if (unidadMinimo === 'hrs/mes') minimoTotalHoras = valorMinimo;
+            else minimoTotalHoras = valorMinimo;
+          }
+
+          if (aplicaMinimo && hrsRealesTrabajadas < minimoTotalHoras) {
+            cantidadCobro = minimoTotalHoras;
+            reglaMinimoAplicada = true;
+          } else {
+            cantidadCobro = hrsRealesTrabajadas > 0 ? hrsRealesTrabajadas : diasPactados * 8;
+          }
+        } else if (unidadTarifa === '$/mes') {
+          unidadCobroLabel = 'Meses';
+          cantidadCobro = Math.max(1, Math.round((diasPactados / 30) * 10) / 10);
+        } else {
+          unidadCobroLabel = 'Días';
+          let minimoTotalDias = 0;
+          if (aplicaMinimo && unidadMinimo === 'días/mes') minimoTotalDias = valorMinimo;
+
+          if (aplicaMinimo && diasPactados < minimoTotalDias) {
+            cantidadCobro = minimoTotalDias;
+            reglaMinimoAplicada = true;
+          } else {
+            cantidadCobro = diasPactados;
+          }
+        }
+
+        const subtotal = cantidadCobro * tarifaMonto;
         const iva = Math.round(subtotal * 0.19);
         const total = subtotal + iva;
 
@@ -1618,15 +1700,26 @@ export default function Maquinaria({ user, onBack }) {
                 </div>
 
                 {/* Tabla Desglose de Valores */}
-                <div className="space-y-1.5 pt-1">
+                <div className="space-y-2 pt-1">
                   <div className="flex justify-between items-center text-slate-700">
-                    <span>Días de Arriendo Operativo:</span>
-                    <span className="font-extrabold">{diasArriendo} días</span>
+                    <span>Horas Trabajadas Reales (Bitácora):</span>
+                    <span className="font-extrabold text-purple-900">{hrsRealesTrabajadas} hrs</span>
                   </div>
                   <div className="flex justify-between items-center text-slate-700">
-                    <span>Tarifa Diaria Convenida:</span>
-                    <span className="font-extrabold">${tarifa.toLocaleString('es-CL')} /día</span>
+                    <span>Cantidad a Cobrar ({unidadCobroLabel}):</span>
+                    <span className="font-extrabold">{cantidadCobro} {unidadCobroLabel.toLowerCase()}</span>
                   </div>
+                  <div className="flex justify-between items-center text-slate-700">
+                    <span>Tarifa Pactada ({unidadTarifa}):</span>
+                    <span className="font-extrabold">${tarifaMonto.toLocaleString('es-CL')} {unidadTarifa}</span>
+                  </div>
+
+                  {reglaMinimoAplicada && (
+                    <div className="p-2.5 bg-amber-100 text-amber-950 font-bold text-[10.5px] rounded-xl border border-amber-300">
+                      ⚠️ APLICACIÓN DE TARIFA MÍNIMA: Se cobra el mínimo convenido de {cantidadCobro} {unidadCobroLabel.toLowerCase()} ({arr.monto_tarifa_minima} {arr.unidad_tarifa_minima}) por ser superior al uso real registrado.
+                    </div>
+                  )}
+
                   <div className="flex justify-between items-center text-slate-800 font-bold border-t border-slate-200 pt-2">
                     <span>Subtotal Neto:</span>
                     <span>${subtotal.toLocaleString('es-CL')}</span>
@@ -1671,6 +1764,75 @@ export default function Maquinaria({ user, onBack }) {
                     Cerrar Documento
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      
+      {/* MODAL BITÁCORA / REPORTES DE USO DEL CONTRATO */}
+      {viewingBitacoraArriendo && (() => {
+        const arr = viewingBitacoraArriendo;
+        const logs = usoList.filter(u => 
+          u.equipo_id.toString() === arr.equipo_id.toString() &&
+          u.fecha >= arr.fecha_inicio && u.fecha <= arr.fecha_fin
+        );
+
+        return (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-2xl w-full space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center border-b border-slate-200 pb-3">
+                <div>
+                  <h3 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider flex items-center gap-2">
+                    <Gauge className="w-5 h-5 text-purple-600" />
+                    <span>Bitácora y Reportes de Uso del Contrato</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium">
+                    {arr.empresa_arrendataria} | Equipo: {arr.equipo_tipo} ({arr.equipo_patente})
+                  </p>
+                </div>
+                <button onClick={() => setViewingBitacoraArriendo(null)} className="p-1.5 bg-slate-100 rounded-xl font-bold text-xs">✕</button>
+              </div>
+
+              {logs.length === 0 ? (
+                <div className="text-center py-10 text-slate-400 bg-slate-50 rounded-2xl border border-slate-200">
+                  <Gauge className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                  <p className="text-xs font-bold">No se han registrado horómetros ni reportes de uso para este equipo en el periodo del contrato ({arr.fecha_inicio} al {arr.fecha_fin}).</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-200 rounded-2xl">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="bg-slate-100 text-slate-700 font-extrabold uppercase border-b border-slate-200">
+                        <th className="p-3">Fecha</th>
+                        <th className="p-3">H. Inicial</th>
+                        <th className="p-3">H. Final</th>
+                        <th className="p-3">Hrs Trab.</th>
+                        <th className="p-3">Combustible</th>
+                        <th className="p-3">Operador</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {logs.map((l, i) => (
+                        <tr key={i} className="hover:bg-slate-50 font-medium text-slate-800">
+                          <td className="p-3 font-bold text-slate-700">{l.fecha}</td>
+                          <td className="p-3">{l.horometro_inicial} hrs</td>
+                          <td className="p-3">{l.horometro_final} hrs</td>
+                          <td className="p-3 font-black text-purple-900">+{l.horas_trabajadas} hrs</td>
+                          <td className="p-3">{l.combustible_cargado || 0} Lts</td>
+                          <td className="p-3 text-slate-600">{l.operador}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="flex justify-end pt-2">
+                <button onClick={() => setViewingBitacoraArriendo(null)} className="px-5 py-2.5 rounded-xl bg-purple-600 text-white font-bold text-xs shadow-sm">
+                  Cerrar Bitácora
+                </button>
               </div>
             </div>
           </div>
@@ -1857,17 +2019,30 @@ export default function Maquinaria({ user, onBack }) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-4 gap-2">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Tarifa Diaria ($) *</label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Monto Tarifa ($) *</label>
                   <input
                     type="number"
-                    placeholder="180000"
-                    value={arriendoForm.tarifa_diaria}
-                    onChange={(e) => setArriendoForm(prev => ({ ...prev, tarifa_diaria: e.target.value }))}
+                    placeholder="150000"
+                    value={arriendoForm.tarifa_monto}
+                    onChange={(e) => setArriendoForm(prev => ({ ...prev, tarifa_monto: e.target.value, tarifa_diaria: e.target.value }))}
                     className="w-full border border-slate-200 rounded-xl p-2 font-bold"
                     required
                   />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Tipo Tarifa *</label>
+                  <select
+                    value={arriendoForm.unidad_tarifa}
+                    onChange={(e) => setArriendoForm(prev => ({ ...prev, unidad_tarifa: e.target.value }))}
+                    className="w-full border border-slate-200 rounded-xl p-2 font-bold text-slate-800"
+                  >
+                    <option value="$/día">$/día</option>
+                    <option value="$/hr">$/hr</option>
+                    <option value="$/mes">$/mes</option>
+                  </select>
                 </div>
 
                 <div>
@@ -1891,6 +2066,51 @@ export default function Maquinaria({ user, onBack }) {
                     required
                   />
                 </div>
+              </div>
+
+              {/* SECCIÓN TARIFA MÍNIMA GARANTIZADA */}
+              <div className="bg-amber-50/70 p-3.5 rounded-2xl border border-amber-200 space-y-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="chk_tarifa_minima"
+                    checked={arriendoForm.aplica_tarifa_minima}
+                    onChange={(e) => setArriendoForm(prev => ({ ...prev, aplica_tarifa_minima: e.target.checked }))}
+                    className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500 cursor-pointer"
+                  />
+                  <label htmlFor="chk_tarifa_minima" className="font-extrabold text-amber-950 text-xs cursor-pointer">
+                    Considerar Tarifa Mínima Garantizada (Mínimo de Cobro)
+                  </label>
+                </div>
+
+                {arriendoForm.aplica_tarifa_minima && (
+                  <div className="grid grid-cols-2 gap-3 pt-1 animate-in fade-in">
+                    <div>
+                      <label className="block text-[9.5px] font-bold uppercase text-amber-900 mb-1">Unidad Mínimo</label>
+                      <select
+                        value={arriendoForm.unidad_tarifa_minima}
+                        onChange={(e) => setArriendoForm(prev => ({ ...prev, unidad_tarifa_minima: e.target.value }))}
+                        className="w-full border border-amber-200 rounded-xl p-2 font-bold text-slate-800 bg-white text-xs"
+                      >
+                        <option value="hrs/día">hrs/día</option>
+                        <option value="hrs/mes">hrs/mes</option>
+                        <option value="días/mes">días/mes</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[9.5px] font-bold uppercase text-amber-900 mb-1">Mínimo Exigido</label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        placeholder="ej: 5"
+                        value={arriendoForm.monto_tarifa_minima}
+                        onChange={(e) => setArriendoForm(prev => ({ ...prev, monto_tarifa_minima: e.target.value }))}
+                        className="w-full border border-amber-200 rounded-xl p-2 font-bold text-slate-800 bg-white text-xs"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>
