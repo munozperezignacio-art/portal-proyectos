@@ -3,11 +3,11 @@ import { supabase } from '../supabaseClient';
 import { 
   Truck, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Check, 
   Building2, Eye, Camera, Image, Calendar, Clock, Gauge, Fuel, CheckCircle2, 
-  ChevronRight, Wrench, ShieldCheck, MapPin, CalendarDays, RefreshCw, Send
+  ChevronRight, Wrench, ShieldCheck, MapPin, CalendarDays, RefreshCw, Send, Handshake, DollarSign
 } from 'lucide-react';
 
 export default function Maquinaria({ user, onBack }) {
-  const [activeSection, setActiveSection] = useState(''); // '', 'inventario', 'asignaciones', 'uso', 'reservas'
+  const [activeSection, setActiveSection] = useState(''); // '', 'inventario', 'asignaciones', 'uso', 'reservas', 'arriendos'
   const [maquinaria, setMaquinaria] = useState([]);
   const [obras, setObras] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -57,22 +57,36 @@ export default function Maquinaria({ user, onBack }) {
     observaciones: ''
   });
 
-  // 4. Estados Reserva y Disponibilidad Futura
+  // 4. Estados Reserva y Disponibilidad Futura (Texto Libre de Obra)
   const [reservasList, setReservasList] = useState([]);
   const [reservaModalOpen, setReservaModalOpen] = useState(false);
   const [reservaForm, setReservaForm] = useState({
     equipo_id: '',
-    obra_destino: '',
+    obra_destino_custom: '', // Permite nombre de obra futura personalizada sin restricción de base de datos
     fecha_inicio: new Date().toISOString().split('T')[0],
     fecha_fin: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
     solicitante: user?.nombre || user?.usuario || 'Administrador Obraxis',
     proposito: ''
   });
 
+  // 5. Estados Arriendos a Terceros
+  const [arriendosList, setArriendosList] = useState([]);
+  const [arriendoModalOpen, setArriendoModalOpen] = useState(false);
+  const [arriendoForm, setArriendoForm] = useState({
+    equipo_id: '',
+    empresa_arrendataria: '',
+    tarifa_diaria: '0',
+    fecha_inicio: new Date().toISOString().split('T')[0],
+    fecha_fin: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+    contacto_responsable: '',
+    observaciones: ''
+  });
+
   useEffect(() => {
     fetchData();
     fetchUsoLogs();
     fetchReservasLogs();
+    fetchArriendosLogs();
   }, []);
 
   const fetchData = async () => {
@@ -140,6 +154,24 @@ export default function Maquinaria({ user, onBack }) {
     }
   };
 
+  const fetchArriendosLogs = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('maquinaria_arriendos')
+        .select('*')
+        .order('fecha_inicio', { ascending: false });
+      if (!error && data) {
+        setArriendosList(data);
+      } else {
+        const local = localStorage.getItem('obraxis_maquinaria_arriendos');
+        if (local) setArriendosList(JSON.parse(local));
+      }
+    } catch (e) {
+      const local = localStorage.getItem('obraxis_maquinaria_arriendos');
+      if (local) try { setArriendosList(JSON.parse(local)); } catch (err) {}
+    }
+  };
+
   // 1. Handlers Formulario Inventario Equipo
   const handleOpenAddModal = () => {
     setEditingEquip(null);
@@ -194,27 +226,13 @@ export default function Maquinaria({ user, onBack }) {
     }
   };
 
-  const handleFileChange = (e, field) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      alert('La imagen excede el límite de 2MB. Por favor sube una foto comprimida.');
-      return;
-    }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setFormData(prev => ({ ...prev, [field]: reader.result }));
-    };
-    reader.readAsDataURL(file);
-  };
-
   const handleSubmitEquip = async (e) => {
     e.preventDefault();
     setModalLoading(true);
-    setSuccessMsg("");
-    setErrorMsg("");
+    setSuccessMsg('');
+    setErrorMsg('');
 
-    // Verificar si la obra existe en la tabla obras para evitar violaciones de Foreign Key
+    // Validar FK de obra_nombre
     const matchedObra = obras.find(o => o.nombre.toLowerCase() === (formData.obra_nombre || '').toLowerCase());
     const validObraNombre = matchedObra ? matchedObra.nombre : null;
 
@@ -253,14 +271,11 @@ export default function Maquinaria({ user, onBack }) {
 
         lastError = res.error;
         const msg = res.error.message || "";
-        console.warn(`[Auto-Sanación Maquinaria Intento ${attempts}] Aviso Supabase:`, msg);
 
-        // Extraer nombre de la columna faltante
         const match = msg.match(/Could not find the '([^']+)' column/i) || msg.match(/column "([^"]+)"/i);
         if (match && match[1] && payload[match[1]] !== undefined) {
           delete payload[match[1]];
         } else {
-          // Eliminaciones de respaldo graduales si el mensaje no trajo el nombre exacto
           if (payload.registrado_por !== undefined) delete payload.registrado_por;
           else if (payload.tipo_activo !== undefined) delete payload.tipo_activo;
           else if (payload.estado_equipo !== undefined) delete payload.estado_equipo;
@@ -287,7 +302,7 @@ export default function Maquinaria({ user, onBack }) {
   // 2. Handler Asignación Directa de Obra
   const handleAssignSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedEquipToAssign || !targetObraName) return;
+    if (!selectedEquipToAssign) return;
 
     setModalLoading(true);
     try {
@@ -302,7 +317,7 @@ export default function Maquinaria({ user, onBack }) {
 
       if (error) throw error;
 
-      setSuccessMsg(`¡Equipo ${selectedEquipToAssign.patente} asignado a ${targetObraName}!`);
+      setSuccessMsg(`¡Equipo ${selectedEquipToAssign.patente} asignado a ${targetObraName || 'Bodega Central / Libre'}!`);
       fetchData();
       setAssignModalOpen(false);
       setTimeout(() => setSuccessMsg(''), 3000);
@@ -313,7 +328,7 @@ export default function Maquinaria({ user, onBack }) {
     }
   };
 
-  // 3. Handler Registro de Uso / Horómetros
+  // 3. Handler Registro de Uso y Horómetros
   const handleUsoSubmit = async (e) => {
     e.preventDefault();
     if (!usoForm.equipo_id) {
@@ -331,7 +346,7 @@ export default function Maquinaria({ user, onBack }) {
       equipo_id: usoForm.equipo_id,
       equipo_tipo: eq ? eq.tipo : 'Equipo',
       equipo_patente: eq ? eq.patente : usoForm.equipo_patente,
-      obra_nombre: eq ? eq.obra_nombre : usoForm.obra_nombre,
+      obra_nombre: eq ? (eq.obra_nombre || 'Bodega Central / Libre') : usoForm.obra_nombre,
       fecha: usoForm.fecha,
       horometro_inicial: hIni,
       horometro_final: hFin,
@@ -359,11 +374,11 @@ export default function Maquinaria({ user, onBack }) {
     }
   };
 
-  // 4. Handler Reserva de Equipo Futuro
+  // 4. Handler Reserva de Equipo (Acepta nombre de obra futura personalizada)
   const handleReservaSubmit = async (e) => {
     e.preventDefault();
-    if (!reservaForm.equipo_id || !reservaForm.obra_destino) {
-      alert('Complete los campos obligatorios de la reserva.');
+    if (!reservaForm.equipo_id || !reservaForm.obra_destino_custom.trim()) {
+      alert('Por favor especifique la obra futura o proyecto en licitación.');
       return;
     }
 
@@ -373,7 +388,7 @@ export default function Maquinaria({ user, onBack }) {
       equipo_id: reservaForm.equipo_id,
       equipo_tipo: eq ? eq.tipo : 'Equipo',
       equipo_patente: eq ? eq.patente : 'N/A',
-      obra_destino: reservaForm.obra_destino,
+      obra_destino: reservaForm.obra_destino_custom.trim(), // Nombre libre de proyecto futuro
       fecha_inicio: reservaForm.fecha_inicio,
       fecha_fin: reservaForm.fecha_fin,
       solicitante: reservaForm.solicitante,
@@ -392,11 +407,70 @@ export default function Maquinaria({ user, onBack }) {
       const updated = [newReserva, ...reservasList];
       setReservasList(updated);
       localStorage.setItem('obraxis_maquinaria_reservas', JSON.stringify(updated));
-      setSuccessMsg('Reserva guardada localmente.');
+      setSuccessMsg('Reserva de obra futura guardada.');
     } finally {
       setReservaModalOpen(false);
       setTimeout(() => setSuccessMsg(''), 3000);
     }
+  };
+
+  // 5. Handler Arriendos a Terceros
+  const handleArriendoSubmit = async (e) => {
+    e.preventDefault();
+    if (!arriendoForm.equipo_id || !arriendoForm.empresa_arrendataria.trim()) {
+      alert('Ingrese la empresa arrendataria y seleccione el equipo.');
+      return;
+    }
+
+    const eq = maquinaria.find(m => m.id.toString() === arriendoForm.equipo_id.toString());
+
+    const newArriendo = {
+      equipo_id: arriendoForm.equipo_id,
+      equipo_tipo: eq ? eq.tipo : 'Equipo',
+      equipo_patente: eq ? eq.patente : 'N/A',
+      empresa_arrendataria: arriendoForm.empresa_arrendataria.trim(),
+      tarifa_diaria: parseFloat(arriendoForm.tarifa_diaria) || 0,
+      fecha_inicio: arriendoForm.fecha_inicio,
+      fecha_fin: arriendoForm.fecha_fin,
+      contacto_responsable: arriendoForm.contacto_responsable,
+      observaciones: arriendoForm.observaciones,
+      estado: 'Activo',
+      empresa: user?.empresa || 'EMIN',
+      created_at: new Date().toISOString()
+    };
+
+    try {
+      const { error } = await supabase.from('maquinaria_arriendos').insert([newArriendo]);
+      if (error) throw error;
+      setSuccessMsg('Contrato de arriendo registrado con éxito.');
+      fetchArriendosLogs();
+    } catch (err) {
+      const updated = [newArriendo, ...arriendosList];
+      setArriendosList(updated);
+      localStorage.setItem('obraxis_maquinaria_arriendos', JSON.stringify(updated));
+      setSuccessMsg('Arriendo guardado localmente.');
+    } finally {
+      setArriendoModalOpen(false);
+      setTimeout(() => setSuccessMsg(''), 3000);
+    }
+  };
+
+  // Helper para determinar el estado de disponibilidad real del equipo
+  const getEquipoEstadoDetallado = (equip) => {
+    const isEnUso = Boolean(equip.obra_nombre && equip.obra_nombre.trim() !== '');
+    const isReservado = reservasList.some(r => r.equipo_id.toString() === equip.id.toString());
+    const isArrendado = arriendosList.some(a => a.equipo_id.toString() === equip.id.toString() && a.estado === 'Activo');
+
+    if (isArrendado) {
+      return { code: 'arrendado', label: 'Arrendado a Tercero', badgeClass: 'bg-purple-100 text-purple-900 border-purple-200' };
+    }
+    if (isEnUso) {
+      return { code: 'en_uso', label: `En Uso (${equip.obra_nombre})`, badgeClass: 'bg-amber-100 text-amber-900 border-amber-200' };
+    }
+    if (isReservado) {
+      return { code: 'reservado', label: 'Reservado (Futuro)', badgeClass: 'bg-blue-100 text-blue-900 border-blue-200' };
+    }
+    return { code: 'libre', label: 'Disponible / Sin Reserva', badgeClass: 'bg-emerald-100 text-emerald-900 border-emerald-200' };
   };
 
   // Filtrado de Inventario
@@ -445,7 +519,7 @@ export default function Maquinaria({ user, onBack }) {
               <span>Gestión de Maquinaria y Equipos</span>
             </h2>
             <p className="text-[10px] text-slate-450 font-bold uppercase mt-0.5 tracking-wider">
-              REGISTRO DE EQUIPOS, ASIGNACIONES A OBRA, CONTROL DE HORÓMETROS Y AGENDA DE DISPONIBILIDAD
+              INVENTARIO, ASIGNACIONES EN FAENA, HORÓMETROS, RESERVAS DE OBRAS FUTURAS Y ARRIENDOS A TERCEROS
             </p>
           </div>
         </div>
@@ -456,7 +530,7 @@ export default function Maquinaria({ user, onBack }) {
               onClick={() => setActiveSection('')}
               className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3.5 py-2 rounded-xl transition cursor-pointer border border-slate-200"
             >
-              <span>← Volver al Menú</span>
+              <span>← Menú Principal</span>
             </button>
           )}
           <button
@@ -473,114 +547,140 @@ export default function Maquinaria({ user, onBack }) {
       {successMsg && <div className="mb-6 bg-emerald-50 text-emerald-700 p-3.5 rounded-xl text-xs font-semibold border border-emerald-250 animate-in fade-in duration-150">{successMsg}</div>}
       {errorMsg && <div className="mb-6 bg-red-50 text-red-700 p-3.5 rounded-xl text-xs font-semibold border border-red-250 animate-in fade-in duration-150">{errorMsg}</div>}
 
-      {/* 2. MENÚ PRINCIPAL DE SUBMÓDULOS DE MAQUINARIA */}
+      {/* 2. MENÚ PRINCIPAL DE SUBMÓDULOS DE MAQUINARIA (5 TARJETAS) */}
       {activeSection === '' && (
         <>
           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">
             SUBMÓDULOS DE MAQUINARIA Y EQUIPOS
           </h3>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 animate-in fade-in duration-200">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 animate-in fade-in duration-200">
             
             {/* Tarjeta 1: Maquinarias y Equipos */}
             <div 
               onClick={() => setActiveSection('inventario')}
-              className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[180px]"
+              className="group bg-white border border-slate-200 rounded-3xl p-5 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[190px]"
             >
               <div className="flex items-start justify-between">
-                <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300">
-                  <Truck className="w-6 h-6" />
+                <div className="p-3.5 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300">
+                  <Truck className="w-5 h-5" />
                 </div>
                 <span className="text-[9px] font-extrabold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary uppercase">{maquinaria.length} Flota</span>
               </div>
-              <div className="space-y-1 mt-4">
-                <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
+              <div className="space-y-1 mt-3">
+                <h3 className="font-extrabold text-slate-850 text-xs uppercase tracking-wider group-hover:text-primary transition">
                   Maquinarias y Equipos
                 </h3>
-                <p className="text-xs text-slate-500 leading-normal">
-                  Registro e inventario completo de equipos, fichas técnicas y estado operativo (propio / arriendo).
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  Catálogo e inventario de flota propia y arrendada con fichas técnicas.
                 </p>
               </div>
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-extrabold text-primary group-hover:text-primary-hover">
+              <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] font-extrabold text-primary group-hover:text-primary-hover">
                 <span>Ver Inventario</span>
-                <ChevronRight className="w-4 h-4 text-primary group-hover:translate-x-1 transition-transform shrink-0" />
+                <ChevronRight className="w-3.5 h-3.5 text-primary group-hover:translate-x-1 transition-transform shrink-0" />
               </div>
             </div>
 
             {/* Tarjeta 2: Asignación de Equipos */}
             <div 
               onClick={() => setActiveSection('asignaciones')}
-              className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-blue-600 hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[180px]"
+              className="group bg-white border border-slate-200 rounded-3xl p-5 shadow-xs hover:shadow-md hover:border-blue-600 hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[190px]"
             >
               <div className="flex items-start justify-between">
-                <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
-                  <Building2 className="w-6 h-6" />
+                <div className="p-3.5 bg-blue-50 text-blue-600 rounded-2xl group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
+                  <Building2 className="w-5 h-5" />
                 </div>
-                <span className="text-[9px] font-extrabold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 uppercase">Proyectos</span>
+                <span className="text-[9px] font-extrabold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 uppercase">Faenas</span>
               </div>
-              <div className="space-y-1 mt-4">
-                <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-blue-600 transition">
+              <div className="space-y-1 mt-3">
+                <h3 className="font-extrabold text-slate-850 text-xs uppercase tracking-wider group-hover:text-blue-600 transition">
                   Asignación de Equipos
                 </h3>
-                <p className="text-xs text-slate-500 leading-normal">
-                  Control de traslados y asignación directa de maquinaria hacia obras y proyectos activos.
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  Asignación directa y transferencias hacia obras activas.
                 </p>
               </div>
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-extrabold text-blue-600 group-hover:text-blue-700">
-                <span>Gestionar Asignaciones</span>
-                <ChevronRight className="w-4 h-4 text-blue-600 group-hover:translate-x-1 transition-transform shrink-0" />
+              <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] font-extrabold text-blue-600 group-hover:text-blue-700">
+                <span>Gestionar Asignación</span>
+                <ChevronRight className="w-3.5 h-3.5 text-blue-600 group-hover:translate-x-1 transition-transform shrink-0" />
               </div>
             </div>
 
             {/* Tarjeta 3: Uso de Equipos */}
             <div 
               onClick={() => setActiveSection('uso')}
-              className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-emerald-600 hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[180px]"
+              className="group bg-white border border-slate-200 rounded-3xl p-5 shadow-xs hover:shadow-md hover:border-emerald-600 hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[190px]"
             >
               <div className="flex items-start justify-between">
-                <div className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300">
-                  <Gauge className="w-6 h-6" />
+                <div className="p-3.5 bg-emerald-50 text-emerald-600 rounded-2xl group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300">
+                  <Gauge className="w-5 h-5" />
                 </div>
                 <span className="text-[9px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 uppercase">{usoList.length} Registros</span>
               </div>
-              <div className="space-y-1 mt-4">
-                <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-emerald-600 transition">
+              <div className="space-y-1 mt-3">
+                <h3 className="font-extrabold text-slate-850 text-xs uppercase tracking-wider group-hover:text-emerald-600 transition">
                   Uso de Equipos
                 </h3>
-                <p className="text-xs text-slate-500 leading-normal">
-                  Registro diario de horómetros, horas operacionales trabajadas y consumo de combustible en faena.
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  Horómetros diarios, horas trabajadas y consumo de combustible.
                 </p>
               </div>
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-extrabold text-emerald-600 group-hover:text-emerald-700">
-                <span>Registrar Uso</span>
-                <ChevronRight className="w-4 h-4 text-emerald-600 group-hover:translate-x-1 transition-transform shrink-0" />
+              <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] font-extrabold text-emerald-600 group-hover:text-emerald-700">
+                <span>Registrar Horómetro</span>
+                <ChevronRight className="w-3.5 h-3.5 text-emerald-600 group-hover:translate-x-1 transition-transform shrink-0" />
               </div>
             </div>
 
             {/* Tarjeta 4: Reserva y Disponibilidad */}
             <div 
               onClick={() => setActiveSection('reservas')}
-              className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-purple-600 hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[180px]"
+              className="group bg-white border border-slate-200 rounded-3xl p-5 shadow-xs hover:shadow-md hover:border-purple-600 hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[190px]"
             >
               <div className="flex items-start justify-between">
-                <div className="p-4 bg-purple-50 text-purple-600 rounded-2xl group-hover:bg-purple-600 group-hover:text-white transition-all duration-300">
-                  <CalendarDays className="w-6 h-6" />
+                <div className="p-3.5 bg-purple-50 text-purple-600 rounded-2xl group-hover:bg-purple-600 group-hover:text-white transition-all duration-300">
+                  <CalendarDays className="w-5 h-5" />
                 </div>
                 <span className="text-[9px] font-extrabold px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 uppercase">{reservasList.length} Reservas</span>
               </div>
-              <div className="space-y-1 mt-4">
-                <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-purple-600 transition">
+              <div className="space-y-1 mt-3">
+                <h3 className="font-extrabold text-slate-850 text-xs uppercase tracking-wider group-hover:text-purple-600 transition">
                   Reserva y Disponibilidad
                 </h3>
-                <p className="text-xs text-slate-500 leading-normal">
-                  Agenda de equipos futura y control de máquinas libres/sin reserva para asignaciones inmediatas.
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  Agenda de obras futuras (proyectos/licitaciones) y estado (*En Uso, Reservado, Libre*).
                 </p>
               </div>
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-extrabold text-purple-600 group-hover:text-purple-700">
-                <span>Ver Disponibilidad</span>
-                <ChevronRight className="w-4 h-4 text-purple-600 group-hover:translate-x-1 transition-transform shrink-0" />
+              <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] font-extrabold text-purple-600 group-hover:text-purple-700">
+                <span>Agenda Futura</span>
+                <ChevronRight className="w-3.5 h-3.5 text-purple-600 group-hover:translate-x-1 transition-transform shrink-0" />
               </div>
             </div>
+
+            {/* Tarjeta 5: Arriendos a Terceros */}
+            <div 
+              onClick={() => setActiveSection('arriendos')}
+              className="group bg-white border border-slate-200 rounded-3xl p-5 shadow-xs hover:shadow-md hover:border-amber-600 hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[190px]"
+            >
+              <div className="flex items-start justify-between">
+                <div className="p-3.5 bg-amber-50 text-amber-600 rounded-2xl group-hover:bg-amber-600 group-hover:text-white transition-all duration-300">
+                  <Handshake className="w-5 h-5" />
+                </div>
+                <span className="text-[9px] font-extrabold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 uppercase">{arriendosList.length} Contratos</span>
+              </div>
+              <div className="space-y-1 mt-3">
+                <h3 className="font-extrabold text-slate-850 text-xs uppercase tracking-wider group-hover:text-amber-600 transition">
+                  Arriendos a Terceros
+                </h3>
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  Gestión de equipos prestados o arrendados a otras empresas y subcontratos.
+                </p>
+              </div>
+              <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] font-extrabold text-amber-600 group-hover:text-amber-700">
+                <span>Ver Arriendos</span>
+                <ChevronRight className="w-3.5 h-3.5 text-amber-600 group-hover:translate-x-1 transition-transform shrink-0" />
+              </div>
+            </div>
+
           </div>
         </>
       )}
@@ -639,117 +739,121 @@ export default function Maquinaria({ user, onBack }) {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredMaquinaria.map((m) => (
-                <div 
-                  key={m.id} 
-                  className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden flex flex-col justify-between hover:shadow-md hover:border-primary transition duration-200"
-                >
-                  <div className="p-5 flex gap-4">
-                    <div className="w-20 h-20 bg-slate-100 rounded-2xl border border-slate-200 flex-shrink-0 flex items-center justify-center overflow-hidden">
-                      {m.foto_frontal ? (
-                        <img src={m.foto_frontal} alt={m.tipo} className="w-full h-full object-cover" />
-                      ) : (
-                        <Truck className="w-8 h-8 text-slate-400" />
-                      )}
-                    </div>
-                    
-                    <div className="space-y-1 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className={`text-[9px] font-extrabold px-2.5 py-0.5 rounded-full inline-block ${
-                          m.tipo_activo === 'Propio' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-orange-50 text-orange-700 border border-orange-200'
-                        }`}>
-                          {m.tipo_activo || 'Propio'}
-                        </span>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase">
-                          Horómetro: {m.horometro_inicial || 0} hrs
-                        </span>
+              {filteredMaquinaria.map((m) => {
+                const est = getEquipoEstadoDetallado(m);
+                return (
+                  <div 
+                    key={m.id} 
+                    className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden flex flex-col justify-between hover:shadow-md hover:border-primary transition duration-200"
+                  >
+                    <div className="p-5 flex gap-4">
+                      <div className="w-20 h-20 bg-slate-100 rounded-2xl border border-slate-200 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                        {m.foto_frontal ? (
+                          <img src={m.foto_frontal} alt={m.tipo} className="w-full h-full object-cover" />
+                        ) : (
+                          <Truck className="w-8 h-8 text-slate-400" />
+                        )}
                       </div>
-
-                      <h4 className="text-xs font-extrabold text-slate-850 uppercase leading-snug">{m.tipo}</h4>
-                      <p className="text-[11px] text-slate-500 font-semibold">{m.marca} | Patente: <span className="text-slate-700 font-bold">{m.patente || 'N/A'}</span></p>
                       
-                      <p className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
-                        <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                        <span>{m.obra_nombre || 'Bodega Central / Libre'}</span>
-                      </p>
+                      <div className="space-y-1 flex-1">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className={`text-[9px] font-black px-2.5 py-0.5 rounded-full inline-block border ${est.badgeClass}`}>
+                            {est.label}
+                          </span>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase">
+                            Horómetro: {m.horometro_inicial || 0} hrs
+                          </span>
+                        </div>
+
+                        <h4 className="text-xs font-extrabold text-slate-850 uppercase leading-snug">{m.tipo}</h4>
+                        <p className="text-[11px] text-slate-500 font-semibold">{m.marca} | Patente: <span className="text-slate-700 font-bold">{m.patente || 'N/A'}</span></p>
+                        
+                        <p className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
+                          <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                          <span>{m.obra_nombre || 'Bodega Central / Libre'}</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-50 px-5 py-3 border-t border-slate-100 flex justify-between items-center text-xs">
+                      <button
+                        onClick={() => setViewingEquip(m)}
+                        className="text-slate-600 hover:text-primary font-bold text-[11px] flex items-center gap-1 cursor-pointer"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Ficha Completa</span>
+                      </button>
+
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleOpenEditModal(m)}
+                          className="p-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 transition cursor-pointer"
+                          title="Editar Equipo"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteEquip(m)}
+                          className="p-1.5 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 transition cursor-pointer"
+                          title="Eliminar Equipo"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
-
-                  <div className="bg-slate-50 px-5 py-3 border-t border-slate-100 flex justify-between items-center text-xs">
-                    <button
-                      onClick={() => setViewingEquip(m)}
-                      className="text-slate-600 hover:text-primary font-bold text-[11px] flex items-center gap-1 cursor-pointer"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>Ficha Completa</span>
-                    </button>
-
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleOpenEditModal(m)}
-                        className="p-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 transition cursor-pointer"
-                        title="Editar Equipo"
-                      >
-                        <Edit className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteEquip(m)}
-                        className="p-1.5 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 transition cursor-pointer"
-                        title="Eliminar Equipo"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
       )}
 
-      {/* 4. SUBMÓDULOS DE ASIGNACIÓN, USO Y RESERVA */}
+      {/* 4. SUBMÓDULO 2: ASIGNACIÓN DE EQUIPOS */}
       {activeSection === 'asignaciones' && (
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in duration-200 space-y-4">
           <div className="flex justify-between items-center border-b border-slate-100 pb-3">
             <div>
-              <h3 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider">Asignación Directa a Obras</h3>
-              <p className="text-xs text-slate-500">Selecciona maquinaria y asígnala a un proyecto activo.</p>
+              <h3 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider">Asignación Directa a Obras Activas</h3>
+              <p className="text-xs text-slate-500">Selecciona maquinaria y asigna su ubicación en faena.</p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {maquinaria.map(m => (
-              <div key={m.id} className="p-5 rounded-3xl border border-slate-200 bg-white space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[9.5px] font-extrabold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 uppercase">
-                    {m.tipo}
-                  </span>
-                  <span className="text-[10.5px] font-bold text-slate-700">Patente: {m.patente || 'S/I'}</span>
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-slate-800">Obra Actual: <span className="text-primary">{m.obra_nombre || 'Sin Asignar'}</span></p>
-                  <p className="text-[10px] text-slate-400">Estado: {m.estado_equipo || 'Operativo'}</p>
-                </div>
+            {maquinaria.map(m => {
+              const est = getEquipoEstadoDetallado(m);
+              return (
+                <div key={m.id} className="p-5 rounded-3xl border border-slate-200 bg-white space-y-3 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[9.5px] font-extrabold px-2.5 py-0.5 rounded-full border uppercase ${est.badgeClass}`}>
+                      {est.label}
+                    </span>
+                    <span className="text-[10.5px] font-bold text-slate-700">Patente: {m.patente || 'S/I'}</span>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-800">Obra Actual: <span className="text-primary">{m.obra_nombre || 'Bodega Central / Libre'}</span></p>
+                    <p className="text-[10px] text-slate-400">Tipo: {m.tipo}</p>
+                  </div>
 
-                <button
-                  onClick={() => {
-                    setSelectedEquipToAssign(m);
-                    setTargetObraName(m.obra_nombre || (obras[0] ? obras[0].nombre : ''));
-                    setAssignModalOpen(true);
-                  }}
-                  className="w-full py-2 px-3 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-hover transition cursor-pointer flex items-center justify-center gap-1.5"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Transferir / Asignar a Obra</span>
-                </button>
-              </div>
-            ))}
+                  <button
+                    onClick={() => {
+                      setSelectedEquipToAssign(m);
+                      setTargetObraName(m.obra_nombre || (obras[0] ? obras[0].nombre : ''));
+                      setAssignModalOpen(true);
+                    }}
+                    className="w-full py-2 px-3 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-hover transition cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Transferir / Asignar Obra</span>
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
 
-      {/* 5. SUBMÓDULO USO DE EQUIPOS */}
+      {/* 5. SUBMÓDULO 3: USO DE EQUIPOS */}
       {activeSection === 'uso' && (
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in duration-200 space-y-6">
           <div className="flex justify-between items-center border-b border-slate-100 pb-3">
@@ -762,7 +866,7 @@ export default function Maquinaria({ user, onBack }) {
                 setUsoForm({
                   equipo_id: maquinaria[0] ? maquinaria[0].id.toString() : '',
                   equipo_patente: maquinaria[0] ? maquinaria[0].patente : '',
-                  obra_nombre: maquinaria[0] ? maquinaria[0].obra_nombre : '',
+                  obra_nombre: maquinaria[0] ? (maquinaria[0].obra_nombre || 'Bodega Central / Libre') : '',
                   fecha: new Date().toISOString().split('T')[0],
                   horometro_inicial: maquinaria[0] ? (maquinaria[0].horometro_inicial || 0).toString() : '0',
                   horometro_final: '',
@@ -804,7 +908,7 @@ export default function Maquinaria({ user, onBack }) {
                     <tr key={idx} className="hover:bg-slate-50 font-medium text-slate-800">
                       <td className="p-3 font-bold text-slate-600">{log.fecha}</td>
                       <td className="p-3 font-bold">{log.equipo_tipo} ({log.equipo_patente})</td>
-                      <td className="p-3 text-slate-600">{log.obra_nombre}</td>
+                      <td className="p-3 text-slate-600">{log.obra_nombre || 'Bodega Central'}</td>
                       <td className="p-3">{log.horometro_inicial} hrs</td>
                       <td className="p-3">{log.horometro_final} hrs</td>
                       <td className="p-3 font-black text-emerald-700">+{log.horas_trabajadas} hrs</td>
@@ -819,19 +923,19 @@ export default function Maquinaria({ user, onBack }) {
         </div>
       )}
 
-      {/* 6. SUBMÓDULO RESERVA Y DISPONIBILIDAD */}
+      {/* 6. SUBMÓDULO 4: RESERVA Y DISPONIBILIDAD (CON ESTADOS: EN USO, RESERVADO, SIN RESERVA Y OBRA FUTURA LIBRE) */}
       {activeSection === 'reservas' && (
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in duration-200 space-y-6">
           <div className="flex justify-between items-center border-b border-slate-100 pb-3">
             <div>
-              <h3 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider">Agenda de Reservas y Disponibilidad de Equipos</h3>
-              <p className="text-xs text-slate-500">Programación de maquinaria proyectada y catálogo de libres.</p>
+              <h3 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider">Agenda de Reservas y Disponibilidad de Flota</h3>
+              <p className="text-xs text-slate-500">Agenda de proyectos futuros/licitaciones y control de estados (*En Uso, Reservado, Sin Reserva*).</p>
             </div>
             <button
               onClick={() => {
                 setReservaForm({
                   equipo_id: maquinaria[0] ? maquinaria[0].id.toString() : '',
-                  obra_destino: obras[0] ? obras[0].nombre : '',
+                  obra_destino_custom: '',
                   fecha_inicio: new Date().toISOString().split('T')[0],
                   fecha_fin: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
                   solicitante: user?.nombre || user?.usuario || 'Administrador Obraxis',
@@ -842,45 +946,304 @@ export default function Maquinaria({ user, onBack }) {
               className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-sm"
             >
               <Calendar className="w-4 h-4" />
-              <span>Agendar Nueva Reserva</span>
+              <span>Agendar Reserva Futura</span>
             </button>
           </div>
 
-          <div className="space-y-4">
-            <h4 className="text-xs font-extrabold text-slate-850 uppercase">Equipos Disponibles sin Reserva Actual ({maquinaria.filter(m => !reservasList.some(r => r.equipo_id.toString() === m.id.toString())).length})</h4>
+          {/* MATRIZ DE ESTADOS */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {maquinaria
-                .filter(m => !reservasList.some(r => r.equipo_id.toString() === m.id.toString()))
-                .map(m => (
-                  <div key={m.id} className="p-4 rounded-2xl border border-emerald-200 bg-emerald-50/50 space-y-1">
-                    <span className="text-[9px] font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full uppercase">LIBRE PARA ASIGNAR</span>
-                    <h5 className="text-xs font-extrabold text-slate-850 uppercase">{m.tipo}</h5>
-                    <p className="text-[11px] text-slate-600">Patente: <b>{m.patente}</b> | Ubicación: {m.obra_nombre}</p>
-                  </div>
-                ))}
-            </div>
-
-            <h4 className="text-xs font-extrabold text-slate-850 uppercase pt-4 border-t border-slate-100">Reservas Agendadas ({reservasList.length})</h4>
-            
-            {reservasList.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">No hay reservas agendadas.</p>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {reservasList.map((res, idx) => (
-                  <div key={idx} className="p-5 rounded-3xl border border-purple-200 bg-purple-50/30 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[9.5px] font-extrabold px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 uppercase">
-                        {res.equipo_tipo} ({res.equipo_patente})
-                      </span>
-                      <span className="text-[10px] font-bold text-purple-900">{res.fecha_inicio} al {res.fecha_fin}</span>
+            {/* ESTADO 1: EN USO */}
+            <div className="bg-amber-50/50 border border-amber-200 rounded-3xl p-5 space-y-3">
+              <div className="flex items-center justify-between border-b border-amber-200/60 pb-2">
+                <span className="text-xs font-black text-amber-900 uppercase flex items-center gap-1.5">
+                  <Building2 className="w-4 h-4 text-amber-700" />
+                  <span>En Uso en Faena</span>
+                </span>
+                <span className="text-[10px] font-black bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full">
+                  {maquinaria.filter(m => Boolean(m.obra_nombre && m.obra_nombre.trim() !== '')).length}
+                </span>
+              </div>
+              
+              <div className="space-y-2 max-h-[350px] overflow-y-auto">
+                {maquinaria.filter(m => Boolean(m.obra_nombre && m.obra_nombre.trim() !== '')).map(m => (
+                  <div key={m.id} className="bg-white p-3.5 rounded-2xl border border-amber-200/80 shadow-2xs space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="font-extrabold text-xs text-slate-850 uppercase">{m.tipo} ({m.patente})</span>
+                      <span className="text-[9px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded">EN FAENA</span>
                     </div>
-                    <h5 className="text-xs font-black text-slate-850 uppercase">Obra Destino: {res.obra_destino}</h5>
-                    <p className="text-[11px] text-slate-600">Solicitado por: <b>{res.solicitante}</b></p>
+                    <p className="text-[11px] text-amber-900 font-bold">Obra: {m.obra_nombre}</p>
                   </div>
                 ))}
               </div>
-            )}
+            </div>
+
+            {/* ESTADO 2: RESERVADO */}
+            <div className="bg-blue-50/50 border border-blue-200 rounded-3xl p-5 space-y-3">
+              <div className="flex items-center justify-between border-b border-blue-200/60 pb-2">
+                <span className="text-xs font-black text-blue-900 uppercase flex items-center gap-1.5">
+                  <CalendarDays className="w-4 h-4 text-blue-700" />
+                  <span>Reservados (Futuro)</span>
+                </span>
+                <span className="text-[10px] font-black bg-blue-200 text-blue-900 px-2 py-0.5 rounded-full">
+                  {reservasList.length}
+                </span>
+              </div>
+
+              <div className="space-y-2 max-h-[350px] overflow-y-auto">
+                {reservasList.map((res, idx) => (
+                  <div key={idx} className="bg-white p-3.5 rounded-2xl border border-blue-200/80 shadow-2xs space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="font-extrabold text-xs text-slate-850 uppercase">{res.equipo_tipo} ({res.equipo_patente})</span>
+                      <span className="text-[9px] font-bold text-blue-800 bg-blue-100 px-2 py-0.5 rounded">{res.fecha_inicio}</span>
+                    </div>
+                    <p className="text-[11px] text-blue-950 font-bold">Proyecto Futuro: {res.obra_destino}</p>
+                    <p className="text-[10px] text-slate-500">Solicita: {res.solicitante}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* ESTADO 3: DISPONIBLE / SIN RESERVA */}
+            <div className="bg-emerald-50/50 border border-emerald-200 rounded-3xl p-5 space-y-3">
+              <div className="flex items-center justify-between border-b border-emerald-200/60 pb-2">
+                <span className="text-xs font-black text-emerald-900 uppercase flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+                  <span>Disponible / Sin Reserva</span>
+                </span>
+                <span className="text-[10px] font-black bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full">
+                  {maquinaria.filter(m => (!m.obra_nombre || m.obra_nombre.trim() === '') && !reservasList.some(r => r.equipo_id.toString() === m.id.toString())).length}
+                </span>
+              </div>
+
+              <div className="space-y-2 max-h-[350px] overflow-y-auto">
+                {maquinaria
+                  .filter(m => (!m.obra_nombre || m.obra_nombre.trim() === '') && !reservasList.some(r => r.equipo_id.toString() === m.id.toString()))
+                  .map(m => (
+                    <div key={m.id} className="bg-white p-3.5 rounded-2xl border border-emerald-200/80 shadow-2xs space-y-1">
+                      <div className="flex justify-between items-center">
+                        <span className="font-extrabold text-xs text-slate-850 uppercase">{m.tipo} ({m.patente})</span>
+                        <span className="text-[9px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded">LIBRE</span>
+                      </div>
+                      <p className="text-[10px] text-slate-500">Ubicación: Bodega Central</p>
+                    </div>
+                  ))}
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* 7. NUEVO SUBMÓDULO 5: ARRIENDOS A TERCEROS */}
+      {activeSection === 'arriendos' && (
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in duration-200 space-y-6">
+          <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider">Gestión de Arriendos a Terceros y Subcontratos</h3>
+              <p className="text-xs text-slate-500">Registro de equipos arrendados a empresas externas con cobro de tarifas y plazos.</p>
+            </div>
+            <button
+              onClick={() => {
+                setArriendoForm({
+                  equipo_id: maquinaria[0] ? maquinaria[0].id.toString() : '',
+                  empresa_arrendataria: '',
+                  tarifa_diaria: '0',
+                  fecha_inicio: new Date().toISOString().split('T')[0],
+                  fecha_fin: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+                  contacto_responsable: '',
+                  observaciones: ''
+                });
+                setArriendoModalOpen(true);
+              }}
+              className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-sm"
+            >
+              <Handshake className="w-4 h-4" />
+              <span>Nuevo Contrato de Arriendo</span>
+            </button>
+          </div>
+
+          {arriendosList.length === 0 ? (
+            <div className="text-center py-12 text-slate-400">
+              <Handshake className="w-12 h-12 mx-auto mb-2 opacity-40" />
+              <p className="text-xs font-bold">No hay contratos de arriendo registrados a terceros.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {arriendosList.map((arr, idx) => (
+                <div key={idx} className="p-5 rounded-3xl border border-amber-200 bg-amber-50/30 space-y-2 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9.5px] font-extrabold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200 uppercase">
+                      {arr.equipo_tipo} ({arr.equipo_patente})
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-500">{arr.fecha_inicio} al {arr.fecha_fin}</span>
+                  </div>
+                  <h4 className="text-xs font-black text-slate-850 uppercase">Empresa Arrendataria: {arr.empresa_arrendataria}</h4>
+                  <p className="text-[11px] text-slate-600">Tarifa Diaria: <b className="text-amber-800">${parseFloat(arr.tarifa_diaria || 0).toLocaleString('es-CL')} /día</b></p>
+                  {arr.contacto_responsable && <p className="text-[10px] text-slate-500">Contacto: {arr.contacto_responsable}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* MODAL RESERVA DE EQUIPO FUTURO (CON TEXTO LIBRE DE OBRA FUTURA) */}
+      {reservaModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-md w-full space-y-4 shadow-xl">
+            <h3 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider flex items-center gap-2">
+              <CalendarDays className="w-5 h-5 text-purple-600" />
+              <span>Agendar Reserva de Obra Futura</span>
+            </h3>
+
+            <form onSubmit={handleReservaSubmit} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Seleccionar Equipo *</label>
+                <select
+                  value={reservaForm.equipo_id}
+                  onChange={(e) => setReservaForm(prev => ({ ...prev, equipo_id: e.target.value }))}
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800"
+                  required
+                >
+                  {maquinaria.map(m => (
+                    <option key={m.id} value={m.id}>{m.tipo} ({m.patente}) - {m.obra_nombre ? `En Uso: ${m.obra_nombre}` : 'En Bodega'}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Nombre Obra Futura / Licitación *</label>
+                <input
+                  type="text"
+                  placeholder="ej: Licitación Puente Chacao / Obra Futura Rancagua"
+                  value={reservaForm.obra_destino_custom}
+                  onChange={(e) => setReservaForm(prev => ({ ...prev, obra_destino_custom: e.target.value }))}
+                  className="w-full border border-slate-200 rounded-xl p-2.5 font-bold text-slate-800"
+                  required
+                />
+                <span className="text-[9.5px] text-slate-400">Puedes escribir cualquier nombre de obra futura sin requerir que exista en sistema.</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Desde *</label>
+                  <input
+                    type="date"
+                    value={reservaForm.fecha_inicio}
+                    onChange={(e) => setReservaForm(prev => ({ ...prev, fecha_inicio: e.target.value }))}
+                    className="w-full border border-slate-200 rounded-xl p-2.5 font-bold"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Hasta *</label>
+                  <input
+                    type="date"
+                    value={reservaForm.fecha_fin}
+                    onChange={(e) => setReservaForm(prev => ({ ...prev, fecha_fin: e.target.value }))}
+                    className="w-full border border-slate-200 rounded-xl p-2.5 font-bold"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3">
+                <button type="button" onClick={() => setReservaModalOpen(false)} className="px-4 py-2 rounded-xl bg-slate-100 font-bold">Cancelar</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-purple-600 text-white font-bold">Confirmar Reserva</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL ARRIENDOS A TERCEROS */}
+      {arriendoModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-md w-full space-y-4 shadow-xl">
+            <h3 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider flex items-center gap-2">
+              <Handshake className="w-5 h-5 text-amber-600" />
+              <span>Registrar Arriendo a Tercero</span>
+            </h3>
+
+            <form onSubmit={handleArriendoSubmit} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Seleccionar Equipo *</label>
+                <select
+                  value={arriendoForm.equipo_id}
+                  onChange={(e) => setArriendoForm(prev => ({ ...prev, equipo_id: e.target.value }))}
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800"
+                  required
+                >
+                  {maquinaria.map(m => (
+                    <option key={m.id} value={m.id}>{m.tipo} ({m.patente})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Empresa Arrendataria *</label>
+                <input
+                  type="text"
+                  placeholder="ej: Constructora El Bosque SpA"
+                  value={arriendoForm.empresa_arrendataria}
+                  onChange={(e) => setArriendoForm(prev => ({ ...prev, empresa_arrendataria: e.target.value }))}
+                  className="w-full border border-slate-200 rounded-xl p-2.5 font-bold text-slate-800"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Tarifa Diaria ($)</label>
+                  <input
+                    type="number"
+                    placeholder="150000"
+                    value={arriendoForm.tarifa_diaria}
+                    onChange={(e) => setArriendoForm(prev => ({ ...prev, tarifa_diaria: e.target.value }))}
+                    className="w-full border border-slate-200 rounded-xl p-2.5 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Contacto Responsable</label>
+                  <input
+                    type="text"
+                    placeholder="Nombre o Teléfono"
+                    value={arriendoForm.contacto_responsable}
+                    onChange={(e) => setArriendoForm(prev => ({ ...prev, contacto_responsable: e.target.value }))}
+                    className="w-full border border-slate-200 rounded-xl p-2.5 font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Desde *</label>
+                  <input
+                    type="date"
+                    value={arriendoForm.fecha_inicio}
+                    onChange={(e) => setArriendoForm(prev => ({ ...prev, fecha_inicio: e.target.value }))}
+                    className="w-full border border-slate-200 rounded-xl p-2.5 font-bold"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Hasta *</label>
+                  <input
+                    type="date"
+                    value={arriendoForm.fecha_fin}
+                    onChange={(e) => setArriendoForm(prev => ({ ...prev, fecha_fin: e.target.value }))}
+                    className="w-full border border-slate-200 rounded-xl p-2.5 font-bold"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3">
+                <button type="button" onClick={() => setArriendoModalOpen(false)} className="px-4 py-2 rounded-xl bg-slate-100 font-bold">Cancelar</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-amber-600 text-white font-bold">Guardar Arriendo</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -896,7 +1259,7 @@ export default function Maquinaria({ user, onBack }) {
 
             <div className="p-3 bg-slate-50 rounded-2xl text-xs space-y-1">
               <p className="font-bold text-slate-800">{selectedEquipToAssign.tipo} ({selectedEquipToAssign.patente})</p>
-              <p className="text-slate-500">Obra Actual: {selectedEquipToAssign.obra_nombre || 'Bodega Central'}</p>
+              <p className="text-slate-500">Obra Actual: {selectedEquipToAssign.obra_nombre || 'Bodega Central / Libre'}</p>
             </div>
 
             <form onSubmit={handleAssignSubmit} className="space-y-4">
@@ -908,6 +1271,7 @@ export default function Maquinaria({ user, onBack }) {
                   className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 bg-white"
                   required
                 >
+                  <option value="Bodega Central / Libre">Bodega Central / Libre (Sin Asignar)</option>
                   {obras.map(o => (
                     <option key={o.nombre} value={o.nombre}>{o.nombre}</option>
                   ))}
@@ -955,7 +1319,7 @@ export default function Maquinaria({ user, onBack }) {
                       ...prev,
                       equipo_id: e.target.value,
                       equipo_patente: selected ? selected.patente : '',
-                      obra_nombre: selected ? selected.obra_nombre : '',
+                      obra_nombre: selected ? (selected.obra_nombre || 'Bodega Central') : '',
                       horometro_inicial: selected ? (selected.horometro_inicial || 0).toString() : '0'
                     }));
                   }}
@@ -963,7 +1327,7 @@ export default function Maquinaria({ user, onBack }) {
                   required
                 >
                   {maquinaria.map(m => (
-                    <option key={m.id} value={m.id}>{m.tipo} - Patente: {m.patente} ({m.obra_nombre})</option>
+                    <option key={m.id} value={m.id}>{m.tipo} - Patente: {m.patente} ({m.obra_nombre || 'Bodega Central'})</option>
                   ))}
                 </select>
               </div>
@@ -1017,76 +1381,6 @@ export default function Maquinaria({ user, onBack }) {
               <div className="flex justify-end gap-2 pt-3">
                 <button type="button" onClick={() => setUsoModalOpen(false)} className="px-4 py-2 rounded-xl bg-slate-100 font-bold">Cancelar</button>
                 <button type="submit" className="px-5 py-2 rounded-xl bg-emerald-600 text-white font-bold">Guardar Uso</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL RESERVA DE EQUIPO */}
-      {reservaModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-md w-full space-y-4 shadow-xl">
-            <h3 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider flex items-center gap-2">
-              <CalendarDays className="w-5 h-5 text-purple-600" />
-              <span>Agendar Reserva de Equipo</span>
-            </h3>
-
-            <form onSubmit={handleReservaSubmit} className="space-y-3 text-xs">
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Seleccionar Equipo *</label>
-                <select
-                  value={reservaForm.equipo_id}
-                  onChange={(e) => setReservaForm(prev => ({ ...prev, equipo_id: e.target.value }))}
-                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800"
-                  required
-                >
-                  {maquinaria.map(m => (
-                    <option key={m.id} value={m.id}>{m.tipo} ({m.patente})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Obra Destino *</label>
-                <select
-                  value={reservaForm.obra_destino}
-                  onChange={(e) => setReservaForm(prev => ({ ...prev, obra_destino: e.target.value }))}
-                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800"
-                  required
-                >
-                  {obras.map(o => (
-                    <option key={o.nombre} value={o.nombre}>{o.nombre}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Desde *</label>
-                  <input
-                    type="date"
-                    value={reservaForm.fecha_inicio}
-                    onChange={(e) => setReservaForm(prev => ({ ...prev, fecha_inicio: e.target.value }))}
-                    className="w-full border border-slate-200 rounded-xl p-2.5 font-bold"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Hasta *</label>
-                  <input
-                    type="date"
-                    value={reservaForm.fecha_fin}
-                    onChange={(e) => setReservaForm(prev => ({ ...prev, fecha_fin: e.target.value }))}
-                    className="w-full border border-slate-200 rounded-xl p-2.5 font-bold"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3">
-                <button type="button" onClick={() => setReservaModalOpen(false)} className="px-4 py-2 rounded-xl bg-slate-100 font-bold">Cancelar</button>
-                <button type="submit" className="px-5 py-2 rounded-xl bg-purple-600 text-white font-bold">Confirmar Reserva</button>
               </div>
             </form>
           </div>
@@ -1201,7 +1495,7 @@ export default function Maquinaria({ user, onBack }) {
             <div className="space-y-2 text-xs">
               <p><b>Marca:</b> {viewingEquip.marca || 'S/I'}</p>
               <p><b>Propiedad:</b> {viewingEquip.tipo_activo || 'Propio'}</p>
-              <p><b>Obra Asignada:</b> {viewingEquip.obra_nombre || 'Bodega Central'}</p>
+              <p><b>Obra Asignada:</b> {viewingEquip.obra_nombre || 'Bodega Central / Libre'}</p>
               <p><b>Horómetro Inicial:</b> {viewingEquip.horometro_inicial || 0} hrs</p>
             </div>
 
