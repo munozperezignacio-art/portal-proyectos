@@ -709,16 +709,21 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         
         const localItem = (patK ? mapEquip.get(patK) : null) || (idK ? mapEquip.get(idK) : null) || {};
 
+        const isRealObra = (n) => n && typeof n === 'string' && n.trim() !== '' && !n.toLowerCase().includes('bodega') && n.toLowerCase() !== 'libre';
+        const finalObraNombre = isRealObra(item.obra_nombre) 
+          ? item.obra_nombre.trim() 
+          : (isRealObra(localItem.obra_nombre) ? localItem.obra_nombre.trim() : (item.obra_nombre || localItem.obra_nombre || 'Bodega Central / Libre'));
+
+        const rCosto = parseFloat(item.costo_interno !== undefined && item.costo_interno !== null ? item.costo_interno : item.costo);
+        const lCosto = parseFloat(localItem.costo_interno !== undefined && localItem.costo_interno !== null ? localItem.costo_interno : localItem.costo);
+        const finalCosto = (!isNaN(rCosto) && rCosto > 0) ? rCosto : ((!isNaN(lCosto) && lCosto > 0) ? lCosto : 0);
+
         const merged = {
           ...localItem,
           ...item,
-          obra_nombre: (item.obra_nombre && item.obra_nombre !== 'Bodega Central / Libre' && item.obra_nombre !== 'Libre')
-            ? item.obra_nombre
-            : (localItem.obra_nombre || item.obra_nombre || 'Bodega Central / Libre'),
-          costo_interno: (item.costo_interno !== undefined && item.costo_interno !== null && item.costo_interno !== 0) 
-            ? item.costo_interno 
-            : (localItem.costo_interno || localItem.tarifa_diaria || localItem.costo || 0),
-          unidad_costo_interno: item.unidad_costo_interno || localItem.unidad_costo_interno || localItem.unidad_tarifa || '$/día'
+          obra_nombre: finalObraNombre,
+          costo_interno: finalCosto,
+          unidad_costo_interno: item.unidad_costo_interno || localItem.unidad_costo_interno || item.unidad_tarifa || localItem.unidad_tarifa || '$/día'
         };
 
         if (patK) mapEquip.set(patK, merged);
