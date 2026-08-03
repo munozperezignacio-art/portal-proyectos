@@ -2611,32 +2611,49 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 <p className="text-[11px] text-slate-500">Indicadores clave de avance, rendimiento operacional, dotación e incidentabilidad</p>
               </div>
 
-              {/* KPIS DE LA OBRA */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Avance Acumulado</span>
-                  <p className="text-2xl font-black text-blue-900">68.5%</p>
-                  <p className="text-[10px] text-emerald-600 font-bold">✓ +2.4% sobre curva S proyectada</p>
-                </div>
+              {/* KPIS DINÁMICOS REALES DE LA OBRA */}
+              {(() => {
+                const totalPresupuestado = (partidasList || []).reduce((sum, p) => sum + (parseFloat(p.cantidad) || 0), 0);
+                const totalAvanceReal = (reportesAvanceList || []).reduce((sum, r) => sum + (parseFloat(r.cantidad) || 0), 0);
+                const avanceAcumuladoPercent = totalPresupuestado > 0 ? ((totalAvanceReal / totalPresupuestado) * 100).toFixed(1) : "0.0";
 
-                <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Horas Hombre Acumuladas</span>
-                  <p className="text-2xl font-black text-slate-800">1,480 hrs</p>
-                  <p className="text-[10px] text-slate-500">Registradas en faena</p>
-                </div>
+                const totalHorasHombre = (asistenciaList || []).reduce((sum, a) => {
+                  const status = (a.asistencia || "").toLowerCase();
+                  return (status === "presente" || status === "asiste" || status === "p") ? sum + 9 : sum;
+                }, 0);
 
-                <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Días sin Accidentes CTP</span>
-                  <p className="text-2xl font-black text-emerald-700">124 días</p>
-                  <p className="text-[10px] text-emerald-600 font-bold">✓ Cero accidentes graves</p>
-                </div>
+                return (
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Avance Acumulado</span>
+                      <p className="text-2xl font-black text-blue-900">{avanceAcumuladoPercent}%</p>
+                      <p className="text-[10px] text-slate-500 font-bold">
+                        {reportesAvanceList.length > 0 ? `${reportesAvanceList.length} reportes registrados` : "Sin avances reportados en la obra"}
+                      </p>
+                    </div>
 
-                <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Dotación Promedio</span>
-                  <p className="text-2xl font-black text-slate-800">{personalList.length || 14} <span className="text-xs font-normal text-slate-400">trabajadores</span></p>
-                  <p className="text-[10px] text-blue-900 font-bold">Asignados en nómina</p>
-                </div>
-              </div>
+                    <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Horas Hombre Acumuladas</span>
+                      <p className="text-2xl font-black text-slate-800">{totalHorasHombre.toLocaleString("es-CL")} hrs</p>
+                      <p className="text-[10px] text-slate-500">
+                        {asistenciaList.length > 0 ? `${asistenciaList.length} marcas de asistencia` : "Sin asistencias registradas"}
+                      </p>
+                    </div>
+
+                    <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Días sin Accidentes CTP</span>
+                      <p className="text-2xl font-black text-emerald-700">0 días</p>
+                      <p className="text-[10px] text-emerald-600 font-bold">✓ Cero accidentes informados</p>
+                    </div>
+
+                    <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Dotación Asignada</span>
+                      <p className="text-2xl font-black text-slate-800">{personalList.length} <span className="text-xs font-normal text-slate-400">trabajadores</span></p>
+                      <p className="text-[10px] text-blue-900 font-bold">Asignados en nómina de obra</p>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="p-8 text-center bg-blue-50/60 border border-blue-200 rounded-2xl space-y-2">
                 <BarChart3 className="w-10 h-10 text-blue-800 mx-auto" />
