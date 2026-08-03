@@ -3,7 +3,8 @@ import { supabase } from '../supabaseClient';
 import { 
   Truck, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Check, 
   Building2, Eye, Camera, Image, Calendar, Clock, Gauge, Fuel, CheckCircle2, 
-  ChevronRight, Wrench, ShieldCheck, MapPin, CalendarDays, RefreshCw, Send, Handshake, DollarSign
+  ChevronRight, Wrench, ShieldCheck, MapPin, CalendarDays, RefreshCw, Send, Handshake, DollarSign,
+  Filter, SlidersHorizontal, List, Grid, AlertTriangle
 } from 'lucide-react';
 
 export default function Maquinaria({ user, onBack }) {
@@ -13,6 +14,8 @@ export default function Maquinaria({ user, onBack }) {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedObraFilter, setSelectedObraFilter] = useState('');
+  const [selectedTipoFilter, setSelectedTipoFilter] = useState('');
+  const [selectedEstadoFilter, setSelectedEstadoFilter] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -36,11 +39,12 @@ export default function Maquinaria({ user, onBack }) {
     foto_posterior: ''
   });
 
-  // 2. Estados Asignación Directa de Equipos
+  // 2. Estados Asignación Directa de Equipos con FECHA HASTA
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [selectedEquipToAssign, setSelectedEquipToAssign] = useState(null);
   const [targetObraName, setTargetObraName] = useState('');
-  const [assignNotes, setAssignNotes] = useState('');
+  const [assignFechaHasta, setAssignFechaHasta] = useState('');
+  const [assignWarning, setAssignWarning] = useState('');
 
   // 3. Estados Registro de Uso y Horómetros
   const [usoList, setUsoList] = useState([]);
@@ -57,12 +61,14 @@ export default function Maquinaria({ user, onBack }) {
     observaciones: ''
   });
 
-  // 4. Estados Reserva y Disponibilidad Futura (Texto Libre de Obra)
+  // 4. Estados Reserva y Disponibilidad Futura (con Edición y Detalles)
   const [reservasList, setReservasList] = useState([]);
   const [reservaModalOpen, setReservaModalOpen] = useState(false);
+  const [editingReserva, setEditingReserva] = useState(null);
+  const [reservaViewMode, setReservaViewMode] = useState('tabla'); // 'tabla' o 'matriz'
   const [reservaForm, setReservaForm] = useState({
     equipo_id: '',
-    obra_destino_custom: '', // Permite nombre de obra futura personalizada sin restricción de base de datos
+    obra_destino_custom: '',
     fecha_inicio: new Date().toISOString().split('T')[0],
     fecha_fin: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
     solicitante: user?.nombre || user?.usuario || 'Administrador Obraxis',
@@ -232,7 +238,6 @@ export default function Maquinaria({ user, onBack }) {
     setSuccessMsg('');
     setErrorMsg('');
 
-    // Validar FK de obra_nombre
     const matchedObra = obras.find(o => o.nombre.toLowerCase() === (formData.obra_nombre || '').toLowerCase());
     const validObraNombre = matchedObra ? matchedObra.nombre : null;
 
@@ -299,25 +304,59 @@ export default function Maquinaria({ user, onBack }) {
     }
   };
 
-  // 2. Handler Asignación Directa de Obra
+  // 2. Handler Asignación Directa de Obra (Con Validación de Fecha Hasta para no chocar con Reservas)
   const handleAssignSubmit = async (e) => {
     e.preventDefault();
     if (!selectedEquipToAssign) return;
+
+    // Verificar si la fecha de asignación choca con alguna reserva agendada
+    if (assignFechaHasta) {
+      const equipRes = reservasList.filter(r => r.equipo_id.toString() === selectedEquipToAssign.id.toString());
+      const hasConflict = equipRes.some(r => {
+        const rInicio = new Date(r.fecha_inicio);
+        const aHasta = new Date(assignFechaHasta);
+        return aHasta >= rInicio;
+      });
+
+      if (hasConflict && !window.confirm('⚠️ ADVERTENCIA: La fecha hasta seleccionada ingresa al periodo de una reserva agendada. ¿Deseas confirmar la asignación de todas formas?')) {
+        return;
+      }
+    }
 
     setModalLoading(true);
     try {
       const matchedObra = obras.find(o => o.nombre.toLowerCase() === (targetObraName || '').toLowerCase());
       const validTargetName = matchedObra ? matchedObra.nombre : null;
 
-      let updatePayload = { obra_nombre: validTargetName };
-      let { error } = await supabase
-        .from('inventario_maquinaria')
-        .update(updatePayload)
-        .eq('id', selectedEquipToAssign.id);
+      let updatePayload = { 
+        obra_nombre: validTargetName,
+        fecha_hasta_estimada: assignFechaHasta || null
+      };
 
-      if (error) throw error;
+      let attempts = 0;
+      let success = false;
+      let lastError = null;
 
-      setSuccessMsg(`¡Equipo ${selectedEquipToAssign.patente} asignado a ${targetObraName || 'Bodega Central / Libre'}!`);
+      while (attempts < 5 && !success) {
+        attempts++;
+        const res = await supabase.from('inventario_maquinaria').update(updatePayload).eq('id', selectedEquipToAssign.id);
+        if (!res.error) {
+          success = true;
+          break;
+        }
+        lastError = res.error;
+        const msg = res.error.message || '';
+        const match = msg.match(/Could not find the '([^']+)' column/i);
+        if (match && match[1] && updatePayload[match[1]] !== undefined) {
+          delete updatePayload[match[1]];
+        } else {
+          delete updatePayload.fecha_hasta_estimada;
+        }
+      }
+
+      if (!success && lastError) throw lastError;
+
+      setSuccessMsg(`¡Equipo ${selectedEquipToAssign.patente} asignado a ${targetObraName || 'Bodega Central / Libre'}${assignFechaHasta ? ` hasta el ${assignFechaHasta}` : ''}!`);
       fetchData();
       setAssignModalOpen(false);
       setTimeout(() => setSuccessMsg(''), 3000);
@@ -374,7 +413,7 @@ export default function Maquinaria({ user, onBack }) {
     }
   };
 
-  // 4. Handler Reserva de Equipo (Acepta nombre de obra futura personalizada)
+  // 4. Handler Reserva de Equipo Futuro (Con Soporte para Edición y Eliminación)
   const handleReservaSubmit = async (e) => {
     e.preventDefault();
     if (!reservaForm.equipo_id || !reservaForm.obra_destino_custom.trim()) {
@@ -384,11 +423,11 @@ export default function Maquinaria({ user, onBack }) {
 
     const eq = maquinaria.find(m => m.id.toString() === reservaForm.equipo_id.toString());
 
-    const newReserva = {
+    const payloadReserva = {
       equipo_id: reservaForm.equipo_id,
       equipo_tipo: eq ? eq.tipo : 'Equipo',
       equipo_patente: eq ? eq.patente : 'N/A',
-      obra_destino: reservaForm.obra_destino_custom.trim(), // Nombre libre de proyecto futuro
+      obra_destino: reservaForm.obra_destino_custom.trim(),
       fecha_inicio: reservaForm.fecha_inicio,
       fecha_fin: reservaForm.fecha_fin,
       solicitante: reservaForm.solicitante,
@@ -399,18 +438,46 @@ export default function Maquinaria({ user, onBack }) {
     };
 
     try {
-      const { error } = await supabase.from('maquinaria_reservas').insert([newReserva]);
-      if (error) throw error;
-      setSuccessMsg('Reserva agendada exitosamente.');
+      if (editingReserva) {
+        const { error } = await supabase.from('maquinaria_reservas').update(payloadReserva).eq('id', editingReserva.id);
+        if (error) throw error;
+        setSuccessMsg('Reserva actualizada exitosamente.');
+      } else {
+        const { error } = await supabase.from('maquinaria_reservas').insert([payloadReserva]);
+        if (error) throw error;
+        setSuccessMsg('Reserva agendada exitosamente.');
+      }
       fetchReservasLogs();
     } catch (err) {
-      const updated = [newReserva, ...reservasList];
+      let updated;
+      if (editingReserva) {
+        updated = reservasList.map(r => r.id === editingReserva.id ? { ...r, ...payloadReserva } : r);
+      } else {
+        updated = [payloadReserva, ...reservasList];
+      }
       setReservasList(updated);
       localStorage.setItem('obraxis_maquinaria_reservas', JSON.stringify(updated));
-      setSuccessMsg('Reserva de obra futura guardada.');
+      setSuccessMsg('Reserva guardada.');
     } finally {
+      setEditingReserva(null);
       setReservaModalOpen(false);
       setTimeout(() => setSuccessMsg(''), 3000);
+    }
+  };
+
+  const handleDeleteReserva = async (res) => {
+    if (!window.confirm(`¿Deseas cancelar y eliminar la reserva para ${res.equipo_tipo} (${res.equipo_patente})?`)) return;
+
+    try {
+      if (res.id) {
+        await supabase.from('maquinaria_reservas').delete().eq('id', res.id);
+      }
+      const updated = reservasList.filter(r => r !== res && r.id !== res.id);
+      setReservasList(updated);
+      localStorage.setItem('obraxis_maquinaria_reservas', JSON.stringify(updated));
+      setSuccessMsg('Reserva eliminada.');
+    } catch (e) {
+      alert('Error al eliminar reserva: ' + e.message);
     }
   };
 
@@ -473,7 +540,7 @@ export default function Maquinaria({ user, onBack }) {
     return { code: 'libre', label: 'Disponible / Sin Reserva', badgeClass: 'bg-emerald-100 text-emerald-900 border-emerald-200' };
   };
 
-  // Filtrado de Inventario
+  // Filtrado Multicriterio de Flota
   const filteredMaquinaria = maquinaria.filter(m => {
     const matchesSearch = 
       (m.tipo && m.tipo.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -484,7 +551,16 @@ export default function Maquinaria({ user, onBack }) {
       selectedObraFilter === '' || 
       (m.obra_nombre && m.obra_nombre.toLowerCase() === selectedObraFilter.toLowerCase());
 
-    return matchesSearch && matchesObra;
+    const matchesTipo = 
+      selectedTipoFilter === '' || 
+      (m.tipo && m.tipo.toLowerCase() === selectedTipoFilter.toLowerCase());
+
+    const est = getEquipoEstadoDetallado(m);
+    const matchesEstado = 
+      selectedEstadoFilter === '' || 
+      est.code === selectedEstadoFilter;
+
+    return matchesSearch && matchesObra && matchesTipo && matchesEstado;
   });
 
   const tiposMaquinaria = [
@@ -597,7 +673,7 @@ export default function Maquinaria({ user, onBack }) {
                   Asignación de Equipos
                 </h3>
                 <p className="text-[11px] text-slate-500 leading-snug">
-                  Asignación directa y transferencias hacia obras activas.
+                  Asignación directa y traslados a obras con fecha hasta estimada.
                 </p>
               </div>
               <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] font-extrabold text-blue-600 group-hover:text-blue-700">
@@ -647,7 +723,7 @@ export default function Maquinaria({ user, onBack }) {
                   Reserva y Disponibilidad
                 </h3>
                 <p className="text-[11px] text-slate-500 leading-snug">
-                  Agenda de obras futuras (proyectos/licitaciones) y estado (*En Uso, Reservado, Libre*).
+                  Agenda de obras futuras, edición de reservas y tabla consolidada de flota.
                 </p>
               </div>
               <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] font-extrabold text-purple-600 group-hover:text-purple-700">
@@ -691,7 +767,7 @@ export default function Maquinaria({ user, onBack }) {
           <div className="flex justify-between items-center bg-white p-5 border border-slate-200 rounded-3xl shadow-xs">
             <div>
               <h3 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider">Inventario de Equipos y Maquinarias</h3>
-              <p className="text-xs text-slate-500">Listado de flota propia y arrendada con fichas operacionales.</p>
+              <p className="text-xs text-slate-500">Catálogo general de flota con filtros y estado operacional.</p>
             </div>
             <button
               onClick={handleOpenAddModal}
@@ -703,7 +779,7 @@ export default function Maquinaria({ user, onBack }) {
           </div>
 
           {/* Filtros */}
-          <div className="bg-white p-5 border border-slate-200 rounded-3xl shadow-xs grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="bg-white p-5 border border-slate-200 rounded-3xl shadow-xs grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="relative">
               <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
                 <Search className="w-4 h-4" />
@@ -713,17 +789,28 @@ export default function Maquinaria({ user, onBack }) {
                 placeholder="Buscar por tipo, patente o marca..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 text-slate-800 font-medium w-full px-3.5 py-2.5 border rounded-xl border-slate-200 focus:outline-none focus:border-primary transition text-xs"
+                className="pl-9 text-slate-800 font-medium w-full px-3.5 py-2 border rounded-xl border-slate-200 focus:outline-none focus:border-primary transition text-xs"
               />
+            </div>
+
+            <div>
+              <select
+                value={selectedTipoFilter}
+                onChange={(e) => setSelectedTipoFilter(e.target.value)}
+                className="text-slate-800 font-medium w-full px-3.5 py-2 border rounded-xl border-slate-200 focus:outline-none focus:border-primary transition text-xs bg-white"
+              >
+                <option value="">Filtrar por Tipo (Todos)</option>
+                {tiposMaquinaria.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
             </div>
 
             <div>
               <select
                 value={selectedObraFilter}
                 onChange={(e) => setSelectedObraFilter(e.target.value)}
-                className="text-slate-800 font-medium w-full px-3.5 py-2.5 border rounded-xl border-slate-200 focus:outline-none focus:border-primary transition text-xs bg-white"
+                className="text-slate-800 font-medium w-full px-3.5 py-2 border rounded-xl border-slate-200 focus:outline-none focus:border-primary transition text-xs bg-white"
               >
-                <option value="">Filtrar por obra (Todas)</option>
+                <option value="">Filtrar por Obra (Todas)</option>
                 {obras.map(o => <option key={o.nombre} value={o.nombre}>{o.nombre}</option>)}
               </select>
             </div>
@@ -735,7 +822,7 @@ export default function Maquinaria({ user, onBack }) {
           ) : filteredMaquinaria.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-3xl border border-slate-200 text-slate-400">
               <Truck className="w-12 h-12 mx-auto mb-2 opacity-40" />
-              <p className="text-xs font-bold">No se encontraron equipos registrados.</p>
+              <p className="text-xs font-bold">No se encontraron equipos con los filtros seleccionados.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -809,13 +896,13 @@ export default function Maquinaria({ user, onBack }) {
         </div>
       )}
 
-      {/* 4. SUBMÓDULO 2: ASIGNACIÓN DE EQUIPOS */}
+      {/* 4. SUBMÓDULO 2: ASIGNACIÓN DE EQUIPOS CON FECHA HASTA ESTIMADA */}
       {activeSection === 'asignaciones' && (
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in duration-200 space-y-4">
           <div className="flex justify-between items-center border-b border-slate-100 pb-3">
             <div>
               <h3 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider">Asignación Directa a Obras Activas</h3>
-              <p className="text-xs text-slate-500">Selecciona maquinaria y asigna su ubicación en faena.</p>
+              <p className="text-xs text-slate-500">Configura la obra de destino y la fecha hasta estimada de asignación para coordinar reservas.</p>
             </div>
           </div>
 
@@ -830,21 +917,22 @@ export default function Maquinaria({ user, onBack }) {
                     </span>
                     <span className="text-[10.5px] font-bold text-slate-700">Patente: {m.patente || 'S/I'}</span>
                   </div>
-                  <div>
+                  <div className="space-y-1">
                     <p className="text-xs font-bold text-slate-800">Obra Actual: <span className="text-primary">{m.obra_nombre || 'Bodega Central / Libre'}</span></p>
-                    <p className="text-[10px] text-slate-400">Tipo: {m.tipo}</p>
+                    {m.fecha_hasta_estimada && <p className="text-[10.5px] text-amber-800 font-bold">Asignado Hasta: {m.fecha_hasta_estimada}</p>}
                   </div>
 
                   <button
                     onClick={() => {
                       setSelectedEquipToAssign(m);
                       setTargetObraName(m.obra_nombre || (obras[0] ? obras[0].nombre : ''));
+                      setAssignFechaHasta(m.fecha_hasta_estimada || '');
                       setAssignModalOpen(true);
                     }}
                     className="w-full py-2 px-3 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-hover transition cursor-pointer flex items-center justify-center gap-1.5"
                   >
                     <Send className="w-3.5 h-3.5" />
-                    <span>Transferir / Asignar Obra</span>
+                    <span>Asignar con Fecha Hasta</span>
                   </button>
                 </div>
               );
@@ -923,119 +1011,284 @@ export default function Maquinaria({ user, onBack }) {
         </div>
       )}
 
-      {/* 6. SUBMÓDULO 4: RESERVA Y DISPONIBILIDAD (CON ESTADOS: EN USO, RESERVADO, SIN RESERVA Y OBRA FUTURA LIBRE) */}
+      {/* 6. SUBMÓDULO 4: RESERVA Y DISPONIBILIDAD (TABLA Y MATRIZ ESCALABLE PARA GRANDES VOLÚMENES) */}
       {activeSection === 'reservas' && (
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in duration-200 space-y-6">
-          <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-3">
             <div>
               <h3 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider">Agenda de Reservas y Disponibilidad de Flota</h3>
-              <p className="text-xs text-slate-500">Agenda de proyectos futuros/licitaciones y control de estados (*En Uso, Reservado, Sin Reserva*).</p>
+              <p className="text-xs text-slate-500">Control de disponibilidad operacional para grandes flotas de equipos.</p>
             </div>
-            <button
-              onClick={() => {
-                setReservaForm({
-                  equipo_id: maquinaria[0] ? maquinaria[0].id.toString() : '',
-                  obra_destino_custom: '',
-                  fecha_inicio: new Date().toISOString().split('T')[0],
-                  fecha_fin: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
-                  solicitante: user?.nombre || user?.usuario || 'Administrador Obraxis',
-                  proposito: ''
-                });
-                setReservaModalOpen(true);
-              }}
-              className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-sm"
-            >
-              <Calendar className="w-4 h-4" />
-              <span>Agendar Reserva Futura</span>
-            </button>
+
+            <div className="flex items-center gap-2">
+              <div className="bg-slate-100 p-1 rounded-xl flex text-xs font-bold border border-slate-200">
+                <button
+                  onClick={() => setReservaViewMode('tabla')}
+                  className={`px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1 ${reservaViewMode === 'tabla' ? 'bg-white text-purple-950 shadow-2xs font-extrabold' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  <List className="w-3.5 h-3.5" />
+                  <span>Tabla Consolidada</span>
+                </button>
+                <button
+                  onClick={() => setReservaViewMode('matriz')}
+                  className={`px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1 ${reservaViewMode === 'matriz' ? 'bg-white text-purple-950 shadow-2xs font-extrabold' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  <Grid className="w-3.5 h-3.5" />
+                  <span>Matriz de Estados</span>
+                </button>
+              </div>
+
+              <button
+                onClick={() => {
+                  setEditingReserva(null);
+                  setReservaForm({
+                    equipo_id: maquinaria[0] ? maquinaria[0].id.toString() : '',
+                    obra_destino_custom: '',
+                    fecha_inicio: new Date().toISOString().split('T')[0],
+                    fecha_fin: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+                    solicitante: user?.nombre || user?.usuario || 'Administrador Obraxis',
+                    proposito: ''
+                  });
+                  setReservaModalOpen(true);
+                }}
+                className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-sm"
+              >
+                <Calendar className="w-4 h-4" />
+                <span>Nueva Reserva Futura</span>
+              </button>
+            </div>
           </div>
 
-          {/* MATRIZ DE ESTADOS */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            
-            {/* ESTADO 1: EN USO */}
-            <div className="bg-amber-50/50 border border-amber-200 rounded-3xl p-5 space-y-3">
-              <div className="flex items-center justify-between border-b border-amber-200/60 pb-2">
-                <span className="text-xs font-black text-amber-900 uppercase flex items-center gap-1.5">
-                  <Building2 className="w-4 h-4 text-amber-700" />
-                  <span>En Uso en Faena</span>
-                </span>
-                <span className="text-[10px] font-black bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full">
-                  {maquinaria.filter(m => Boolean(m.obra_nombre && m.obra_nombre.trim() !== '')).length}
-                </span>
+          {/* VISTA 1: TABLA CONSOLIDADA PARA GRANDES FLOTAS */}
+          {reservaViewMode === 'tabla' && (
+            <div className="space-y-4">
+              {/* Filtro rápido por estado */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                <div className="flex flex-wrap gap-1.5 text-xs font-bold">
+                  <button
+                    onClick={() => setSelectedEstadoFilter('')}
+                    className={`px-3 py-1.5 rounded-xl transition ${selectedEstadoFilter === '' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}
+                  >
+                    Todos ({maquinaria.length})
+                  </button>
+                  <button
+                    onClick={() => setSelectedEstadoFilter('en_uso')}
+                    className={`px-3 py-1.5 rounded-xl transition ${selectedEstadoFilter === 'en_uso' ? 'bg-amber-600 text-white' : 'bg-white text-amber-800 border border-amber-200'}`}
+                  >
+                    En Uso ({maquinaria.filter(m => Boolean(m.obra_nombre && m.obra_nombre.trim() !== '')).length})
+                  </button>
+                  <button
+                    onClick={() => setSelectedEstadoFilter('reservado')}
+                    className={`px-3 py-1.5 rounded-xl transition ${selectedEstadoFilter === 'reservado' ? 'bg-blue-600 text-white' : 'bg-white text-blue-800 border border-blue-200'}`}
+                  >
+                    Reservados ({reservasList.length})
+                  </button>
+                  <button
+                    onClick={() => setSelectedEstadoFilter('libre')}
+                    className={`px-3 py-1.5 rounded-xl transition ${selectedEstadoFilter === 'libre' ? 'bg-emerald-600 text-white' : 'bg-white text-emerald-800 border border-emerald-200'}`}
+                  >
+                    Disponibles / Libres ({maquinaria.filter(m => (!m.obra_nombre || m.obra_nombre.trim() === '') && !reservasList.some(r => r.equipo_id.toString() === m.id.toString())).length})
+                  </button>
+                </div>
+
+                <div className="relative w-full sm:w-64">
+                  <input
+                    type="text"
+                    placeholder="Buscar máquina o reserva..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-8 text-xs font-semibold py-1.5 px-3 border border-slate-200 rounded-xl bg-white"
+                  />
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                </div>
               </div>
+
+              {/* Tabla Principal */}
+              <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-xs">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-700 font-extrabold uppercase border-b border-slate-200">
+                      <th className="p-3">Equipo / Patente</th>
+                      <th className="p-3">Estado Actual</th>
+                      <th className="p-3">Obra / Ubicación Actual</th>
+                      <th className="p-3">Asignado Hasta</th>
+                      <th className="p-3">Reserva Agendada (Obra Futura)</th>
+                      <th className="p-3 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredMaquinaria.map(m => {
+                      const est = getEquipoEstadoDetallado(m);
+                      const res = reservasList.find(r => r.equipo_id.toString() === m.id.toString());
+                      return (
+                        <tr key={m.id} className="hover:bg-slate-50 font-medium text-slate-800">
+                          <td className="p-3 font-bold text-slate-900">
+                            {m.tipo} <span className="text-slate-500 font-semibold">({m.patente})</span>
+                          </td>
+                          <td className="p-3">
+                            <span className={`text-[9.5px] font-black px-2.5 py-0.5 rounded-full border uppercase ${est.badgeClass}`}>
+                              {est.label}
+                            </span>
+                          </td>
+                          <td className="p-3 text-slate-700 font-semibold">
+                            {m.obra_nombre || 'Bodega Central / Libre'}
+                          </td>
+                          <td className="p-3 text-slate-600">
+                            {m.fecha_hasta_estimada ? <span className="font-bold text-amber-800">{m.fecha_hasta_estimada}</span> : '-'}
+                          </td>
+                          <td className="p-3">
+                            {res ? (
+                              <div>
+                                <p className="font-extrabold text-blue-900 uppercase text-[11px]">{res.obra_destino}</p>
+                                <p className="text-[10px] text-slate-500">{res.fecha_inicio} al {res.fecha_fin} ({res.solicitante})</p>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 italic">Sin reserva agendada</span>
+                            )}
+                          </td>
+                          <td className="p-3 text-right space-x-1">
+                            {res && (
+                              <>
+                                <button
+                                  onClick={() => {
+                                    setEditingReserva(res);
+                                    setReservaForm({
+                                      equipo_id: res.equipo_id,
+                                      obra_destino_custom: res.obra_destino,
+                                      fecha_inicio: res.fecha_inicio,
+                                      fecha_fin: res.fecha_fin,
+                                      solicitante: res.solicitante || '',
+                                      proposito: res.proposito || ''
+                                    });
+                                    setReservaModalOpen(true);
+                                  }}
+                                  className="px-2 py-1 rounded bg-slate-200 hover:bg-slate-300 font-bold text-[10px] text-slate-700 transition"
+                                  title="Editar Reserva"
+                                >
+                                  ✏️ Editar
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteReserva(res)}
+                                  className="px-2 py-1 rounded bg-red-100 hover:bg-red-200 font-bold text-[10px] text-red-700 transition"
+                                  title="Cancelar Reserva"
+                                >
+                                  🗑️ Cancelar
+                                </button>
+                              </>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* VISTA 2: MATRIZ POR ESTADOS */}
+          {reservaViewMode === 'matriz' && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               
-              <div className="space-y-2 max-h-[350px] overflow-y-auto">
-                {maquinaria.filter(m => Boolean(m.obra_nombre && m.obra_nombre.trim() !== '')).map(m => (
-                  <div key={m.id} className="bg-white p-3.5 rounded-2xl border border-amber-200/80 shadow-2xs space-y-1">
-                    <div className="flex justify-between items-center">
-                      <span className="font-extrabold text-xs text-slate-850 uppercase">{m.tipo} ({m.patente})</span>
-                      <span className="text-[9px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded">EN FAENA</span>
-                    </div>
-                    <p className="text-[11px] text-amber-900 font-bold">Obra: {m.obra_nombre}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* ESTADO 2: RESERVADO */}
-            <div className="bg-blue-50/50 border border-blue-200 rounded-3xl p-5 space-y-3">
-              <div className="flex items-center justify-between border-b border-blue-200/60 pb-2">
-                <span className="text-xs font-black text-blue-900 uppercase flex items-center gap-1.5">
-                  <CalendarDays className="w-4 h-4 text-blue-700" />
-                  <span>Reservados (Futuro)</span>
-                </span>
-                <span className="text-[10px] font-black bg-blue-200 text-blue-900 px-2 py-0.5 rounded-full">
-                  {reservasList.length}
-                </span>
-              </div>
-
-              <div className="space-y-2 max-h-[350px] overflow-y-auto">
-                {reservasList.map((res, idx) => (
-                  <div key={idx} className="bg-white p-3.5 rounded-2xl border border-blue-200/80 shadow-2xs space-y-1">
-                    <div className="flex justify-between items-center">
-                      <span className="font-extrabold text-xs text-slate-850 uppercase">{res.equipo_tipo} ({res.equipo_patente})</span>
-                      <span className="text-[9px] font-bold text-blue-800 bg-blue-100 px-2 py-0.5 rounded">{res.fecha_inicio}</span>
-                    </div>
-                    <p className="text-[11px] text-blue-950 font-bold">Proyecto Futuro: {res.obra_destino}</p>
-                    <p className="text-[10px] text-slate-500">Solicita: {res.solicitante}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* ESTADO 3: DISPONIBLE / SIN RESERVA */}
-            <div className="bg-emerald-50/50 border border-emerald-200 rounded-3xl p-5 space-y-3">
-              <div className="flex items-center justify-between border-b border-emerald-200/60 pb-2">
-                <span className="text-xs font-black text-emerald-900 uppercase flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-700" />
-                  <span>Disponible / Sin Reserva</span>
-                </span>
-                <span className="text-[10px] font-black bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full">
-                  {maquinaria.filter(m => (!m.obra_nombre || m.obra_nombre.trim() === '') && !reservasList.some(r => r.equipo_id.toString() === m.id.toString())).length}
-                </span>
-              </div>
-
-              <div className="space-y-2 max-h-[350px] overflow-y-auto">
-                {maquinaria
-                  .filter(m => (!m.obra_nombre || m.obra_nombre.trim() === '') && !reservasList.some(r => r.equipo_id.toString() === m.id.toString()))
-                  .map(m => (
-                    <div key={m.id} className="bg-white p-3.5 rounded-2xl border border-emerald-200/80 shadow-2xs space-y-1">
+              {/* ESTADO 1: EN USO */}
+              <div className="bg-amber-50/50 border border-amber-200 rounded-3xl p-5 space-y-3">
+                <div className="flex items-center justify-between border-b border-amber-200/60 pb-2">
+                  <span className="text-xs font-black text-amber-900 uppercase flex items-center gap-1.5">
+                    <Building2 className="w-4 h-4 text-amber-700" />
+                    <span>En Uso en Faena</span>
+                  </span>
+                  <span className="text-[10px] font-black bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full">
+                    {maquinaria.filter(m => Boolean(m.obra_nombre && m.obra_nombre.trim() !== '')).length}
+                  </span>
+                </div>
+                
+                <div className="space-y-2 max-h-[350px] overflow-y-auto">
+                  {maquinaria.filter(m => Boolean(m.obra_nombre && m.obra_nombre.trim() !== '')).map(m => (
+                    <div key={m.id} className="bg-white p-3.5 rounded-2xl border border-amber-200/80 shadow-2xs space-y-1">
                       <div className="flex justify-between items-center">
                         <span className="font-extrabold text-xs text-slate-850 uppercase">{m.tipo} ({m.patente})</span>
-                        <span className="text-[9px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded">LIBRE</span>
+                        <span className="text-[9px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded">EN FAENA</span>
                       </div>
-                      <p className="text-[10px] text-slate-500">Ubicación: Bodega Central</p>
+                      <p className="text-[11px] text-amber-900 font-bold">Obra: {m.obra_nombre}</p>
+                      {m.fecha_hasta_estimada && <p className="text-[10px] text-slate-500">Hasta: {m.fecha_hasta_estimada}</p>}
                     </div>
                   ))}
+                </div>
               </div>
-            </div>
 
-          </div>
+              {/* ESTADO 2: RESERVADO */}
+              <div className="bg-blue-50/50 border border-blue-200 rounded-3xl p-5 space-y-3">
+                <div className="flex items-center justify-between border-b border-blue-200/60 pb-2">
+                  <span className="text-xs font-black text-blue-900 uppercase flex items-center gap-1.5">
+                    <CalendarDays className="w-4 h-4 text-blue-700" />
+                    <span>Reservados (Futuro)</span>
+                  </span>
+                  <span className="text-[10px] font-black bg-blue-200 text-blue-900 px-2 py-0.5 rounded-full">
+                    {reservasList.length}
+                  </span>
+                </div>
+
+                <div className="space-y-2 max-h-[350px] overflow-y-auto">
+                  {reservasList.map((res, idx) => (
+                    <div key={idx} className="bg-white p-3.5 rounded-2xl border border-blue-200/80 shadow-2xs space-y-1">
+                      <div className="flex justify-between items-center">
+                        <span className="font-extrabold text-xs text-slate-850 uppercase">{res.equipo_tipo} ({res.equipo_patente})</span>
+                        <div className="space-x-1">
+                          <button onClick={() => {
+                            setEditingReserva(res);
+                            setReservaForm({
+                              equipo_id: res.equipo_id,
+                              obra_destino_custom: res.obra_destino,
+                              fecha_inicio: res.fecha_inicio,
+                              fecha_fin: res.fecha_fin,
+                              solicitante: res.solicitante || '',
+                              proposito: res.proposito || ''
+                            });
+                            setReservaModalOpen(true);
+                          }} className="text-[10px]">✏️</button>
+                          <button onClick={() => handleDeleteReserva(res)} className="text-[10px]">🗑️</button>
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-blue-950 font-bold">Obra Futura: {res.obra_destino}</p>
+                      <p className="text-[10px] text-slate-500">{res.fecha_inicio} al {res.fecha_fin}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ESTADO 3: DISPONIBLE / SIN RESERVA */}
+              <div className="bg-emerald-50/50 border border-emerald-200 rounded-3xl p-5 space-y-3">
+                <div className="flex items-center justify-between border-b border-emerald-200/60 pb-2">
+                  <span className="text-xs font-black text-emerald-900 uppercase flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+                    <span>Disponible / Sin Reserva</span>
+                  </span>
+                  <span className="text-[10px] font-black bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full">
+                    {maquinaria.filter(m => (!m.obra_nombre || m.obra_nombre.trim() === '') && !reservasList.some(r => r.equipo_id.toString() === m.id.toString())).length}
+                  </span>
+                </div>
+
+                <div className="space-y-2 max-h-[350px] overflow-y-auto">
+                  {maquinaria
+                    .filter(m => (!m.obra_nombre || m.obra_nombre.trim() === '') && !reservasList.some(r => r.equipo_id.toString() === m.id.toString()))
+                    .map(m => (
+                      <div key={m.id} className="bg-white p-3.5 rounded-2xl border border-emerald-200/80 shadow-2xs space-y-1">
+                        <div className="flex justify-between items-center">
+                          <span className="font-extrabold text-xs text-slate-850 uppercase">{m.tipo} ({m.patente})</span>
+                          <span className="text-[9px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded">LIBRE</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500">Ubicación: Bodega Central</p>
+                      </div>
+                    ))}
+                </div>
+              </div>
+
+            </div>
+          )}
         </div>
       )}
 
-      {/* 7. NUEVO SUBMÓDULO 5: ARRIENDOS A TERCEROS */}
+      {/* 7. SUBMÓDULO 5: ARRIENDOS A TERCEROS */}
       {activeSection === 'arriendos' && (
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in duration-200 space-y-6">
           <div className="flex justify-between items-center border-b border-slate-100 pb-3">
@@ -1088,13 +1341,13 @@ export default function Maquinaria({ user, onBack }) {
         </div>
       )}
 
-      {/* MODAL RESERVA DE EQUIPO FUTURO (CON TEXTO LIBRE DE OBRA FUTURA) */}
+      {/* MODAL RESERVA DE EQUIPO FUTURO (CON CREACIÓN Y EDICIÓN) */}
       {reservaModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
           <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-md w-full space-y-4 shadow-xl">
             <h3 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider flex items-center gap-2">
               <CalendarDays className="w-5 h-5 text-purple-600" />
-              <span>Agendar Reserva de Obra Futura</span>
+              <span>{editingReserva ? 'Editar Reserva de Obra Futura' : 'Agendar Reserva de Obra Futura'}</span>
             </h3>
 
             <form onSubmit={handleReservaSubmit} className="space-y-3 text-xs">
@@ -1122,7 +1375,6 @@ export default function Maquinaria({ user, onBack }) {
                   className="w-full border border-slate-200 rounded-xl p-2.5 font-bold text-slate-800"
                   required
                 />
-                <span className="text-[9.5px] text-slate-400">Puedes escribir cualquier nombre de obra futura sin requerir que exista en sistema.</span>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1150,7 +1402,7 @@ export default function Maquinaria({ user, onBack }) {
 
               <div className="flex justify-end gap-2 pt-3">
                 <button type="button" onClick={() => setReservaModalOpen(false)} className="px-4 py-2 rounded-xl bg-slate-100 font-bold">Cancelar</button>
-                <button type="submit" className="px-5 py-2 rounded-xl bg-purple-600 text-white font-bold">Confirmar Reserva</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-purple-600 text-white font-bold">{editingReserva ? 'Guardar Cambios' : 'Confirmar Reserva'}</button>
               </div>
             </form>
           </div>
@@ -1248,7 +1500,7 @@ export default function Maquinaria({ user, onBack }) {
         </div>
       )}
 
-      {/* MODAL DE ASIGNACIÓN DIRECTA */}
+      {/* MODAL DE ASIGNACIÓN DIRECTA CON FECHA HASTA ESTIMADA */}
       {assignModalOpen && selectedEquipToAssign && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
           <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-md w-full space-y-4 shadow-xl">
@@ -1276,6 +1528,17 @@ export default function Maquinaria({ user, onBack }) {
                     <option key={o.nombre} value={o.nombre}>{o.nombre}</option>
                   ))}
                 </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10.5px] font-bold uppercase text-slate-600">Fecha Hasta (Término Estimado)</label>
+                <input
+                  type="date"
+                  value={assignFechaHasta}
+                  onChange={(e) => setAssignFechaHasta(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800"
+                />
+                <span className="text-[9.5px] text-slate-400">Permite liberar o coordinar con la agenda de reservas futuras sin solapar periodos.</span>
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
@@ -1496,6 +1759,7 @@ export default function Maquinaria({ user, onBack }) {
               <p><b>Marca:</b> {viewingEquip.marca || 'S/I'}</p>
               <p><b>Propiedad:</b> {viewingEquip.tipo_activo || 'Propio'}</p>
               <p><b>Obra Asignada:</b> {viewingEquip.obra_nombre || 'Bodega Central / Libre'}</p>
+              {viewingEquip.fecha_hasta_estimada && <p><b>Asignado Hasta:</b> <span className="font-bold text-amber-800">{viewingEquip.fecha_hasta_estimada}</span></p>}
               <p><b>Horómetro Inicial:</b> {viewingEquip.horometro_inicial || 0} hrs</p>
             </div>
 
