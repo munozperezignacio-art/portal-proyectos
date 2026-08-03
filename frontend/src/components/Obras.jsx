@@ -667,7 +667,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         .eq('obra_nombre', obraNombre);
       setPersonalCount(countPers || 0);
 
-      // 2. Cargar número de maquinaria asignada e inventario completo con costo_interno (deduplicación por patente + prioridad remota)
+      // 2. Cargar número de maquinaria asignada e inventario completo con costo_interno (fusión multi-clave por ID y Patente)
       const localMaqStr = localStorage.getItem('obraxis_inventario_maquinaria');
       const localMaq = localMaqStr ? JSON.parse(localMaqStr) : [];
       const targetName = (obraNombre || '').trim().toLowerCase();
@@ -680,30 +680,55 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         console.warn('Error leyendo inventario_maquinaria:', e);
       }
 
-      // Deduplicar por Patente / ID combinando local y remoto
       const mapEquip = new Map();
+      const getEquipKey = (item) => {
+        if (!item) return '';
+        if (item.patente && item.patente.toString().trim()) return item.patente.toString().trim().toUpperCase();
+        if (item.id) return 'ID_' + item.id;
+        return '';
+      };
 
-      localMaq.forEach(m => {
-        const patKey = (m.patente || m.id || '').toString().trim().toUpperCase();
-        if (patKey) mapEquip.set(patKey, m);
+      // 1. Indexar local por Patente e ID
+      (localMaq || []).forEach(item => {
+        const k = getEquipKey(item);
+        if (k) mapEquip.set(k, item);
+        if (item.id) mapEquip.set('ID_' + item.id, item);
       });
 
-      allRemoteMaq.forEach(m => {
-        const patKey = (m.patente || m.id || '').toString().trim().toUpperCase();
-        if (patKey) {
-          const localItem = mapEquip.get(patKey) || {};
-          mapEquip.set(patKey, {
-            ...localItem,
-            ...m,
-            costo_interno: (m.costo_interno !== undefined && m.costo_interno !== null && m.costo_interno !== 0) 
-              ? m.costo_interno 
-              : (localItem.costo_interno || localItem.tarifa_diaria || localItem.costo || 0),
-            unidad_costo_interno: m.unidad_costo_interno || localItem.unidad_costo_interno || localItem.unidad_tarifa || '$/día'
-          });
-        }
+      // 2. Fusionar remoto sobre local por ID y por Patente
+      (allRemoteMaq || []).forEach(item => {
+        const patK = getEquipKey(item);
+        const idK = item.id ? 'ID_' + item.id : null;
+        
+        const localItem = (patK ? mapEquip.get(patK) : null) || (idK ? mapEquip.get(idK) : null) || {};
+
+        const merged = {
+          ...localItem,
+          ...item,
+          obra_nombre: (item.obra_nombre && item.obra_nombre !== 'Bodega Central / Libre' && item.obra_nombre !== 'Libre')
+            ? item.obra_nombre
+            : (localItem.obra_nombre || item.obra_nombre || 'Bodega Central / Libre'),
+          costo_interno: (item.costo_interno !== undefined && item.costo_interno !== null && item.costo_interno !== 0) 
+            ? item.costo_interno 
+            : (localItem.costo_interno || localItem.tarifa_diaria || localItem.costo || 0),
+          unidad_costo_interno: item.unidad_costo_interno || localItem.unidad_costo_interno || localItem.unidad_tarifa || '$/día'
+        };
+
+        if (patK) mapEquip.set(patK, merged);
+        if (idK) mapEquip.set(idK, merged);
       });
 
-      const combinedFleet = Array.from(mapEquip.values());
+      // 3. Obtener lista única deduplicada
+      const uniqueMap = new Map();
+      Array.from(mapEquip.values()).forEach(item => {
+        const k = getEquipKey(item);
+        if (k) uniqueMap.set(k, item);
+      });
+
+      const combinedFleet = Array.from(uniqueMap.values());
+      try {
+        localStorage.setItem('obraxis_inventario_maquinaria', JSON.stringify(combinedFleet));
+      } catch (err) {}
 
       const isEquipForObra = (item) => {
         if (!item || !item.obra_nombre) return false;
