@@ -7,6 +7,59 @@ import {
   Filter, SlidersHorizontal, List, Grid, AlertTriangle
 } from 'lucide-react';
 
+
+// Listado de feriados nacionales en Chile (MM-DD)
+const feriadosChile = [
+  '01-01', '05-01', '05-21', '06-20', '06-29', '07-16', '08-15',
+  '09-18', '09-19', '09-20', '10-12', '10-31', '11-01', '12-08', '12-25'
+];
+
+const esDiaNoLaboral = (fechaObj) => {
+  const dayOfWeek = fechaObj.getDay(); // 0 = Domingo, 6 = Sábado
+  if (dayOfWeek === 0 || dayOfWeek === 6) return true;
+  const monthDay = fechaObj.toISOString().slice(5, 10);
+  return feriadosChile.includes(monthDay);
+};
+
+const calcularDiasLaborablesArriendo = (fDesdeStr, fHastaStr, logsContrato) => {
+  if (!fDesdeStr || !fHastaStr) return { diasLaborables: 0, diasNoLaborablesUso: 0, diasCobrados: 0, diasTotales: 0 };
+
+  const start = new Date(fDesdeStr + 'T00:00:00');
+  const end = new Date(fHastaStr + 'T00:00:00');
+
+  let diasLaborables = 0;
+  let diasNoLaborablesSinUso = 0;
+  let diasNoLaborablesConUso = 0;
+  let diasTotales = 0;
+
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    diasTotales++;
+    const fechaISO = d.toISOString().split('T')[0];
+    const noLaboral = esDiaNoLaboral(d);
+    
+    const usoEnFecha = logsContrato.filter(l => l.fecha === fechaISO);
+    const hrsEnFecha = usoEnFecha.reduce((acc, curr) => acc + (parseFloat(curr.horas_trabajadas) || 0), 0);
+
+    if (!noLaboral) {
+      diasLaborables++;
+    } else {
+      if (hrsEnFecha > 0) {
+        diasNoLaborablesConUso++;
+      } else {
+        diasNoLaborablesSinUso++;
+      }
+    }
+  }
+
+  return {
+    diasTotales,
+    diasLaborables,
+    diasNoLaborablesSinUso,
+    diasNoLaborablesConUso,
+    diasCobrados: diasLaborables + diasNoLaborablesConUso
+  };
+};
+
 export default function Maquinaria({ user, onBack }) {
   const [activeSection, setActiveSection] = useState(''); // '', 'inventario', 'asignaciones', 'uso', 'reservas', 'arriendos'
   const [maquinaria, setMaquinaria] = useState([]);
@@ -1630,16 +1683,15 @@ export default function Maquinaria({ user, onBack }) {
         const fDesde = corteDesde || arr.fecha_inicio;
         const fHasta = corteHasta || arr.fecha_fin;
 
-        const d1 = new Date(fDesde);
-        const d2 = new Date(fHasta);
-        const diffTime = Math.abs(d2 - d1);
-        const diasPactados = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
-
-        // Filtrar reportes de uso reales de este equipo en el rango de fechas seleccionado
+        // Filtrar reportes de uso reales en el periodo
         const logsContrato = usoList.filter(u => 
           u.equipo_id.toString() === arr.equipo_id.toString() &&
           u.fecha >= fDesde && u.fecha <= fHasta
         );
+
+        // Calcular auto-calendario de días hábiles y días no laborales con uso
+        const cal = calcularDiasLaborablesArriendo(fDesde, fHasta, logsContrato);
+        const diasPactados = cal.diasCobrados;
 
         const hrsRealesTrabajadas = logsContrato.reduce((acc, curr) => acc + (parseFloat(curr.horas_trabajadas) || 0), 0);
 
@@ -1757,13 +1809,37 @@ export default function Maquinaria({ user, onBack }) {
 
                 {/* Tabla Desglose de Valores */}
                 <div className="space-y-2 pt-1">
+                  {/* Desglose de Días Laborables / Feriados */}
+                  <div className="p-3 bg-slate-100 rounded-xl space-y-1 text-[11px] text-slate-700 border border-slate-200">
+                    <div className="flex justify-between font-semibold">
+                      <span>Días Corridos del Periodo:</span>
+                      <b>{cal.diasTotales} días</b>
+                    </div>
+                    <div className="flex justify-between text-emerald-800 font-bold">
+                      <span>Días Hábiles / Laborales (Lun-Vie):</span>
+                      <span>+{cal.diasLaborables} días cobrables</span>
+                    </div>
+                    {cal.diasNoLaborablesConUso > 0 && (
+                      <div className="flex justify-between text-purple-900 font-bold">
+                        <span>Feriados / Fines de Semana con Uso Efectivo:</span>
+                        <span>+{cal.diasNoLaborablesConUso} días cobrables</span>
+                      </div>
+                    )}
+                    {cal.diasNoLaborablesSinUso > 0 && (
+                      <div className="flex justify-between text-slate-400">
+                        <span>Fines de Semana / Feriados Sin Uso:</span>
+                        <span>{cal.diasNoLaborablesSinUso} días (Excluidos $0)</span>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="flex justify-between items-center text-slate-700">
                     <span>Horas Trabajadas Reales (Bitácora):</span>
                     <span className="font-extrabold text-purple-900">{hrsRealesTrabajadas} hrs</span>
                   </div>
                   <div className="flex justify-between items-center text-slate-700">
-                    <span>Cantidad a Cobrar ({unidadCobroLabel}):</span>
-                    <span className="font-extrabold">{cantidadCobro} {unidadCobroLabel.toLowerCase()}</span>
+                    <span>Total Días/Horas a Cobrar ({unidadCobroLabel}):</span>
+                    <span className="font-extrabold text-amber-900">{cantidadCobro} {unidadCobroLabel.toLowerCase()}</span>
                   </div>
                   <div className="flex justify-between items-center text-slate-700">
                     <span>Tarifa Pactada ({unidadTarifa}):</span>
