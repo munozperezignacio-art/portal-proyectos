@@ -51,7 +51,22 @@ function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
   const [currentModule, setCurrentModule] = useState('dashboard');
-  const [companyBranding, setCompanyBranding] = useState(null);
+  const [companyBranding, setCompanyBranding] = useState(() => {
+    try {
+      const saved = localStorage.getItem('obraxis_company_branding');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.color_primario) {
+          document.documentElement.style.setProperty('--primary-color', parsed.color_primario);
+        }
+        if (parsed?.color_secundario) {
+          document.documentElement.style.setProperty('--primary-color-hover', parsed.color_secundario);
+        }
+        return parsed;
+      }
+    } catch (e) {}
+    return null;
+  });
   const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile drawer toggle
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true); // Desktop sidebar collapse toggle
   const [obras, setObras] = useState([]);
@@ -162,6 +177,7 @@ function App() {
         
         if (data) {
           setCompanyBranding(data);
+          try { localStorage.setItem('obraxis_company_branding', JSON.stringify(data)); } catch(e){}
           document.documentElement.style.setProperty('--primary-color', data.color_primario || '#1e3a8a');
           document.documentElement.style.setProperty('--primary-color-hover', data.color_secundario || '#1d4ed8');
         } else {
