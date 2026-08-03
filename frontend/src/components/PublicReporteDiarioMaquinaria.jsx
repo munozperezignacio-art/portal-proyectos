@@ -93,7 +93,7 @@ export default function PublicReporteDiarioMaquinaria({ equipoId, patente }) {
       combustible_cargado: parseFloat(form.combustible_cargado) || 0,
       operador: form.operador.trim(),
       observaciones: form.observaciones.trim(),
-      empresa: equipo ? equipo.empresa : 'EMIN',
+      empresa: equipo ? equipo.empresa : 'OBRAXIS',
       created_at: new Date().toISOString()
     };
 

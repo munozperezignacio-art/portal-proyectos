@@ -490,7 +490,7 @@ export default function Maquinaria({ user, onBack }) {
       combustible_cargado: parseFloat(usoForm.combustible_cargado) || 0,
       operador: usoForm.operador || user?.nombre || user?.usuario,
       observaciones: usoForm.observaciones,
-      empresa: user?.empresa || 'EMIN',
+      empresa: user?.empresa || 'OBRAXIS',
       created_at: new Date().toISOString()
     };
 
@@ -530,7 +530,7 @@ export default function Maquinaria({ user, onBack }) {
       solicitante: reservaForm.solicitante,
       proposito: reservaForm.proposito,
       estado: 'Confirmada',
-      empresa: user?.empresa || 'EMIN',
+      empresa: user?.empresa || 'OBRAXIS',
       created_at: new Date().toISOString()
     };
 
@@ -657,7 +657,7 @@ export default function Maquinaria({ user, onBack }) {
       fecha_fin: arriendoForm.fecha_fin,
       observaciones: arriendoForm.observaciones,
       estado: 'Activo',
-      empresa: user?.empresa || 'EMIN',
+      empresa: user?.empresa || 'OBRAXIS',
       created_at: new Date().toISOString()
     };
 
