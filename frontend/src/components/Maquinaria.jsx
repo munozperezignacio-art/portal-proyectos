@@ -231,32 +231,38 @@ export default function Maquinaria({ user, onBack }) {
     };
 
     try {
-      if (editingEquip) {
-        let { error } = await supabase
-          .from('inventario_maquinaria')
-          .update(dataToSave)
-          .eq('id', editingEquip.id);
-          
-        if (error && error.message && error.message.includes('estado_equipo')) {
-          delete dataToSave.estado_equipo;
-          const retry = await supabase
-            .from('inventario_maquinaria')
-            .update(dataToSave)
-            .eq('id', editingEquip.id);
-          error = retry.error;
+      let cleanPayload = { ...dataToSave };
+      let { error } = editingEquip
+        ? await supabase.from('inventario_maquinaria').update(cleanPayload).eq('id', editingEquip.id)
+        : await supabase.from('inventario_maquinaria').insert([cleanPayload]);
+
+      // Si falla por alguna columna no creada en Supabase (ej: estado_equipo, fotos), limpiamos dinámicamente
+      if (error && (error.message.includes('column') || error.message.includes('schema cache'))) {
+        console.warn('Detectada columna faltante en Supabase, reintentando con payload base:', error.message);
+        
+        // Intentar extraer el nombre de la columna del mensaje de error
+        const match = error.message.match(/Could not find the '([^']+)' column/i) || error.message.match(/column "([^"]+)"/i);
+        if (match && match[1]) {
+          delete cleanPayload[match[1]];
         }
-        if (error) throw error;
-        setSuccessMsg('Ficha de equipo actualizada.');
-      } else {
-        let { error } = await supabase.from('inventario_maquinaria').insert([dataToSave]);
-        if (error && error.message && error.message.includes('estado_equipo')) {
-          delete dataToSave.estado_equipo;
-          const retry = await supabase.from('inventario_maquinaria').insert([dataToSave]);
-          error = retry.error;
-        }
-        if (error) throw error;
-        setSuccessMsg('Equipo registrado exitosamente.');
+        
+        // Limpieza de respaldo general para campos extendidos si aún persiste
+        delete cleanPayload.estado_equipo;
+        delete cleanPayload.foto_frontal;
+        delete cleanPayload.foto_izquierda;
+        delete cleanPayload.foto_derecha;
+        delete cleanPayload.foto_posterior;
+
+        const retry = editingEquip
+          ? await supabase.from('inventario_maquinaria').update(cleanPayload).eq('id', editingEquip.id)
+          : await supabase.from('inventario_maquinaria').insert([cleanPayload]);
+
+        error = retry.error;
       }
+
+      if (error) throw error;
+      setSuccessMsg(editingEquip ? 'Ficha de equipo actualizada.' : 'Equipo registrado exitosamente.');
+
       fetchData();
       setTimeout(() => setModalOpen(false), 1200);
     } catch (err) {
