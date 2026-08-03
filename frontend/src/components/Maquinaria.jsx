@@ -212,26 +212,36 @@ function Maquinaria({ user, onBack }) {
   return (
     <div className="space-y-4">
       
-      {/* Encabezado */}
-      <div className="flex justify-between items-center mb-4">
+      {/* Encabezado Estándar Obraxis */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 border border-slate-200 rounded-3xl shadow-xs mb-6">
         <div className="flex items-center gap-3">
-          <button onClick={onBack} className="p-1.5 hover:bg-slate-200 rounded-lg transition cursor-pointer">
+          <button onClick={onBack} className="p-2 hover:bg-slate-100 rounded-xl transition cursor-pointer" title="Volver">
             <ArrowLeft className="w-5 h-5 text-slate-600" />
           </button>
-          <h2 className="text-base font-bold text-slate-800 uppercase tracking-wide">Gestión de Maquinaria</h2>
+          <div>
+            <h2 className="text-xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
+              <Truck className="w-6 h-6 text-primary shrink-0" />
+              <span>Gestión de Maquinaria y Equipos</span>
+            </h2>
+            <p className="text-[10px] text-slate-450 font-bold uppercase mt-0.5 tracking-wider">
+              ALTA DE EQUIPOS, ASIGNACIÓN DIRECTA A OBRA, DISPONIBILIDAD Y CONTROL DE REQUERIMIENTOS
+            </p>
+          </div>
         </div>
-        
+
         <button
           onClick={handleOpenAddModal}
-          className="bg-blue-900 hover:bg-blue-800 text-white font-semibold px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 cursor-pointer shadow-sm"
+          className="bg-primary hover:bg-primary-hover text-white text-xs font-extrabold px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-sm transition"
         >
           <Plus className="w-4 h-4" />
-          <span>Ingresar Equipo</span>
+          <span>Ingresar Nuevo Equipo</span>
         </button>
       </div>
 
+      <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">INVENTARIO Y CONTROL DE FLOTA</h3>
+
       {/* Filtros */}
-      <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-sm grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="bg-white p-5 border border-slate-200 rounded-3xl shadow-xs grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <div className="relative">
           <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
             <Search className="w-4 h-4" />

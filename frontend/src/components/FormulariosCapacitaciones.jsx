@@ -237,61 +237,42 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 p-4 sm:p-6 font-sans">
       {/* Header Estándar de Obraxis */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 border border-slate-200 rounded-3xl shadow-xs">
         <div className="flex items-center gap-3">
-          <button
-            onClick={onBack}
-            className="p-2.5 rounded-2xl bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 transition cursor-pointer"
-            title="Volver al Inicio"
+          <button 
+            onClick={() => {
+              if (activeTab !== 'menu') {
+                setActiveTab('menu');
+                setSuccessMsg('');
+                setErrorMsg('');
+              } else {
+                onBack();
+              }
+            }} 
+            className="p-2 hover:bg-slate-100 rounded-xl transition cursor-pointer" 
+            title="Volver"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-5 h-5 text-slate-600" />
           </button>
-          <div className="p-3 bg-primary/10 text-primary rounded-2xl">
-            <ClipboardCheck className="w-6 h-6" />
-          </div>
           <div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-850 uppercase tracking-wider flex items-center gap-2">
-              Formularios y Capacitaciones
-            </h1>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">
-              Crea formularios dinámicos, listas de chequeo y capacitaciones asignables a cualquier módulo del sistema.
+            <h2 className="text-xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
+              <ClipboardCheck className="w-6 h-6 text-primary shrink-0" />
+              <span>Formularios y Capacitaciones</span>
+            </h2>
+            <p className="text-[10px] text-slate-450 font-bold uppercase mt-0.5 tracking-wider">
+              CREA FORMULARIOS DINÁMICOS, LISTAS DE CHEQUEO Y CAPACITACIONES ASIGNABLES A CUALQUIER MÓDULO DEL SISTEMA
             </p>
           </div>
         </div>
 
-        {/* Tab Navigation Buttons - Estilo Estándar Obraxis */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 shrink-0">
+        {activeTab !== 'menu' && (
           <button
             onClick={() => setActiveTab('menu')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${activeTab === 'menu' ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'}`}
+            className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3.5 py-2 rounded-xl transition cursor-pointer border border-slate-200"
           >
-            Panel Principal
+            <span>← Volver al Menú Principal</span>
           </button>
-          <button
-            onClick={() => setActiveTab('designer')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${activeTab === 'designer' ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'}`}
-          >
-            + Diseñador
-          </button>
-          <button
-            onClick={() => setActiveTab('forms_list')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${activeTab === 'forms_list' ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'}`}
-          >
-            Mis Formularios ({formularios.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('capacitaciones')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${activeTab === 'capacitaciones' ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'}`}
-          >
-            Capacitaciones ({capacitaciones.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('respuestas')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${activeTab === 'respuestas' ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'}`}
-          >
-            Respuestas ({respuestas.length})
-          </button>
-        </div>
+        )}
       </div>
 
       {/* Alertas Estándar */}
@@ -300,6 +281,10 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
 
       {/* TAB 1: MENU PRINCIPAL DE TARJETAS (ESTILO ESTÁNDAR OBRAXIS) */}
       {activeTab === 'menu' && (
+        <>
+          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-6 mb-4">
+            SUBMÓDULOS DE FORMULARIOS Y CAPACITACIONES
+          </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 animate-in fade-in duration-200">
           
           {/* Card 1: Diseñador */}
@@ -402,6 +387,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
             </div>
           </div>
         </div>
+        </>
       )}
 
       {/* TAB 2: DISEÑADOR DE FORMULARIOS */}
