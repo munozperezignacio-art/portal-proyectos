@@ -354,7 +354,7 @@ export default function Maquinaria({ user, onBack }) {
     setErrorMsg('');
 
     const matchedObra = obras.find(o => o.nombre.toLowerCase() === (formData.obra_nombre || '').toLowerCase());
-    const validObraNombre = matchedObra ? matchedObra.nombre : null;
+    const validObraNombre = formData.obra_nombre || 'Bodega Central / Libre';
 
     const dataToSave = {
       tipo: formData.tipo,

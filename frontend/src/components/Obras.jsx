@@ -113,6 +113,85 @@ function ObraGpsMapPicker({ lat, lng, radius, onChange, canEdit }) {
   return (
     <div className="relative w-full h-52 rounded-xl overflow-hidden border border-slate-200 shadow-inner my-2 z-0">
       <div ref={mapRef} className="w-full h-full" />
+
+      {/* MODAL DE VINCULACIÓN / ASIGNACIÓN DIRECTA DE EQUIPO A LA OBRA */}
+      {showAssignModalObra && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-md w-full space-y-4 shadow-xl">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider flex items-center gap-2">
+                <Truck className="w-5 h-5 text-blue-900" />
+                <span>Vincular Equipo a Obra "{selectedObra?.nombre}"</span>
+              </h3>
+              <button onClick={() => setShowAssignModalObra(false)} className="p-1 rounded-lg bg-slate-100 font-bold text-xs text-slate-600 hover:bg-slate-200">✕</button>
+            </div>
+
+            <form onSubmit={handleConfirmAssignToObra} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-[10.5px] font-bold uppercase text-slate-600 mb-1">Seleccionar Equipo de la Flota *</label>
+                <select
+                  value={selectedFleetEquipId}
+                  onChange={(e) => {
+                    const idVal = e.target.value;
+                    setSelectedFleetEquipId(idVal);
+                    const selected = fleetListForObra.find(m => (m.id || m.patente).toString() === idVal.toString());
+                    if (selected) {
+                      setAssignObraCostoInterno(selected.costo_interno ? selected.costo_interno.toString() : '');
+                      setAssignObraUnidadCosto(selected.unidad_costo_interno || '$/día');
+                    }
+                  }}
+                  className="w-full border border-slate-200 rounded-xl p-2.5 font-bold text-slate-800 bg-white"
+                  required
+                >
+                  {fleetListForObra.map(m => (
+                    <option key={m.id || m.patente} value={m.id || m.patente}>
+                      {m.tipo} ({m.patente || 'Sin Patente'}) - {m.obra_nombre ? 'Actual: ' + m.obra_nombre : 'En Bodega Libre'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="bg-amber-50/80 p-3 rounded-2xl border border-amber-200 space-y-2">
+                <span className="text-[10.5px] font-extrabold text-amber-950 uppercase tracking-wider block">
+                  💲 Costo Interno (Tarifa Imputable a Obra):
+                </span>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[9.5px] font-bold uppercase text-amber-900 mb-1">Tarifa ($)</label>
+                    <input
+                      type="number"
+                      placeholder="ej: 50000"
+                      value={assignObraCostoInterno}
+                      onChange={(e) => setAssignObraCostoInterno(e.target.value)}
+                      className="w-full border border-amber-300 rounded-xl p-2 font-bold text-slate-900 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[9.5px] font-bold uppercase text-amber-900 mb-1">Unidad</label>
+                    <select
+                      value={assignObraUnidadCosto}
+                      onChange={(e) => setAssignObraUnidadCosto(e.target.value)}
+                      className="w-full border border-amber-300 rounded-xl p-2 font-bold text-slate-900 bg-white"
+                    >
+                      <option value="$/día">$/día</option>
+                      <option value="$/hr">$/hr</option>
+                      <option value="$/mes">$/mes</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button type="button" onClick={() => setShowAssignModalObra(false)} className="px-4 py-2.5 rounded-xl bg-slate-100 font-bold">Cancelar</button>
+                <button type="submit" className="px-5 py-2.5 rounded-xl bg-blue-900 text-white font-extrabold shadow-sm">
+                  Confirmar Asignación
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -220,7 +299,12 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   // Sub-pestañas para Avance, Asistencia, Maquinaria, Bitácora y Prevención
   const [avanceSubTab, setAvanceSubTab] = useState('visor'); // 'visor' | 'registro'
   const [asistenciaSubTab, setAsistenciaSubTab] = useState('registro'); // 'registro' | 'libro'
-  const [maqSubTab, setMaqSubTab] = useState('asignaciones'); // 'asignaciones' | 'arriendos'
+  const [maqSubTab, setMaqSubTab] = useState('asignaciones');
+  const [showAssignModalObra, setShowAssignModalObra] = useState(false);
+  const [fleetListForObra, setFleetListForObra] = useState([]);
+  const [selectedFleetEquipId, setSelectedFleetEquipId] = useState('');
+  const [assignObraCostoInterno, setAssignObraCostoInterno] = useState('');
+  const [assignObraUnidadCosto, setAssignObraUnidadCosto] = useState('$/día'); // 'asignaciones' | 'arriendos'
   const [bitacoraFilters, setBitacoraFilters] = useState(['todos']); // Multi-select: ['todos'] o combinación de ['avances', 'asistencia', 'incidentes', 'personal', 'maquinaria']
   const [prevObraSubTab, setPrevObraSubTab] = useState('inspecciones'); // 'inspecciones' | 'pts' | 'incidentes'
 
@@ -501,6 +585,77 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     } finally {
       setLoading(false);
     }
+  };
+
+    const openAssignModalFromObra = async () => {
+    try {
+      const localStr = localStorage.getItem('obraxis_inventario_maquinaria');
+      const localMaq = localStr ? JSON.parse(localStr) : [];
+      const { data: remoteMaq } = await supabase.from('inventario_maquinaria').select('*');
+      
+      const mapFleet = new Map();
+      (remoteMaq || []).forEach(m => mapFleet.set((m.id || m.patente).toString(), m));
+      localMaq.forEach(m => {
+        const k = (m.id || m.patente).toString();
+        mapFleet.set(k, { ...mapFleet.get(k), ...m });
+      });
+
+      const fullFleet = Array.from(mapFleet.values());
+      setFleetListForObra(fullFleet);
+      if (fullFleet.length > 0) {
+        setSelectedFleetEquipId((fullFleet[0].id || fullFleet[0].patente).toString());
+        setAssignObraCostoInterno(fullFleet[0].costo_interno ? fullFleet[0].costo_interno.toString() : '');
+        setAssignObraUnidadCosto(fullFleet[0].unidad_costo_interno || '$/día');
+      }
+      setShowAssignModalObra(true);
+    } catch (e) {
+      console.error('Error cargando flota:', e);
+    }
+  };
+
+  const handleConfirmAssignToObra = async (e) => {
+    e.preventDefault();
+    if (!selectedFleetEquipId || !selectedObra) return;
+
+    const equipObj = fleetListForObra.find(m => (m.id || m.patente).toString() === selectedFleetEquipId.toString());
+    if (!equipObj) return;
+
+    const newObraName = selectedObra.nombre;
+    const parsedCosto = parseFloat(assignObraCostoInterno) || 0;
+
+    // 1. Guardado síncrono local
+    const localStr = localStorage.getItem('obraxis_inventario_maquinaria');
+    let localList = localStr ? JSON.parse(localStr) : [...fleetListForObra];
+
+    const updatedItem = {
+      ...equipObj,
+      obra_nombre: newObraName,
+      costo_interno: parsedCosto,
+      unidad_costo_interno: assignObraUnidadCosto
+    };
+
+    localList = localList.map(item => 
+      (item.id && item.id.toString() === equipObj.id?.toString()) || item.patente === equipObj.patente
+        ? updatedItem 
+        : item
+    );
+
+    localStorage.setItem('obraxis_inventario_maquinaria', JSON.stringify(localList));
+
+    // 2. Guardado en Supabase
+    try {
+      await supabase.from('inventario_maquinaria').update({
+        obra_nombre: newObraName,
+        costo_interno: parsedCosto,
+        unidad_costo_interno: assignObraUnidadCosto
+      }).eq('id', equipObj.id || selectedFleetEquipId);
+    } catch (err) {
+      console.warn('Asignación efectuada localmente:', err.message);
+    }
+
+    setShowAssignModalObra(false);
+    fetchObraDetails(selectedObra.nombre);
+    alert('¡Equipo ' + equipObj.tipo + ' (' + (equipObj.patente || 'S/I') + ') asignado exitosamente a la obra "' + newObraName + '"!');
   };
 
   const fetchObraDetails = async (obraNombre) => {
@@ -2374,7 +2529,15 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   </button>
                 </div>
 
-                {maqSubTab === 'arriendos' && (
+                {maqSubTab === 'asignaciones' ? (
+                  <button
+                    onClick={openAssignModalFromObra}
+                    className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Vincular Equipo Flota a esta Obra</span>
+                  </button>
+                ) : (
                   <button
                     onClick={() => setShowArriendoModal(true)}
                     className="bg-indigo-900 hover:bg-indigo-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
