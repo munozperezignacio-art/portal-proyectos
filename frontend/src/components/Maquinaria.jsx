@@ -531,6 +531,9 @@ export default function Maquinaria({ user, onBack }) {
     if (isArrendado) {
       return { code: 'arrendado', label: 'Arrendado a Tercero', badgeClass: 'bg-purple-100 text-purple-900 border-purple-200' };
     }
+    if (isEnUso && isReservado) {
+      return { code: 'en_uso', label: `En Uso (${equip.obra_nombre}) + Reservado`, badgeClass: 'bg-indigo-100 text-indigo-900 border-indigo-200' };
+    }
     if (isEnUso) {
       return { code: 'en_uso', label: `En Uso (${equip.obra_nombre})`, badgeClass: 'bg-amber-100 text-amber-900 border-amber-200' };
     }
@@ -555,10 +558,16 @@ export default function Maquinaria({ user, onBack }) {
       selectedTipoFilter === '' || 
       (m.tipo && m.tipo.toLowerCase() === selectedTipoFilter.toLowerCase());
 
-    const est = getEquipoEstadoDetallado(m);
-    const matchesEstado = 
-      selectedEstadoFilter === '' || 
-      est.code === selectedEstadoFilter;
+    const isEnUso = Boolean(m.obra_nombre && m.obra_nombre.trim() !== '');
+    const isReservado = reservasList.some(r => r.equipo_id.toString() === m.id.toString());
+    const isArrendado = arriendosList.some(a => a.equipo_id.toString() === m.id.toString() && a.estado === 'Activo');
+    const isLibre = !isEnUso && !isReservado && !isArrendado;
+
+    let matchesEstado = true;
+    if (selectedEstadoFilter === 'en_uso') matchesEstado = isEnUso;
+    else if (selectedEstadoFilter === 'reservado') matchesEstado = isReservado;
+    else if (selectedEstadoFilter === 'libre') matchesEstado = isLibre;
+    else if (selectedEstadoFilter === 'arrendado') matchesEstado = isArrendado;
 
     return matchesSearch && matchesObra && matchesTipo && matchesEstado;
   });
