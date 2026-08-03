@@ -659,18 +659,27 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   };
 
   const fetchObraDetails = async (obraNombre) => {
+    if (!obraNombre) return;
+    const targetName = obraNombre.trim().toLowerCase();
+
+    // 1. Cargar personal
     try {
-      // 1. Cargar número de personal asignado
       const { count: countPers } = await supabase
         .from('maestro_personal')
         .select('*', { count: 'exact', head: true })
         .eq('obra_nombre', obraNombre);
       setPersonalCount(countPers || 0);
 
-      // 2. Cargar número de maquinaria asignada e inventario completo con costo_interno (fusión multi-clave por ID y Patente)
+      const { data: listPers } = await supabase.from('maestro_personal').select('nombre, rut, cargo').eq('obra_nombre', obraNombre);
+      setPersonalList(listPers || []);
+    } catch (e) {
+      console.warn('Aviso personal:', e);
+    }
+
+    // 2. Cargar maquinaria asignada (TOTALMENTE AISLADO DE OTRAS CONSULTAS)
+    try {
       const localMaqStr = localStorage.getItem('obraxis_inventario_maquinaria');
       const localMaq = localMaqStr ? JSON.parse(localMaqStr) : [];
-      const targetName = (obraNombre || '').trim().toLowerCase();
 
       let allRemoteMaq = [];
       try {
@@ -688,14 +697,12 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         return '';
       };
 
-      // 1. Indexar local por Patente e ID
       (localMaq || []).forEach(item => {
         const k = getEquipKey(item);
         if (k) mapEquip.set(k, item);
         if (item.id) mapEquip.set('ID_' + item.id, item);
       });
 
-      // 2. Fusionar remoto sobre local por ID y por Patente
       (allRemoteMaq || []).forEach(item => {
         const patK = getEquipKey(item);
         const idK = item.id ? 'ID_' + item.id : null;
@@ -718,7 +725,6 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         if (idK) mapEquip.set(idK, merged);
       });
 
-      // 3. Obtener lista única deduplicada
       const uniqueMap = new Map();
       Array.from(mapEquip.values()).forEach(item => {
         const k = getEquipKey(item);
@@ -744,11 +750,12 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       const finalMaqObra = combinedFleet.filter(isEquipForObra);
       setMaquinariaCount(finalMaqObra.length);
       setMaquinariaList(finalMaqObra);
+    } catch (eMaq) {
+      console.error('Error en módulo Maquinaria:', eMaq);
+    }
 
-      // 3. Cargar listas de ayuda para formularios
-      const { data: listPers } = await supabase.from('maestro_personal').select('nombre, rut, cargo').eq('obra_nombre', obraNombre);
-      setPersonalList(listPers || []);
-
+    // 3. Cargar partidas de obra
+    try {
       const { data: listPart } = await supabase.from('partidas_obra').select('*').eq('obra_nombre', obraNombre);
       const normalizedListPart = (listPart || []).map(p => ({
         ...p,
@@ -757,45 +764,68 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         rendimiento: p.rendimiento_meta || p.rendimiento || '10'
       }));
       setPartidasList(normalizedListPart);
+    } catch (e) {
+      console.warn('Aviso partidas:', e);
+    }
 
-      // 4. Cargar registros reales de Asistencia y Reportes de Avance de la obra
-      const { data: fullAsist } = await supabase
+    // 4. Asistencias de personal
+    let fullAsist = [];
+    try {
+      const { data } = await supabase
         .from('asistencia_personal')
         .select('*')
         .eq('obra_nombre', obraNombre)
         .order('created_at', { ascending: false });
-      setAsistenciaList(fullAsist || []);
+      if (data) fullAsist = data;
+      setAsistenciaList(fullAsist);
+    } catch (e) {}
 
-      const { data: fullAvances } = await supabase
+    // 5. Avances de producción
+    let fullAvances = [];
+    try {
+      const { data } = await supabase
         .from('avances_produccion_partidas')
         .select('*')
         .eq('obra_nombre', obraNombre)
         .order('created_at', { ascending: false });
-      setReportesAvanceList(fullAvances || []);
+      if (data) fullAvances = data;
+      setReportesAvanceList(fullAvances);
+    } catch (e) {}
 
-      try {
-        const { data: fullNotas } = await supabase
-          .from('bitacora_obra')
-          .select('*')
-          .eq('obra_nombre', obraNombre)
-          .order('created_at', { ascending: true });
-        setBitacoraNotasList(fullNotas || []);
-      } catch (bErr) {
-        console.warn('Aviso al cargar notas de bitacora:', bErr);
-      }
+    // 6. Bitácora
+    try {
+      const { data: fullNotas } = await supabase
+        .from('bitacora_obra')
+        .select('*')
+        .eq('obra_nombre', obraNombre)
+        .order('created_at', { ascending: true });
+      setBitacoraNotasList(fullNotas || []);
+    } catch (e) {}
 
-      const combined = [
-        ...(fullAsist || []).slice(0, 3).map(a => ({ type: 'asistencia', date: a.created_at, text: `${a.trabajador} marcado como ${a.asistencia}` })),
-        ...(fullAvances || []).slice(0, 3).map(av => ({ type: 'avance', date: av.created_at, text: `Avance en ${av.partida}: ${av.cantidad} ${av.unidad || ''}` }))
-      ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
+    // 7. Arriendos de maquinaria
+    try {
+      const { data: aData } = await supabase.from('arriendos_maquinaria').select('*').eq('obra_nombre', obraNombre).order('created_at', { ascending: false });
+      setArriendosList(aData || []);
+    } catch (e) {}
 
-      setRecentLogs(combined);
-    } catch (err) {
-      console.error('Error cargando detalles de obra:', err.message);
-    }
+    // 8. Asistencias QR
+    try {
+      const { data: listAsistencia } = await supabase
+        .from('asistencias_qr')
+        .select('*')
+        .eq('obra_nombre', obraNombre)
+        .order('fecha', { ascending: false });
+      setAsistenciasHistoryList(listAsistencia || []);
+    } catch (e) {}
+
+    const combined = [
+      ...(fullAsist || []).slice(0, 3).map(a => ({ type: 'asistencia', date: a.created_at, text: `${a.trabajador} marcado como ${a.asistencia}` })),
+      ...(fullAvances || []).slice(0, 3).map(av => ({ type: 'avance', date: av.created_at, text: `Avance en ${av.partida}: ${av.cantidad} ${av.unidad || ''}` }))
+    ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
+
+    setRecentLogs(combined);
   };
 
-  // Enviar Asistencia
   const submitAsistencia = async (e) => {
     e.preventDefault();
     setModalLoading(true);
