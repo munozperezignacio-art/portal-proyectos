@@ -3851,7 +3851,12 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
             <div className="flex justify-between items-center pb-3 border-b">
               <div>
                 <h3 className="font-bold text-slate-800 text-sm">Registrar Reporte de Avance</h3>
-                <p className="text-[10px] text-slate-500 font-medium">Ingresa el día y una o múltiples partidas de trabajo simultáneamente</p>
+                <p className="text-[10px] text-slate-500 font-medium flex items-center gap-1 mt-0.5">
+                  <span>Partidas vinculadas desde Presupuesto de Obra</span>
+                  <span className="font-bold text-blue-900 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                    {partidasList.length} disponibles
+                  </span>
+                </p>
               </div>
               <button onClick={() => setActiveModal(null)} className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer">✕</button>
             </div>
@@ -3928,7 +3933,11 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 bg-white"
                           >
                             <option value="">-- Seleccionar Partida --</option>
-                            {partidasList.map(p => <option key={p.partida} value={p.partida}>{p.partida}</option>)}
+                            {partidasList.map((p, pIdx) => (
+                              <option key={p.id || pIdx} value={p.partida}>
+                                {p.partida} {p.unidad ? `(${p.unidad})` : ''} {p.cantidad ? `- Presupuestado: ${p.cantidad} ${p.unidad || ''}` : ''}
+                              </option>
+                            ))}
                           </select>
                         ) : (
                           <input
