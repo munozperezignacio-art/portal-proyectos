@@ -2678,6 +2678,40 @@ export default function Maquinaria({ user, onBack }) {
                 </div>
               </div>
 
+              {/* CAMPO DESTACADO DE COSTO INTERNO */}
+              <div className="bg-amber-50/80 p-3.5 rounded-2xl border border-amber-300 space-y-2">
+                <span className="text-[10.5px] font-extrabold text-amber-950 uppercase tracking-wider block flex items-center gap-1.5">
+                  💲 Costo Interno de Operación en Obra:
+                </span>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[9.5px] font-bold uppercase text-amber-900 mb-1">Tarifa Interna ($)</label>
+                    <input
+                      type="number"
+                      placeholder="ej: 50000"
+                      value={formData.costo_interno || '0'}
+                      onChange={(e) => setFormData(prev => ({ ...prev, costo_interno: e.target.value }))}
+                      className="w-full border border-amber-300 rounded-xl p-2.5 font-bold text-slate-900 bg-white text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[9.5px] font-bold uppercase text-amber-900 mb-1">Unidad de Cobro</label>
+                    <select
+                      value={formData.unidad_costo_interno || '$/día'}
+                      onChange={(e) => setFormData(prev => ({ ...prev, unidad_costo_interno: e.target.value }))}
+                      className="w-full border border-amber-300 rounded-xl p-2.5 font-bold text-slate-900 bg-white text-xs"
+                    >
+                      <option value="$/día">$/día (por día de obra)</option>
+                      <option value="$/hr">$/hr (por hora horómetro)</option>
+                      <option value="$/mes">$/mes (tarifa mensual)</option>
+                    </select>
+                  </div>
+                </div>
+                <p className="text-[9.5px] font-medium text-amber-900 leading-tight">
+                  💡 Este valor se imputará internamente como costo del equipo a la obra de la propia empresa cuando esté asignado.
+                </p>
+              </div>
+
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
                 <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 rounded-xl bg-slate-100 font-bold">Cancelar</button>
                 <button type="submit" disabled={modalLoading} className="px-5 py-2 rounded-xl bg-primary text-white font-bold shadow-sm">
