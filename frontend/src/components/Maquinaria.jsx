@@ -232,14 +232,28 @@ export default function Maquinaria({ user, onBack }) {
 
     try {
       if (editingEquip) {
-        const { error } = await supabase
+        let { error } = await supabase
           .from('inventario_maquinaria')
           .update(dataToSave)
           .eq('id', editingEquip.id);
+          
+        if (error && error.message && error.message.includes('estado_equipo')) {
+          delete dataToSave.estado_equipo;
+          const retry = await supabase
+            .from('inventario_maquinaria')
+            .update(dataToSave)
+            .eq('id', editingEquip.id);
+          error = retry.error;
+        }
         if (error) throw error;
         setSuccessMsg('Ficha de equipo actualizada.');
       } else {
-        const { error } = await supabase.from('inventario_maquinaria').insert([dataToSave]);
+        let { error } = await supabase.from('inventario_maquinaria').insert([dataToSave]);
+        if (error && error.message && error.message.includes('estado_equipo')) {
+          delete dataToSave.estado_equipo;
+          const retry = await supabase.from('inventario_maquinaria').insert([dataToSave]);
+          error = retry.error;
+        }
         if (error) throw error;
         setSuccessMsg('Equipo registrado exitosamente.');
       }
