@@ -211,8 +211,8 @@ export default function Maquinaria({ user, onBack }) {
   const handleSubmitEquip = async (e) => {
     e.preventDefault();
     setModalLoading(true);
-    setSuccessMsg('');
-    setErrorMsg('');
+    setSuccessMsg("");
+    setErrorMsg("");
 
     const dataToSave = {
       tipo: formData.tipo,
@@ -231,55 +231,45 @@ export default function Maquinaria({ user, onBack }) {
     };
 
     try {
-      let cleanPayload = { ...dataToSave };
-      let { error } = editingEquip
-        ? await supabase.from('inventario_maquinaria').update(cleanPayload).eq('id', editingEquip.id)
-        : await supabase.from('inventario_maquinaria').insert([cleanPayload]);
+      let payload = { ...dataToSave };
+      let attempts = 0;
+      let success = false;
+      let lastError = null;
 
-      // Si falla por alguna columna no creada en Supabase (ej: tipo_activo, estado_equipo, fotos), limpiamos dinámicamente
-      if (error && (error.message.includes('column') || error.message.includes('schema cache') || error.message.includes('Could not find'))) {
-        console.warn('Detectada columna faltante en Supabase, aplicando filtro de resiliencia:', error.message);
-        
-        // Intentar borrar la columna específica que dio error
-        const match = error.message.match(/Could not find the '([^']+)' column/i) || error.message.match(/column "([^"]+)"/i);
-        if (match && match[1]) {
-          delete cleanPayload[match[1]];
-        }
-        
-        // Limpieza de respaldo total para todos los campos extendidos opcionales
-        delete cleanPayload.tipo_activo;
-        delete cleanPayload.estado_equipo;
-        delete cleanPayload.foto_frontal;
-        delete cleanPayload.foto_izquierda;
-        delete cleanPayload.foto_derecha;
-        delete cleanPayload.foto_posterior;
+      while (attempts < 10 && !success) {
+        attempts++;
+        const res = editingEquip
+          ? await supabase.from("inventario_maquinaria").update(payload).eq("id", editingEquip.id)
+          : await supabase.from("inventario_maquinaria").insert([payload]);
 
-        let retry = editingEquip
-          ? await supabase.from('inventario_maquinaria').update(cleanPayload).eq('id', editingEquip.id)
-          : await supabase.from('inventario_maquinaria').insert([cleanPayload]);
-
-        // Si aún reincide en error por otra columna, forzar uso de payload mínimo garantizado
-        if (retry.error) {
-          const baseOnlyPayload = {
-            tipo: dataToSave.tipo,
-            patente: dataToSave.patente,
-            marca: dataToSave.marca,
-            obra_nombre: dataToSave.obra_nombre,
-            horometro_inicial: dataToSave.horometro_inicial,
-            registrado_por: dataToSave.registrado_por,
-            empresa: dataToSave.empresa
-          };
-
-          retry = editingEquip
-            ? await supabase.from('inventario_maquinaria').update(baseOnlyPayload).eq('id', editingEquip.id)
-            : await supabase.from('inventario_maquinaria').insert([baseOnlyPayload]);
+        if (!res.error) {
+          success = true;
+          break;
         }
 
-        error = retry.error;
+        lastError = res.error;
+        const msg = res.error.message || "";
+        console.warn(`[Auto-Sanación Maquinaria Intento ${attempts}] Aviso Supabase:`, msg);
+
+        // Extraer nombre de la columna faltante
+        const match = msg.match(/Could not find the '([^']+)' column/i) || msg.match(/column "([^"]+)"/i);
+        if (match && match[1] && payload[match[1]] !== undefined) {
+          delete payload[match[1]];
+        } else {
+          // Eliminaciones de respaldo graduales si el mensaje no trajo el nombre exacto
+          if (payload.registrado_por !== undefined) delete payload.registrado_por;
+          else if (payload.tipo_activo !== undefined) delete payload.tipo_activo;
+          else if (payload.estado_equipo !== undefined) delete payload.estado_equipo;
+          else if (payload.foto_frontal !== undefined) delete payload.foto_frontal;
+          else if (payload.foto_izquierda !== undefined) delete payload.foto_izquierda;
+          else if (payload.foto_derecha !== undefined) delete payload.foto_derecha;
+          else if (payload.foto_posterior !== undefined) delete payload.foto_posterior;
+          else break;
+        }
       }
 
-      if (error) throw error;
-      setSuccessMsg(editingEquip ? 'Ficha de equipo actualizada.' : 'Equipo registrado exitosamente.');
+      if (!success && lastError) throw lastError;
+      setSuccessMsg(editingEquip ? "Ficha de equipo actualizada." : "Equipo registrado exitosamente.");
 
       fetchData();
       setTimeout(() => setModalOpen(false), 1200);
