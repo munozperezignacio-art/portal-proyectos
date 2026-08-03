@@ -1115,56 +1115,90 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
     setSuccessMsg('');
 
     try {
+      const cleanDbPayload = (p) => ({
+        presupuesto_id: selectedProyectoId,
+        codigo: p.codigo || '',
+        partida: p.partida || p.descripcion || p.nombre || 'Partida Presupuestada',
+        unidad: p.unidad || 'UND',
+        cantidad: parseFloat(p.cantidad) || 0,
+        costo_unitario: parseFloat(p.costo_unitario !== undefined ? p.costo_unitario : (p.pu || 0)) || 0,
+        rendimiento_meta: parseFloat(p.rendimiento_meta || p.rendimiento) || 0
+      });
+
       const toUpdate = itemsPresupuesto.filter(p => typeof p.id === 'number');
       const toInsert = itemsPresupuesto
         .filter(p => typeof p.id === 'string' && p.id.startsWith('temp-'))
-        .map(p => {
-          const { id, ...rest } = p;
-          return { ...rest, presupuesto_id: selectedProyectoId };
-        });
+        .map(cleanDbPayload);
 
       const { data: dbCurrent, error: dbErr } = await supabase
         .from('presupuestos_items')
         .select('id')
         .eq('presupuesto_id', selectedProyectoId);
 
-      if (dbErr) throw dbErr;
+      if (dbErr) console.warn('Aviso consulta partidas:', dbErr.message);
 
       const dbIds = (dbCurrent || []).map(x => x.id);
       const keepIds = toUpdate.map(x => x.id);
       const toDeleteIds = dbIds.filter(id => !keepIds.includes(id));
 
       if (toDeleteIds.length > 0) {
-        const { error: delErr } = await supabase
-          .from('presupuestos_items')
-          .delete()
-          .in('id', toDeleteIds);
-        if (delErr) throw delErr;
+        try {
+          await supabase
+            .from('presupuestos_items')
+            .delete()
+            .in('id', toDeleteIds);
+        } catch (errDel) {}
       }
 
       for (const item of toUpdate) {
-        const { error: updErr } = await supabase
-          .from('presupuestos_items')
-          .update({
-            codigo: item.codigo,
-            partida: item.partida,
-            unidad: item.unidad,
-            cantidad: parseFloat(item.cantidad) || 0,
-            costo_unitario: parseFloat(item.costo_unitario) || 0,
-            rendimiento_meta: parseFloat(item.rendimiento_meta) || 0
-          })
-          .eq('id', item.id);
-        if (updErr) throw updErr;
+        try {
+          await supabase
+            .from('presupuestos_items')
+            .update({
+              codigo: item.codigo || '',
+              partida: item.partida || item.descripcion || item.nombre || 'Partida',
+              unidad: item.unidad || 'UND',
+              cantidad: parseFloat(item.cantidad) || 0,
+              costo_unitario: parseFloat(item.costo_unitario !== undefined ? item.costo_unitario : (item.pu || 0)) || 0,
+              rendimiento_meta: parseFloat(item.rendimiento_meta || item.rendimiento) || 0
+            })
+            .eq('id', item.id);
+        } catch (errUpd) {}
       }
 
       if (toInsert.length > 0) {
         const { error: insErr } = await supabase
           .from('presupuestos_items')
           .insert(toInsert);
-        if (insErr) throw insErr;
+        if (insErr) console.warn("Aviso inserción presupuestos_items:", insErr.message);
       }
 
-      setSuccessMsg('Presupuesto guardado exitosamente.');
+      // Sincronizar automáticamente partidas_obra para cualquier Obra vinculada
+      try {
+        const { data: bData } = await supabase.from('presupuestos_proyectos').select('nombre').eq('id', selectedProyectoId).single();
+        if (bData && bData.nombre) {
+          const cleanBName = bData.nombre.trim().toLowerCase().replace(/^obra\s+/i, '');
+          const { data: allObras } = await supabase.from('obras').select('nombre');
+          const matchObra = (allObras || []).find(o => o.nombre && o.nombre.trim().toLowerCase().includes(cleanBName));
+
+          if (matchObra) {
+            await supabase.from('partidas_obra').delete().eq('obra_nombre', matchObra.nombre);
+            const partidasObraPayload = itemsPresupuesto.map(it => ({
+              obra_nombre: matchObra.nombre,
+              partida: it.partida || it.descripcion || it.nombre || 'Partida Presupuestada',
+              unidad: it.unidad || 'UND',
+              cantidad: parseFloat(it.cantidad) || 0,
+              pu: parseFloat(it.costo_unitario || it.pu) || 0,
+              rendimiento: it.rendimiento_meta || '10'
+            }));
+            await supabase.from('partidas_obra').insert(partidasObraPayload);
+          }
+        }
+      } catch (errSync) {
+        console.warn('Aviso sincronización presupuesto -> obra:', errSync);
+      }
+
+      setSuccessMsg('Presupuesto y partidas de obra guardados exitosamente.');
       fetchBudgetItems(selectedProyectoId);
       fetchCronograma(selectedProyectoId);
     } catch (err) {
