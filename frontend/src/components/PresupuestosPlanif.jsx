@@ -1125,10 +1125,13 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
         rendimiento_meta: parseFloat(p.rendimiento_meta || p.rendimiento) || 0
       });
 
-      const toUpdate = itemsPresupuesto.filter(p => typeof p.id === 'number');
+      // Clasificación infalible independiente de si el ID es number, string o UUID
       const toInsert = itemsPresupuesto
-        .filter(p => typeof p.id === 'string' && p.id.startsWith('temp-'))
+        .filter(p => p.id && p.id.toString().startsWith('temp-'))
         .map(cleanDbPayload);
+
+      const toUpdate = itemsPresupuesto
+        .filter(p => p.id && !p.id.toString().startsWith('temp-'));
 
       const { data: dbCurrent, error: dbErr } = await supabase
         .from('presupuestos_items')
@@ -1137,8 +1140,8 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
 
       if (dbErr) console.warn('Aviso consulta partidas:', dbErr.message);
 
-      const dbIds = (dbCurrent || []).map(x => x.id);
-      const keepIds = toUpdate.map(x => x.id);
+      const dbIds = (dbCurrent || []).map(x => x.id.toString());
+      const keepIds = toUpdate.map(x => x.id.toString());
       const toDeleteIds = dbIds.filter(id => !keepIds.includes(id));
 
       if (toDeleteIds.length > 0) {
@@ -1152,16 +1155,11 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
 
       for (const item of toUpdate) {
         try {
+          const payload = cleanDbPayload(item);
+          delete payload.presupuesto_id;
           await supabase
             .from('presupuestos_items')
-            .update({
-              codigo: item.codigo || '',
-              partida: item.partida || item.descripcion || item.nombre || 'Partida',
-              unidad: item.unidad || 'UND',
-              cantidad: parseFloat(item.cantidad) || 0,
-              costo_unitario: parseFloat(item.costo_unitario !== undefined ? item.costo_unitario : (item.pu || 0)) || 0,
-              rendimiento_meta: parseFloat(item.rendimiento_meta || item.rendimiento) || 0
-            })
+            .update(payload)
             .eq('id', item.id);
         } catch (errUpd) {}
       }
@@ -1173,7 +1171,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
         if (insErr) console.warn("Aviso inserción presupuestos_items:", insErr.message);
       }
 
-      // Sincronizar automáticamente partidas_obra para cualquier Obra vinculada
+      // Sincronizar automáticamente partidas_obra para cualquier Obra vinculada (utilizable en Avances de Obra)
       try {
         const { data: bData } = await supabase.from('presupuestos_proyectos').select('nombre').eq('id', selectedProyectoId).single();
         if (bData && bData.nombre) {
@@ -1198,7 +1196,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
         console.warn('Aviso sincronización presupuesto -> obra:', errSync);
       }
 
-      setSuccessMsg('Presupuesto y partidas de obra guardados exitosamente.');
+      setSuccessMsg('Presupuesto guardado exitosamente. Partidas vinculadas a Planificación y Avances de Obra.');
       fetchBudgetItems(selectedProyectoId);
       fetchCronograma(selectedProyectoId);
     } catch (err) {
