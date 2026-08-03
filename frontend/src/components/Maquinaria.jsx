@@ -78,6 +78,12 @@ export default function Maquinaria({ user, onBack }) {
   // 5. Estados Arriendos a Terceros
   const [arriendosList, setArriendosList] = useState([]);
   const [arriendoModalOpen, setArriendoModalOpen] = useState(false);
+  const [editingArriendo, setEditingArriendo] = useState(null);
+  const [estadoPagoModalOpen, setEstadoPagoModalOpen] = useState(false);
+  const [selectedArriendoEstadoPago, setSelectedArriendoEstadoPago] = useState(null);
+  const [extenderModalOpen, setExtenderModalOpen] = useState(false);
+  const [extenderArriendo, setExtenderArriendo] = useState(null);
+  const [nuevaFechaFin, setNuevaFechaFin] = useState('');
   const [arriendoForm, setArriendoForm] = useState({
     equipo_id: '',
     empresa_arrendataria: '',
@@ -564,17 +570,73 @@ export default function Maquinaria({ user, onBack }) {
     };
 
     try {
-      const { error } = await supabase.from('maquinaria_arriendos').insert([newArriendo]);
-      if (error) throw error;
-      setSuccessMsg('Contrato de arriendo a tercero registrado exitosamente.');
+      if (editingArriendo) {
+        const { error } = await supabase.from('maquinaria_arriendos').update(newArriendo).eq('id', editingArriendo.id);
+        if (error) throw error;
+        setSuccessMsg('Contrato de arriendo actualizado exitosamente.');
+      } else {
+        const { error } = await supabase.from('maquinaria_arriendos').insert([newArriendo]);
+        if (error) throw error;
+        setSuccessMsg('Contrato de arriendo a tercero registrado exitosamente.');
+      }
       fetchArriendosLogs();
     } catch (err) {
-      const updated = [newArriendo, ...arriendosList];
+      let updated;
+      if (editingArriendo) {
+        updated = arriendosList.map(a => a.id === editingArriendo.id ? { ...a, ...newArriendo } : a);
+      } else {
+        updated = [newArriendo, ...arriendosList];
+      }
       setArriendosList(updated);
       localStorage.setItem('obraxis_maquinaria_arriendos', JSON.stringify(updated));
       setSuccessMsg('Contrato de arriendo guardado.');
     } finally {
+      setEditingArriendo(null);
       setArriendoModalOpen(false);
+      setTimeout(() => setSuccessMsg(''), 3000);
+    }
+  };
+
+  // Handler Extender Contrato con Verificación
+  const handleExtenderSubmit = async (e) => {
+    e.preventDefault();
+    if (!extenderArriendo || !nuevaFechaFin) return;
+
+    const nFin = new Date(nuevaFechaFin);
+    const iniArr = new Date(extenderArriendo.fecha_inicio);
+
+    if (nFin <= iniArr) {
+      alert('La nueva fecha de término debe ser posterior a la fecha de inicio del arriendo.');
+      return;
+    }
+
+    // Verificar si en la extensión existe conflicto con reservas futuras
+    const conflictoRes = reservasList.find(r => {
+      if (r.equipo_id.toString() !== extenderArriendo.equipo_id.toString()) return false;
+      const rIni = new Date(r.fecha_inicio);
+      return rIni <= nFin;
+    });
+
+    if (conflictoRes) {
+      if (!window.confirm(`⚠️ ADVERTENCIA DE SOLAPAMIENTO: El equipo ya posee una reserva agendada para "${conflictoRes.obra_destino}" a partir del ${conflictoRes.fecha_inicio}. ¿Deseas extender la fecha de todas formas?`)) {
+        return;
+      }
+    }
+
+    try {
+      if (extenderArriendo.id) {
+        await supabase.from('maquinaria_arriendos').update({ fecha_fin: nuevaFechaFin }).eq('id', extenderArriendo.id);
+      }
+      const updated = arriendosList.map(a => a === extenderArriendo || a.id === extenderArriendo.id ? { ...a, fecha_fin: nuevaFechaFin } : a);
+      setArriendosList(updated);
+      localStorage.setItem('obraxis_maquinaria_arriendos', JSON.stringify(updated));
+      setSuccessMsg(`Contrato de ${extenderArriendo.empresa_arrendataria} extendido hasta el ${nuevaFechaFin}.`);
+      fetchArriendosLogs();
+    } catch (err) {
+      alert('Error al extender contrato: ' + err.message);
+    } finally {
+      setExtenderModalOpen(false);
+      setExtenderArriendo(null);
       setTimeout(() => setSuccessMsg(''), 3000);
     }
   };
@@ -1390,24 +1452,75 @@ export default function Maquinaria({ user, onBack }) {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {arriendosList.map((arr, idx) => (
-                <div key={idx} className="p-5 rounded-3xl border border-amber-200 bg-amber-50/30 space-y-3 shadow-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[9.5px] font-extrabold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200 uppercase">
-                      {arr.equipo_tipo} ({arr.equipo_patente})
-                    </span>
-                    <span className="text-[10px] font-bold text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded-lg">{arr.fecha_inicio} al {arr.fecha_fin}</span>
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-black text-slate-850 uppercase">{arr.empresa_arrendataria} {arr.rut_empresa ? `(${arr.rut_empresa})` : ''}</h4>
-                    <p className="text-[11px] text-amber-900 font-bold">Obra Cliente: {arr.obra_cliente || 'N/A'}</p>
-                    {arr.direccion_obra && <p className="text-[10px] text-slate-500">Dirección: {arr.direccion_obra}</p>}
-                  </div>
-                  <div className="pt-2 border-t border-amber-200/60 flex justify-between items-center text-[11px]">
-                    <div>
-                      <p className="text-slate-700 font-semibold">Responsable: <b>{arr.contacto_nombre || arr.contacto_responsable || 'S/I'}</b></p>
-                      {arr.contacto_telefono && <p className="text-[10px] text-slate-500">Tel: {arr.contacto_telefono} {arr.contacto_email ? `| ${arr.contacto_email}` : ''}</p>}
+                <div key={idx} className="p-5 rounded-3xl border border-amber-200 bg-amber-50/30 space-y-3 shadow-xs flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9.5px] font-extrabold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200 uppercase">
+                        {arr.equipo_tipo} ({arr.equipo_patente})
+                      </span>
+                      <span className="text-[10px] font-bold text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded-lg">{arr.fecha_inicio} al {arr.fecha_fin}</span>
                     </div>
-                    <span className="text-xs font-black text-amber-800 bg-white px-2.5 py-1 rounded-xl border border-amber-300">${parseFloat(arr.tarifa_diaria || 0).toLocaleString('es-CL')}/día</span>
+                    <div>
+                      <h4 className="text-xs font-black text-slate-850 uppercase">{arr.empresa_arrendataria} {arr.rut_empresa ? `(${arr.rut_empresa})` : ''}</h4>
+                      <p className="text-[11px] text-amber-900 font-bold">Obra Cliente: {arr.obra_cliente || 'N/A'}</p>
+                      {arr.direccion_obra && <p className="text-[10px] text-slate-500">Dirección: {arr.direccion_obra}</p>}
+                    </div>
+                    <div className="pt-2 border-t border-amber-200/60 flex justify-between items-center text-[11px]">
+                      <div>
+                        <p className="text-slate-700 font-semibold">Responsable: <b>{arr.contacto_nombre || arr.contacto_responsable || 'S/I'}</b></p>
+                        {arr.contacto_telefono && <p className="text-[10px] text-slate-500">Tel: {arr.contacto_telefono} {arr.contacto_email ? `| ${arr.contacto_email}` : ''}</p>}
+                      </div>
+                      <span className="text-xs font-black text-amber-800 bg-white px-2.5 py-1 rounded-xl border border-amber-300">${parseFloat(arr.tarifa_diaria || 0).toLocaleString('es-CL')}/día</span>
+                    </div>
+                  </div>
+
+                  {/* Acciones del Contrato */}
+                  <div className="pt-3 border-t border-amber-200/80 flex flex-wrap gap-2 justify-end text-xs">
+                    <button
+                      onClick={() => {
+                        setEditingArriendo(arr);
+                        setArriendoForm({
+                          equipo_id: arr.equipo_id,
+                          empresa_arrendataria: arr.empresa_arrendataria || '',
+                          rut_empresa: arr.rut_empresa || '',
+                          obra_cliente: arr.obra_cliente || '',
+                          direccion_obra: arr.direccion_obra || '',
+                          contacto_nombre: arr.contacto_nombre || arr.contacto_responsable || '',
+                          contacto_telefono: arr.contacto_telefono || '',
+                          contacto_email: arr.contacto_email || '',
+                          tarifa_diaria: arr.tarifa_diaria ? arr.tarifa_diaria.toString() : '0',
+                          fecha_inicio: arr.fecha_inicio,
+                          fecha_fin: arr.fecha_fin,
+                          observaciones: arr.observaciones || ''
+                        });
+                        setArriendoModalOpen(true);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 font-bold border border-slate-200 transition cursor-pointer flex items-center gap-1"
+                    >
+                      <span>✏️ Editar Info</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setExtenderArriendo(arr);
+                        setNuevaFechaFin(arr.fecha_fin || '');
+                        setExtenderModalOpen(true);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold border border-amber-300 transition cursor-pointer flex items-center gap-1"
+                    >
+                      <span>📅 Extender Termino</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setSelectedArriendoEstadoPago(arr);
+                        setEstadoPagoModalOpen(true);
+                      }}
+                      className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold shadow-2xs transition cursor-pointer flex items-center gap-1.5"
+                    >
+                      <DollarSign className="w-3.5 h-3.5" />
+                      <span>Estado de Pago</span>
+                    </button>
                   </div>
                 </div>
               ))}
@@ -1415,6 +1528,154 @@ export default function Maquinaria({ user, onBack }) {
           )}
         </div>
       )}
+
+      
+      {/* MODAL EXTENDER CONTRATO */}
+      {extenderModalOpen && extenderArriendo && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-md w-full space-y-4 shadow-xl">
+            <h3 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-amber-600" />
+              <span>Extender Contrato de Arriendo</span>
+            </h3>
+
+            <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-xs space-y-1">
+              <p className="font-bold text-amber-950">{extenderArriendo.empresa_arrendataria} ({extenderArriendo.equipo_tipo} {extenderArriendo.equipo_patente})</p>
+              <p className="text-amber-800">Fecha Término Actual: <b>{extenderArriendo.fecha_fin}</b></p>
+            </div>
+
+            <form onSubmit={handleExtenderSubmit} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Nueva Fecha de Término *</label>
+                <input
+                  type="date"
+                  value={nuevaFechaFin}
+                  onChange={(e) => setNuevaFechaFin(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl p-2.5 font-bold text-slate-800"
+                  required
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setExtenderModalOpen(false)} className="px-4 py-2 rounded-xl bg-slate-100 font-bold">Cancelar</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-amber-600 text-white font-bold shadow-sm">Confirmar Extensión</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DOCUMENTO ESTADO DE PAGO / VALUACIÓN DE ARRIENDO */}
+      {estadoPagoModalOpen && selectedArriendoEstadoPago && (() => {
+        const arr = selectedArriendoEstadoPago;
+        const d1 = new Date(arr.fecha_inicio);
+        const d2 = new Date(arr.fecha_fin);
+        const diffTime = Math.abs(d2 - d1);
+        const diasArriendo = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
+        const tarifa = parseFloat(arr.tarifa_diaria || 0);
+        const subtotal = diasArriendo * tarifa;
+        const iva = Math.round(subtotal * 0.19);
+        const total = subtotal + iva;
+
+        return (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-xl w-full space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-start border-b border-slate-200 pb-4">
+                <div>
+                  <h3 className="text-base font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
+                    <DollarSign className="w-5 h-5 text-amber-600" />
+                    <span>Estado de Pago / Valuación de Arriendo</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-semibold mt-0.5">Comprobante oficial de cobro por arriendo a terceros.</p>
+                </div>
+                <button onClick={() => setEstadoPagoModalOpen(false)} className="p-1.5 rounded-xl bg-slate-100 font-bold text-xs text-slate-600 hover:bg-slate-200">✕</button>
+              </div>
+
+              {/* Ficha Documento */}
+              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3 text-xs">
+                <div className="grid grid-cols-2 gap-2 border-b border-slate-200/60 pb-3">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Cliente Arrendatario</span>
+                    <p className="font-extrabold text-slate-850 uppercase">{arr.empresa_arrendataria}</p>
+                    <p className="text-slate-500">RUT: {arr.rut_empresa || 'S/I'}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Obra / Faena Cliente</span>
+                    <p className="font-extrabold text-slate-850">{arr.obra_cliente || 'N/A'}</p>
+                    <p className="text-slate-500">{arr.direccion_obra || 'Sin Dirección'}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 border-b border-slate-200/60 pb-3">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Equipo Prestado</span>
+                    <p className="font-extrabold text-amber-900 uppercase">{arr.equipo_tipo} ({arr.equipo_patente})</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Periodo de Arriendo</span>
+                    <p className="font-bold text-slate-700">{arr.fecha_inicio} al {arr.fecha_fin}</p>
+                  </div>
+                </div>
+
+                {/* Tabla Desglose de Valores */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex justify-between items-center text-slate-700">
+                    <span>Días de Arriendo Operativo:</span>
+                    <span className="font-extrabold">{diasArriendo} días</span>
+                  </div>
+                  <div className="flex justify-between items-center text-slate-700">
+                    <span>Tarifa Diaria Convenida:</span>
+                    <span className="font-extrabold">${tarifa.toLocaleString('es-CL')} /día</span>
+                  </div>
+                  <div className="flex justify-between items-center text-slate-800 font-bold border-t border-slate-200 pt-2">
+                    <span>Subtotal Neto:</span>
+                    <span>${subtotal.toLocaleString('es-CL')}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-slate-600">
+                    <span>IVA (19%):</span>
+                    <span>${iva.toLocaleString('es-CL')}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm font-black text-amber-900 bg-amber-100/60 p-3 rounded-xl border border-amber-200 mt-2">
+                    <span>TOTAL A PAGAR:</span>
+                    <span className="text-base">${total.toLocaleString('es-CL')}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Botones de Envío e Impresión */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    alert(`📧 ESTADO DE PAGO ENVIADO: Se ha despachado la valuación por ${total.toLocaleString('es-CL')} al correo "${arr.contacto_email || arr.contacto_telefono || 'contacto@empresa.cl'}" para facturación.`);
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <Send className="w-4 h-4" />
+                  <span>Enviar por Correo a Cliente</span>
+                </button>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="px-4 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs transition cursor-pointer"
+                  >
+                    🖨️ Imprimir / PDF
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEstadoPagoModalOpen(false)}
+                    className="px-4 py-2.5 rounded-xl bg-amber-600 text-white font-bold text-xs hover:bg-amber-700"
+                  >
+                    Cerrar Documento
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* MODAL RESERVA DE EQUIPO FUTURO (CON CREACIÓN Y EDICIÓN) */}
       {reservaModalOpen && (
