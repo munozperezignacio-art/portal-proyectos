@@ -15,6 +15,7 @@ import Acreditaciones from './components/Acreditaciones';
 import PublicSubcontractAcreditacion from './components/PublicSubcontractAcreditacion';
 import PublicSupplierAcreditacion from './components/PublicSupplierAcreditacion';
 import FormulariosCapacitaciones from './components/FormulariosCapacitaciones';
+import PublicReporteDiarioMaquinaria from './components/PublicReporteDiarioMaquinaria';
 import { 
   LogOut, LayoutDashboard, Building2, Users, Truck, ShieldAlert, Settings, Info, Menu, X, Loader2,
   Layers, Handshake, Receipt, Coins, ClipboardCheck, Boxes, BadgeCheck,
@@ -254,6 +255,11 @@ function App() {
 
   // Detectar si se está accediendo a un formulario o capacitación pública de prevención a través de la URL
   const urlParams = new URLSearchParams(window.location.search);
+  const publicEquipoArriendo = urlParams.get('arriendo_qr') || urlParams.get('reporte_diario_equipo');
+  if (publicEquipoArriendo) {
+    return <PublicReporteDiarioMaquinaria equipoId={publicEquipoArriendo} patente={urlParams.get('patente')} />;
+  }
+
   const publicFormToken = urlParams.get('prevencion_form');
   if (publicFormToken) {
     return <PublicFormFiller formToken={publicFormToken} />;
