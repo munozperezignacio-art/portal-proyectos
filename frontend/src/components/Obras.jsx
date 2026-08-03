@@ -698,14 +698,16 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       };
 
       (localMaq || []).forEach(item => {
+        if (!item || typeof item !== 'object') return;
         const k = getEquipKey(item);
         if (k) mapEquip.set(k, item);
-        if (item.id) mapEquip.set('ID_' + item.id, item);
+        if (item.id !== undefined && item.id !== null) mapEquip.set('ID_' + item.id, item);
       });
 
       (allRemoteMaq || []).forEach(item => {
+        if (!item || typeof item !== 'object') return;
         const patK = getEquipKey(item);
-        const idK = item.id ? 'ID_' + item.id : null;
+        const idK = (item.id !== undefined && item.id !== null) ? 'ID_' + item.id : null;
         
         const localItem = (patK ? mapEquip.get(patK) : null) || (idK ? mapEquip.get(idK) : null) || {};
 
