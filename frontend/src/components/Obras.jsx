@@ -667,10 +667,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         .eq('obra_nombre', obraNombre);
       setPersonalCount(countPers || 0);
 
-      // 2. Cargar número de maquinaria asignada e inventario completo con costo_interno (priorizando Supabase + reactividad)
+      // 2. Cargar número de maquinaria asignada e inventario completo con costo_interno (deduplicación por patente + prioridad remota)
       const localMaqStr = localStorage.getItem('obraxis_inventario_maquinaria');
       const localMaq = localMaqStr ? JSON.parse(localMaqStr) : [];
-      const matchName = (obraNombre || '').trim().toLowerCase();
+      const targetName = (obraNombre || '').trim().toLowerCase();
 
       let allRemoteMaq = [];
       try {
@@ -680,29 +680,40 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         console.warn('Error leyendo inventario_maquinaria:', e);
       }
 
-      // Combinar listas con prioridad a Supabase si existe
-      const mapAll = new Map();
+      // Deduplicar por Patente / ID combinando local y remoto
+      const mapEquip = new Map();
+
       localMaq.forEach(m => {
-        if (m.id || m.patente) mapAll.set((m.id || m.patente).toString(), m);
+        const patKey = (m.patente || m.id || '').toString().trim().toUpperCase();
+        if (patKey) mapEquip.set(patKey, m);
       });
+
       allRemoteMaq.forEach(m => {
-        if (m.id || m.patente) {
-          const key = (m.id || m.patente).toString();
-          const prev = mapAll.get(key) || {};
-          mapAll.set(key, { ...prev, ...m });
+        const patKey = (m.patente || m.id || '').toString().trim().toUpperCase();
+        if (patKey) {
+          const localItem = mapEquip.get(patKey) || {};
+          mapEquip.set(patKey, {
+            ...localItem,
+            ...m,
+            costo_interno: (m.costo_interno !== undefined && m.costo_interno !== null && m.costo_interno !== 0) 
+              ? m.costo_interno 
+              : (localItem.costo_interno || localItem.tarifa_diaria || localItem.costo || 0),
+            unidad_costo_interno: m.unidad_costo_interno || localItem.unidad_costo_interno || localItem.unidad_tarifa || '$/día'
+          });
         }
       });
 
-      const combinedFleet = Array.from(mapAll.values());
+      const combinedFleet = Array.from(mapEquip.values());
 
-      const isEquipForObra = (m) => {
-        if (!m || !m.obra_nombre) return false;
-        const equipObra = m.obra_nombre.toString().trim().toLowerCase();
-        if (!equipObra || equipObra === 'bodega central / libre' || equipObra === 'libre') return false;
-        // Limpiar sufijos comunes si existen
-        const cleanMatch = matchName.replace(/^obras+/i, '');
-        const cleanEquip = equipObra.replace(/^obras+/i, '');
-        return equipObra === matchName || cleanEquip === cleanMatch || equipObra.includes(cleanMatch) || matchName.includes(cleanEquip);
+      const isEquipForObra = (item) => {
+        if (!item || !item.obra_nombre) return false;
+        const oName = String(item.obra_nombre).trim().toLowerCase();
+        if (!oName || oName.includes('bodega') || oName === 'libre') return false;
+        if (oName === targetName) return true;
+
+        const cleanOName = oName.replace(/^obra\s+/i, '').trim();
+        const cleanTarget = targetName.replace(/^obra\s+/i, '').trim();
+        return cleanOName === cleanTarget || (cleanTarget && cleanOName.includes(cleanTarget)) || (cleanOName && cleanTarget.includes(cleanOName));
       };
 
       const finalMaqObra = combinedFleet.filter(isEquipForObra);
