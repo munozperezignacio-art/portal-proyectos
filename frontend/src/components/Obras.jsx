@@ -658,6 +658,37 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     alert('¡Equipo ' + equipObj.tipo + ' (' + (equipObj.patente || 'S/I') + ') asignado exitosamente a la obra "' + newObraName + '"!');
   };
 
+    // Helper infalible para obtener equipos asignados a la obra actual
+  const getEquiposParaObraActual = () => {
+    if (maquinariaList && maquinariaList.length > 0) return maquinariaList;
+
+    const targetName = (selectedObra?.nombre || '').trim().toLowerCase();
+    if (!targetName) return [];
+
+    const localStr = localStorage.getItem('obraxis_inventario_maquinaria');
+    const localItems = localStr ? JSON.parse(localStr) : [];
+
+    const isEquipForObra = (item) => {
+      if (!item || !item.obra_nombre) return false;
+      const rawObra = String(item.obra_nombre).trim().toLowerCase();
+      if (!rawObra || rawObra.includes('bodega') || rawObra === 'libre') return false;
+
+      if (rawObra === targetName) return true;
+
+      const normObra = rawObra.replace(/[^a-z0-9]/g, '');
+      const normTarget = targetName.replace(/[^a-z0-9]/g, '');
+
+      if (normObra === normTarget || (normTarget && normObra.includes(normTarget)) || (normObra && normTarget.includes(normObra))) return true;
+
+      const coreObra = normObra.replace(/^(obra|proyecto)/, '');
+      const coreTarget = normTarget.replace(/^(obra|proyecto)/, '');
+
+      return coreObra === coreTarget || (coreTarget && coreObra.includes(coreTarget)) || (coreObra && coreTarget.includes(coreObra));
+    };
+
+    return localItems.filter(isEquipForObra);
+  };
+
   const fetchObraDetails = async (obraNombre) => {
     if (!obraNombre) return;
     const targetName = obraNombre.trim().toLowerCase();
@@ -2644,11 +2675,11 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                       </p>
                     </div>
                     <span className="text-xs font-black text-blue-950 bg-blue-50 px-3 py-1 rounded-xl border border-blue-200">
-                      {maquinariaList.length} Equipos Activos
+                      {getEquiposParaObraActual().length} Equipos Activos
                     </span>
                   </div>
 
-                  {maquinariaList.length === 0 ? (
+                  {getEquiposParaObraActual().length === 0 ? (
                     <div className="space-y-3">
                       <div className="text-center py-6 bg-slate-50 rounded-2xl border border-slate-200 text-slate-400 text-xs">
                         <Truck className="w-8 h-8 mx-auto mb-2 opacity-40 text-slate-500" />
@@ -2697,7 +2728,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-150">
-                          {maquinariaList.map((m, idx) => {
+                          {getEquiposParaObraActual().map((m, idx) => {
                             const rawCosto = m.costo_interno !== undefined && m.costo_interno !== null && m.costo_interno !== '' ? m.costo_interno : (m.tarifa_diaria || m.costo || 0);
                             const costoNum = parseFloat(rawCosto) || 0;
                             const unidadStr = m.unidad_costo_interno || m.unidad_tarifa || '$/día';

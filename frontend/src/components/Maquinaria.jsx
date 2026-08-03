@@ -182,12 +182,24 @@ export default function Maquinaria({ user, onBack }) {
       const localStr = localStorage.getItem('obraxis_inventario_maquinaria');
       const localItems = localStr ? JSON.parse(localStr) : [];
 
+      const isReal = (n) => n && typeof n === 'string' && n.trim() !== '' && !n.toLowerCase().includes('bodega') && n.toLowerCase() !== 'libre';
       const mergedData = (dataMaq || []).map(remoteItem => {
-        const loc = localItems.find(l => l.id.toString() === remoteItem.id.toString() || l.patente === remoteItem.patente);
+        const loc = localItems.find(l => (l && l.id && remoteItem.id && l.id.toString() === remoteItem.id.toString()) || (l && l.patente && remoteItem.patente && l.patente.toUpperCase() === remoteItem.patente.toUpperCase()));
+        
+        const finalObraNombre = isReal(remoteItem.obra_nombre) 
+          ? remoteItem.obra_nombre.trim() 
+          : (isReal(loc?.obra_nombre) ? loc.obra_nombre.trim() : (remoteItem.obra_nombre || loc?.obra_nombre || 'Bodega Central / Libre'));
+
+        const rCosto = parseFloat(remoteItem.costo_interno !== undefined && remoteItem.costo_interno !== null ? remoteItem.costo_interno : remoteItem.costo);
+        const lCosto = parseFloat(loc?.costo_interno !== undefined && loc?.costo_interno !== null ? loc?.costo_interno : loc?.costo);
+        const finalCosto = (!isNaN(rCosto) && rCosto > 0) ? rCosto : ((!isNaN(lCosto) && lCosto > 0) ? lCosto : 0);
+
         return {
+          ...loc,
           ...remoteItem,
-          costo_interno: remoteItem.costo_interno !== undefined && remoteItem.costo_interno !== null ? remoteItem.costo_interno : (loc?.costo_interno || 0),
-          unidad_costo_interno: remoteItem.unidad_costo_interno || loc?.unidad_costo_interno || '$/día'
+          obra_nombre: finalObraNombre,
+          costo_interno: finalCosto,
+          unidad_costo_interno: remoteItem.unidad_costo_interno || loc?.unidad_costo_interno || remoteItem.unidad_tarifa || loc?.unidad_tarifa || '$/día'
         };
       });
 
