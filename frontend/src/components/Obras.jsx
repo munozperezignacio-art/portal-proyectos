@@ -539,14 +539,14 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       const { data: fullAsist } = await supabase
         .from('asistencia_personal')
         .select('*')
-        .ilike('obra_nombre', `%${obraNombre.split(' ')[0]}%`)
+        .eq('obra_nombre', obraNombre)
         .order('created_at', { ascending: false });
       setAsistenciaList(fullAsist || []);
 
       const { data: fullAvances } = await supabase
         .from('avances_produccion_partidas')
         .select('*')
-        .ilike('obra_nombre', `%${obraNombre.split(' ')[0]}%`)
+        .eq('obra_nombre', obraNombre)
         .order('created_at', { ascending: false });
       setReportesAvanceList(fullAvances || []);
 
@@ -554,7 +554,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         const { data: fullNotas } = await supabase
           .from('bitacora_obra')
           .select('*')
-          .ilike('obra_nombre', `%${obraNombre.split(' ')[0]}%`)
+          .eq('obra_nombre', obraNombre)
           .order('created_at', { ascending: true });
         setBitacoraNotasList(fullNotas || []);
       } catch (bErr) {
