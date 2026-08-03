@@ -512,19 +512,38 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         .eq('obra_nombre', obraNombre);
       setPersonalCount(countPers || 0);
 
-      // 2. Cargar número de maquinaria asignada
-      const { count: countMaq } = await supabase
+      // 2. Cargar número de maquinaria asignada e inventario completo con costo_interno (híbrido insensible a mayúsculas)
+      const localMaqStr = localStorage.getItem('obraxis_inventario_maquinaria');
+      const localMaq = localMaqStr ? JSON.parse(localMaqStr) : [];
+      const matchName = (obraNombre || '').trim().toLowerCase();
+
+      const { data: allRemoteMaq } = await supabase
         .from('inventario_maquinaria')
-        .select('*', { count: 'exact', head: true })
-        .eq('obra_nombre', obraNombre);
-      setMaquinariaCount(countMaq || 0);
+        .select('*');
+
+      const remoteMatched = (allRemoteMaq || []).filter(m => (m.obra_nombre || '').trim().toLowerCase() === matchName);
+      const localMatched = localMaq.filter(m => (m.obra_nombre || '').trim().toLowerCase() === matchName);
+
+      const mapEquip = new Map();
+      remoteMatched.forEach(m => mapEquip.set((m.id || m.patente).toString(), m));
+      localMatched.forEach(m => {
+        const key = (m.id || m.patente).toString();
+        const existing = mapEquip.get(key) || {};
+        mapEquip.set(key, {
+          ...existing,
+          ...m,
+          costo_interno: m.costo_interno !== undefined && m.costo_interno !== null && m.costo_interno !== 0 ? m.costo_interno : (existing.costo_interno || 0),
+          unidad_costo_interno: m.unidad_costo_interno || existing.unidad_costo_interno || '$/día'
+        });
+      });
+
+      const finalMaqObra = Array.from(mapEquip.values());
+      setMaquinariaCount(finalMaqObra.length);
+      setMaquinariaList(finalMaqObra);
 
       // 3. Cargar listas de ayuda para formularios
       const { data: listPers } = await supabase.from('maestro_personal').select('nombre, rut, cargo').eq('obra_nombre', obraNombre);
       setPersonalList(listPers || []);
-
-      const { data: listMaq } = await supabase.from('inventario_maquinaria').select('tipo, patente, marca').eq('obra_nombre', obraNombre);
-      setMaquinariaList(listMaq || []);
 
       const { data: listPart } = await supabase.from('partidas_obra').select('*').eq('obra_nombre', obraNombre);
       const normalizedListPart = (listPart || []).map(p => ({
