@@ -2331,24 +2331,38 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           {/* VISTA DEDICADA 5: EQUIPOS & MAQUINARIAS */}
           {obraActiveSubmodule === 'maquinaria' && (
             <div className="space-y-4 animate-in fade-in duration-200">
-              <div className="flex justify-between items-center bg-white p-3 border border-slate-200 rounded-2xl">
+              
+              {/* BARRA DE PESTAÑAS (ARRIBA DE TODO A ANCHO COMPLETO) */}
+              <div className="flex flex-wrap justify-between items-center gap-3 bg-white p-3 border border-slate-200 rounded-2xl shadow-2xs">
                 <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
                   <button
                     onClick={() => setMaqSubTab('asignaciones')}
-                    className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${maqSubTab === 'asignaciones' ? 'bg-white text-blue-950 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`px-4 py-2 rounded-xl transition cursor-pointer ${maqSubTab === 'asignaciones' ? 'bg-white text-blue-950 shadow-xs font-extrabold' : 'text-slate-500 hover:text-slate-700'}`}
                   >
                     Asignaciones de Empresa (Maquinaria Propia)
                   </button>
                   <button
                     onClick={() => setMaqSubTab('arriendos')}
-                    className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${maqSubTab === 'arriendos' ? 'bg-white text-blue-950 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`px-4 py-2 rounded-xl transition cursor-pointer ${maqSubTab === 'arriendos' ? 'bg-white text-blue-950 shadow-xs font-extrabold' : 'text-slate-500 hover:text-slate-700'}`}
                   >
                     Arriendos Externos (Con Proveedor)
                   </button>
                 </div>
 
-                {maqSubTab === 'asignaciones' && (
-                <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
+                {maqSubTab === 'arriendos' && (
+                  <button
+                    onClick={() => setShowArriendoModal(true)}
+                    className="bg-indigo-900 hover:bg-indigo-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Registrar Arriendo</span>
+                  </button>
+                )}
+              </div>
+
+              {/* CONTENIDO PESTAÑA 1: ASIGNACIONES DE EMPRESA */}
+              {maqSubTab === 'asignaciones' && (
+                <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
                   <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                     <div>
                       <h4 className="font-extrabold text-slate-850 text-xs uppercase tracking-wider">
@@ -2370,39 +2384,45 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                       <p className="text-[10.5px] text-slate-400 mt-0.5">Asigna equipos desde el módulo de Maquinaria para verlos reflejados aquí.</p>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white">
                       <table className="w-full text-xs text-left border-collapse">
                         <thead>
-                          <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-extrabold uppercase text-[10px]">
-                            <th className="p-2.5">Tipo de Equipo</th>
-                            <th className="p-2.5">Patente / Código</th>
-                            <th className="p-2.5">Marca / Modelo</th>
-                            <th className="p-2.5">Horómetro Inicial</th>
-                            <th className="p-2.5">Costo Interno (Imputable)</th>
-                            <th className="p-2.5">Estado</th>
+                          <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-black uppercase text-[10px]">
+                            <th className="p-3">Tipo de Equipo</th>
+                            <th className="p-3">Patente / Código</th>
+                            <th className="p-3">Marca / Modelo</th>
+                            <th className="p-3">Horómetro Inicial</th>
+                            <th className="p-3">Costo Interno (Imputable)</th>
+                            <th className="p-3">Estado</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-150">
-                          {maquinariaList.map((m, idx) => (
-                            <tr key={m.id || idx} className="hover:bg-slate-50">
-                              <td className="p-2.5 font-extrabold text-slate-900 uppercase">{m.tipo}</td>
-                              <td className="p-2.5 font-mono text-slate-700 font-bold">{m.patente || 'S/I'}</td>
-                              <td className="p-2.5 text-slate-600 font-medium">{m.marca || 'Cat / Estándar'}</td>
-                              <td className="p-2.5 font-bold text-slate-800">{m.horometro_inicial || 0} hrs</td>
-                              <td className="p-2.5 font-extrabold text-amber-900 bg-amber-50/50">
-                                {parseFloat(m.costo_interno) > 0 ? (
-                                  `${parseFloat(m.costo_interno).toLocaleString('es-CL')} ${m.unidad_costo_interno || '$/día'}`
-                                ) : (
-                                  <span className="text-slate-400 font-normal">Sin tarifa asignada</span>
-                                )}
-                              </td>
-                              <td className="p-2.5">
-                                <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-900 border border-emerald-300 uppercase">
-                                  {m.estado_equipo || 'Operativo'}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
+                          {maquinariaList.map((m, idx) => {
+                            const rawCosto = m.costo_interno !== undefined && m.costo_interno !== null && m.costo_interno !== '' ? m.costo_interno : (m.tarifa_diaria || m.costo || 0);
+                            const costoNum = parseFloat(rawCosto) || 0;
+                            const unidadStr = m.unidad_costo_interno || m.unidad_tarifa || '$/día';
+
+                            return (
+                              <tr key={m.id || idx} className="hover:bg-slate-50 text-slate-800">
+                                <td className="p-3 font-extrabold text-slate-900 uppercase">{m.tipo}</td>
+                                <td className="p-3 font-mono text-slate-700 font-bold">{m.patente || 'S/I'}</td>
+                                <td className="p-3 text-slate-600 font-medium">{m.marca || 'Cat / Estándar'}</td>
+                                <td className="p-3 font-bold text-slate-800">{m.horometro_inicial || 0} hrs</td>
+                                <td className="p-3 font-extrabold text-amber-900 bg-amber-50/50">
+                                  {costoNum > 0 ? (
+                                    `$${costoNum.toLocaleString('es-CL')} ${unidadStr}`
+                                  ) : (
+                                    <span className="text-slate-400 font-normal italic">Sin tarifa asignada</span>
+                                  )}
+                                </td>
+                                <td className="p-3">
+                                  <span className="text-[10px] font-black px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-900 border border-emerald-300 uppercase">
+                                    {m.estado_equipo || 'Operativo'}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -2410,17 +2430,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 </div>
               )}
 
-              {maqSubTab === 'arriendos' && (
-                  <button
-                    onClick={() => setShowArriendoModal(true)}
-                    className="bg-indigo-900 hover:bg-indigo-800 text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Registrar Arriendo</span>
-                  </button>
-                )}
-              </div>
-
+              {/* CONTENIDO PESTAÑA 2: ARRIENDOS EXTERNOS */}
               {maqSubTab === 'arriendos' && (
                 <div className="bg-white border border-slate-200 rounded-2xl p-4">
                   {arriendosList.length === 0 ? (
