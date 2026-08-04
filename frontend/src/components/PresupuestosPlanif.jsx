@@ -365,6 +365,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
   // Cargar datos cuando cambia el proyecto activo
   useEffect(() => {
     if (selectedProyectoId) {
+      try { localStorage.setItem('obraxis_selected_presupuesto_id', selectedProyectoId.toString()); } catch (e) {}
       fetchBudgetItems(selectedProyectoId);
       fetchCronograma(selectedProyectoId);
       fetchRecursos(selectedProyectoId);
@@ -788,7 +789,12 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
       if (error) throw error;
       setProyectos(data || []);
       if (data && data.length > 0) {
-        setSelectedProyectoId(data[0].id);
+        const savedId = localStorage.getItem('obraxis_selected_presupuesto_id');
+        if (savedId && data.some(p => p.id.toString() === savedId.toString())) {
+          setSelectedProyectoId(savedId);
+        } else if (!selectedProyectoId) {
+          setSelectedProyectoId(data[0].id);
+        }
       }
     } catch (err) {
       console.error('Error al cargar proyectos:', err.message);
@@ -1207,7 +1213,8 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
           .from('presupuestos_items')
           .insert(toInsert);
         if (insErr) {
-          console.warn("Aviso inserción presupuestos_items:", insErr.message);
+          console.error("Error crítico inserción presupuestos_items:", insErr.message);
+          throw new Error("Error en base de datos al guardar partidas: " + insErr.message);
         }
       }
 
