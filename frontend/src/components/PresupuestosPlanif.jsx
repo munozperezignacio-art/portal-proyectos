@@ -1077,7 +1077,11 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
   // --- LÓGICA DE JERARQUÍAS ---
   const isChapterRow = (item, list) => {
     if (!item) return false;
+    // Es Título si tiene la marca de unidad, es_titulo, o si es una fila sin cantidad/precio con nombre en mayúsculas
     if (item.unidad === 'TITULO' || item.unidad === 'GRUPO' || item.unidad === 'CAPITULO' || item.es_titulo) return true;
+    const qty = parseFloat(item.cantidad) || 0;
+    const pu = parseFloat(item.costo_unitario !== undefined ? item.costo_unitario : (item.pu || 0)) || 0;
+    if (qty === 0 && pu === 0 && item.partida && item.partida.trim().length > 0 && !item.codigo?.includes('.')) return true;
     if (!item.codigo) return false;
     return list.some(other => other.codigo && other.codigo !== item.codigo && other.codigo.startsWith(item.codigo + '.'));
   };
@@ -1085,16 +1089,33 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
   const getChapterSum = (chapterId, list, isProrated = false, factor = 1) => {
     const idx = list.findIndex(x => (x.id && chapterId && x.id.toString() === chapterId.toString()) || (x.codigo && chapterId && x.codigo === chapterId));
     if (idx === -1) return 0;
-    let sum = 0;
+    
+    // 1. Intentar sumar partidas hacia abajo
+    let sumBelow = 0;
+    let countBelow = 0;
     for (let i = idx + 1; i < list.length; i++) {
       const item = list[i];
-      if (isChapterRow(item, list)) break; // Se detiene al encontrar el siguiente Título
+      if (isChapterRow(item, list)) break;
       const qty = parseFloat(item.cantidad) || 0;
       const directPrice = parseFloat(item.costo_unitario) || 0;
       const price = isProrated ? Math.round(directPrice * factor) : directPrice;
-      sum += (qty * price);
+      sumBelow += (qty * price);
+      if (qty > 0 || directPrice > 0) countBelow++;
     }
-    return sum;
+
+    if (countBelow > 0) return sumBelow;
+
+    // 2. Si no hay partidas abajo, sumar partidas hacia arriba (hasta el capítulo anterior)
+    let sumAbove = 0;
+    for (let i = idx - 1; i >= 0; i--) {
+      const item = list[i];
+      if (isChapterRow(item, list)) break;
+      const qty = parseFloat(item.cantidad) || 0;
+      const directPrice = parseFloat(item.costo_unitario) || 0;
+      const price = isProrated ? Math.round(directPrice * factor) : directPrice;
+      sumAbove += (qty * price);
+    }
+    return sumAbove;
   };
 
   // --- ACCIONES PRESUPUESTO (CREAR) ---

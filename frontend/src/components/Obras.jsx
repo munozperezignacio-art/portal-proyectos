@@ -3316,13 +3316,26 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           const totalItem = (p.cantidad || 0) * puVal;
 
                           if (isTitleRow) {
-                            // Calcular total acumulado de las partidas dependientes de este Título
+                            // 1. Intentar sumar partidas hacia abajo
                             let groupSum = 0;
+                            let countBelow = 0;
                             for (let i = idx + 1; i < partidasList.length; i++) {
                               const child = partidasList[i];
-                              if (child.unidad === 'TITULO' || child.unidad === 'GRUPO' || child.es_titulo) break;
+                              if (child.unidad === 'TITULO' || child.unidad === 'GRUPO' || child.es_titulo || (parseFloat(child.cantidad || 0) === 0 && parseFloat(child.pu || 0) === 0)) break;
                               const childPu = partidasCostos[child.partida] !== undefined ? partidasCostos[child.partida] : (child.pu || 0);
-                              groupSum += (child.cantidad || 0) * childPu;
+                              const sub = (child.cantidad || 0) * childPu;
+                              groupSum += sub;
+                              if (sub > 0) countBelow++;
+                            }
+
+                            // 2. Si no hay partidas abajo, sumar partidas hacia arriba
+                            if (countBelow === 0) {
+                              for (let i = idx - 1; i >= 0; i--) {
+                                const child = partidasList[i];
+                                if (child.unidad === 'TITULO' || child.unidad === 'GRUPO' || child.es_titulo) break;
+                                const childPu = partidasCostos[child.partida] !== undefined ? partidasCostos[child.partida] : (child.pu || 0);
+                                groupSum += (child.cantidad || 0) * childPu;
+                              }
                             }
 
                             return (
