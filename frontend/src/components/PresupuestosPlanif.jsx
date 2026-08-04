@@ -1062,6 +1062,8 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
 
   // --- LÓGICA DE JERARQUÍAS ---
   const isChapterRow = (item, list) => {
+    if (!item) return false;
+    if (item.unidad === 'TITULO' || item.unidad === 'GRUPO' || item.unidad === 'CAPITULO' || item.es_titulo) return true;
     if (!item.codigo) return false;
     return list.some(other => other.codigo && other.codigo !== item.codigo && other.codigo.startsWith(item.codigo + '.'));
   };
@@ -1082,6 +1084,35 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
   };
 
   // --- ACCIONES PRESUPUESTO (CREAR) ---
+    const handleAddChapterRow = () => {
+    let nextCode = '01';
+    if (itemsPresupuesto.length > 0) {
+      const last = itemsPresupuesto[itemsPresupuesto.length - 1];
+      if (last.codigo) {
+        const parts = last.codigo.split('.');
+        const mainNum = parseInt(parts[0], 10);
+        if (!isNaN(mainNum)) {
+          nextCode = String(mainNum + 1).padStart(2, '0');
+        }
+      }
+    }
+    const newRow = {
+      id: 'temp-' + Date.now() + Math.random(),
+      presupuesto_id: selectedProyectoId,
+      codigo: nextCode,
+      partida: 'NUEVO TÍTULO / CAPÍTULO',
+      unidad: 'TITULO',
+      cantidad: 0,
+      costo_unitario: 0,
+      rendimiento_meta: 0
+    };
+    const updatedList = [...itemsPresupuesto, newRow];
+    setItemsPresupuesto(updatedList);
+    if (selectedProyectoId) {
+      try { localStorage.setItem(`obraxis_presupuesto_items_${selectedProyectoId}`, JSON.stringify(updatedList)); } catch (e) {}
+    }
+  };
+
   const handleAddBudgetRow = () => {
     let nextCode = '01';
     if (itemsPresupuesto.length > 0) {
@@ -3082,6 +3113,14 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                         </div>
                       </div>
 
+                      <button
+                        onClick={handleAddChapterRow}
+                        className="flex items-center gap-1.5 bg-amber-50 border border-amber-300 text-amber-900 text-xs font-bold px-3.5 py-2 rounded-xl hover:bg-amber-100 transition cursor-pointer shadow-xs"
+                        title="Insertar un Título o Capítulo agrupador"
+                      >
+                        <FolderPlus className="w-4 h-4 text-amber-700" />
+                        <span>📁 + Insertar Título / Capítulo</span>
+                      </button>
                       <button
                         onClick={handleAddBudgetRow}
                         className="flex items-center gap-1.5 bg-slate-50 border border-slate-250 text-slate-700 text-xs font-bold px-3.5 py-2 rounded-xl hover:bg-slate-100 transition cursor-pointer"

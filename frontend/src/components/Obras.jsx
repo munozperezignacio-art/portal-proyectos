@@ -3142,7 +3142,18 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   <button
                     onClick={() => {
                       setEditingPartida(null);
-                      setPartidaFormData({ partida: '', unidad: 'UND', cantidad: '', pu: 0, rendimiento: '10', unidad_tiempo: 'Día' });
+                      setPartidaFormData({ partida: 'NUEVO CAPÍTULO / GRUPO', unidad: 'TITULO', cantidad: 0, pu: 0, rendimiento: '0', unidad_tiempo: 'Día', grupo: 'General', es_titulo: true });
+                      setShowPartidaModal(true);
+                    }}
+                    className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <FolderPlus className="w-4 h-4 text-slate-900" />
+                    <span>📁 + Insertar Título / Capítulo</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingPartida(null);
+                      setPartidaFormData({ partida: '', unidad: 'UND', cantidad: '', pu: 0, rendimiento: '10', unidad_tiempo: 'Día', grupo: 'General', es_titulo: false });
                       setShowPartidaModal(true);
                     }}
                     className="bg-emerald-800 hover:bg-emerald-900 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
@@ -3187,11 +3198,80 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                       </thead>
                       <tbody className="divide-y divide-slate-150 text-[11px]">
                         {partidasList.map((p, idx) => {
+                          const isTitleRow = p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo;
                           const puVal = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (p.pu !== undefined ? p.pu : 0);
                           const totalItem = (p.cantidad || 0) * puVal;
+
+                          if (isTitleRow) {
+                            // Calcular total acumulado de las partidas dependientes de este Título
+                            let groupSum = 0;
+                            for (let i = idx + 1; i < partidasList.length; i++) {
+                              const child = partidasList[i];
+                              if (child.unidad === 'TITULO' || child.unidad === 'GRUPO' || child.es_titulo) break;
+                              const childPu = partidasCostos[child.partida] !== undefined ? partidasCostos[child.partida] : (child.pu || 0);
+                              groupSum += (child.cantidad || 0) * childPu;
+                            }
+
+                            return (
+                              <tr key={idx} className="bg-slate-800 text-white font-extrabold border-y-2 border-slate-900">
+                                <td colSpan="5" className="p-3 text-xs uppercase tracking-wider flex items-center gap-2">
+                                  <span className="text-amber-400">📁 CAPÍTULO / GRUPO:</span>
+                                  <span className="text-white font-black text-sm">{p.partida}</span>
+                                </td>
+                                <td className="p-3 font-mono font-black text-amber-300 text-xs">
+                                  ${groupSum.toLocaleString('es-CL')}
+                                </td>
+                                <td className="p-3 text-center">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      onClick={() => {
+                                        setEditingPartida(p);
+                                        setPartidaFormData({
+                                          partida: p.partida,
+                                          unidad: 'TITULO',
+                                          cantidad: 0,
+                                          pu: 0,
+                                          rendimiento: '0',
+                                          unidad_tiempo: 'Día',
+                                          grupo: p.grupo || 'General',
+                                          es_titulo: true
+                                        });
+                                        setShowPartidaModal(true);
+                                      }}
+                                      className="p-1 text-slate-300 hover:text-white transition cursor-pointer"
+                                      title="Editar Título"
+                                    >
+                                      <Edit className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={async () => {
+                                        if (!confirm(`¿Eliminar el título "${p.partida}"?`)) return;
+                                        try {
+                                          if (p.id) {
+                                            await supabase.from('partidas_obra').delete().eq('id', p.id);
+                                          } else {
+                                            await supabase.from('partidas_obra').delete().eq('obra_nombre', selectedObra?.nombre).eq('partida', p.partida);
+                                          }
+                                          setPartidasList(prev => prev.filter((_, i) => i !== idx));
+                                        } catch (err) { alert('Error: ' + err.message); }
+                                      }}
+                                      className="p-1 text-rose-300 hover:text-rose-100 transition cursor-pointer"
+                                      title="Eliminar Título"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          }
+
                           return (
                             <tr key={idx} className="hover:bg-slate-50">
-                              <td className="p-2.5 font-bold text-slate-800">{p.partida}</td>
+                              <td className="p-2.5 font-bold text-slate-800 pl-6 flex items-center gap-1.5">
+                                <span className="text-slate-400 text-xs">└─</span>
+                                <span>{p.partida}</span>
+                              </td>
                               <td className="p-2.5 font-mono text-slate-600">{p.unidad || 'UND'}</td>
                               <td className="p-2.5 font-mono font-bold text-slate-800">{p.cantidad || 0}</td>
                               <td className="p-2.5">
