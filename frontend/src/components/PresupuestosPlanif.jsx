@@ -2739,36 +2739,6 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
         </div>
       </div>
 
-      {/* PANEL DE DIAGNÓSTICO DE GUARDADO (ARRIBA DE TODO) */}
-      <div className="bg-slate-900 text-slate-200 p-4 rounded-2xl text-[11px] font-mono space-y-2 border-2 border-amber-500 shadow-xl my-3">
-        <div className="flex justify-between items-center border-b border-slate-700 pb-2">
-          <span className="font-bold text-amber-400 flex items-center gap-1.5 text-xs">
-            🔍 PANEL DE DIAGNÓSTICO DE GUARDADO DE PRESUPUESTO
-          </span>
-          <span className="text-[10px] text-amber-400 font-bold bg-amber-950 px-2 py-0.5 rounded border border-amber-800">Obraxis Debug Activo</span>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10.5px]">
-          <p><span className="text-slate-400">1. ID Proyecto Activo (selectedProyectoId):</span> <strong className={selectedProyectoId ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>"{selectedProyectoId || 'NINGUNO SELECCIONADO'}"</strong></p>
-          <p><span className="text-slate-400">2. Nombre del Proyecto:</span> <strong className="text-white font-bold">"{proyectos.find(p => p.id?.toString() === selectedProyectoId?.toString())?.nombre || 'Sin nombre'}"</strong></p>
-          <p><span className="text-slate-400">3. Partidas en Pantalla:</span> <strong className="text-amber-300 font-bold">{itemsPresupuesto.length} partidas cargadas</strong></p>
-          <p><span className="text-slate-400">4. Partidas en LocalStorage:</span> <strong className="text-amber-300 font-bold">{JSON.parse(localStorage.getItem('obraxis_presupuesto_items_' + selectedProyectoId) || '[]').length} guardadas localmente</strong></p>
-        </div>
-
-        {debugStatusMsg && <div className="bg-emerald-950 text-emerald-300 p-2.5 rounded-xl border border-emerald-800 font-bold text-xs">{debugStatusMsg}</div>}
-        {debugErrorMsg && <div className="bg-rose-950 text-rose-300 p-3 rounded-xl border-2 border-rose-700 font-bold text-xs">{debugErrorMsg}</div>}
-
-        <div className="pt-2 border-t border-slate-800 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={handleSaveBudget}
-            disabled={budgetLoading}
-            className="bg-amber-400 hover:bg-amber-500 text-slate-950 font-black px-4 py-2 rounded-xl text-xs cursor-pointer shadow-md"
-          >
-            {budgetLoading ? 'PROBANDO GUARDADO...' : '⚡ PROBAR GUARDADO DIRECTO Y CAPTURAR ERRORES'}
-          </button>
-        </div>
-      </div>
-
       {/* Alertas */}
       {successMsg && <div className="bg-emerald-50 text-emerald-700 p-3.5 rounded-xl text-xs font-semibold border border-emerald-250 animate-in fade-in duration-150">{successMsg}</div>}
       {errorMsg && <div className="bg-red-50 text-red-700 p-3.5 rounded-xl text-xs font-semibold border border-red-250 animate-in fade-in duration-150">{errorMsg}</div>}
