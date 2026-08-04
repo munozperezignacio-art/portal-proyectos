@@ -5570,45 +5570,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         </div>
       )}
 
-      {/* MODAL: REGISTRAR / EDITAR COSTO REAL DE OBRA */}
-      {showCostoModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 max-h-[92vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-3 border-b pb-2">
-              <h3 className="font-extrabold text-slate-800 text-sm">
-                {editingCosto ? 'Editar Costo de Obra' : 'Registrar Costo Real de Obra'}
-              </h3>
-              <button onClick={() => setShowCostoModal(false)} className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer">✕</button>
-            </div>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!costoFormData.nombre.trim() || !costoFormData.monto) return;
-                
-                const newCosto = {
-                  id: editingCosto ? editingCosto.id : Date.now(),
-                  nombre: costoFormData.nombre.trim(),
-                  tipo_costo: costoFormData.tipo_costo,
-                  asociar_factura: costoFormData.asociar_factura,
-                  num_factura: costoFormData.num_factura.trim(),
-                  monto: parseFloat(costoFormData.monto) || 0,
-                  imputaciones: costoFormData.imputaciones || []
-                };
-
-                if (editingCosto) {
-                  setCostosList(prev => prev.map(c => c.id === editingCosto.id ? newCosto : c));
-                } else {
-                  setCostosList(prev => [...prev, newCosto]);
-                }
-
-                setShowCostoModal(false);
-                alert('Costo e imputaciones registrados con éxito.');
-              }}
-              className="space-y-4 text-xs"
-            >
-
-{/* MODAL CONFIGURAR Y AGREGAR GASTO PROYECTADO */}
+      {/* MODAL CONFIGURAR Y AGREGAR GASTO PROYECTADO */}
       {showProyeccionModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 max-h-[92vh] overflow-y-auto space-y-4">
@@ -5776,6 +5738,46 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           </div>
         </div>
       )}
+
+      {/* MODAL: REGISTRAR / EDITAR COSTO REAL DE OBRA */}
+      {showCostoModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 max-h-[92vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-3 border-b pb-2">
+              <h3 className="font-extrabold text-slate-800 text-sm">
+                {editingCosto ? 'Editar Costo de Obra' : 'Registrar Costo Real de Obra'}
+              </h3>
+              <button onClick={() => setShowCostoModal(false)} className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer">✕</button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!costoFormData.nombre.trim() || !costoFormData.monto) return;
+                
+                const newCosto = {
+                  id: editingCosto ? editingCosto.id : Date.now(),
+                  nombre: costoFormData.nombre.trim(),
+                  tipo_costo: costoFormData.tipo_costo,
+                  asociar_factura: costoFormData.asociar_factura,
+                  num_factura: costoFormData.num_factura.trim(),
+                  monto: parseFloat(costoFormData.monto) || 0,
+                  imputaciones: costoFormData.imputaciones || []
+                };
+
+                if (editingCosto) {
+                  setCostosList(prev => prev.map(c => c.id === editingCosto.id ? newCosto : c));
+                } else {
+                  setCostosList(prev => [...prev, newCosto]);
+                }
+
+                setShowCostoModal(false);
+                alert('Costo e imputaciones registrados con éxito.');
+              }}
+              className="space-y-4 text-xs"
+            >
+
+
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nombre / Concepto del Costo <span className="text-red-500">*</span></label>
                 <input
