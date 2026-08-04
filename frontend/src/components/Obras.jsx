@@ -344,6 +344,19 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
   // Modal y CRUD de Costos Reales de Obra
   const [costosList, setCostosList] = useState([]);
+  const [costosSubTab, setCostosSubTab] = useState('reales'); // 'reales' | 'proyectados'
+  const [proyeccionesList, setProyeccionesList] = useState([]);
+  const [fechaCorteProyeccion, setFechaCorteProyeccion] = useState(new Date().toISOString().split('T')[0]);
+  const [showProyeccionModal, setShowProyeccionModal] = useState(false);
+  const [proyeccionFormData, setProyeccionFormData] = useState({
+    partida: '',
+    tipo_proyeccion: 'TIEMPO', // 'TIEMPO' | 'INSUMO'
+    nombre_item: '',
+    tarifa_tiempo_dia: 20000,
+    unidad_insumo: 'Saco',
+    tasa_rendimiento_insumo: 1,
+    precio_unitario_insumo: 5000
+  });
   const [showCostoModal, setShowCostoModal] = useState(false);
   const [editingCosto, setEditingCosto] = useState(null);
   const [costoFormData, setCostoFormData] = useState({
@@ -3659,33 +3672,74 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           {/* VISTA DEDICADA 12: CONTROL DE COSTOS DE OBRA */}
           {obraActiveSubmodule === 'costos' && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                <div>
-                  <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
-                    <FileSpreadsheet className="w-4 h-4 text-emerald-950" />
-                    <span>Control de Costos Reales de Obra & Imputación a Partidas</span>
-                  </h3>
-                  <p className="text-[11px] text-slate-500">Registro de facturas, gastos e imputaciones por porcentaje a una o múltiples partidas</p>
+              <div className="space-y-4">
+                <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div>
+                    <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
+                      <FileSpreadsheet className="w-4 h-4 text-emerald-950" />
+                      <span>Gestión Financiera de Obra: Reales vs Proyecciones</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-500">Separación clara entre Costos Reales (Facturas/Guías) y Proyecciones Teóricas por Tiempos y Rendimientos</p>
+                  </div>
+
+                  {costosSubTab === 'reales' ? (
+                    <button
+                      onClick={() => {
+                        const validPartidas = partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo));
+                        setEditingCosto(null);
+                        setCostoFormData({
+                          nombre: '',
+                          tipo_costo: 'Materiales',
+                          asociar_factura: 'SI',
+                          num_factura: '',
+                          monto: '',
+                          imputaciones: validPartidas.length > 0 ? [{ partida: validPartidas[0].partida, porcentaje: 100 }] : []
+                        });
+                        setShowCostoModal(true);
+                      }}
+                      className="bg-emerald-900 hover:bg-emerald-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>+ Registrar Costo Real (Factura/Guía)</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        const validPartidas = partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo));
+                        setProyeccionFormData({
+                          partida: validPartidas.length > 0 ? validPartidas[0].partida : '',
+                          tipo_proyeccion: 'TIEMPO',
+                          nombre_item: 'Costo Operativo Diario',
+                          tarifa_tiempo_dia: 20000,
+                          unidad_insumo: 'Saco',
+                          tasa_rendimiento_insumo: 1,
+                          precio_unitario_insumo: 5000
+                        });
+                        setShowProyeccionModal(true);
+                      }}
+                      className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>+ Configurar Proyección de Gastos</span>
+                    </button>
+                  )}
                 </div>
 
-                <button
-                  onClick={() => {
-                    setEditingCosto(null);
-                    setCostoFormData({
-                      nombre: '',
-                      tipo_costo: 'Materiales',
-                      asociar_factura: 'SI',
-                      num_factura: '',
-                      monto: '',
-                      imputaciones: partidasList.length > 0 ? [{ partida: partidasList[0].partida, porcentaje: 100 }] : []
-                    });
-                    setShowCostoModal(true);
-                  }}
-                  className="bg-emerald-900 hover:bg-emerald-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>+ Registrar Nuevo Costo</span>
-                </button>
+                {/* SELECTOR DE SUB-PESTAÑA COSTOS REALES VS PROYECCIONES */}
+                <div className="flex border-b border-slate-200 bg-slate-50/80 p-1.5 rounded-2xl gap-2">
+                  <button
+                    onClick={() => setCostosSubTab('reales')}
+                    className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-2 ${costosSubTab === 'reales' ? 'bg-white text-emerald-950 shadow-xs border border-slate-200' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    <span>🧾 1. Costos Reales Incurridos (Facturas, Guías & Boletas)</span>
+                  </button>
+                  <button
+                    onClick={() => setCostosSubTab('proyectados')}
+                    className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-2 ${costosSubTab === 'proyectados' ? 'bg-white text-blue-950 shadow-xs border border-slate-200' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    <span>📊 2. Proyección de Gastos & Análisis Unitario (Tiempos, Rendimientos, Insumos)</span>
+                  </button>
+                </div>
               </div>
 
               {/* KPIs de Control Financiero */}
@@ -4215,7 +4269,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 bg-white"
                           >
                             <option value="">-- Seleccionar Partida --</option>
-                            {partidasList.map((p, pIdx) => (
+                            {partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo)).map((p, pIdx) => (
                               <option key={p.id || pIdx} value={p.partida}>
                                 {p.partida} {p.unidad ? `(${p.unidad})` : ''} {p.cantidad ? `- Presupuestado: ${p.cantidad} ${p.unidad || ''}` : ''}
                               </option>
@@ -5658,7 +5712,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             }}
                             className="flex-1 border border-slate-300 rounded-lg p-1.5 text-xs font-bold text-slate-800 bg-white"
                           >
-                            {partidasList.map(p => (
+                            {partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo)).map(p => (
                               <option key={p.partida} value={p.partida}>{p.partida}</option>
                             ))}
                           </select>
