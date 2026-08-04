@@ -4,7 +4,7 @@ import {
   Building2, ArrowLeft, Users, Truck, Wrench, FileSpreadsheet, 
   ExternalLink, Calendar, Plus, Info, Check, UserCheck, Play, ArrowRightLeft, FileText, AlertCircle, AlertTriangle, Camera,
   QrCode, MapPin, Printer, Navigation, RotateCcw, CheckCircle2, Map, ShieldAlert, Settings, Edit, Trash2, Download,
-  History, BarChart3, ShieldCheck, Clock, DollarSign, CalendarRange, FileUp, Loader2
+  History, BarChart3, ShieldCheck, Clock, DollarSign, CalendarRange, FileUp, Loader2, FolderPlus
 } from 'lucide-react';
 import ContextualEmailConfigModal from './ContextualEmailConfigModal';
 import { canConfigureEmails, canCreateObras, canModifyOrDeleteRecords } from '../utils/userLevel';
