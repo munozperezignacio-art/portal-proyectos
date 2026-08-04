@@ -5362,76 +5362,89 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Unidad</label>
-                  <select
-                    value={partidaFormData.unidad}
-                    onChange={(e) => setPartidaFormData({ ...partidaFormData, unidad: e.target.value })}
-                    className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 bg-white font-semibold"
-                  >
-                    <option value="UND">UND</option>
-                    <option value="M3">M3</option>
-                    <option value="M2">M2</option>
-                    <option value="ML">ML</option>
-                    <option value="KG">KG</option>
-                    <option value="TON">TON</option>
-                    <option value="GLB">GLB</option>
-                  </select>
+              {partidaFormData.es_titulo || partidaFormData.unidad === 'TITULO' ? (
+                <div className="bg-amber-50 p-3.5 rounded-xl border border-amber-300 space-y-1.5">
+                  <span className="text-xs font-black text-amber-950 flex items-center gap-1.5">
+                    📁 Configuración de Encabezado / Título de Capítulo
+                  </span>
+                  <p className="text-[11px] text-amber-900 font-semibold leading-relaxed">
+                    Este registro se desplegará como una franja de capítulo destacada en la tabla. Todas las partidas colocadas por debajo pertenecerán automáticamente a este capítulo.
+                  </p>
                 </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Unidad</label>
+                      <select
+                        value={partidaFormData.unidad}
+                        onChange={(e) => setPartidaFormData({ ...partidaFormData, unidad: e.target.value })}
+                        className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 bg-white font-semibold"
+                      >
+                        <option value="UND">UND</option>
+                        <option value="M3">M3</option>
+                        <option value="M2">M2</option>
+                        <option value="ML">ML</option>
+                        <option value="KG">KG</option>
+                        <option value="TON">TON</option>
+                        <option value="GLB">GLB</option>
+                      </select>
+                    </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Cantidad</label>
-                  <input
-                    type="number"
-                    required
-                    value={partidaFormData.cantidad}
-                    onChange={(e) => setPartidaFormData({ ...partidaFormData, cantidad: e.target.value })}
-                    placeholder="100"
-                    className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 font-mono font-bold"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Cantidad</label>
+                      <input
+                        type="number"
+                        required
+                        value={partidaFormData.cantidad}
+                        onChange={(e) => setPartidaFormData({ ...partidaFormData, cantidad: e.target.value })}
+                        placeholder="100"
+                        className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 font-mono font-bold"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">P.U. ($) (Opcional / Puede ser 0)</label>
-                  <input
-                    type="number"
-                    value={partidaFormData.pu}
-                    onChange={(e) => setPartidaFormData({ ...partidaFormData, pu: e.target.value })}
-                    placeholder="0"
-                    className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 font-mono font-bold"
-                  />
-                </div>
-              </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">P.U. ($) (Opcional / Puede ser 0)</label>
+                      <input
+                        type="number"
+                        value={partidaFormData.pu}
+                        onChange={(e) => setPartidaFormData({ ...partidaFormData, pu: e.target.value })}
+                        placeholder="0"
+                        className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 font-mono font-bold"
+                      />
+                    </div>
+                  </div>
 
-              {/* Rendimiento y Unidad de Tiempo */}
-              <div className="grid grid-cols-2 gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Rendimiento Estimado</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={partidaFormData.rendimiento}
-                    onChange={(e) => setPartidaFormData({ ...partidaFormData, rendimiento: e.target.value })}
-                    placeholder="25.5"
-                    className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 font-mono font-bold bg-white"
-                  />
-                </div>
+                  {/* Rendimiento y Unidad de Tiempo */}
+                  <div className="grid grid-cols-2 gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Rendimiento Estimado</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={partidaFormData.rendimiento}
+                        onChange={(e) => setPartidaFormData({ ...partidaFormData, rendimiento: e.target.value })}
+                        placeholder="25.5"
+                        className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 font-mono font-bold bg-white"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Unidad de Tiempo</label>
-                  <select
-                    value={partidaFormData.unidad_tiempo}
-                    onChange={(e) => setPartidaFormData({ ...partidaFormData, unidad_tiempo: e.target.value })}
-                    className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 bg-white font-semibold"
-                  >
-                    <option value="Día">Día</option>
-                    <option value="Semana">Semana</option>
-                    <option value="Mes">Mes</option>
-                    <option value="Hora">Hora</option>
-                  </select>
-                </div>
-              </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Unidad de Tiempo</label>
+                      <select
+                        value={partidaFormData.unidad_tiempo}
+                        onChange={(e) => setPartidaFormData({ ...partidaFormData, unidad_tiempo: e.target.value })}
+                        className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 bg-white font-semibold"
+                      >
+                        <option value="Día">Día</option>
+                        <option value="Semana">Semana</option>
+                        <option value="Mes">Mes</option>
+                        <option value="Hora">Hora</option>
+                      </select>
+                    </div>
+                  </div>
+                </>
+              )}
 
               <button
                 type="submit"
