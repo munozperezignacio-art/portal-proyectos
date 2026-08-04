@@ -5132,7 +5132,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   }
 
                   if (partidaFormData.pu !== undefined && partidaFormData.pu !== '') {
-                    setPartidasCostos(prev => ({ ...prev, [newPart.partida]: parseFloat(partidaFormData.pu) || 0 }));
+                    setPartidasCostos(prev => ({ ...prev, [dbPayload.partida]: parseFloat(partidaFormData.pu) || 0 }));
                   }
 
                   setShowPartidaModal(false);
