@@ -3128,6 +3128,34 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           {/* VISTA DEDICADA 10: PRESUPUESTO DE OBRA */}
           {obraActiveSubmodule === 'presupuesto' && (
             <div className="space-y-6 animate-in fade-in duration-200">
+
+              {/* PANEL DE DIAGNÓSTICO DE PRESUPUESTO DE OBRA (DENTRO DE LA OBRA) */}
+              <div className="bg-slate-900 text-slate-200 p-4 rounded-2xl text-[11px] font-mono space-y-2 border-2 border-amber-500 shadow-xl">
+                <div className="flex justify-between items-center border-b border-slate-700 pb-2">
+                  <span className="font-bold text-amber-400 flex items-center gap-1.5 text-xs">
+                    🔍 PANEL DE DIAGNÓSTICO DE PRESUPUESTO DE OBRA: "{selectedObra?.nombre}"
+                  </span>
+                  <span className="text-[10px] text-amber-400 font-bold bg-amber-950 px-2 py-0.5 rounded border border-amber-800">Obraxis Debug</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10.5px]">
+                  <p><span className="text-slate-400">1. Obra Seleccionada:</span> <strong className="text-white font-bold">"{selectedObra?.nombre}"</strong></p>
+                  <p><span className="text-slate-400">2. Total Partidas Guardadas en esta Obra:</span> <strong className="text-emerald-400 font-bold">{partidasList.length} partidas activas</strong></p>
+                </div>
+
+                <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 max-h-36 overflow-y-auto space-y-1 text-[10px]">
+                  <p className="text-slate-400 font-bold">3. Detalle de Partidas en Base de Datos:</p>
+                  {partidasList.length === 0 ? (
+                    <p className="text-rose-400">⚠️ No se registran partidas aún en esta obra. Haz clic en "+ Crear Nueva Partida".</p>
+                  ) : (
+                    partidasList.map((p, i) => (
+                      <div key={i} className="flex justify-between border-b border-slate-900 pb-1 text-slate-300">
+                        <span>• <strong>{p.partida}</strong> ({p.unidad || 'UND'})</span>
+                        <span className="text-emerald-400 font-mono">Cant: {p.cantidad} | PU: ${p.pu?.toLocaleString('es-CL')}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
               <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs flex justify-between items-center">
                 <div>
                   <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
@@ -5050,46 +5078,55 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 setModalLoading(true);
                 try {
                   const cantVal = parseFloat(partidaFormData.cantidad) || 0;
-                  const newPart = {
+                  const puVal = parseFloat(partidaFormData.pu) || 0;
+                  const rendVal = parseFloat(partidaFormData.rendimiento) || 10;
+
+                  // Esqueleto estricto coincidente con el esquema SQL de partidas_obra
+                  const dbPayload = {
                     obra_nombre: selectedObra?.nombre || 'Obra Principal',
                     partida: partidaFormData.partida.trim(),
                     unidad: partidaFormData.unidad || 'UND',
-                    cantidad: cantVal,
                     cantidad_presupuestada: cantVal,
-                    rendimiento: partidaFormData.rendimiento || '10',
-                    unidad_tiempo: partidaFormData.unidad_tiempo || 'Día'
+                    costo_por_dia: puVal,
+                    rendimiento_meta: rendVal
                   };
 
-                  let savedPart = { ...newPart };
+                  let savedPart = { 
+                    ...dbPayload, 
+                    cantidad: cantVal, 
+                    pu: puVal, 
+                    rendimiento: rendVal 
+                  };
+
                   if (editingPartida) {
                     if (editingPartida.id) {
                       const { error: updErr } = await supabase
                         .from('partidas_obra')
-                        .update(newPart)
+                        .update(dbPayload)
                         .eq('id', editingPartida.id);
-                      if (updErr) console.warn("Error al actualizar partida:", updErr.message);
+                      if (updErr) throw updErr;
                     } else if (selectedObra?.nombre) {
                       const { error: updErr } = await supabase
                         .from('partidas_obra')
-                        .update(newPart)
+                        .update(dbPayload)
                         .eq('obra_nombre', selectedObra.nombre)
                         .eq('partida', editingPartida.partida);
-                      if (updErr) console.warn("Error al actualizar partida por nombre:", updErr.message);
+                      if (updErr) throw updErr;
                     }
                     setPartidasList(prev => prev.map(p => 
                       (p.id && editingPartida.id && p.id === editingPartida.id) || p.partida === editingPartida.partida
-                        ? { ...p, ...newPart }
+                        ? { ...p, ...savedPart }
                         : p
                     ));
                   } else {
                     if (selectedObra?.nombre) {
                       const { data: insData, error: insErr } = await supabase
                         .from('partidas_obra')
-                        .insert([newPart])
+                        .insert([dbPayload])
                         .select()
                         .single();
-                      if (insErr) console.warn("Error al insertar nueva partida:", insErr.message);
-                      if (insData) savedPart = insData;
+                      if (insErr) throw insErr;
+                      if (insData) savedPart = { ...insData, cantidad: cantVal, pu: puVal };
                     }
                     setPartidasList(prev => [...prev, savedPart]);
                   }
