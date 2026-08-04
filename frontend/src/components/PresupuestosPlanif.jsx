@@ -1111,20 +1111,36 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
       costo_herramientas: 0,
       costo_otros: 0
     };
-    setItemsPresupuesto([...itemsPresupuesto, newRow]);
+    const updatedList = [...itemsPresupuesto, newRow];
+    setItemsPresupuesto(updatedList);
+    if (selectedProyectoId) {
+      try { localStorage.setItem(`obraxis_presupuesto_items_${selectedProyectoId}`, JSON.stringify(updatedList)); } catch (e) {}
+    }
   };
 
   const handleUpdateBudgetField = (id, field, value) => {
-    setItemsPresupuesto(prev => prev.map(item => {
-      if (item.id === id) {
-        return { ...item, [field]: value };
+    setItemsPresupuesto(prev => {
+      const updated = prev.map(item => {
+        if (item.id === id) {
+          return { ...item, [field]: value };
+        }
+        return item;
+      });
+      if (selectedProyectoId) {
+        try { localStorage.setItem(`obraxis_presupuesto_items_${selectedProyectoId}`, JSON.stringify(updated)); } catch (e) {}
       }
-      return item;
-    }));
+      return updated;
+    });
   };
 
   const handleDeleteBudgetRow = (id) => {
-    setItemsPresupuesto(prev => prev.filter(item => item.id !== id));
+    setItemsPresupuesto(prev => {
+      const updated = prev.filter(item => item.id !== id);
+      if (selectedProyectoId) {
+        try { localStorage.setItem(`obraxis_presupuesto_items_${selectedProyectoId}`, JSON.stringify(updated)); } catch (e) {}
+      }
+      return updated;
+    });
   };
 
   const handleSaveBudget = async () => {
