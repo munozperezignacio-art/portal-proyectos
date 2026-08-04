@@ -3700,7 +3700,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                       className="bg-emerald-900 hover:bg-emerald-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
                     >
                       <Plus className="w-4 h-4" />
-                      <span>+ Registrar Costo Real (Factura/Guía)</span>
+                      <span>Registrar Costo Real (Factura/Guía)</span>
                     </button>
                   ) : (
                     <button
@@ -3720,7 +3720,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                       className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
                     >
                       <Plus className="w-4 h-4" />
-                      <span>+ Configurar Proyección de Gastos</span>
+                      <span>Agregar Gasto Proyectado</span>
                     </button>
                   )}
                 </div>
@@ -3731,13 +3731,13 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                     onClick={() => setCostosSubTab('reales')}
                     className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-2 ${costosSubTab === 'reales' ? 'bg-white text-emerald-950 shadow-xs border border-slate-200' : 'text-slate-500 hover:text-slate-800'}`}
                   >
-                    <span>🧾 1. Costos Reales Incurridos (Facturas, Guías & Boletas)</span>
+                    <span>🧾 Costos Reales Incurridos (Facturas, Guías & Boletas)</span>
                   </button>
                   <button
                     onClick={() => setCostosSubTab('proyectados')}
                     className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-2 ${costosSubTab === 'proyectados' ? 'bg-white text-blue-950 shadow-xs border border-slate-200' : 'text-slate-500 hover:text-slate-800'}`}
                   >
-                    <span>📊 2. Proyección de Gastos & Análisis Unitario (Tiempos, Rendimientos, Insumos)</span>
+                    <span>📊 Proyección de Gastos & Análisis Unitario (Tiempos, Rendimientos, Insumos)</span>
                   </button>
                 </div>
               </div>
@@ -5607,6 +5607,175 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
               }}
               className="space-y-4 text-xs"
             >
+
+{/* MODAL CONFIGURAR Y AGREGAR GASTO PROYECTADO */}
+      {showProyeccionModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 max-h-[92vh] overflow-y-auto space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                <FileSpreadsheet className="w-4 h-4 text-blue-900" />
+                <span>Agregar Gasto Proyectado por Partida</span>
+              </h3>
+              <button
+                onClick={() => setShowProyeccionModal(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                setProyeccionesList(prev => {
+                  const filtered = prev.filter(x => x.partida !== proyeccionFormData.partida);
+                  return [...filtered, proyeccionFormData];
+                });
+                try {
+                  const key = `obraxis_proyecciones_obras_${selectedObra?.nombre}`;
+                  const updated = proyeccionesList.filter(x => x.partida !== proyeccionFormData.partida);
+                  localStorage.setItem(key, JSON.stringify([...updated, proyeccionFormData]));
+                } catch (err) {}
+                setShowProyeccionModal(false);
+              }}
+              className="space-y-4 text-xs"
+            >
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Partida a Configurar</label>
+                <select
+                  value={proyeccionFormData.partida}
+                  onChange={(e) => setProyeccionFormData({ ...proyeccionFormData, partida: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 bg-white font-bold"
+                >
+                  {partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo)).map(p => (
+                    <option key={p.partida} value={p.partida}>{p.partida} ({p.cantidad} {p.unidad})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Tipo de Proyección</label>
+                <select
+                  value={proyeccionFormData.tipo_proyeccion}
+                  onChange={(e) => setProyeccionFormData({ ...proyeccionFormData, tipo_proyeccion: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 bg-white font-bold"
+                >
+                  <option value="TIEMPO">1. Por Unidad de Tiempo (p. ej. $/Día, $/Hora)</option>
+                  <option value="INSUMO">2. Por Cantidad de Insumo con Conversión de Rendimiento</option>
+                </select>
+              </div>
+
+              {proyeccionFormData.tipo_proyeccion === 'TIEMPO' ? (
+                <div className="bg-blue-50/70 p-3.5 rounded-xl border border-blue-200 space-y-3">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-blue-900 mb-1">Tarifa por Unidad de Tiempo ($ / Día Hábil)</label>
+                    <input
+                      type="number"
+                      required
+                      value={proyeccionFormData.tarifa_tiempo_dia}
+                      onChange={(e) => setProyeccionFormData({ ...proyeccionFormData, tarifa_tiempo_dia: e.target.value })}
+                      placeholder="20000"
+                      className="w-full border border-blue-300 rounded-lg p-2 text-xs font-mono font-bold text-slate-800 bg-white"
+                    />
+                  </div>
+                  {(() => {
+                    const selP = partidasList.find(x => x.partida === proyeccionFormData.partida);
+                    if (!selP) return null;
+                    const cant = parseFloat(selP.cantidad) || 0;
+                    const rend = parseFloat(selP.rendimiento_meta || selP.rendimiento) || 10;
+                    const dias = rend > 0 ? (cant / rend) : 1;
+                    const tarifa = parseFloat(proyeccionFormData.tarifa_tiempo_dia) || 0;
+                    const total = Math.round(dias * tarifa);
+                    return (
+                      <div className="text-[11px] text-blue-950 font-bold bg-white p-2.5 rounded-lg border border-blue-200 space-y-1">
+                        <p>⏱️ Duración Calculada: <span className="font-mono text-blue-900">{dias.toFixed(1)} Días hábiles</span></p>
+                        <p>💰 Costo Proyectado Total: <span className="font-mono text-emerald-800">${total.toLocaleString('es-CL')}</span></p>
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : (
+                <div className="bg-amber-50/80 p-3.5 rounded-xl border border-amber-300 space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-amber-900 mb-1">Nombre Insumo</label>
+                      <input
+                        type="text"
+                        required
+                        value={proyeccionFormData.nombre_item}
+                        onChange={(e) => setProyeccionFormData({ ...proyeccionFormData, nombre_item: e.target.value })}
+                        placeholder="Ej. Sacos de Cemento"
+                        className="w-full border border-amber-300 rounded-lg p-2 text-xs text-slate-800 bg-white font-semibold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-amber-900 mb-1">Unidad Insumo</label>
+                      <input
+                        type="text"
+                        required
+                        value={proyeccionFormData.unidad_insumo}
+                        onChange={(e) => setProyeccionFormData({ ...proyeccionFormData, unidad_insumo: e.target.value })}
+                        placeholder="Saco / Litro / Kg"
+                        className="w-full border border-amber-300 rounded-lg p-2 text-xs text-slate-800 bg-white font-semibold"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-amber-900 mb-1">Tasa Rendimiento / Consumo</label>
+                      <input
+                        type="number"
+                        step="any"
+                        required
+                        value={proyeccionFormData.tasa_rendimiento_insumo}
+                        onChange={(e) => setProyeccionFormData({ ...proyeccionFormData, tasa_rendimiento_insumo: e.target.value })}
+                        placeholder="8 (ej. 8 sacos/m3)"
+                        className="w-full border border-amber-300 rounded-lg p-2 text-xs font-mono font-bold text-slate-800 bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-amber-900 mb-1">Precio Unitario Insumo ($)</label>
+                      <input
+                        type="number"
+                        required
+                        value={proyeccionFormData.precio_unitario_insumo}
+                        onChange={(e) => setProyeccionFormData({ ...proyeccionFormData, precio_unitario_insumo: e.target.value })}
+                        placeholder="5000"
+                        className="w-full border border-amber-300 rounded-lg p-2 text-xs font-mono font-bold text-slate-800 bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  {(() => {
+                    const selP = partidasList.find(x => x.partida === proyeccionFormData.partida);
+                    if (!selP) return null;
+                    const cant = parseFloat(selP.cantidad) || 0;
+                    const tasa = parseFloat(proyeccionFormData.tasa_rendimiento_insumo) || 0;
+                    const precio = parseFloat(proyeccionFormData.precio_unitario_insumo) || 0;
+                    const consumoTotal = cant * tasa;
+                    const total = Math.round(consumoTotal * precio);
+                    return (
+                      <div className="text-[11px] text-amber-950 font-bold bg-white p-2.5 rounded-lg border border-amber-200 space-y-1">
+                        <p>📦 Consumo Total Insumo: <span className="font-mono text-amber-900">{consumoTotal.toLocaleString('es-CL')} {proyeccionFormData.unidad_insumo}</span></p>
+                        <p>💰 Costo Proyectado Total: <span className="font-mono text-emerald-800">${total.toLocaleString('es-CL')}</span></p>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="w-full bg-blue-900 hover:bg-blue-800 text-white font-bold py-2.5 rounded-xl shadow-xs text-xs cursor-pointer transition flex items-center justify-center gap-1.5"
+              >
+                <span>Guardar Proyección de Gastos</span>
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nombre / Concepto del Costo <span className="text-red-500">*</span></label>
                 <input
