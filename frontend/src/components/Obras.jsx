@@ -3345,72 +3345,85 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     onDragStart={(e) => e.dataTransfer.setData('text/plain', idx)}
     onDragOver={(e) => e.preventDefault()}
     onDrop={(e) => { e.preventDefault(); const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10); if (!isNaN(fromIdx)) handleReorderPartidaObra(fromIdx, idx); }}
-    className="bg-slate-800 text-white font-extrabold border-y-2 border-slate-900 cursor-grab active:cursor-grabbing"
+    className="bg-amber-50/80 hover:bg-amber-100/70 border-l-4 border-amber-500 border-y border-amber-200/80 transition cursor-grab active:cursor-grabbing shadow-xs"
   >
-                                <td colSpan="5" className="p-3 text-xs uppercase tracking-wider flex items-center gap-2">
-                                  <span className="text-amber-400">📁 CAPÍTULO / GRUPO:</span>
-                                  <span className="text-white font-black text-sm">{p.partida}</span>
-                                </td>
-                                <td className="p-3 font-mono font-black text-amber-300 text-xs">
-                                  ${groupSum.toLocaleString('es-CL')}
-                                </td>
-                                <td className="p-3 text-center">
-                                  <div className="flex items-center justify-center gap-1">
-                                    <button
-                                      type="button"
-                                      disabled={idx === 0}
-                                      onClick={() => handleReorderPartidaObra(idx, idx - 1)}
-                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
-                                      title="Mover arriba"
-                                    >
-                                      ▲
-                                    </button>
-                                    <button
-                                      type="button"
-                                      disabled={idx === partidasList.length - 1}
-                                      onClick={() => handleReorderPartidaObra(idx, idx + 1)}
-                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
-                                      title="Mover abajo"
-                                    >
-                                      ▼
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        setEditingPartida(p);
-                                        setPartidaFormData({
-                                          partida: p.partida,
-                                          unidad: 'TITULO',
-                                          cantidad: 0,
-                                          pu: 0,
-                                          rendimiento: '0',
-                                          unidad_tiempo: 'Día',
-                                          grupo: p.grupo || 'General',
-                                          es_titulo: true
-                                        });
-                                        setShowPartidaModal(true);
-                                      }}
-                                      className="p-1 text-slate-300 hover:text-white transition cursor-pointer"
-                                      title="Editar Título"
-                                    >
-                                      <Edit className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      onClick={async () => {
-                                        if (!confirm(`¿Eliminar el título "${p.partida}"?`)) return;
-                                        try {
-                                          if (p.id) {
-                                            await supabase.from('partidas_obra').delete().eq('id', p.id);
-                                          } else {
-                                            await supabase.from('partidas_obra').delete().eq('obra_nombre', selectedObra?.nombre).eq('partida', p.partida);
-                                          }
-                                          setPartidasList(prev => prev.filter((_, i) => i !== idx));
-                                        } catch (err) { alert('Error: ' + err.message); }
-                                      }}
-                                      className="p-1 text-rose-300 hover:text-rose-100 transition cursor-pointer"
-                                      title="Eliminar Título"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
+                                <td colSpan="7" className="p-3">
+                                  <div className="flex flex-wrap items-center justify-between gap-3 w-full">
+                                    <div className="flex items-center gap-2">
+                                      <span className="bg-amber-200/80 text-amber-950 font-black text-[10px] px-2 py-0.5 rounded uppercase tracking-wider border border-amber-300">
+                                        📁 CAPÍTULO / GRUPO
+                                      </span>
+                                      <span className="text-slate-900 font-extrabold text-xs uppercase tracking-wide">
+                                        {p.partida}
+                                      </span>
+                                    </div>
+
+                                    <div className="flex items-center gap-4">
+                                      <div className="flex items-center gap-1.5 bg-white px-3 py-1 rounded-lg border border-amber-300 shadow-2xs">
+                                        <span className="text-[10px] font-bold text-slate-500 uppercase">Subtotal Capítulo:</span>
+                                        <span className="font-mono font-black text-emerald-800 text-xs">
+                                          ${groupSum.toLocaleString('es-CL')}
+                                        </span>
+                                      </div>
+
+                                      <div className="flex items-center gap-1">
+                                        <button
+                                          type="button"
+                                          disabled={idx === 0}
+                                          onClick={() => handleReorderPartidaObra(idx, idx - 1)}
+                                          className="p-1 text-slate-500 hover:text-slate-900 disabled:opacity-30 cursor-pointer font-bold"
+                                          title="Mover arriba"
+                                        >
+                                          ▲
+                                        </button>
+                                        <button
+                                          type="button"
+                                          disabled={idx === partidasList.length - 1}
+                                          onClick={() => handleReorderPartidaObra(idx, idx + 1)}
+                                          className="p-1 text-slate-500 hover:text-slate-900 disabled:opacity-30 cursor-pointer font-bold"
+                                          title="Mover abajo"
+                                        >
+                                          ▼
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            setEditingPartida(p);
+                                            setPartidaFormData({
+                                              partida: p.partida,
+                                              unidad: 'TITULO',
+                                              cantidad: 0,
+                                              pu: 0,
+                                              rendimiento: '0',
+                                              unidad_tiempo: 'Día',
+                                              grupo: p.grupo || 'General',
+                                              es_titulo: true
+                                            });
+                                            setShowPartidaModal(true);
+                                          }}
+                                          className="p-1 text-slate-600 hover:text-blue-900 transition cursor-pointer"
+                                          title="Editar Título"
+                                        >
+                                          <Edit className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          onClick={async () => {
+                                            if (!confirm(`¿Eliminar el capítulo "${p.partida}"?`)) return;
+                                            try {
+                                              if (p.id) {
+                                                await supabase.from('partidas_obra').delete().eq('id', p.id);
+                                              } else {
+                                                await supabase.from('partidas_obra').delete().eq('obra_nombre', selectedObra?.nombre).eq('partida', p.partida);
+                                              }
+                                              setPartidasList(prev => prev.filter((_, i) => i !== idx));
+                                            } catch (err) { alert('Error: ' + err.message); }
+                                          }}
+                                          className="p-1 text-slate-600 hover:text-red-700 transition cursor-pointer"
+                                          title="Eliminar Capítulo"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    </div>
                                   </div>
                                 </td>
                               </tr>

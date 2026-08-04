@@ -1313,14 +1313,18 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
 
           if (matchObra) {
             await supabase.from('partidas_obra').delete().eq('obra_nombre', matchObra.nombre);
-            const partidasObraPayload = itemsPresupuesto.map(it => ({
-              obra_nombre: matchObra.nombre,
-              partida: it.partida || it.descripcion || it.nombre || 'Partida Presupuestada',
-              unidad: it.unidad || 'UND',
-              cantidad: parseFloat(it.cantidad) || 0,
-              pu: parseFloat(it.costo_unitario || it.pu) || 0,
-              rendimiento: it.rendimiento_meta || '10'
-            }));
+            const partidasObraPayload = itemsPresupuesto.map(it => {
+              const isCap = isChapterRow(it, itemsPresupuesto);
+              return {
+                obra_nombre: matchObra.nombre,
+                partida: it.partida || it.descripcion || it.nombre || 'Partida Presupuestada',
+                unidad: isCap ? 'TITULO' : (it.unidad || 'UND'),
+                cantidad: isCap ? 0 : (parseFloat(it.cantidad) || 0),
+                cantidad_presupuestada: isCap ? 0 : (parseFloat(it.cantidad) || 0),
+                costo_por_dia: isCap ? 0 : (parseFloat(it.costo_unitario || it.pu) || 0),
+                rendimiento_meta: isCap ? 0 : (parseFloat(it.rendimiento_meta || it.rendimiento) || 10)
+              };
+            });
             await supabase.from('partidas_obra').insert(partidasObraPayload);
           }
         }
