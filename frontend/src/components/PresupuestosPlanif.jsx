@@ -1083,12 +1083,12 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
   };
 
   const getChapterSum = (chapterId, list, isProrated = false, factor = 1) => {
-    const idx = list.findIndex(x => x.id === chapterId || x.codigo === chapterId);
+    const idx = list.findIndex(x => (x.id && chapterId && x.id.toString() === chapterId.toString()) || (x.codigo && chapterId && x.codigo === chapterId));
     if (idx === -1) return 0;
     let sum = 0;
     for (let i = idx + 1; i < list.length; i++) {
       const item = list[i];
-      if (isChapterRow(item, list)) break; // Detenerse al encontrar el siguiente Título
+      if (isChapterRow(item, list)) break; // Se detiene al encontrar el siguiente Título
       const qty = parseFloat(item.cantidad) || 0;
       const directPrice = parseFloat(item.costo_unitario) || 0;
       const price = isProrated ? Math.round(directPrice * factor) : directPrice;
@@ -3172,7 +3172,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                               const effectivePriceInDisplay = convertCurrency(effectivePriceInBase, projectBaseCurrency, displayCurrency);
                               
                               const chapterSumInBase = isChapter 
-                                ? getChapterSum(item.codigo, itemsPresupuesto, isProratedActive, prorateFactor) 
+                                ? getChapterSum(item.id || item.codigo, itemsPresupuesto, isProratedActive, prorateFactor) 
                                 : 0;
                               const chapterSumInDisplay = convertCurrency(chapterSumInBase, projectBaseCurrency, displayCurrency);
 

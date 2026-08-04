@@ -534,12 +534,18 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [partidasList, setPartidasList] = useState([]);
   const handleReorderPartidaObra = (fromIdx, toIdx) => {
     if (fromIdx === toIdx || toIdx < 0 || toIdx >= partidasList.length) return;
-    setPartidasList(prev => {
-      const updated = [...prev];
-      const [movedItem] = updated.splice(fromIdx, 1);
-      updated.splice(toIdx, 0, movedItem);
-      return updated;
-    });
+    const updated = [...partidasList];
+    const [movedItem] = updated.splice(fromIdx, 1);
+    updated.splice(toIdx, 0, movedItem);
+    setPartidasList(updated);
+
+    const obraName = selectedObra?.nombre;
+    if (obraName) {
+      try {
+        const orderNames = updated.map(p => p.partida);
+        localStorage.setItem(`obraxis_obra_partidas_order_${obraName}`, JSON.stringify(orderNames));
+      } catch (e) {}
+    }
   };
 
 
@@ -817,12 +823,29 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     // 3. Cargar partidas de obra
     try {
       const { data: listPart } = await supabase.from('partidas_obra').select('*').eq('obra_nombre', obraNombre);
-      const normalizedListPart = (listPart || []).map(p => ({
+      let normalizedListPart = (listPart || []).map(p => ({
         ...p,
         cantidad: parseFloat(p.cantidad_presupuestada !== undefined && p.cantidad_presupuestada !== null ? p.cantidad_presupuestada : p.cantidad) || 0,
         pu: parseFloat(p.costo_por_dia !== undefined && p.costo_por_dia !== null ? p.costo_por_dia : p.pu) || 0,
         rendimiento: p.rendimiento_meta || p.rendimiento || '10'
       }));
+
+      // Respetar orden guardado en memoria local para esta obra
+      try {
+        const savedOrderStr = localStorage.getItem(`obraxis_obra_partidas_order_${obraNombre}`);
+        if (savedOrderStr) {
+          const savedNames = JSON.parse(savedOrderStr);
+          normalizedListPart.sort((a, b) => {
+            const idxA = savedNames.indexOf(a.partida);
+            const idxB = savedNames.indexOf(b.partida);
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+            if (idxA !== -1) return -1;
+            if (idxB !== -1) return 1;
+            return 0;
+          });
+        }
+      } catch (e) {}
+
       setPartidasList(normalizedListPart);
     } catch (e) {
       console.warn('Aviso partidas:', e);
