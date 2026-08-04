@@ -270,6 +270,20 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
 
   // Estados del Presupuesto (Crear/Detalle)
   const [itemsPresupuesto, setItemsPresupuesto] = useState([]);
+  const handleReorderBudgetItem = (fromIdx, toIdx) => {
+    if (fromIdx === toIdx || toIdx < 0 || toIdx >= itemsPresupuesto.length) return;
+    setItemsPresupuesto(prev => {
+      const updated = [...prev];
+      const [movedItem] = updated.splice(fromIdx, 1);
+      updated.splice(toIdx, 0, movedItem);
+      if (selectedProyectoId) {
+        try { localStorage.setItem(`obraxis_presupuesto_items_${selectedProyectoId}`, JSON.stringify(updated)); } catch (e) {}
+      }
+      return updated;
+    });
+  };
+
+
   const [budgetLoading, setBudgetLoading] = useState(false);
   const [debugErrorMsg, setDebugErrorMsg] = useState('');
   const [debugStatusMsg, setDebugStatusMsg] = useState('');
@@ -3172,7 +3186,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                               return (
                                 <tr 
                                   key={item.id}
-                                  className={`transition ${isChapter ? 'bg-slate-100/80 font-bold' : 'hover:bg-slate-50/40'}`}
+                                  draggable={true} onDragStart={(e) => e.dataTransfer.setData('text/plain', itemsPresupuesto.findIndex(x => x.id === item.id))} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10); const toIdx = itemsPresupuesto.findIndex(x => x.id === item.id); if (!isNaN(fromIdx)) handleReorderBudgetItem(fromIdx, toIdx); }} className={`transition cursor-grab active:cursor-grabbing ${isChapter ? 'bg-slate-100/80 font-bold' : 'hover:bg-slate-50/40'}`}
                                 >
                                   <td className="p-2">
                                     <input

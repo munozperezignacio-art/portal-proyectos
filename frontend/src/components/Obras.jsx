@@ -532,6 +532,17 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [personalList, setPersonalList] = useState([]);
   const [maquinariaList, setMaquinariaList] = useState([]);
   const [partidasList, setPartidasList] = useState([]);
+  const handleReorderPartidaObra = (fromIdx, toIdx) => {
+    if (fromIdx === toIdx || toIdx < 0 || toIdx >= partidasList.length) return;
+    setPartidasList(prev => {
+      const updated = [...prev];
+      const [movedItem] = updated.splice(fromIdx, 1);
+      updated.splice(toIdx, 0, movedItem);
+      return updated;
+    });
+  };
+
+
 
   // Cargar lista de obras
   useEffect(() => {
@@ -2184,7 +2195,14 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           {reportesAvanceList.map((r, idx) => {
                             const fechaStr = r.created_at ? new Date(r.created_at).toLocaleDateString('es-CL') : 'Hoy';
                             return (
-                              <tr key={idx} className="hover:bg-slate-50">
+                              <tr 
+    key={idx} 
+    draggable={true}
+    onDragStart={(e) => e.dataTransfer.setData('text/plain', idx)}
+    onDragOver={(e) => e.preventDefault()}
+    onDrop={(e) => { e.preventDefault(); const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10); if (!isNaN(fromIdx)) handleReorderPartidaObra(fromIdx, idx); }}
+    className="hover:bg-slate-50 cursor-grab active:cursor-grabbing"
+  >
                                 <td className="p-2.5 font-mono font-bold text-slate-700">{fechaStr}</td>
                                 <td className="p-2.5 font-semibold text-slate-800">{r.supervisor || 'Supervisor'}</td>
                                 <td className="p-2.5 font-medium text-slate-600">{r.frente || 'Frente Principal'}</td>
@@ -2194,6 +2212,24 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                 {canManageRecordsAccess && (
                                   <td className="p-2.5 text-center">
                                     <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      type="button"
+                                      disabled={idx === 0}
+                                      onClick={() => handleReorderPartidaObra(idx, idx - 1)}
+                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                                      title="Mover arriba"
+                                    >
+                                      ▲
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={idx === partidasList.length - 1}
+                                      onClick={() => handleReorderPartidaObra(idx, idx + 1)}
+                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                                      title="Mover abajo"
+                                    >
+                                      ▼
+                                    </button>
                                       <button
                                         onClick={() => handleEditAvanceReport(r)}
                                         className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition cursor-pointer"
@@ -2381,6 +2417,24 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                   {canManageRecordsAccess && (
                                     <td className="p-2.5 text-center">
                                       <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      type="button"
+                                      disabled={idx === 0}
+                                      onClick={() => handleReorderPartidaObra(idx, idx - 1)}
+                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                                      title="Mover arriba"
+                                    >
+                                      ▲
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={idx === partidasList.length - 1}
+                                      onClick={() => handleReorderPartidaObra(idx, idx + 1)}
+                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                                      title="Mover abajo"
+                                    >
+                                      ▼
+                                    </button>
                                         <button
                                           onClick={() => handleEditAsistenciaRecord(a)}
                                           className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition cursor-pointer"
@@ -2525,6 +2579,24 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             {canManageRecordsAccess && (
                               <td className="p-2.5 text-center">
                                 <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      type="button"
+                                      disabled={idx === 0}
+                                      onClick={() => handleReorderPartidaObra(idx, idx - 1)}
+                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                                      title="Mover arriba"
+                                    >
+                                      ▲
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={idx === partidasList.length - 1}
+                                      onClick={() => handleReorderPartidaObra(idx, idx + 1)}
+                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                                      title="Mover abajo"
+                                    >
+                                      ▼
+                                    </button>
                                   <button
                                     onClick={() => handleEditWorkerFromObra(p)}
                                     className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition cursor-pointer"
@@ -2765,6 +2837,24 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                               {canManageRecordsAccess && (
                                 <td className="p-2 text-center">
                                   <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      type="button"
+                                      disabled={idx === 0}
+                                      onClick={() => handleReorderPartidaObra(idx, idx - 1)}
+                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                                      title="Mover arriba"
+                                    >
+                                      ▲
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={idx === partidasList.length - 1}
+                                      onClick={() => handleReorderPartidaObra(idx, idx + 1)}
+                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                                      title="Mover abajo"
+                                    >
+                                      ▼
+                                    </button>
                                     <button
                                       onClick={() => handleEditArriendo(a)}
                                       className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition cursor-pointer"
@@ -3213,7 +3303,14 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             }
 
                             return (
-                              <tr key={idx} className="bg-slate-800 text-white font-extrabold border-y-2 border-slate-900">
+                              <tr 
+    key={idx} 
+    draggable={true}
+    onDragStart={(e) => e.dataTransfer.setData('text/plain', idx)}
+    onDragOver={(e) => e.preventDefault()}
+    onDrop={(e) => { e.preventDefault(); const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10); if (!isNaN(fromIdx)) handleReorderPartidaObra(fromIdx, idx); }}
+    className="bg-slate-800 text-white font-extrabold border-y-2 border-slate-900 cursor-grab active:cursor-grabbing"
+  >
                                 <td colSpan="5" className="p-3 text-xs uppercase tracking-wider flex items-center gap-2">
                                   <span className="text-amber-400">📁 CAPÍTULO / GRUPO:</span>
                                   <span className="text-white font-black text-sm">{p.partida}</span>
@@ -3223,6 +3320,24 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                 </td>
                                 <td className="p-3 text-center">
                                   <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      type="button"
+                                      disabled={idx === 0}
+                                      onClick={() => handleReorderPartidaObra(idx, idx - 1)}
+                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                                      title="Mover arriba"
+                                    >
+                                      ▲
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={idx === partidasList.length - 1}
+                                      onClick={() => handleReorderPartidaObra(idx, idx + 1)}
+                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                                      title="Mover abajo"
+                                    >
+                                      ▼
+                                    </button>
                                     <button
                                       onClick={() => {
                                         setEditingPartida(p);
@@ -3291,6 +3406,24 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                               </td>
                               <td className="p-2.5 text-center">
                                 <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      type="button"
+                                      disabled={idx === 0}
+                                      onClick={() => handleReorderPartidaObra(idx, idx - 1)}
+                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                                      title="Mover arriba"
+                                    >
+                                      ▲
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={idx === partidasList.length - 1}
+                                      onClick={() => handleReorderPartidaObra(idx, idx + 1)}
+                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                                      title="Mover abajo"
+                                    >
+                                      ▼
+                                    </button>
                                   <button
                                     onClick={() => {
                                       setEditingPartida(p);
@@ -3612,6 +3745,24 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             </td>
                             <td className="p-2.5 text-center">
                               <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      type="button"
+                                      disabled={idx === 0}
+                                      onClick={() => handleReorderPartidaObra(idx, idx - 1)}
+                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                                      title="Mover arriba"
+                                    >
+                                      ▲
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={idx === partidasList.length - 1}
+                                      onClick={() => handleReorderPartidaObra(idx, idx + 1)}
+                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                                      title="Mover abajo"
+                                    >
+                                      ▼
+                                    </button>
                                 <button
                                   onClick={() => {
                                     setEditingCosto(c);
@@ -5120,7 +5271,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
             <div className="flex justify-between items-center mb-3 border-b pb-2">
               <h3 className="font-extrabold text-slate-800 text-sm">
-                {editingPartida ? 'Editar Partida' : 'Crear Nueva Partida de Obra'}
+                {partidaFormData.es_titulo || partidaFormData.unidad === 'TITULO' ? '📁 Insertar Título / Capítulo de Obra' : (editingPartida ? 'Editar Partida de Obra' : 'Crear Nueva Partida de Obra')}
               </h3>
               <button onClick={() => setShowPartidaModal(false)} className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer">✕</button>
             </div>
@@ -5287,7 +5438,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 disabled={modalLoading}
                 className="w-full bg-emerald-800 hover:bg-emerald-900 text-white font-bold py-2.5 rounded-xl shadow-xs text-xs cursor-pointer transition flex items-center justify-center gap-1.5"
               >
-                {modalLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Guardar Partida de Obra</span>}
+                {modalLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>{partidaFormData.es_titulo || partidaFormData.unidad === 'TITULO' ? 'Guardar Título / Capítulo' : 'Guardar Partida de Obra'}</span>}
               </button>
             </form>
           </div>
