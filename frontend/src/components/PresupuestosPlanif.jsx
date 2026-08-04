@@ -1082,19 +1082,19 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
     return list.some(other => other.codigo && other.codigo !== item.codigo && other.codigo.startsWith(item.codigo + '.'));
   };
 
-  const getChapterSum = (chapterCode, list, isProrated = false, factor = 1) => {
-    return list
-      .filter(item => {
-        if (!item.codigo || item.codigo === chapterCode) return false;
-        const starts = item.codigo.startsWith(chapterCode + '.');
-        return starts && !isChapterRow(item, list);
-      })
-      .reduce((sum, item) => {
-        const qty = parseFloat(item.cantidad) || 0;
-        const directPrice = parseFloat(item.costo_unitario) || 0;
-        const price = isProrated ? Math.round(directPrice * factor) : directPrice;
-        return sum + (qty * price);
-      }, 0);
+  const getChapterSum = (chapterId, list, isProrated = false, factor = 1) => {
+    const idx = list.findIndex(x => x.id === chapterId || x.codigo === chapterId);
+    if (idx === -1) return 0;
+    let sum = 0;
+    for (let i = idx + 1; i < list.length; i++) {
+      const item = list[i];
+      if (isChapterRow(item, list)) break; // Detenerse al encontrar el siguiente Título
+      const qty = parseFloat(item.cantidad) || 0;
+      const directPrice = parseFloat(item.costo_unitario) || 0;
+      const price = isProrated ? Math.round(directPrice * factor) : directPrice;
+      sum += (qty * price);
+    }
+    return sum;
   };
 
   // --- ACCIONES PRESUPUESTO (CREAR) ---
@@ -1120,7 +1120,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
       costo_unitario: 0,
       rendimiento_meta: 0
     };
-    const updatedList = [...itemsPresupuesto, newRow];
+    const updatedList = [newRow, ...itemsPresupuesto];
     setItemsPresupuesto(updatedList);
     if (selectedProyectoId) {
       try { localStorage.setItem(`obraxis_presupuesto_items_${selectedProyectoId}`, JSON.stringify(updatedList)); } catch (e) {}
@@ -1363,7 +1363,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
         // Convertir de Moneda Base a Moneda de Visualización
         const effectivePriceInDisplay = convertCurrency(effectivePriceInBase, projectBaseCurrency, displayCurrency);
 
-        const chapterSumInBase = isChapter ? getChapterSum(item.codigo, itemsPresupuesto, isProratedActive, prorateFactor) : 0;
+        const chapterSumInBase = isChapter ? getChapterSum(item.id, itemsPresupuesto, isProratedActive, prorateFactor) : 0;
         const chapterSumInDisplay = convertCurrency(chapterSumInBase, projectBaseCurrency, displayCurrency);
 
         const importeInDisplay = isChapter 

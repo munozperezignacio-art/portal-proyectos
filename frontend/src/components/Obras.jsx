@@ -5333,7 +5333,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                       if (insErr) throw insErr;
                       if (insData) savedPart = { ...insData, cantidad: cantVal, pu: puVal };
                     }
-                    setPartidasList(prev => [...prev, savedPart]);
+                    setPartidasList(prev => (dbPayload.unidad === 'TITULO' || partidaFormData.es_titulo) ? [savedPart, ...prev] : [...prev, savedPart]);
                   }
 
                   if (partidaFormData.pu !== undefined && partidaFormData.pu !== '') {
