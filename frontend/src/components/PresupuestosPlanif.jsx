@@ -840,11 +840,24 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
         if (!exists) combined.push(loc);
       });
 
-      const sorted = combined.sort((a, b) => {
-        const codA = a.codigo || '';
-        const codB = b.codigo || '';
-        return codA.localeCompare(codB, undefined, { numeric: true, sensitivity: 'base' });
-      });
+      // Preservar el orden exacto de filas definido por el usuario
+      let sorted = [...combined];
+      try {
+        const savedOrderStr = localStorage.getItem(`obraxis_presupuesto_order_${projId}`);
+        if (savedOrderStr) {
+          const savedIdsOrNames = JSON.parse(savedOrderStr);
+          sorted.sort((a, b) => {
+            const idA = (a.id || a.codigo || a.partida || '').toString();
+            const idB = (b.id || b.codigo || b.partida || '').toString();
+            const idxA = savedIdsOrNames.indexOf(idA);
+            const idxB = savedIdsOrNames.indexOf(idB);
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+            if (idxA !== -1) return -1;
+            if (idxB !== -1) return 1;
+            return 0;
+          });
+        }
+      } catch (e) {}
 
       setItemsPresupuesto(sorted);
       try { localStorage.setItem(localKey, JSON.stringify(sorted)); } catch (e) {}
@@ -1144,7 +1157,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
     const updatedList = [newRow, ...itemsPresupuesto];
     setItemsPresupuesto(updatedList);
     if (selectedProyectoId) {
-      try { localStorage.setItem(`obraxis_presupuesto_items_${selectedProyectoId}`, JSON.stringify(updatedList)); } catch (e) {}
+      try { localStorage.setItem(`obraxis_presupuesto_items_${selectedProyectoId}`, JSON.stringify(updatedList)); localStorage.setItem(`obraxis_presupuesto_order_${selectedProyectoId}`, JSON.stringify(updatedList.map(x => (x.id || x.codigo || x.partida || '').toString()))); } catch (e) {}
     }
   };
 
@@ -1226,7 +1239,11 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
     try {
       // 1. Guardado síncrono e inmediato en memoria local
       const localKey = `obraxis_presupuesto_items_${selectedProyectoId}`;
-      try { localStorage.setItem(localKey, JSON.stringify(itemsPresupuesto)); } catch (e) {}
+      try { 
+        localStorage.setItem(localKey, JSON.stringify(itemsPresupuesto));
+        const orderIds = itemsPresupuesto.map(x => (x.id || x.codigo || x.partida || '').toString());
+        localStorage.setItem(`obraxis_presupuesto_order_${selectedProyectoId}`, JSON.stringify(orderIds));
+      } catch (e) {}
 
       const cleanDbPayload = (p) => ({
         presupuesto_id: parseInt(selectedProyectoId, 10) || selectedProyectoId,

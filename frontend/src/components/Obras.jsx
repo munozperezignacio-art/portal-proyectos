@@ -5369,7 +5369,16 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                       if (insErr) throw insErr;
                       if (insData) savedPart = { ...insData, cantidad: cantVal, pu: puVal };
                     }
-                    setPartidasList(prev => (dbPayload.unidad === 'TITULO' || partidaFormData.es_titulo) ? [savedPart, ...prev] : [...prev, savedPart]);
+                    setPartidasList(prev => {
+                      const updated = (dbPayload.unidad === 'TITULO' || partidaFormData.es_titulo) ? [savedPart, ...prev] : [...prev, savedPart];
+                      if (selectedObra?.nombre) {
+                        try {
+                          const orderNames = updated.map(p => p.partida);
+                          localStorage.setItem(`obraxis_obra_partidas_order_${selectedObra.nombre}`, JSON.stringify(orderNames));
+                        } catch (e) {}
+                      }
+                      return updated;
+                    });
                   }
 
                   if (partidaFormData.pu !== undefined && partidaFormData.pu !== '') {
