@@ -271,6 +271,8 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
   // Estados del Presupuesto (Crear/Detalle)
   const [itemsPresupuesto, setItemsPresupuesto] = useState([]);
   const [budgetLoading, setBudgetLoading] = useState(false);
+  const [debugErrorMsg, setDebugErrorMsg] = useState('');
+  const [debugStatusMsg, setDebugStatusMsg] = useState('');
 
   // Estados de Planificación
   const [cronograma, setCronograma] = useState([]);
@@ -1244,10 +1246,14 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
       }
 
       setSuccessMsg('Presupuesto guardado exitosamente. Partidas vinculadas a Planificación y Avances de Obra.');
+      setDebugStatusMsg('✅ Guardado exitoso a las ' + new Date().toLocaleTimeString());
+      setDebugErrorMsg('');
       await fetchBudgetItems(selectedProyectoId);
       await fetchCronograma(selectedProyectoId);
     } catch (err) {
+      console.error('Error capturado en guardado:', err);
       setErrorMsg('Error al guardar presupuesto: ' + err.message);
+      setDebugErrorMsg('❌ ERROR EN SUPABASE/GUARDADO: ' + (err.message || JSON.stringify(err)));
     } finally {
       setBudgetLoading(false);
     }
