@@ -3255,13 +3255,13 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   <button
                     onClick={() => {
                       setEditingPartida(null);
-                      setPartidaFormData({ partida: 'NUEVO CAPÍTULO / GRUPO', unidad: 'TITULO', cantidad: 0, pu: 0, rendimiento: '0', unidad_tiempo: 'Día', grupo: 'General', es_titulo: true });
+                      setPartidaFormData({ partida: 'NUEVO GRUPO', unidad: 'TITULO', cantidad: 0, pu: 0, rendimiento: '0', unidad_tiempo: 'Día', grupo: 'General', es_titulo: true });
                       setShowPartidaModal(true);
                     }}
                     className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
                   >
                     <FolderPlus className="w-4 h-4 text-slate-900" />
-                    <span>📁 + Insertar Título / Capítulo</span>
+                    <span>+ Insertar Título o Grupo</span>
                   </button>
                   <button
                     onClick={() => {
@@ -3351,7 +3351,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                   <div className="flex flex-wrap items-center justify-between gap-3 w-full">
                                     <div className="flex items-center gap-2">
                                       <span className="bg-amber-200/80 text-amber-950 font-black text-[10px] px-2 py-0.5 rounded uppercase tracking-wider border border-amber-300">
-                                        📁 CAPÍTULO / GRUPO
+                                        📁 GRUPO
                                       </span>
                                       <span className="text-slate-900 font-extrabold text-xs uppercase tracking-wide">
                                         {p.partida}
@@ -3360,7 +3360,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
                                     <div className="flex items-center gap-4">
                                       <div className="flex items-center gap-1.5 bg-white px-3 py-1 rounded-lg border border-amber-300 shadow-2xs">
-                                        <span className="text-[10px] font-bold text-slate-500 uppercase">Subtotal Capítulo:</span>
+                                        <span className="text-[10px] font-bold text-slate-500 uppercase">Subtotal Grupo:</span>
                                         <span className="font-mono font-black text-emerald-800 text-xs">
                                           ${groupSum.toLocaleString('es-CL')}
                                         </span>
@@ -3407,7 +3407,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                         </button>
                                         <button
                                           onClick={async () => {
-                                            if (!confirm(`¿Eliminar el capítulo "${p.partida}"?`)) return;
+                                            if (!confirm(`¿Eliminar el grupo "${p.partida}"?`)) return;
                                             try {
                                               if (p.id) {
                                                 await supabase.from('partidas_obra').delete().eq('id', p.id);
@@ -3418,7 +3418,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                             } catch (err) { alert('Error: ' + err.message); }
                                           }}
                                           className="p-1 text-slate-600 hover:text-red-700 transition cursor-pointer"
-                                          title="Eliminar Capítulo"
+                                          title="Eliminar Grupo"
                                         >
                                           <Trash2 className="w-3.5 h-3.5" />
                                         </button>
@@ -5320,7 +5320,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
             <div className="flex justify-between items-center mb-3 border-b pb-2">
               <h3 className="font-extrabold text-slate-800 text-sm">
-                {partidaFormData.es_titulo || partidaFormData.unidad === 'TITULO' ? '📁 Insertar Título / Capítulo de Obra' : (editingPartida ? 'Editar Partida de Obra' : 'Crear Nueva Partida de Obra')}
+                {partidaFormData.es_titulo || partidaFormData.unidad === 'TITULO' ? '📁 Insertar Título o Grupo de Obra' : (editingPartida ? 'Editar Partida de Obra' : 'Crear Nueva Partida de Obra')}
               </h3>
               <button onClick={() => setShowPartidaModal(false)} className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer">✕</button>
             </div>
@@ -5423,10 +5423,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
               {partidaFormData.es_titulo || partidaFormData.unidad === 'TITULO' ? (
                 <div className="bg-amber-50 p-3.5 rounded-xl border border-amber-300 space-y-1.5">
                   <span className="text-xs font-black text-amber-950 flex items-center gap-1.5">
-                    📁 Configuración de Encabezado / Título de Capítulo
+                    📁 Configuración de Encabezado / Título de Grupo
                   </span>
                   <p className="text-[11px] text-amber-900 font-semibold leading-relaxed">
-                    Este registro se desplegará como una franja de capítulo destacada en la tabla. Todas las partidas colocadas por debajo pertenecerán automáticamente a este capítulo.
+                    Este registro se desplegará como una franja de grupo destacada en la tabla. Todas las partidas colocadas por debajo pertenecerán automáticamente a este capítulo.
                   </p>
                 </div>
               ) : (
@@ -5509,7 +5509,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 disabled={modalLoading}
                 className="w-full bg-emerald-800 hover:bg-emerald-900 text-white font-bold py-2.5 rounded-xl shadow-xs text-xs cursor-pointer transition flex items-center justify-center gap-1.5"
               >
-                {modalLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>{partidaFormData.es_titulo || partidaFormData.unidad === 'TITULO' ? 'Guardar Título / Capítulo' : 'Guardar Partida de Obra'}</span>}
+                {modalLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>{partidaFormData.es_titulo || partidaFormData.unidad === 'TITULO' ? 'Guardar Título o Grupo' : 'Guardar Partida de Obra'}</span>}
               </button>
             </form>
           </div>
