@@ -4529,15 +4529,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setShowProyeccionMasivaRrhhModal(true);
-                                }}
-                                className="bg-indigo-900 hover:bg-indigo-800 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs border border-indigo-700"
-                              >
-                                <span>⚡ Asignación Masiva H.E. & Asignaciones</span>
-                              </button>
+                              
                               <div className="bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 flex items-center gap-2">
                                 <div className="text-right">
                                   <span className="text-[9px] font-bold text-slate-500 uppercase block">SUBTOTAL PROYECTADO PERSONAL (COSTO EMPRESA):</span>
@@ -4548,7 +4540,9 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             </div>
                           </div>
 
-                          {/* TABLA DE ASIGNACIONES Y BONOS POR PERÍODOS (RANGOS DE FECHA) */}
+                          {isPersonalCollapseOpen && (
+        <div className="space-y-4 pt-2">
+          {/* TABLA DE ASIGNACIONES Y BONOS POR PERÍODOS (RANGOS DE FECHA) */}
                           <div className="mt-4 bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-200 pb-2">
                               <div>
@@ -4661,7 +4655,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             </div>
                           </div>
 
-                          {isPersonalCollapseOpen && (
+                          
                             <div className="pt-2">
                               {workersArray.length === 0 ? (
                                 <div className="p-4 text-center bg-slate-50 rounded-xl space-y-2">
@@ -4679,7 +4673,47 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                             <span className="text-[9px] font-bold bg-blue-100 text-blue-900 px-2 py-0.5 rounded uppercase">
                                               {w.cargo}
                                             </span>
-                                            
+                                          </div>
+                                        </div>
+                                        
+                                        {/* FECHAS DE VIGENCIA DE ASIGNACIÓN EN OBRA */}
+                                        <div className="bg-slate-100/90 p-2 rounded-lg border border-slate-200 space-y-1">
+                                          <div className="flex justify-between items-center text-[10px] font-bold text-slate-600">
+                                            <span>📅 Período Asignación en Obra:</span>
+                                          </div>
+                                          <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+                                            <div>
+                                              <label className="text-[9px] text-slate-400 block font-semibold">Desde:</label>
+                                              <input
+                                                type="date"
+                                                value={customSalariesMap[w.nombre]?.fecha_inicio || w.fecha_inicio || fechaInicioReal || '2026-08-01'}
+                                                onChange={(e) => {
+                                                  const val = e.target.value;
+                                                  setCustomSalariesMap(prev => {
+                                                    const updated = { ...prev, [w.nombre]: { ...(prev[w.nombre] || {}), fecha_inicio: val } };
+                                                    localStorage.setItem('obraxis_custom_salaries_' + (selectedObra?.nombre || ''), JSON.stringify(updated));
+                                                    return updated;
+                                                  });
+                                                }}
+                                                className="w-full bg-white border border-slate-300 rounded px-1 py-0.5 font-mono text-[10px] font-bold text-slate-800"
+                                              />
+                                            </div>
+                                            <div>
+                                              <label className="text-[9px] text-slate-400 block font-semibold">Hasta:</label>
+                                              <input
+                                                type="date"
+                                                value={customSalariesMap[w.nombre]?.fecha_termino || w.fecha_termino || fechaTerminoEstimada || '2026-12-31'}
+                                                onChange={(e) => {
+                                                  const val = e.target.value;
+                                                  setCustomSalariesMap(prev => {
+                                                    const updated = { ...prev, [w.nombre]: { ...(prev[w.nombre] || {}), fecha_termino: val } };
+                                                    localStorage.setItem('obraxis_custom_salaries_' + (selectedObra?.nombre || ''), JSON.stringify(updated));
+                                                    return updated;
+                                                  });
+                                                }}
+                                                className="w-full bg-white border border-slate-300 rounded px-1 py-0.5 font-mono text-[10px] font-bold text-slate-800"
+                                              />
+                                            </div>
                                           </div>
                                         </div>
                                         <div className="space-y-1 text-[11px]">
@@ -4710,6 +4744,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                 </div>
                               )}
                             </div>
+                          </div>
                           )}
                         </>
                       );
