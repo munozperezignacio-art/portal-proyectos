@@ -3905,7 +3905,13 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 }, 0);
 
                 const totalProyectadoRrhhForm = proyeccionesRrhhList.reduce((acc, r) => acc + (parseFloat(r.sueldo_base || 0) + parseFloat(r.horas_extras || 0) + parseFloat(r.asignaciones || 0)), 0);
-                const totalPersonalProyectado = totalProyectadoRrhhForm > 0 ? totalProyectadoRrhhForm : Array.from(workerMapReal.values()).reduce((acc, w) => acc + (w.sueldo_base || (w.dias_estimados * w.costo_dia)), 0);
+                const totalPersonalProyectado = totalProyectadoRrhhForm > 0
+                  ? totalProyectadoRrhhForm
+                  : (personalAsignadoList || []).reduce((acc, p) => {
+                      const custom = customSalariesMap[p.nombre];
+                      const sBase = custom?.sueldo_base || parseFloat(p.sueldo_base) || (parseFloat(p.costo_dia || 40000) * 30);
+                      return acc + (parseFloat(sBase) || 1200000);
+                    }, ((personalAsignadoList && personalAsignadoList.length > 0) ? 0 : 1200000));
                 const totalCostoProyectado = totalProyectadoPartidas + totalPersonalProyectado;
                 const saldoProyectado = totalPres - totalCostoProyectado;
 
@@ -4457,7 +4463,11 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                     </div>
                                     <div className="flex justify-between items-center text-[11px]">
                                       <span className="text-slate-500 font-semibold">Tarifa Diaria:</span>
-                                      <span className="font-mono font-bold text-slate-800">${w.costo_dia.toLocaleString('es-CL')}/día</span>
+                                      <div className="text-right">
+                                      <span className="font-mono font-bold text-slate-800 text-xs font-black block">${(w.sueldo_base || (w.costo_dia * 30)).toLocaleString('es-CL')}/mes (Base)</span>
+                                      <span className="font-mono text-[10px] text-emerald-800 font-bold block">+ Leyes Soc. (25%): ${Math.round((w.sueldo_base || (w.costo_dia * 30)) * 0.25).toLocaleString('es-CL')}</span>
+                                      <span className="font-mono text-[10px] text-indigo-950 font-black block border-t border-slate-200 mt-0.5 pt-0.5">Costo Empresa: ${Math.round((w.sueldo_base || (w.costo_dia * 30)) * 1.25).toLocaleString('es-CL')}</span>
+                                    </div>
                                     </div>
                                     <div className="flex justify-between items-center text-[11px]">
                                       <span className="text-slate-500 font-semibold">Días Proyectados:</span>
