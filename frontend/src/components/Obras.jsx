@@ -349,6 +349,23 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [proyeccionesRrhhList, setProyeccionesRrhhList] = useState([]);
   const [liquidacionesList, setLiquidacionesList] = useState([]);
   const [showProyeccionRrhhModal, setShowProyeccionRrhhModal] = useState(false);
+  const [showProyeccionMasivaRrhhModal, setShowProyeccionMasivaRrhhModal] = useState(false);
+  const [showEditSueldoModal, setShowEditSueldoModal] = useState(false);
+  const [editingWorkerData, setEditingWorkerData] = useState(null);
+
+  const [fechaInicioReal, setFechaInicioReal] = useState(() => {
+    return localStorage.getItem('obraxis_fecha_inicio_real_' + (selectedObra?.nombre || '')) || new Date().toISOString().slice(0, 10);
+  });
+
+  const [proyeccionMasivaFormData, setProyeccionMasivaFormData] = useState({
+    filtro_cargo: 'TODOS',
+    he_modo: 'HORAS',
+    he_horas_dia: 2,
+    he_monto_fijo: 150000,
+    asignaciones_monto: 50000,
+    tarifa_hora_promedio: 4500,
+    dias_habiles_mes: 20
+  });
   const [showLiquidacionModal, setShowLiquidacionModal] = useState(false);
 
   const [proyeccionRrhhFormData, setProyeccionRrhhFormData] = useState({
@@ -3772,6 +3789,14 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                       </button>
                       <button
                         onClick={() => {
+                          setShowProyeccionMasivaRrhhModal(true);
+                        }}
+                        className="bg-indigo-950 hover:bg-indigo-900 text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs border border-indigo-700"
+                      >
+                        <span>⚡ Proyección Masiva (100+ Personas)</span>
+                      </button>
+                      <button
+                        onClick={() => {
                           const validWorkers = Array.from(new Set([...(personalAsignadoList || []).map(p => p.nombre), ...(asistenciaList || []).map(a => a.trabajador)])).filter(Boolean);
                           setProyeccionRrhhFormData({
                             concepto: validWorkers.length > 0 ? `Personal: ${validWorkers[0]}` : 'Cuadrilla de Terreno',
@@ -3785,7 +3810,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                         className="bg-indigo-900 hover:bg-indigo-800 text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs border border-indigo-700"
                       >
                         <Plus className="w-3.5 h-3.5" />
-                        <span>Configurar Proyección RRHH (Base + H.E. + Asignaciones)</span>
+                        <span>Configurar Proyección Individual</span>
                       </button>
                     </div>
                   )}
@@ -7027,6 +7052,231 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 className="w-full bg-emerald-800 hover:bg-emerald-900 text-white font-bold py-2.5 rounded-xl shadow-xs text-xs cursor-pointer transition flex items-center justify-center gap-1.5"
               >
                 {modalLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>{partidaFormData.es_titulo || partidaFormData.unidad === 'TITULO' ? 'Guardar Título o Grupo' : 'Guardar Partida de Obra'}</span>}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE EDICIÓN RÁPIDA DE SUELDO Y CARGO POR TRABAJADOR (EJ. SOFÍA CASTRO) */}
+      {showEditSueldoModal && editingWorkerData && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                <span>✏️ Ajustar Sueldo / Tarifa de {editingWorkerData.nombre}</span>
+              </h3>
+              <button onClick={() => setShowEditSueldoModal(false)} className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer">✕</button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const newCostoDia = parseFloat(editingWorkerData.costo_dia) || Math.round((parseFloat(editingWorkerData.sueldo_base) || 0) / 30);
+                const newSueldoBase = parseFloat(editingWorkerData.sueldo_base) || Math.round(newCostoDia * 30);
+
+                // Actualizar localState
+                setPersonalAsignadoList(prev => prev.map(p => {
+                  if (p.nombre === editingWorkerData.nombre) {
+                    return { ...p, cargo: editingWorkerData.cargo, costo_dia: newCostoDia, sueldo_base: newSueldoBase };
+                  }
+                  return p;
+                }));
+
+                // Intentar actualizar maestro_personal en Supabase
+                try {
+                  await supabase
+                    .from('maestro_personal')
+                    .update({ cargo: editingWorkerData.cargo, costo_dia: newCostoDia, sueldo_base: newSueldoBase })
+                    .eq('nombre', editingWorkerData.nombre);
+                } catch (err) {}
+
+                setShowEditSueldoModal(false);
+                alert(`Sueldo de ${editingWorkerData.nombre} actualizado a ${newCostoDia.toLocaleString('es-CL')}/día con éxito.`);
+              }}
+              className="space-y-4 text-xs"
+            >
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nombre del Trabajador</label>
+                <input
+                  type="text"
+                  disabled
+                  value={editingWorkerData.nombre}
+                  className="w-full border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-600 bg-slate-100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Cargo / Rol</label>
+                <input
+                  type="text"
+                  required
+                  value={editingWorkerData.cargo}
+                  onChange={(e) => setEditingWorkerData({ ...editingWorkerData, cargo: e.target.value })}
+                  className="w-full border border-slate-300 rounded-lg p-2 text-xs font-semibold text-slate-800 bg-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 bg-blue-50/70 p-3 rounded-xl border border-blue-200">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-blue-900 mb-1">Sueldo Base Mensual ($)</label>
+                  <input
+                    type="number"
+                    value={editingWorkerData.sueldo_base}
+                    onChange={(e) => {
+                      const sb = parseFloat(e.target.value) || 0;
+                      setEditingWorkerData({ ...editingWorkerData, sueldo_base: sb, costo_dia: Math.round(sb / 30) });
+                    }}
+                    className="w-full border border-blue-300 rounded-lg p-2 text-xs font-mono font-bold text-slate-800 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-blue-900 mb-1">Tarifa Diario ($/Día)</label>
+                  <input
+                    type="number"
+                    value={editingWorkerData.costo_dia}
+                    onChange={(e) => {
+                      const cd = parseFloat(e.target.value) || 0;
+                      setEditingWorkerData({ ...editingWorkerData, costo_dia: cd, sueldo_base: Math.round(cd * 30) });
+                    }}
+                    className="w-full border border-blue-300 rounded-lg p-2 text-xs font-mono font-bold text-slate-800 bg-white"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-blue-900 hover:bg-blue-800 text-white font-bold py-2.5 rounded-xl shadow-xs text-xs cursor-pointer transition"
+              >
+                <span>Guardar Nuevo Sueldo</span>
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PROYECCIÓN MASIVA DE RRHH PARA 100+ TRABAJADORES */}
+      {showProyeccionMasivaRrhhModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                <span>⚡ Motor de Proyección Masiva de RRHH (100+ Personas)</span>
+              </h3>
+              <button onClick={() => setShowProyeccionMasivaRrhhModal(false)} className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer">✕</button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                // Obtener todos los trabajadores únicos
+                const allWorkerNames = Array.from(new Set([...(personalAsignadoList || []).map(p => p.nombre), ...(asistenciaList || []).map(a => a.trabajador)])).filter(Boolean);
+
+                const newBulkProjections = allWorkerNames.map(wName => {
+                  const workerObj = (personalAsignadoList || []).find(p => p.nombre === wName);
+                  const sueldoBase = workerObj ? (parseFloat(workerObj.sueldo_base) || (parseFloat(workerObj.costo_dia || 35000) * 20)) : 600000;
+
+                  let calcHE = 0;
+                  if (proyeccionMasivaFormData.he_modo === 'HORAS') {
+                    const horasDia = parseFloat(proyeccionMasivaFormData.he_horas_dia) || 0;
+                    const tarifaHora = parseFloat(proyeccionMasivaFormData.tarifa_hora_promedio) || 4500;
+                    const diasMes = parseFloat(proyeccionMasivaFormData.dias_habiles_mes) || 20;
+                    calcHE = Math.round(horasDia * tarifaHora * diasMes);
+                  } else {
+                    calcHE = parseFloat(proyeccionMasivaFormData.he_monto_fijo) || 0;
+                  }
+
+                  const calcAsig = parseFloat(proyeccionMasivaFormData.asignaciones_monto) || 0;
+
+                  return {
+                    concepto: `Personal: ${wName}`,
+                    partida: 'Gastos Generales',
+                    sueldo_base: sueldoBase,
+                    horas_extras: calcHE,
+                    asignaciones: calcAsig
+                  };
+                });
+
+                setProyeccionesRrhhList(newBulkProjections);
+                try {
+                  localStorage.setItem(`obraxis_proj_rrhh_${selectedObra?.nombre}`, JSON.stringify(newBulkProjections));
+                } catch (err) {}
+
+                setShowProyeccionMasivaRrhhModal(false);
+                alert(`Proyección masiva configurada con éxito para ${allWorkerNames.length} trabajadores de la obra.`);
+              }}
+              className="space-y-4 text-xs"
+            >
+              <div className="bg-indigo-50/70 p-3 rounded-xl border border-indigo-200 space-y-2">
+                <span className="text-[10px] font-bold uppercase text-indigo-950 block">Regla Global de Horas Extras (H.E.)</span>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 mb-1">Modo Horas Extras</label>
+                    <select
+                      value={proyeccionMasivaFormData.he_modo}
+                      onChange={(e) => setProyeccionMasivaFormData({ ...proyeccionMasivaFormData, he_modo: e.target.value })}
+                      className="w-full border border-indigo-300 rounded-lg p-2 text-xs font-bold text-slate-800 bg-white"
+                    >
+                      <option value="HORAS">N° Horas Extras por Día (ej. 2 hrs/día)</option>
+                      <option value="FIJO">Monto Fijo H.E. Mensual ($)</option>
+                    </select>
+                  </div>
+                  {proyeccionMasivaFormData.he_modo === 'HORAS' ? (
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 mb-1">Horas Extras / Día por Persona</label>
+                      <input
+                        type="number"
+                        step="any"
+                        value={proyeccionMasivaFormData.he_horas_dia}
+                        onChange={(e) => setProyeccionMasivaFormData({ ...proyeccionMasivaFormData, he_horas_dia: e.target.value })}
+                        placeholder="2"
+                        className="w-full border border-indigo-300 rounded-lg p-2 text-xs font-mono font-bold text-slate-800 bg-white"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 mb-1">Monto H.E. Mensual por Persona ($)</label>
+                      <input
+                        type="number"
+                        value={proyeccionMasivaFormData.he_monto_fijo}
+                        onChange={(e) => setProyeccionMasivaFormData({ ...proyeccionMasivaFormData, he_monto_fijo: e.target.value })}
+                        placeholder="150000"
+                        className="w-full border border-indigo-300 rounded-lg p-2 text-xs font-mono font-bold text-slate-800 bg-white"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-amber-50/70 p-3 rounded-xl border border-amber-200 space-y-2">
+                <span className="text-[10px] font-bold uppercase text-amber-950 block">Regla Global de Asignaciones / Viáticos</span>
+                <div>
+                  <label className="block text-[10px] font-bold text-amber-900 mb-1">Monto Proyectado de Asignaciones por Persona ($)</label>
+                  <input
+                    type="number"
+                    value={proyeccionMasivaFormData.asignaciones_monto}
+                    onChange={(e) => setProyeccionMasivaFormData({ ...proyeccionMasivaFormData, asignaciones_monto: e.target.value })}
+                    placeholder="50000"
+                    className="w-full border border-amber-300 rounded-lg p-2 text-xs font-mono font-bold text-slate-800 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-indigo-950 text-white p-3 rounded-xl space-y-1 text-xs font-bold shadow-2xs">
+                <div className="flex justify-between items-center">
+                  <span>Personas Afectadas:</span>
+                  <span className="font-mono text-emerald-400">{Array.from(new Set([...(personalAsignadoList || []).map(p => p.nombre), ...(asistenciaList || []).map(a => a.trabajador)])).filter(Boolean).length} Trabajadores</span>
+                </div>
+                <p className="text-[10px] text-slate-300 font-normal">
+                  La regla calculará automáticamente las H.E. y asignaciones para los 100+ trabajadores según su sueldo base de contrato.
+                </p>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-indigo-900 hover:bg-indigo-800 text-white font-bold py-2.5 rounded-xl shadow-xs text-xs cursor-pointer transition flex items-center justify-center gap-1.5"
+              >
+                <span>⚡ Aplicar Proyección Masiva a Toda la Dotación</span>
               </button>
             </form>
           </div>
