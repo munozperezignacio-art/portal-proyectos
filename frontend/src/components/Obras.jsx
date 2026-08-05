@@ -3744,42 +3744,92 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 </div>
               </div>
 
-              {/* KPIs de Control Financiero */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="bg-white p-4 border border-slate-200 rounded-2xl space-y-1 shadow-2xs">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase">Presupuesto Directo Obra</span>
-                  <p className="text-lg font-black text-slate-800">
-                    ${partidasList.reduce((acc, p) => {
-                      const puVal = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (p.pu !== undefined ? p.pu : 0);
-                      return acc + ((p.cantidad || 0) * puVal);
-                    }, 0).toLocaleString('es-CL')}
-                  </p>
-                </div>
+              {/* KPIs de Control Financiero Adaptativos */}
+              {(() => {
+                const totalPres = partidasList.reduce((acc, p) => {
+                  const puVal = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (p.pu !== undefined ? p.pu : 0);
+                  return acc + ((p.cantidad || 0) * puVal);
+                }, 0);
 
-                <div className="bg-white p-4 border border-slate-200 rounded-2xl space-y-1 shadow-2xs">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase">Costos Reales Totales Incurridos</span>
-                  <p className="text-lg font-black text-emerald-900">
-                    ${costosList.reduce((acc, c) => acc + (parseFloat(c.monto) || 0), 0).toLocaleString('es-CL')}
-                  </p>
-                </div>
+                // Cálculo de nómina real incurrida de personal
+                const workerMapReal = new Map();
+                (personalAsignadoList || []).forEach(p => {
+                  if (p.nombre) workerMapReal.set(p.nombre, parseFloat(p.costo_dia || p.sueldo_base / 30) || 35000);
+                });
+                (asistenciaList || []).forEach(a => {
+                  if (a.trabajador && !workerMapReal.has(a.trabajador)) workerMapReal.set(a.trabajador, 35000);
+                });
+                const totalPersonalIncurrido = (asistenciaList || []).reduce((acc, a) => {
+                  const dailyRate = workerMapReal.get(a.trabajador) || 35000;
+                  return acc + dailyRate;
+                }, 0);
 
-                <div className="bg-white p-4 border border-slate-200 rounded-2xl space-y-1 shadow-2xs">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase">Saldo Disponible Presupuestado</span>
-                  {(() => {
-                    const totalPres = partidasList.reduce((acc, p) => {
-                      const puVal = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (p.pu !== undefined ? p.pu : 0);
-                      return acc + ((p.cantidad || 0) * puVal);
-                    }, 0);
-                    const totalCost = costosList.reduce((acc, c) => acc + (parseFloat(c.monto) || 0), 0);
-                    const saldo = totalPres - totalCost;
-                    return (
-                      <p className={`text-lg font-black ${saldo >= 0 ? 'text-blue-900' : 'text-rose-700'}`}>
-                        ${saldo.toLocaleString('es-CL')}
-                      </p>
-                    );
-                  })()}
-                </div>
-              </div>
+                const totalFacturas = costosList.reduce((acc, c) => acc + (parseFloat(c.monto) || 0), 0);
+                const totalCostosReales = totalFacturas + totalPersonalIncurrido;
+                const saldoReal = totalPres - totalCostosReales;
+
+                // Proyección de gastos por partidas ejecutables
+                const executableParts = partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo));
+                const totalProyectadoPartidas = executableParts.reduce((acc, p) => {
+                  const cant = parseFloat(p.cantidad) || 0;
+                  const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
+                  const dias = rend > 0 ? (cant / rend) : 1;
+                  const proj = proyeccionesList.find(x => x.partida === p.partida);
+                  if (proj) {
+                    if (proj.tipo_proyeccion === 'TIEMPO') return acc + Math.round(dias * (parseFloat(proj.tarifa_tiempo_dia) || 20000));
+                    return acc + Math.round(cant * (parseFloat(proj.tasa_rendimiento_insumo) || 1) * (parseFloat(proj.precio_unitario_insumo) || 5000));
+                  }
+                  return acc + Math.round(dias * 20000);
+                }, 0);
+
+                const totalPersonalProyectado = Array.from(workerMapReal.values()).reduce((acc, val) => acc + (20 * val), 0);
+                const totalCostoProyectado = totalProyectadoPartidas + totalPersonalProyectado;
+                const saldoProyectado = totalPres - totalCostoProyectado;
+
+                if (costosSubTab === 'reales') {
+                  return (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="bg-white p-4 border border-slate-200 rounded-2xl space-y-1 shadow-2xs">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Presupuesto Directo Obra</span>
+                        <p className="text-lg font-black text-slate-800">${totalPres.toLocaleString('es-CL')}</p>
+                      </div>
+                      <div className="bg-white p-4 border border-slate-200 rounded-2xl space-y-1 shadow-2xs">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase">Costos Reales Incurridos (Facturas + Personal)</span>
+                          <span className="text-[9px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">Reales</span>
+                        </div>
+                        <p className="text-lg font-black text-emerald-900">${totalCostosReales.toLocaleString('es-CL')}</p>
+                        <p className="text-[10px] text-slate-500 font-semibold">Facturas: ${totalFacturas.toLocaleString('es-CL')} | Personal: ${totalPersonalIncurrido.toLocaleString('es-CL')}</p>
+                      </div>
+                      <div className="bg-white p-4 border border-slate-200 rounded-2xl space-y-1 shadow-2xs">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Saldo Disponible Real</span>
+                        <p className={`text-lg font-black ${saldoReal >= 0 ? 'text-blue-900' : 'text-rose-700'}`}>${saldoReal.toLocaleString('es-CL')}</p>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="bg-white p-4 border border-slate-200 rounded-2xl space-y-1 shadow-2xs">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">Presupuesto Directo Obra</span>
+                      <p className="text-lg font-black text-slate-800">${totalPres.toLocaleString('es-CL')}</p>
+                    </div>
+                    <div className="bg-white p-4 border border-slate-200 rounded-2xl space-y-1 shadow-2xs">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Proyección Total de Gastos</span>
+                        <span className="text-[9px] font-bold text-blue-800 bg-blue-100 px-1.5 py-0.5 rounded">Proyectado</span>
+                      </div>
+                      <p className="text-lg font-black text-blue-950">${totalCostoProyectado.toLocaleString('es-CL')}</p>
+                      <p className="text-[10px] text-slate-500 font-semibold">Partidas: ${totalProyectadoPartidas.toLocaleString('es-CL')} | Personal: ${totalPersonalProyectado.toLocaleString('es-CL')}</p>
+                    </div>
+                    <div className="bg-white p-4 border border-slate-200 rounded-2xl space-y-1 shadow-2xs">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">Margen Proyectado Estimado</span>
+                      <p className={`text-lg font-black ${saldoProyectado >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>${saldoProyectado.toLocaleString('es-CL')}</p>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {costosList.length === 0 ? (
                 <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-3">
