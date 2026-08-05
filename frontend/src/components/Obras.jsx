@@ -364,8 +364,19 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [customSalariesMap, setCustomSalariesMap] = useState(() => {
     try {
       const saved = localStorage.getItem('obraxis_custom_salaries_' + (selectedObra?.nombre || ''));
-      return saved ? JSON.parse(saved) : {};
-    } catch (e) { return {}; }
+      const parsed = saved ? JSON.parse(saved) : {};
+      // Fijar Sofía Castro por defecto a $1.200.000 ($40.000/día)
+      if (!parsed['Sofía Castro'] && !parsed['Sofia Castro']) {
+        parsed['Sofía Castro'] = { cargo: 'Recursos Humanos / Jefa RRHH', sueldo_base: 1200000, costo_dia: 40000 };
+        parsed['Sofia Castro'] = { cargo: 'Recursos Humanos / Jefa RRHH', sueldo_base: 1200000, costo_dia: 40000 };
+      }
+      return parsed;
+    } catch (e) {
+      return {
+        'Sofía Castro': { cargo: 'Recursos Humanos / Jefa RRHH', sueldo_base: 1200000, costo_dia: 40000 },
+        'Sofia Castro': { cargo: 'Recursos Humanos / Jefa RRHH', sueldo_base: 1200000, costo_dia: 40000 }
+      };
+    }
   });
 
   const [proyeccionMasivaFormData, setProyeccionMasivaFormData] = useState({
@@ -4656,173 +4667,6 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   <Plus className="w-4 h-4" />
                   <span>Registrar Guía / Movimiento</span>
                 </button>
-              </div>
-            </div>
-          )}
-
-          {/* VISTA DEDICADA 7: BITÁCORA DE OBRA (LÍNEA DE TIEMPO VERTICAL) */}
-          {obraActiveSubmodule === 'bitacora' && (
-            <div className="space-y-6 animate-in fade-in duration-200">
-              <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-3">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                  <div>
-                    <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
-                      <History className="w-4 h-4 text-slate-700" />
-                      <span>Bitácora de Obra - Línea del Tiempo</span>
-                    </h3>
-                    <p className="text-[11px] text-slate-500">Historial completo de eventos, notas e información relevante de faena</p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      onClick={() => {
-                        setBitacoraNoteFormData({
-                          fecha: new Date().toISOString().substring(0, 10),
-                          titulo: '',
-                          comentario: ''
-                        });
-                        setShowBitacoraNoteModal(true);
-                      }}
-                      className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>+ Agregar Nota / Comentario</span>
-                    </button>
-
-                    {/* Filtros de la Línea del Tiempo (Selección Múltiple) */}
-                    <div className="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-xl text-[11px] font-bold">
-                      {[
-                        { id: 'todos', label: 'Todos' },
-                        { id: 'notas', label: '📝 Notas & Comentarios' },
-                        { id: 'avances', label: '📊 Avances' },
-                        { id: 'asistencia', label: '⏱️ Asistencia' }
-                      ].map(f => {
-                        const isSelected = bitacoraFilters.includes(f.id);
-                        return (
-                          <button
-                            key={f.id}
-                            onClick={() => {
-                              if (f.id === 'todos') {
-                                setBitacoraFilters(['todos']);
-                              } else {
-                                let next = bitacoraFilters.filter(x => x !== 'todos');
-                                if (next.includes(f.id)) {
-                                  next = next.filter(x => x !== f.id);
-                                } else {
-                                  next.push(f.id);
-                                }
-                                if (next.length === 0) next = ['todos'];
-                                setBitacoraFilters(next);
-                              }
-                            }}
-                            className={`px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1 ${isSelected ? 'bg-blue-900 text-white shadow-2xs font-extrabold' : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'}`}
-                          >
-                            <span>{f.label}</span>
-                            {isSelected && f.id !== 'todos' && <span className="text-[9px] bg-blue-800 text-white px-1.5 rounded-full">✓</span>}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* LÍNEA DE TIEMPO VERTICAL (PASADO ARRIBA -> PRESENTE ABAJO) */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-6">
-                
-                {/* Indicador Inicio de Obra (Pasado) */}
-                <div className="flex items-center gap-3 pb-2 border-b border-dashed border-slate-300">
-                  <span className="text-[10px] font-bold bg-slate-200 text-slate-700 px-3 py-1 rounded-full uppercase tracking-wider">
-                    ⬆️ Historial Anterior de Obra
-                  </span>
-                  <div className="h-0.5 flex-1 bg-slate-200"></div>
-                </div>
-
-                {/* Eventos Cronológicos */}
-                <div className="relative border-l-2 border-slate-300 ml-4 space-y-6 pl-6">
-                  
-                  {/* Evento 1: Inicio de Obra */}
-                  <div className="relative group">
-                    <div className="absolute -left-[31px] top-1.5 w-4 h-4 bg-slate-700 rounded-full border-2 border-white ring-2 ring-slate-200"></div>
-                    <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-1">
-                      <div className="flex justify-between items-center text-xs font-bold text-slate-800">
-                        <span className="text-slate-900 font-extrabold">🚀 Inicio Oficial de Faena & Acta de Entrega de Terreno</span>
-                        <span className="text-[10px] text-slate-400 font-mono">01/03/2026</span>
-                      </div>
-                      <p className="text-xs text-slate-600">Reunión inicial de coordinación con mandante e hito de inicio de obras.</p>
-                      <span className="inline-block text-[9px] bg-slate-200 text-slate-800 px-2 py-0.5 rounded font-bold mt-1">Hito Obra</span>
-                    </div>
-                  </div>
-
-                  {/* NOTAS Y COMENTARIOS REGISTRADOS EN LA BITÁCORA */}
-                  {bitacoraNotasList.map((nota, i) => (
-                    (bitacoraFilters.includes('todos') || bitacoraFilters.includes('notas')) && (
-                      <div key={`nota-${i}`} className="relative group">
-                        <div className="absolute -left-[31px] top-1.5 w-4 h-4 bg-amber-500 rounded-full border-2 border-white ring-2 ring-amber-100"></div>
-                        <div className="bg-amber-50/80 border border-amber-200 p-3.5 rounded-xl space-y-1.5 shadow-2xs">
-                          <div className="flex justify-between items-center text-xs font-bold text-amber-950">
-                            <span className="font-extrabold text-amber-900">📝 {nota.titulo || 'Nota / Comentario de Bitácora'}</span>
-                            <span className="text-[10px] text-slate-700 font-mono bg-white px-2 py-0.5 rounded border border-amber-200 font-bold">
-                              {nota.fecha || (nota.created_at ? new Date(nota.created_at).toLocaleDateString('es-CL') : 'Fecha N/A')}
-                            </span>
-                          </div>
-                          <p className="text-xs text-slate-800 font-medium whitespace-pre-line leading-relaxed pl-1">
-                            {nota.comentario}
-                          </p>
-                          <div className="flex justify-between items-center text-[10px] text-slate-500 pt-1 border-t border-amber-200/60 font-semibold">
-                            <span>Registrado por: <strong>{nota.autor || 'Supervisor'}</strong></span>
-                            <span className="inline-block bg-amber-100 text-amber-900 px-2 py-0.5 rounded font-bold">Nota de Faena</span>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  ))}
-
-                  {/* Eventos Dinámicos filtrados: Avances */}
-                  {reportesAvanceList.map((av, i) => (
-                    (bitacoraFilters.includes('todos') || bitacoraFilters.includes('avances')) && (
-                      <div key={`av-${i}`} className="relative group">
-                        <div className="absolute -left-[31px] top-1.5 w-4 h-4 bg-blue-600 rounded-full border-2 border-white ring-2 ring-blue-100"></div>
-                        <div className="bg-blue-50/50 border border-blue-200 p-3 rounded-xl space-y-1">
-                          <div className="flex justify-between items-center text-xs font-bold text-blue-950">
-                            <span>📊 Avance de Producción: {av.partida}</span>
-                            <span className="text-[10px] text-slate-500 font-mono">{new Date(av.created_at).toLocaleDateString('es-CL')}</span>
-                          </div>
-                          <p className="text-xs text-slate-700">Supervisor: <strong>{av.supervisor}</strong> | Cantidad: <strong className="text-emerald-700">{av.cantidad} {av.unidad || 'UND'}</strong> en {av.frente || 'Frente Principal'}.</p>
-                          {av.observaciones && <p className="text-[11px] text-slate-600 italic border-l-2 border-blue-400 pl-2 mt-1">"{av.observaciones}"</p>}
-                          <span className="inline-block text-[9px] bg-blue-100 text-blue-900 px-2 py-0.5 rounded font-bold mt-1">Reporte de Avance</span>
-                        </div>
-                      </div>
-                    )
-                  ))}
-
-                  {/* Eventos Dinámicos filtrados: Asistencia */}
-                  {asistenciaList.map((as, i) => (
-                    (bitacoraFilters.includes('todos') || bitacoraFilters.includes('asistencia')) && (
-                      <div key={`as-${i}`} className="relative group">
-                        <div className="absolute -left-[31px] top-1.5 w-4 h-4 bg-emerald-600 rounded-full border-2 border-white ring-2 ring-emerald-100"></div>
-                        <div className="bg-emerald-50/50 border border-emerald-200 p-3 rounded-xl space-y-1">
-                          <div className="flex justify-between items-center text-xs font-bold text-emerald-950">
-                            <span>⏱️ Registro de Asistencia: {as.trabajador}</span>
-                            <span className="text-[10px] text-slate-500 font-mono">{new Date(as.created_at).toLocaleDateString('es-CL')}</span>
-                          </div>
-                          <p className="text-xs text-slate-700">Estado: <strong className="text-emerald-800">{as.asistencia}</strong> | Ingreso: {as.ingreso || '08:00'} - Salida: {as.salida || '18:00'}.</p>
-                          <span className="inline-block text-[9px] bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded font-bold mt-1">Control Asistencia</span>
-                        </div>
-                      </div>
-                    )
-                  ))}
-
-                </div>
-
-                {/* Indicador Tiempo Presente (Hoy) */}
-                <div className="flex items-center gap-3 pt-2 border-t border-dashed border-slate-300">
-                  <span className="text-[10px] font-bold bg-blue-900 text-white px-3 py-1 rounded-full uppercase tracking-wider shadow-2xs">
-                    ⬇️ Tiempo Presente / Hoy ({new Date().toLocaleDateString('es-CL')})
-                  </span>
-                  <div className="h-0.5 flex-1 bg-blue-900"></div>
-                </div>
-
               </div>
             </div>
           )}
