@@ -354,7 +354,18 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [editingWorkerData, setEditingWorkerData] = useState(null);
 
   const [fechaInicioReal, setFechaInicioReal] = useState(() => {
-    return localStorage.getItem('obraxis_fecha_inicio_real_' + (selectedObra?.nombre || '')) || new Date().toISOString().slice(0, 10);
+    return localStorage.getItem('obraxis_fecha_inicio_real_' + (selectedObra?.nombre || '')) || (selectedObra?.fecha_inicio || new Date().toISOString().slice(0, 10));
+  });
+
+  const [fechaTerminoEstimada, setFechaTerminoEstimada] = useState(() => {
+    return localStorage.getItem('obraxis_fecha_termino_est_' + (selectedObra?.nombre || '')) || (selectedObra?.fecha_termino || '2026-12-31');
+  });
+
+  const [customSalariesMap, setCustomSalariesMap] = useState(() => {
+    try {
+      const saved = localStorage.getItem('obraxis_custom_salaries_' + (selectedObra?.nombre || ''));
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) { return {}; }
   });
 
   const [proyeccionMasivaFormData, setProyeccionMasivaFormData] = useState({
