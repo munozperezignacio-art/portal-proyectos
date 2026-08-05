@@ -2418,6 +2418,85 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                               </tr>
                             );
                           })}
+
+                          {/* ENCABEZADO SECCIÓN MANO DE OBRA Y PERSONAL ASIGNADO */}
+                          <tr className="bg-indigo-100/90 font-black text-indigo-950 text-[10px] uppercase tracking-wider">
+                            <td colSpan="8" className="p-2.5 bg-indigo-100/95 text-indigo-950 border-y border-indigo-200">
+                              👥 PROYECCIÓN DE MANO DE OBRA Y PERSONAL ASIGNADO A OBRA
+                            </td>
+                          </tr>
+
+                          {(() => {
+                            const workerMap = new window.Map();
+                            (personalAsignadoList || []).forEach(p => {
+                              if (p.nombre) {
+                                const custom = customSalariesMap[p.nombre];
+                                const sBase = custom?.sueldo_base || parseFloat(p.sueldo_base) || 1200000;
+                                const hExtras = custom?.horas_extras || 0;
+                                const asig = custom?.asignaciones || 0;
+                                const imponibleTotal = sBase + hExtras;
+                                const cEmpresa = Math.round(imponibleTotal * 1.25) + asig;
+                                workerMap.set(p.nombre, {
+                                  nombre: p.nombre,
+                                  cargo: custom?.cargo || p.cargo || 'Trabajador Faena',
+                                  sueldo_base: sBase,
+                                  costo_empresa: cEmpresa,
+                                  costo_dia: Math.round(cEmpresa / 30)
+                                });
+                              }
+                            });
+                            (asistenciaList || []).forEach(a => {
+                              if (a.trabajador && !workerMap.has(a.trabajador)) {
+                                workerMap.set(a.trabajador, {
+                                  nombre: a.trabajador,
+                                  cargo: 'Personal Asistencia',
+                                  sueldo_base: 1200000,
+                                  costo_empresa: 1500000,
+                                  costo_dia: 50000
+                                });
+                              }
+                            });
+
+                            const listWorkers = Array.from(workerMap.values());
+                            if (listWorkers.length === 0) {
+                              return (
+                                <tr>
+                                  <td colSpan="8" className="p-4 text-center text-slate-500 italic">
+                                    No hay personal asignado a esta obra. Puedes agregarlos desde el módulo de Personal / Asistencia.
+                                  </td>
+                                </tr>
+                              );
+                            }
+
+                            return listWorkers.map((w, wIdx) => {
+                              return (
+                                <tr key={'w-' + wIdx} className="bg-indigo-50/40 hover:bg-indigo-50/80 transition font-semibold">
+                                  <td className="p-3 font-black text-indigo-950 flex items-center gap-2">
+                                    <span className="text-base">👤</span>
+                                    <div>
+                                      <span className="text-xs">{w.nombre}</span>
+                                      <span className="block text-[9px] text-indigo-700 font-bold uppercase">{w.cargo}</span>
+                                    </div>
+                                  </td>
+                                  <td className="p-3 font-mono font-bold text-slate-700">30 Días (1 Mes)</td>
+                                  <td className="p-3 font-mono text-slate-600">1.0 Día/Día</td>
+                                  <td className="p-3 font-mono font-black text-indigo-900">30 Días Mes</td>
+                                  <td className="p-3 font-mono text-[10px] text-indigo-900 bg-indigo-100/50 rounded font-bold">
+                                    ${w.costo_dia.toLocaleString('es-CL')}/Día (${w.costo_empresa.toLocaleString('es-CL')}/Mes Empresa)
+                                  </td>
+                                  <td className="p-3 font-mono font-bold text-slate-800 text-right">
+                                    ${w.costo_empresa.toLocaleString('es-CL')}
+                                  </td>
+                                  <td className="p-3 font-mono font-black text-indigo-950 text-right">
+                                    ${w.costo_empresa.toLocaleString('es-CL')}
+                                  </td>
+                                  <td className="p-3 font-mono font-black text-right text-emerald-700">
+                                    $0 (100% Proyectado)
+                                  </td>
+                                </tr>
+                              );
+                            });
+                          })()}
                         </tbody>
                       </table>
                     </div>
@@ -4323,6 +4402,13 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-150 text-[11px]">
+                          {/* ENCABEZADO SECCIÓN PARTIDAS */}
+                          <tr className="bg-slate-200/80 font-black text-slate-800 text-[10px] uppercase tracking-wider">
+                            <td colSpan="8" className="p-2.5 bg-slate-200/90 text-slate-900 border-y border-slate-300">
+                              📦 PROYECCIÓN DE GASTOS POR PARTIDAS DE PRESUPUESTO
+                            </td>
+                          </tr>
+
                           {partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo)).map((p, pIdx) => {
                             const cant = parseFloat(p.cantidad) || 0;
                             const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
