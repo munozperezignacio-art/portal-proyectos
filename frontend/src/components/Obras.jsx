@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient';
 import { 
   Building2, ArrowLeft, Users, Truck, Wrench, FileSpreadsheet, 
   ExternalLink, Calendar, Plus, Info, Check, UserCheck, Play, ArrowRightLeft, FileText, AlertCircle, AlertTriangle, Camera,
-  QrCode, MapPin, Printer, Navigation, RotateCcw, CheckCircle2, Map, ShieldAlert, Settings, Edit, Trash2, Download,
+  QrCode, MapPin, Printer, Navigation, RotateCcw, CheckCircle2, MapIcon as Map, ShieldAlert, Settings, Edit, Trash2, Download,
   History, BarChart3, ShieldCheck, Clock, DollarSign, CalendarRange, FileUp, Loader2, FolderPlus
 } from 'lucide-react';
 import ContextualEmailConfigModal from './ContextualEmailConfigModal';
@@ -624,7 +624,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       const localMaq = localStr ? JSON.parse(localStr) : [];
       const { data: remoteMaq } = await supabase.from('inventario_maquinaria').select('*');
       
-      const mapFleet = new Map();
+      const mapFleet = new window.Map();
       (remoteMaq || []).forEach(m => mapFleet.set((m.id || m.patente).toString(), m));
       localMaq.forEach(m => {
         const k = (m.id || m.patente).toString();
@@ -752,7 +752,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         console.warn('Error leyendo inventario_maquinaria:', e);
       }
 
-      const mapEquip = new Map();
+      const mapEquip = new window.Map();
       const getEquipKey = (item) => {
         if (!item) return '';
         if (item.patente && item.patente.toString().trim()) return item.patente.toString().trim().toUpperCase();
@@ -795,7 +795,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         if (idK) mapEquip.set(idK, merged);
       });
 
-      const uniqueMap = new Map();
+      const uniqueMap = new window.Map();
       Array.from(mapEquip.values()).forEach(item => {
         const k = getEquipKey(item);
         if (k) uniqueMap.set(k, item);
@@ -3752,7 +3752,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 }, 0);
 
                 // Cálculo de nómina real incurrida de personal
-                const workerMapReal = new Map();
+                const workerMapReal = new window.Map();
                 (personalAsignadoList || []).forEach(p => {
                   if (p.nombre) workerMapReal.set(p.nombre, parseFloat(p.costo_dia || p.sueldo_base / 30) || 35000);
                 });
