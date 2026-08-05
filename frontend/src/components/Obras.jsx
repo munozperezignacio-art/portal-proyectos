@@ -5631,6 +5631,17 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
               {proyeccionFormData.tipo_proyeccion === 'TIEMPO' ? (
                 <div className="bg-blue-50/70 p-3.5 rounded-xl border border-blue-200 space-y-3">
                   <div>
+                    <label className="block text-[10px] font-bold uppercase text-blue-900 mb-1">Nombre / Concepto del Costo de Tiempo</label>
+                    <input
+                      type="text"
+                      required
+                      value={proyeccionFormData.nombre_item}
+                      onChange={(e) => setProyeccionFormData({ ...proyeccionFormData, nombre_item: e.target.value })}
+                      placeholder="Ej. Arriendo de Maquinaria / Cuadrilla de Operadores"
+                      className="w-full border border-blue-300 rounded-lg p-2 text-xs font-bold text-slate-800 bg-white"
+                    />
+                  </div>
+                  <div>
                     <label className="block text-[10px] font-bold uppercase text-blue-900 mb-1">Tarifa por Unidad de Tiempo ($ / Día Hábil)</label>
                     <input
                       type="number"
