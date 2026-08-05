@@ -4678,16 +4678,34 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                         </div>
                                         
                                         {/* PERÍODO DE ASIGNACIÓN (DESDE FECHA ASIGNACIÓN A OBRA HASTA CORTE GLOBAL) */}
-                                        <div className="bg-slate-100/90 p-2 rounded-lg border border-slate-200 flex justify-between items-center text-[10px] text-slate-600">
-                                          <div>
-                                            <span className="font-bold block text-slate-700">📅 Asignado a Obra desde:</span>
-                                            <span className="font-mono text-slate-800 font-bold">{w.fecha_asig || w.fecha_inicio || fechaInicioReal || 'Fecha de Asignación'}</span>
-                                          </div>
-                                          <div className="text-right">
-                                            <span className="font-bold block text-slate-700">🏁 Corte / Término Proyección:</span>
-                                            <span className="font-mono text-indigo-900 font-extrabold">{fechaCorteProyeccion || fechaTerminoEstimada || 'Fecha de Corte'}</span>
-                                          </div>
-                                        </div>
+                                        {(() => {
+                                          const rawAsigDate = w.fecha_asig ? String(w.fecha_asig).split('T')[0] : (w.fecha_inicio ? String(w.fecha_inicio).split('T')[0] : null);
+                                          const formattedAsig = rawAsigDate ? (() => {
+                                            const pts = rawAsigDate.split('-');
+                                            return pts.length === 3 ? `${pts[2]}-${pts[1]}-${pts[0]}` : rawAsigDate;
+                                          })() : 'Fecha N/A';
+                                          const isPosteriorACorte = rawAsigDate && fechaCorteProyeccion && rawAsigDate > fechaCorteProyeccion;
+
+                                          return (
+                                            <>
+                                              <div className="bg-slate-100/90 p-2 rounded-lg border border-slate-200 flex justify-between items-center text-[10px] text-slate-600">
+                                                <div>
+                                                  <span className="font-bold block text-slate-700">📅 Asignado a Obra desde:</span>
+                                                  <span className="font-mono text-slate-800 font-bold">{formattedAsig}</span>
+                                                </div>
+                                                <div className="text-right">
+                                                  <span className="font-bold block text-slate-700">🏁 Corte / Término Proyección:</span>
+                                                  <span className="font-mono text-indigo-900 font-extrabold">{fechaCorteProyeccion || fechaTerminoEstimada || 'Fecha de Corte'}</span>
+                                                </div>
+                                              </div>
+                                              {isPosteriorACorte && (
+                                                <div className="bg-rose-50 border border-rose-200 text-rose-900 text-[10px] font-bold p-1.5 rounded-lg text-center">
+                                                  ⚠️ Asignación efectuada posterior a la fecha de corte ({formattedAsig})
+                                                </div>
+                                              )}
+                                            </>
+                                          );
+                                        })()}
                                         <div className="space-y-1 text-[11px]">
                                           <div className="flex justify-between items-center">
                                             <span className="text-slate-500 font-semibold">Sueldo Base Mensual:</span>

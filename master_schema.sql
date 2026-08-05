@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS maestro_personal (
     rut TEXT NOT NULL,
     cargo TEXT,
     obra_nombre TEXT,
+    fecha_asig TEXT,
     empresa TEXT NOT NULL DEFAULT 'EMIN',
     estado TEXT DEFAULT 'Activo',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())

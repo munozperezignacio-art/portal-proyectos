@@ -60,6 +60,15 @@ function Personal({ user, onBack }) {
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
+  // Estado para Modal de Asignación de Obra con Fecha desde RRHH
+  const [showAssignObraModal, setShowAssignObraModal] = useState(false);
+  const [assignModalData, setAssignModalData] = useState({
+    workerId: null,
+    workerNombre: '',
+    obraNombre: '',
+    fechaAsig: new Date().toISOString().substring(0, 10)
+  });
+
   // Formulario completo de Ficha de Trabajador
   const [formData, setFormData] = useState({
     nombre: '',
@@ -68,6 +77,7 @@ function Personal({ user, onBack }) {
     fono: '',
     email: '',
     obra_nombre: '',
+    fecha_asig: new Date().toISOString().substring(0, 10),
     centro_trabajo: 'Oficina Central / Obra',
     area: 'Operaciones',
     sueldo_base: '600000',
@@ -183,6 +193,7 @@ function Personal({ user, onBack }) {
       fono: '',
       email: '',
       obra_nombre: obras.length > 0 ? obras[0].nombre : '',
+      fecha_asig: new Date().toISOString().substring(0, 10),
       centro_trabajo: 'Obra Principal',
       area: 'Construcción',
       sueldo_base: '600000',
@@ -212,6 +223,7 @@ function Personal({ user, onBack }) {
       fono: worker.fono || '',
       email: worker.email || '',
       obra_nombre: worker.obra_nombre || '',
+      fecha_asig: worker.fecha_asig ? String(worker.fecha_asig).substring(0, 10) : new Date().toISOString().substring(0, 10),
       centro_trabajo: worker.centro_trabajo || 'Obra Principal',
       area: worker.area || 'Construcción',
       sueldo_base: worker.sueldo_base ? worker.sueldo_base.toString() : '600000',
@@ -243,14 +255,41 @@ function Personal({ user, onBack }) {
     }
   };
 
-  const handleAssignObraToWorker = async (workerId, newObraNombre) => {
+  const handleOpenAssignObraModal = (worker, targetObra) => {
+    const existingDate = worker.fecha_asig ? String(worker.fecha_asig).substring(0, 10) : new Date().toISOString().substring(0, 10);
+    setAssignModalData({
+      workerId: worker.id,
+      workerNombre: worker.nombre,
+      obraNombre: targetObra !== undefined ? targetObra : (worker.obra_nombre || ''),
+      fechaAsig: existingDate
+    });
+    setShowAssignObraModal(true);
+  };
+
+  const handleSaveObraAssignment = async () => {
+    if (!assignModalData.workerId) return;
     try {
+      const payload = {
+        obra_nombre: assignModalData.obraNombre,
+        fecha_asig: assignModalData.fechaAsig
+      };
       const { error } = await supabase
         .from('maestro_personal')
-        .update({ obra_nombre: newObraNombre })
-        .eq('id', workerId);
-      if (error) throw error;
-      setPersonal(prev => prev.map(p => p.id === workerId ? { ...p, obra_nombre: newObraNombre } : p));
+        .update(payload)
+        .eq('id', assignModalData.workerId);
+      if (error) {
+        console.warn("Columna fecha_asig no disponible directamente en DB, actualizando obra_nombre:", error.message);
+        await supabase.from('maestro_personal').update({ obra_nombre: assignModalData.obraNombre }).eq('id', assignModalData.workerId);
+      }
+      try {
+        const localKey = 'obraxis_worker_details_' + assignModalData.workerId;
+        const existing = localStorage.getItem(localKey);
+        const parsed = existing ? JSON.parse(existing) : {};
+        localStorage.setItem(localKey, JSON.stringify({ ...parsed, ...payload }));
+      } catch (errLocal) {}
+
+      setPersonal(prev => prev.map(p => p.id === assignModalData.workerId ? { ...p, ...payload } : p));
+      setShowAssignObraModal(false);
     } catch (err) {
       alert('Error asignando trabajador a obra: ' + err.message);
     }
@@ -280,6 +319,7 @@ function Personal({ user, onBack }) {
       fono: formData.fono ? formData.fono.trim() : null,
       email: formData.email ? formData.email.trim() : null,
       obra_nombre: formData.obra_nombre,
+      fecha_asig: formData.fecha_asig || new Date().toISOString().substring(0, 10),
       centro_trabajo: formData.centro_trabajo,
       area: formData.area,
       sueldo_base: parseFloat(formData.sueldo_base) || 0,
@@ -653,34 +693,50 @@ function Personal({ user, onBack }) {
                     <th className="p-3">Trabajador (RUT)</th>
                     <th className="p-3">Cargo Actual</th>
                     <th className="p-3">Obra Asignada Actualmente</th>
-                    <th className="p-3 text-right">Cambiar / Asignar Obra</th>
+                    <th className="p-3">📅 Fecha Asignación</th>
+                    <th className="p-3 text-right">Cambiar Obra & Fecha</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-150 text-[11px]">
-                  {personal.map((p) => (
-                    <tr key={p.id} className="hover:bg-slate-50">
-                      <td className="p-3 font-bold text-slate-800">
-                        {p.nombre}
-                        <span className="block font-mono text-[10px] text-slate-500">{p.rut || 'Sin RUT'}</span>
-                      </td>
-                      <td className="p-3 font-semibold text-blue-950">{p.cargo}</td>
-                      <td className="p-3">
-                        <span className="text-[10px] font-bold bg-purple-50 text-purple-900 border border-purple-200 px-2 py-0.5 rounded">
-                          {p.obra_nombre || 'Sin obra asignada'}
-                        </span>
-                      </td>
-                      <td className="p-3 text-right">
-                        <select
-                          value={p.obra_nombre || ''}
-                          onChange={(e) => handleAssignObraToWorker(p.id, e.target.value)}
-                          className="border border-slate-300 rounded-lg p-1.5 text-xs text-slate-800 font-bold bg-white focus:border-purple-600 cursor-pointer"
-                        >
-                          <option value="">-- Sin Obra (Oficina Central) --</option>
-                          {obras.map(o => <option key={o.nombre} value={o.nombre}>{o.nombre}</option>)}
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
+                  {personal.map((p) => {
+                    const cleanDate = p.fecha_asig ? String(p.fecha_asig).split('T')[0] : (p.created_at ? String(p.created_at).split('T')[0] : 'Sin fecha');
+                    return (
+                      <tr key={p.id} className="hover:bg-slate-50">
+                        <td className="p-3 font-bold text-slate-800">
+                          {p.nombre}
+                          <span className="block font-mono text-[10px] text-slate-500">{p.rut || 'Sin RUT'}</span>
+                        </td>
+                        <td className="p-3 font-semibold text-blue-950">{p.cargo}</td>
+                        <td className="p-3">
+                          <span className="text-[10px] font-bold bg-purple-50 text-purple-900 border border-purple-200 px-2 py-0.5 rounded">
+                            {p.obra_nombre || 'Sin obra asignada'}
+                          </span>
+                        </td>
+                        <td className="p-3 font-mono font-bold text-slate-700">
+                          📅 {cleanDate}
+                        </td>
+                        <td className="p-3 text-right">
+                          <div className="flex justify-end items-center gap-2">
+                            <select
+                              value={p.obra_nombre || ''}
+                              onChange={(e) => handleOpenAssignObraModal(p, e.target.value)}
+                              className="border border-slate-300 rounded-lg p-1.5 text-xs text-slate-800 font-bold bg-white focus:border-purple-600 cursor-pointer"
+                            >
+                              <option value="">-- Sin Obra (Oficina Central) --</option>
+                              {obras.map(o => <option key={o.nombre} value={o.nombre}>{o.nombre}</option>)}
+                            </select>
+                            <button
+                              onClick={() => handleOpenAssignObraModal(p, p.obra_nombre)}
+                              className="bg-purple-900 text-white font-bold px-2.5 py-1.5 rounded-lg text-[10px] hover:bg-purple-800 cursor-pointer transition shadow-2xs"
+                              title="Configurar fecha de asignación"
+                            >
+                              📅 Fecha
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1256,7 +1312,7 @@ function Personal({ user, onBack }) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                   <div>
                     <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Obra Asignada</label>
                     <select
@@ -1267,6 +1323,15 @@ function Personal({ user, onBack }) {
                       <option value="">-- Sin Obra (Oficina) --</option>
                       {obras.map(o => <option key={o.nombre} value={o.nombre}>{o.nombre}</option>)}
                     </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-indigo-900 mb-1">📅 Fecha Asignación Obra</label>
+                    <input
+                      type="date"
+                      value={formData.fecha_asig || ''}
+                      onChange={(e) => setFormData({ ...formData, fecha_asig: e.target.value })}
+                      className="w-full border border-indigo-200 bg-indigo-50/50 rounded-lg p-2 text-xs text-slate-800 font-mono font-bold"
+                    />
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Tipo de Contrato</label>
@@ -1883,6 +1948,76 @@ function Personal({ user, onBack }) {
                 Guardar Indicadores Previsionales
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PARA ASIGNACIÓN DE OBRA Y FECHA DESDE RRHH */}
+      {showAssignObraModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="p-2 bg-purple-100 text-purple-900 rounded-xl text-xs font-black">📅</span>
+                <h3 className="font-extrabold text-slate-800 text-sm">Asignar Trabajador a Obra</h3>
+              </div>
+              <button
+                onClick={() => setShowAssignObraModal(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="bg-purple-50/80 p-3 rounded-2xl border border-purple-200 space-y-1">
+              <span className="text-[10px] font-bold text-purple-900 uppercase">Trabajador Seleccionado:</span>
+              <p className="text-xs font-black text-purple-950">{assignModalData.workerNombre}</p>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Obra de Destino</label>
+                <select
+                  value={assignModalData.obraNombre}
+                  onChange={(e) => setAssignModalData({ ...assignModalData, obraNombre: e.target.value })}
+                  className="w-full border border-slate-300 rounded-xl p-2.5 text-xs font-extrabold text-slate-800 bg-white focus:border-purple-600"
+                >
+                  <option value="">-- Sin Obra (Oficina Central) --</option>
+                  {obras.map(o => <option key={o.nombre} value={o.nombre}>{o.nombre}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-purple-950 mb-1">📅 Fecha desde la cual se asigna a Obra</label>
+                <input
+                  type="date"
+                  required
+                  value={assignModalData.fechaAsig}
+                  onChange={(e) => setAssignModalData({ ...assignModalData, fechaAsig: e.target.value })}
+                  className="w-full border border-purple-300 rounded-xl p-2.5 text-xs font-mono font-bold text-slate-900 bg-white shadow-2xs"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  💡 Esta fecha cargará automáticamente la asignación a la proyección de costos de la obra seleccionada.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowAssignObraModal(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveObraAssignment}
+                className="px-5 py-2 text-xs font-extrabold text-white bg-purple-900 hover:bg-purple-800 rounded-xl shadow-xs cursor-pointer transition"
+              >
+                Guardar Asignación & Fecha
+              </button>
+            </div>
           </div>
         </div>
       )}
