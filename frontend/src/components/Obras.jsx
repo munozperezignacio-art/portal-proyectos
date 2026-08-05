@@ -433,6 +433,14 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   });
 
   const [showAsignacionPeriodoModal, setShowAsignacionPeriodoModal] = useState(false);
+  const [showPeriodoRrhhModal, setShowPeriodoRrhhModal] = useState(false);
+
+  const [fechaInicioRrhh, setFechaInicioRrhh] = useState(() => {
+    return localStorage.getItem('obraxis_fecha_inicio_rrhh_' + (selectedObra?.nombre || '')) || '2026-07-15';
+  });
+  const [fechaTerminoRrhh, setFechaTerminoRrhh] = useState(() => {
+    return localStorage.getItem('obraxis_fecha_termino_rrhh_' + (selectedObra?.nombre || '')) || '2027-01-15';
+  });
   const [editingAsignacionData, setEditingAsignacionData] = useState(null);
 
   const [proyeccionMasivaFormData, setProyeccionMasivaFormData] = useState({
