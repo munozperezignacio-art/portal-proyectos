@@ -351,6 +351,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [showProyeccionRrhhModal, setShowProyeccionRrhhModal] = useState(false);
   const [showProyeccionMasivaRrhhModal, setShowProyeccionMasivaRrhhModal] = useState(false);
   const [showEditSueldoModal, setShowEditSueldoModal] = useState(false);
+  const [showFechasObraModal, setShowFechasObraModal] = useState(false);
   const [editingWorkerData, setEditingWorkerData] = useState(null);
 
   const [fechaInicioReal, setFechaInicioReal] = useState(() => {
@@ -3019,20 +3020,29 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      onClick={() => {
-                        setBitacoraNoteFormData({
-                          fecha: new Date().toISOString().substring(0, 10),
-                          titulo: '',
-                          comentario: ''
-                        });
-                        setShowBitacoraNoteModal(true);
-                      }}
-                      className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>+ Agregar Nota / Comentario</span>
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={() => setShowFechasObraModal(true)}
+                        className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs border border-slate-700"
+                      >
+                        <Calendar className="w-4 h-4 text-blue-300" />
+                        <span>📅 Configurar Fechas de Obra (Inicio & Término)</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setBitacoraNoteFormData({
+                            fecha: new Date().toISOString().substring(0, 10),
+                            titulo: '',
+                            comentario: ''
+                          });
+                          setShowBitacoraNoteModal(true);
+                        }}
+                        className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>+ Agregar Nota / Comentario</span>
+                      </button>
+                    </div>
 
                     {/* Filtros de la Línea del Tiempo (Selección Múltiple) */}
                     <div className="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-xl text-[11px] font-bold">
@@ -4375,7 +4385,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             nombre: p.nombre,
                             cargo: p.cargo || 'Trabajador Faena',
                             costo_dia: parseFloat(p.costo_dia || p.sueldo_base / 30) || 35000,
-                            dias_estimados: 20
+                            dias_estimados: 30
                           });
                         }
                       });
@@ -4436,7 +4446,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           ) : (
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                               {workersArray.map((w, wIdx) => {
-                                const totalProg = w.dias_estimados * w.costo_dia;
+                                const totalProg = w.sueldo_base || (w.dias_estimados * w.costo_dia);
                                 return (
                                   <div key={wIdx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 shadow-2xs">
                                     <div className="flex justify-between items-center">
@@ -4451,7 +4461,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                     </div>
                                     <div className="flex justify-between items-center text-[11px]">
                                       <span className="text-slate-500 font-semibold">Días Proyectados:</span>
-                                      <span className="font-mono font-bold text-slate-700">{w.dias_estimados} Días</span>
+                                      <span className="font-mono font-bold text-slate-700">{w.dias_estimados} Días (Mes Completo)</span>
                                     </div>
                                     <div className="flex justify-between items-center text-xs border-t border-slate-200 pt-1.5">
                                       <span className="text-slate-700 font-extrabold">Costo Proyectado:</span>
@@ -6907,6 +6917,63 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 className="w-full bg-emerald-800 hover:bg-emerald-900 text-white font-bold py-2.5 rounded-xl shadow-xs text-xs cursor-pointer transition flex items-center justify-center gap-1.5"
               >
                 {modalLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>{partidaFormData.es_titulo || partidaFormData.unidad === 'TITULO' ? 'Guardar Título o Grupo' : 'Guardar Partida de Obra'}</span>}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIGURACIÓN DE FECHAS DE OBRA (INICIO REAL Y TÉRMINO ESTIMADO) */}
+      {showFechasObraModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-blue-900" />
+                <span>📅 Configurar Fechas de Obra (Inicio & Término)</span>
+              </h3>
+              <button onClick={() => setShowFechasObraModal(false)} className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer">✕</button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                localStorage.setItem('obraxis_fecha_inicio_real_' + (selectedObra?.nombre || ''), fechaInicioReal);
+                localStorage.setItem('obraxis_fecha_termino_est_' + (selectedObra?.nombre || ''), fechaTerminoEstimada);
+                setShowFechasObraModal(false);
+                alert('Fechas de Inicio Real y Término Estimado guardadas con éxito.');
+              }}
+              className="space-y-4 text-xs"
+            >
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">🚀 Fecha de Inicio Real de Obra</label>
+                <input
+                  type="date"
+                  required
+                  value={fechaInicioReal}
+                  onChange={(e) => setFechaInicioReal(e.target.value)}
+                  className="w-full border border-blue-300 rounded-lg p-2.5 text-xs font-mono font-bold text-slate-800 bg-blue-50/40"
+                />
+                <span className="text-[10px] text-slate-500 block mt-1">Rige la proyección de costos y simulación de días laborados.</span>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">🏁 Fecha de Término Estimada / Contratada</label>
+                <input
+                  type="date"
+                  required
+                  value={fechaTerminoEstimada}
+                  onChange={(e) => setFechaTerminoEstimada(e.target.value)}
+                  className="w-full border border-amber-300 rounded-lg p-2.5 text-xs font-mono font-bold text-slate-800 bg-amber-50/40"
+                />
+                <span className="text-[10px] text-slate-500 block mt-1">Fecha hito de término del proyecto para control temporal.</span>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-blue-900 hover:bg-blue-800 text-white font-bold py-2.5 rounded-xl shadow-xs text-xs cursor-pointer transition flex items-center justify-center gap-1.5"
+              >
+                <span>Guardar Fechas de Obra</span>
               </button>
             </form>
           </div>
