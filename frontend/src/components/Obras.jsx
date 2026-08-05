@@ -362,6 +362,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [showProyeccionMasivaRrhhModal, setShowProyeccionMasivaRrhhModal] = useState(false);
   const [showEditSueldoModal, setShowEditSueldoModal] = useState(false);
   const [showFechasObraModal, setShowFechasObraModal] = useState(false);
+  const [isPersonalCollapseOpen, setIsPersonalCollapseOpen] = useState(false);
   const [editingWorkerData, setEditingWorkerData] = useState(null);
 
   const [fechaInicioReal, setFechaInicioReal] = useState(() => {
@@ -3031,13 +3032,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        onClick={() => setShowFechasObraModal(true)}
-                        className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs border border-slate-700"
-                      >
-                        <Calendar className="w-4 h-4 text-blue-300" />
-                        <span>📅 Configurar Fechas de Obra (Inicio & Término)</span>
-                      </button>
+                      
                       <button
                         onClick={() => {
                           setBitacoraNoteFormData({
@@ -4352,102 +4347,23 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   </div>
 
                   {/* TABLA DEDICADA DE PROYECCIÓN DE RECURSOS HUMANOS (BASE + HORAS EXTRAS + ASIGNACIONES) */}
-                  <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b pb-2">
-                      <div>
-                        <h4 className="font-extrabold text-slate-800 text-xs flex items-center gap-2">
-                          <span>👥 Proyección de Recursos Humanos (Base + Horas Extras + Asignaciones)</span>
-                          <span className="text-[10px] bg-indigo-100 text-indigo-900 px-2 py-0.5 rounded-full font-black">
-                            {proyeccionesRrhhList.length} Proyecciones RRHH
-                          </span>
-                        </h4>
-                        <p className="text-[10px] text-slate-500">Configuración teórica de sueldos base, horas extras y asignaciones por trabajador o cuadrilla</p>
-                      </div>
-                      <button
-                        onClick={() => {
-                          const validWorkers = Array.from(new Set([...(personalAsignadoList || []).map(p => p.nombre), ...(asistenciaList || []).map(a => a.trabajador)])).filter(Boolean);
-                          setProyeccionRrhhFormData({
-                            concepto: validWorkers.length > 0 ? `Personal: ${validWorkers[0]}` : 'Cuadrilla de Terreno',
-                            partida: 'Gastos Generales',
-                            sueldo_base: 600000,
-                            horas_extras: 150000,
-                            asignaciones: 50000
-                          });
-                          setShowProyeccionRrhhModal(true);
-                        }}
-                        className="bg-indigo-900 text-white font-bold px-3 py-1.5 rounded-lg text-xs hover:bg-indigo-800 cursor-pointer inline-flex items-center gap-1 shadow-2xs"
-                      >
-                        + Configurar Proyección RRHH
-                      </button>
-                    </div>
+                  
 
-                    {proyeccionesRrhhList.length === 0 ? (
-                      <p className="text-xs text-slate-500 italic p-3 text-center bg-slate-50 rounded-xl">
-                        No hay configuraciones personalizadas de RRHH aún. Puedes presionar "+ Configurar Proyección RRHH" para estimar Sueldo Base, Horas Extras y Asignaciones.
-                      </p>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs text-left border-collapse">
-                          <thead>
-                            <tr className="bg-indigo-50/70 border-b border-indigo-200 text-indigo-950 font-bold uppercase text-[10px]">
-                              <th className="p-3">Trabajador / Concepto</th>
-                              <th className="p-3">Partida Imputada</th>
-                              <th className="p-3 text-right">Sueldo Base ($)</th>
-                              <th className="p-3 text-right">Horas Extras (H.E. $)</th>
-                              <th className="p-3 text-right">Asignaciones / Viáticos ($)</th>
-                              <th className="p-3 text-right">Total Proyectado RRHH ($)</th>
-                              <th className="p-3 text-center">Acciones</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-150 text-[11px]">
-                            {proyeccionesRrhhList.map((rrh, idx) => {
-                              const sBase = parseFloat(rrh.sueldo_base) || 0;
-                              const hEx = parseFloat(rrh.horas_extras) || 0;
-                              const asig = parseFloat(rrh.asignaciones) || 0;
-                              const totRrh = sBase + hEx + asig;
-
-                              return (
-                                <tr key={idx} className="hover:bg-indigo-50/30">
-                                  <td className="p-3 font-bold text-slate-800">{rrh.concepto}</td>
-                                  <td className="p-3 font-semibold text-slate-600">{rrh.partida || 'Gastos Generales'}</td>
-                                  <td className="p-3 font-mono font-bold text-slate-700 text-right">${sBase.toLocaleString('es-CL')}</td>
-                                  <td className="p-3 font-mono font-bold text-blue-900 text-right">${hEx.toLocaleString('es-CL')}</td>
-                                  <td className="p-3 font-mono font-bold text-amber-900 text-right">${asig.toLocaleString('es-CL')}</td>
-                                  <td className="p-3 font-mono font-black text-indigo-950 text-right">${totRrh.toLocaleString('es-CL')}</td>
-                                  <td className="p-3 text-center">
-                                    <button
-                                      onClick={() => {
-                                        setProyeccionesRrhhList(prev => {
-                                          const updated = prev.filter((_, i) => i !== idx);
-                                          localStorage.setItem(`obraxis_proj_rrhh_${selectedObra?.nombre}`, JSON.stringify(updated));
-                                          return updated;
-                                        });
-                                      }}
-                                      className="p-1 text-slate-500 hover:text-red-700 cursor-pointer"
-                                      title="Eliminar Proyección RRHH"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* SECCIÓN DEDICADA DE PERSONAL ASIGNADO Y PROYECCIÓN DE MANO DE OBRA */}
+                  {/* SECCIÓN DEDICADA DE PERSONAL ASIGNADO Y PROYECCIÓN DE MANO DE OBRA (COLAPSABLE) */}
                   <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
                     {(() => {
                       const workerMap = new window.Map();
                       (personalAsignadoList || []).forEach(p => {
                         if (p.nombre) {
+                          const custom = customSalariesMap[p.nombre];
+                          const sBase = custom?.sueldo_base || parseFloat(p.sueldo_base) || 1200000;
+                          const cEmpresa = Math.round(sBase * 1.25);
                           workerMap.set(p.nombre, {
                             nombre: p.nombre,
-                            cargo: p.cargo || 'Trabajador Faena',
-                            costo_dia: parseFloat(p.costo_dia || p.sueldo_base / 30) || 35000,
+                            cargo: custom?.cargo || p.cargo || 'Trabajador Faena',
+                            sueldo_base: sBase,
+                            costo_empresa: cEmpresa,
+                            costo_dia: Math.round(sBase / 30),
                             dias_estimados: 30
                           });
                         }
@@ -4457,89 +4373,90 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           workerMap.set(a.trabajador, {
                             nombre: a.trabajador,
                             cargo: 'Personal Asistencia',
-                            costo_dia: 35000,
+                            sueldo_base: 1200000,
+                            costo_empresa: 1500000,
+                            costo_dia: 40000,
                             dias_estimados: Math.max(10, asistenciaList.filter(x => x.trabajador === a.trabajador).length)
                           });
                         }
                       });
 
                       const workersArray = Array.from(workerMap.values());
-                      const totalCostoPersonalObra = workersArray.reduce((acc, w) => acc + (w.dias_estimados * w.costo_dia), 0);
+                      const totalCostoPersonalObra = workersArray.reduce((acc, w) => acc + (w.costo_empresa || Math.round((w.sueldo_base || 1200000) * 1.25)), 0);
 
                       return (
                         <>
-                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b pb-2">
-                            <div>
-                              <h4 className="font-extrabold text-slate-800 text-xs flex items-center gap-2">
-                                <span>👥 Costos del Personal Asignado a Faena (Mano de Obra Proyectada)</span>
-                                <span className="text-[10px] bg-blue-100 text-blue-900 px-2 py-0.5 rounded-full font-black">
-                                  {workersArray.length} Personal Registrado
-                                </span>
-                              </h4>
-                              <p className="text-[10px] text-slate-500">Cálculo de nómina y mano de obra imputable a la obra según sueldo/tarifa diaria</p>
+                          <div
+                            onClick={() => setIsPersonalCollapseOpen(!isPersonalCollapseOpen)}
+                            className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-200 pb-2 cursor-pointer hover:bg-slate-50 p-2 rounded-xl transition"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <span className="p-1.5 bg-blue-900 text-white rounded-lg text-xs font-bold shadow-2xs">
+                                {isPersonalCollapseOpen ? '▲' : '▼'}
+                              </span>
+                              <div>
+                                <h4 className="font-extrabold text-slate-800 text-xs flex items-center gap-2">
+                                  <span>👥 Costos del Personal Asignado a Faena (Mano de Obra Proyectada)</span>
+                                  <span className="text-[10px] bg-blue-100 text-blue-900 px-2 py-0.5 rounded-full font-black">
+                                    {workersArray.length} Personal Registrado
+                                  </span>
+                                </h4>
+                                <p className="text-[10px] text-slate-500 font-semibold">
+                                  {isPersonalCollapseOpen ? 'Haz clic para replegar nómina de personal' : 'Haz clic para desplegar el detalle individual del personal (100+ personas)'}
+                                </p>
+                              </div>
                             </div>
-                            <div className="bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
-                              <span className="text-[10px] font-bold text-slate-500 uppercase">Subtotal Proyectado Personal: </span>
+
+                            <div className="bg-emerald-50 px-3.5 py-1.5 rounded-xl border border-emerald-200 flex items-center gap-2">
                               <div className="text-right">
-                                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Subtotal Proyectado Personal (Costo Empresa): </span>
-                                  <span className="font-mono font-black text-emerald-900 text-sm">${Math.round(totalCostoPersonalObra * 1.25).toLocaleString('es-CL')}</span>
-                                </div>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase block">SUBTOTAL PROYECTADO PERSONAL (COSTO EMPRESA):</span>
+                                <span className="font-mono font-black text-emerald-900 text-sm">${totalCostoPersonalObra.toLocaleString('es-CL')}</span>
+                              </div>
+                              <span className="text-xs text-emerald-800 font-bold ml-1">{isPersonalCollapseOpen ? '▲' : '▼'}</span>
                             </div>
                           </div>
 
-                          {workersArray.length === 0 ? (
-                            <div className="p-4 text-center bg-slate-50 rounded-xl space-y-2">
-                              <p className="text-xs text-slate-600 font-semibold">No se ha registrado personal en la dotación de esta obra.</p>
-                              <button
-                                onClick={() => {
-                                  const validPartidas = partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo));
-                                  setProyeccionFormData({
-                                    partida: validPartidas.length > 0 ? validPartidas[0].partida : '',
-                                    tipo_proyeccion: 'TIEMPO',
-                                    nombre_item: 'Mano de Obra Directa',
-                                    tarifa_tiempo_dia: 35000,
-                                    unidad_insumo: 'Día',
-                                    tasa_rendimiento_insumo: 1,
-                                    precio_unitario_insumo: 35000
-                                  });
-                                  setShowProyeccionModal(true);
-                                }}
-                                className="bg-blue-900 text-white font-bold px-3 py-1.5 rounded-lg text-xs hover:bg-blue-800 cursor-pointer inline-flex items-center gap-1"
-                              >
-                                + Agregar Costo de Personal Manual
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                              {workersArray.map((w, wIdx) => {
-                                const totalProg = w.sueldo_base || (w.dias_estimados * w.costo_dia);
-                                return (
-                                  <div key={wIdx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 shadow-2xs">
-                                    <div className="flex justify-between items-center">
-                                      <span className="font-extrabold text-slate-900 text-xs">{w.nombre}</span>
-                                      <span className="text-[9px] font-bold bg-blue-100 text-blue-900 px-2 py-0.5 rounded uppercase">
-                                        {w.cargo}
-                                      </span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-[11px]">
-                                      <span className="text-slate-500 font-semibold">Tarifa Diaria:</span>
-                                      <div className="text-right">
-                                      <span className="font-mono font-bold text-slate-800 text-xs font-black block">${(w.sueldo_base || (w.costo_dia * 30)).toLocaleString('es-CL')}/mes (Base)</span>
-                                      <span className="font-mono text-[10px] text-emerald-800 font-bold block">+ Leyes Soc. (25%): ${Math.round((w.sueldo_base || (w.costo_dia * 30)) * 0.25).toLocaleString('es-CL')}</span>
-                                      <span className="font-mono text-[10px] text-indigo-950 font-black block border-t border-slate-200 mt-0.5 pt-0.5">Costo Empresa: ${Math.round((w.sueldo_base || (w.costo_dia * 30)) * 1.25).toLocaleString('es-CL')}</span>
-                                    </div>
-                                    </div>
-                                    <div className="flex justify-between items-center text-[11px]">
-                                      <span className="text-slate-500 font-semibold">Días Proyectados:</span>
-                                      <span className="font-mono font-bold text-slate-700">{w.dias_estimados} Días (Mes Completo)</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-xs border-t border-slate-200 pt-1.5">
-                                      <span className="text-slate-700 font-extrabold">Costo Proyectado:</span>
-                                      <span className="font-mono font-black text-emerald-800">${totalProg.toLocaleString('es-CL')}</span>
-                                    </div>
-                                  </div>
-                                );
-                              })}
+                          {isPersonalCollapseOpen && (
+                            <div className="pt-2">
+                              {workersArray.length === 0 ? (
+                                <div className="p-4 text-center bg-slate-50 rounded-xl space-y-2">
+                                  <p className="text-xs text-slate-600 font-semibold">No se ha registrado personal en la dotación de esta obra.</p>
+                                </div>
+                              ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                  {workersArray.map((w, wIdx) => {
+                                    const cEmpresa = w.costo_empresa || Math.round((w.sueldo_base || 1200000) * 1.25);
+                                    return (
+                                      <div key={wIdx} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 shadow-2xs">
+                                        <div className="flex justify-between items-center border-b border-slate-200/60 pb-1.5">
+                                          <span className="font-extrabold text-slate-900 text-xs">{w.nombre}</span>
+                                          <span className="text-[9px] font-bold bg-blue-100 text-blue-900 px-2 py-0.5 rounded uppercase">
+                                            {w.cargo}
+                                          </span>
+                                        </div>
+                                        <div className="space-y-1 text-[11px]">
+                                          <div className="flex justify-between items-center">
+                                            <span className="text-slate-500 font-semibold">Sueldo Base Mensual:</span>
+                                            <span className="font-mono font-bold text-slate-800">${(w.sueldo_base || 1200000).toLocaleString('es-CL')}/mes</span>
+                                          </div>
+                                          <div className="flex justify-between items-center text-emerald-800">
+                                            <span className="font-semibold">+ Leyes Sociales (25%):</span>
+                                            <span className="font-mono font-bold">${Math.round((w.sueldo_base || 1200000) * 0.25).toLocaleString('es-CL')}</span>
+                                          </div>
+                                          <div className="flex justify-between items-center">
+                                            <span className="text-slate-500 font-semibold">Días Proyectados:</span>
+                                            <span className="font-mono font-bold text-slate-700">30 Días (Mes Completo)</span>
+                                          </div>
+                                        </div>
+                                        <div className="flex justify-between items-center pt-2 border-t border-slate-200 text-xs bg-emerald-50 p-2 rounded-lg">
+                                          <span className="font-extrabold text-emerald-950">Costo Proyectado Empresa:</span>
+                                          <span className="font-mono font-black text-emerald-900 text-sm">${cEmpresa.toLocaleString('es-CL')}</span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
                           )}
                         </>
