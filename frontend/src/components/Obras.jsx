@@ -4357,11 +4357,15 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                         if (p.nombre) {
                           const custom = customSalariesMap[p.nombre];
                           const sBase = custom?.sueldo_base || parseFloat(p.sueldo_base) || 1200000;
-                          const cEmpresa = Math.round(sBase * 1.25);
+                          const hExtras = custom?.horas_extras || 0;
+                          const asig = custom?.asignaciones || 0;
+                          const cEmpresa = Math.round(sBase * 1.25) + hExtras + asig;
                           workerMap.set(p.nombre, {
                             nombre: p.nombre,
                             cargo: custom?.cargo || p.cargo || 'Trabajador Faena',
                             sueldo_base: sBase,
+                            horas_extras: hExtras,
+                            asignaciones: asig,
                             costo_empresa: cEmpresa,
                             costo_dia: Math.round(sBase / 30),
                             dias_estimados: 30
@@ -7111,8 +7115,25 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   localStorage.setItem(`obraxis_proj_rrhh_${selectedObra?.nombre}`, JSON.stringify(newBulkProjections));
                 } catch (err) {}
 
+                // Actualizar customSalariesMap para que cada trabajador sume H.E. y Asignaciones al Costo Empresa
+                setCustomSalariesMap(prev => {
+                  const updated = { ...prev };
+                  newBulkProjections.forEach(proj => {
+                    const wName = proj.concepto.replace('Personal: ', '').trim();
+                    const existing = updated[wName] || {};
+                    updated[wName] = {
+                      ...existing,
+                      sueldo_base: existing.sueldo_base || proj.sueldo_base || 1200000,
+                      horas_extras: proj.horas_extras || 0,
+                      asignaciones: proj.asignaciones || 0
+                    };
+                  });
+                  localStorage.setItem('obraxis_custom_salaries_' + (selectedObra?.nombre || ''), JSON.stringify(updated));
+                  return updated;
+                });
+
                 setShowProyeccionMasivaRrhhModal(false);
-                alert(`Proyección masiva configurada con éxito para ${allWorkerNames.length} trabajadores de la obra.`);
+                alert(`Proyección masiva aplicada exitosamente. Se ha actualizado la nómina y el Costo Empresa para ${allWorkerNames.length} trabajadores.`);
               }}
               className="space-y-4 text-xs"
             >
