@@ -3096,16 +3096,59 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 {/* Eventos Cronológicos */}
                 <div className="relative border-l-2 border-slate-300 ml-4 space-y-6 pl-6">
                   
-                  {/* Evento 1: Inicio de Obra */}
+                  {/* HITO 1: INICIO OFICIAL DE FAENA */}
                   <div className="relative group">
-                    <div className="absolute -left-[31px] top-1.5 w-4 h-4 bg-slate-700 rounded-full border-2 border-white ring-2 ring-slate-200"></div>
-                    <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-1">
-                      <div className="flex justify-between items-center text-xs font-bold text-slate-800">
-                        <span className="text-slate-900 font-extrabold">🚀 Inicio Oficial de Faena & Acta de Entrega de Terreno</span>
-                        <span className="text-[10px] text-slate-400 font-mono">01/03/2026</span>
+                    <div className="absolute -left-[31px] top-1.5 w-4 h-4 bg-blue-700 rounded-full border-2 border-white ring-2 ring-blue-200"></div>
+                    <div className="bg-blue-50/70 border border-blue-200 p-3.5 rounded-xl space-y-2 shadow-2xs">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-xs font-bold text-slate-800">
+                        <span className="text-blue-950 font-extrabold text-sm flex items-center gap-1.5">
+                          🚀 Inicio Oficial de Faena & Acta de Entrega de Terreno
+                        </span>
+                        <div className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border border-blue-300 shadow-2xs">
+                          <label className="text-[10px] font-bold text-blue-900 uppercase">Fecha Inicio:</label>
+                          <input
+                            type="date"
+                            value={fechaInicioReal}
+                            onChange={(e) => {
+                              const newVal = e.target.value;
+                              setFechaInicioReal(newVal);
+                              localStorage.setItem('obraxis_fecha_inicio_real_' + (selectedObra?.nombre || ''), newVal);
+                              setSelectedObra(prev => prev ? { ...prev, fecha_inicio_real: newVal, fecha_inicio: newVal } : prev);
+                            }}
+                            className="bg-white text-slate-900 font-mono font-bold text-xs outline-none"
+                          />
+                        </div>
                       </div>
-                      <p className="text-xs text-slate-600">Reunión inicial de coordinación con mandante e hito de inicio de obras.</p>
-                      <span className="inline-block text-[9px] bg-slate-200 text-slate-800 px-2 py-0.5 rounded font-bold mt-1">Hito Obra</span>
+                      <p className="text-xs text-slate-700 font-medium">Reunión inicial de coordinación con mandante e hito contractual de inicio de obras.</p>
+                      <span className="inline-block text-[9px] bg-blue-900 text-white px-2 py-0.5 rounded font-bold">Hito Obra Mandatorio</span>
+                    </div>
+                  </div>
+
+                  {/* HITO 2: FECHA DE TÉRMINO DE OBRA */}
+                  <div className="relative group">
+                    <div className="absolute -left-[31px] top-1.5 w-4 h-4 bg-amber-600 rounded-full border-2 border-white ring-2 ring-amber-200"></div>
+                    <div className="bg-amber-50/70 border border-amber-200 p-3.5 rounded-xl space-y-2 shadow-2xs">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-xs font-bold text-slate-800">
+                        <span className="text-amber-950 font-extrabold text-sm flex items-center gap-1.5">
+                          🏁 Hito: Fecha de Término de Obra
+                        </span>
+                        <div className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border border-amber-300 shadow-2xs">
+                          <label className="text-[10px] font-bold text-amber-900 uppercase">Fecha Término:</label>
+                          <input
+                            type="date"
+                            value={fechaTerminoEstimada}
+                            onChange={(e) => {
+                              const newVal = e.target.value;
+                              setFechaTerminoEstimada(newVal);
+                              localStorage.setItem('obraxis_fecha_termino_est_' + (selectedObra?.nombre || ''), newVal);
+                              setSelectedObra(prev => prev ? { ...prev, fecha_termino: newVal } : prev);
+                            }}
+                            className="bg-white text-slate-900 font-mono font-bold text-xs outline-none"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-700 font-medium">Fecha hito contractual de término y entrega final de obras.</p>
+                      <span className="inline-block text-[9px] bg-amber-900 text-white px-2 py-0.5 rounded font-bold">Hito Obra Contractual</span>
                     </div>
                   </div>
 
@@ -4423,7 +4466,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             </div>
                             <div className="bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
                               <span className="text-[10px] font-bold text-slate-500 uppercase">Subtotal Proyectado Personal: </span>
-                              <span className="font-mono font-black text-emerald-900 text-xs">${totalCostoPersonalObra.toLocaleString('es-CL')}</span>
+                              <div className="text-right">
+                                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Subtotal Proyectado Personal (Costo Empresa): </span>
+                                  <span className="font-mono font-black text-emerald-900 text-sm">${Math.round(totalCostoPersonalObra * 1.25).toLocaleString('es-CL')}</span>
+                                </div>
                             </div>
                           </div>
 
