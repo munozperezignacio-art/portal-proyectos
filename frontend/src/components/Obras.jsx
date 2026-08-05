@@ -227,6 +227,16 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     }
   }, [initialObraName, obras]);
 
+  // Sincronización automática y persistente de fechas de la obra seleccionada
+  useEffect(() => {
+    if (selectedObra?.nombre) {
+      const savedStart = localStorage.getItem('obraxis_fecha_inicio_real_' + selectedObra.nombre) || selectedObra.fecha_inicio_real || selectedObra.fecha_inicio || '2026-08-01';
+      const savedEnd = localStorage.getItem('obraxis_fecha_termino_est_' + selectedObra.nombre) || selectedObra.fecha_termino || '2026-12-31';
+      setFechaInicioReal(savedStart);
+      setFechaTerminoEstimada(savedEnd);
+    }
+  }, [selectedObra]);
+
   const handleBackToProjects = () => {
     if (initialObraName) {
       onBack();
@@ -3112,7 +3122,9 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             onChange={(e) => {
                               const newVal = e.target.value;
                               setFechaInicioReal(newVal);
-                              localStorage.setItem('obraxis_fecha_inicio_real_' + (selectedObra?.nombre || ''), newVal);
+                              const nameKey = selectedObra?.nombre || 'default';
+                              localStorage.setItem('obraxis_fecha_inicio_real_' + nameKey, newVal);
+                              localStorage.setItem('obraxis_global_fecha_inicio_real', newVal);
                               setSelectedObra(prev => prev ? { ...prev, fecha_inicio_real: newVal, fecha_inicio: newVal } : prev);
                             }}
                             className="bg-white text-slate-900 font-mono font-bold text-xs outline-none"
@@ -3140,7 +3152,9 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             onChange={(e) => {
                               const newVal = e.target.value;
                               setFechaTerminoEstimada(newVal);
-                              localStorage.setItem('obraxis_fecha_termino_est_' + (selectedObra?.nombre || ''), newVal);
+                              const nameKey = selectedObra?.nombre || 'default';
+                              localStorage.setItem('obraxis_fecha_termino_est_' + nameKey, newVal);
+                              localStorage.setItem('obraxis_global_fecha_termino_est', newVal);
                               setSelectedObra(prev => prev ? { ...prev, fecha_termino: newVal } : prev);
                             }}
                             className="bg-white text-slate-900 font-mono font-bold text-xs outline-none"
