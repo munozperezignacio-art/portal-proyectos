@@ -242,6 +242,13 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           setCustomSalariesMap(JSON.parse(savedSalaries));
         }
       } catch (e) {}
+
+      try {
+        const savedPeriodos = localStorage.getItem('obraxis_asignaciones_periodos_' + selectedObra.nombre);
+        if (savedPeriodos) {
+          setAsignacionesPeriodosList(JSON.parse(savedPeriodos));
+        }
+      } catch (e) {}
     }
   }, [selectedObra]);
 
@@ -398,6 +405,35 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       };
     }
   });
+
+  const [asignacionesPeriodosList, setAsignacionesPeriodosList] = useState(() => {
+    try {
+      const saved = localStorage.getItem('obraxis_asignaciones_periodos_' + (selectedObra?.nombre || ''));
+      return saved ? JSON.parse(saved) : [
+        {
+          id: 'asig-1',
+          concepto: 'Viático de Movilización Terreno',
+          destinatario: 'Toda la Dotación',
+          monto_mensual: 50000,
+          fecha_inicio: '2026-08-01',
+          fecha_termino: '2026-12-31'
+        },
+        {
+          id: 'asig-2',
+          concepto: 'Bono de Turno Noche / Terreno',
+          destinatario: 'Sofía Castro Morales',
+          monto_mensual: 150000,
+          fecha_inicio: '2026-08-01',
+          fecha_termino: '2026-09-30'
+        }
+      ];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const [showAsignacionPeriodoModal, setShowAsignacionPeriodoModal] = useState(false);
+  const [editingAsignacionData, setEditingAsignacionData] = useState(null);
 
   const [proyeccionMasivaFormData, setProyeccionMasivaFormData] = useState({
     filtro_cargo: 'TODOS',
@@ -4441,6 +4477,119 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             </div>
                           </div>
 
+                          {/* TABLA DE ASIGNACIONES Y BONOS POR PERÍODOS (RANGOS DE FECHA) */}
+                          <div className="mt-4 bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-200 pb-2">
+                              <div>
+                                <h5 className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5">
+                                  <span>📋 Registro de Asignaciones, Bonos y Viáticos por Períodos</span>
+                                  <span className="text-[9px] bg-indigo-100 text-indigo-900 px-2 py-0.5 rounded font-bold">
+                                    {asignacionesPeriodosList.length} Asignaciones Activas
+                                  </span>
+                                </h5>
+                                <p className="text-[10px] text-slate-500">Configura vigencias por rango de fechas (Desde - Hasta) para imputación por períodos de corte</p>
+                              </div>
+                              <button
+                                onClick={() => {
+                                  setEditingAsignacionData({
+                                    id: 'asig-' + Date.now(),
+                                    concepto: '',
+                                    destinatario: 'Toda la Dotación',
+                                    monto_mensual: 50000,
+                                    fecha_inicio: fechaInicioReal || '2026-08-01',
+                                    fecha_termino: fechaTerminoEstimada || '2026-12-31'
+                                  });
+                                  setShowAsignacionPeriodoModal(true);
+                                }}
+                                className="bg-indigo-900 hover:bg-indigo-800 text-white font-bold px-3 py-1.5 rounded-lg text-xs cursor-pointer flex items-center gap-1 shadow-2xs"
+                              >
+                                <span>+ Crear Asignación por Período</span>
+                              </button>
+                            </div>
+
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left text-xs border-collapse">
+                                <thead>
+                                  <tr className="bg-slate-200/70 text-slate-700 font-extrabold text-[10px] uppercase border-b border-slate-300">
+                                    <th className="p-2">Concepto / Asignación</th>
+                                    <th className="p-2">Aplicado A</th>
+                                    <th className="p-2">Período de Vigencia (Desde - Hasta)</th>
+                                    <th className="p-2 text-right">Monto Proyectado</th>
+                                    <th className="p-2 text-center">Estado en Corte</th>
+                                    <th className="p-2 text-center">Acciones</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-200">
+                                  {asignacionesPeriodosList.length === 0 ? (
+                                    <tr>
+                                      <td colSpan="6" className="p-3 text-center text-slate-500 italic text-xs">
+                                        No hay asignaciones registradas por período. Presiona "+ Crear Asignación por Período".
+                                      </td>
+                                    </tr>
+                                  ) : (
+                                    asignacionesPeriodosList.map((asig, aIdx) => {
+                                      const isVigente = fechaCorteProyeccion >= asig.fecha_inicio && fechaCorteProyeccion <= asig.fecha_termino;
+                                      return (
+                                        <tr key={aIdx} className="hover:bg-white transition text-xs font-semibold">
+                                          <td className="p-2 font-extrabold text-slate-900">{asig.concepto}</td>
+                                          <td className="p-2 text-slate-700">
+                                            <span className="bg-blue-100 text-blue-900 px-2 py-0.5 rounded text-[10px] font-bold">
+                                              {asig.destinatario}
+                                            </span>
+                                          </td>
+                                          <td className="p-2 font-mono text-slate-800 text-[11px]">
+                                            📅 {asig.fecha_inicio} ➔ 🏁 {asig.fecha_termino}
+                                          </td>
+                                          <td className="p-2 text-right font-mono font-bold text-slate-900">
+                                            ${(asig.monto_mensual || 0).toLocaleString('es-CL')}/mes
+                                          </td>
+                                          <td className="p-2 text-center">
+                                            {isVigente ? (
+                                              <span className="bg-emerald-100 text-emerald-900 border border-emerald-300 px-2 py-0.5 rounded-full text-[9px] font-black">
+                                                🟢 Vigente en Corte
+                                              </span>
+                                            ) : (
+                                              <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full text-[9px] font-bold">
+                                                ⚪ Fuera de Período
+                                              </span>
+                                            )}
+                                          </td>
+                                          <td className="p-2 text-center">
+                                            <div className="flex justify-center items-center gap-1.5">
+                                              <button
+                                                onClick={() => {
+                                                  setEditingAsignacionData(asig);
+                                                  setShowAsignacionPeriodoModal(true);
+                                                }}
+                                                className="text-[10px] bg-slate-200 hover:bg-blue-900 hover:text-white px-2 py-0.5 rounded font-bold transition cursor-pointer"
+                                              >
+                                                ✏️ Editar
+                                              </button>
+                                              <button
+                                                onClick={() => {
+                                                  if (confirm(`¿Eliminar la asignación "${asig.concepto}"?`)) {
+                                                    setAsignacionesPeriodosList(prev => {
+                                                      const updated = prev.filter(x => x.id !== asig.id);
+                                                      localStorage.setItem('obraxis_asignaciones_periodos_' + (selectedObra?.nombre || ''), JSON.stringify(updated));
+                                                      return updated;
+                                                    });
+                                                  }
+                                                }}
+                                                className="text-[10px] bg-rose-100 hover:bg-rose-700 hover:text-white text-rose-800 px-2 py-0.5 rounded font-bold transition cursor-pointer"
+                                              >
+                                                🗑️
+                                              </button>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })
+                                  )}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+
                           {isPersonalCollapseOpen && (
                             <div className="pt-2">
                               {workersArray.length === 0 ? (
@@ -7288,6 +7437,108 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 className="w-full bg-indigo-900 hover:bg-indigo-800 text-white font-bold py-2.5 rounded-xl shadow-xs text-xs cursor-pointer transition flex items-center justify-center gap-1.5"
               >
                 <span>⚡ Aplicar Proyección Masiva a Toda la Dotación</span>
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CREAR / EDITAR ASIGNACIÓN POR PERÍODO (RANGO DE FECHAS DESDE - HASTA) */}
+      {showAsignacionPeriodoModal && editingAsignacionData && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                <span>📋 Configurar Asignación por Período (Rango de Fechas)</span>
+              </h3>
+              <button onClick={() => setShowAsignacionPeriodoModal(false)} className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer">✕</button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                setAsignacionesPeriodosList(prev => {
+                  const exists = prev.find(x => x.id === editingAsignacionData.id);
+                  let updated = [];
+                  if (exists) {
+                    updated = prev.map(x => x.id === editingAsignacionData.id ? editingAsignacionData : x);
+                  } else {
+                    updated = [...prev, editingAsignacionData];
+                  }
+                  localStorage.setItem('obraxis_asignaciones_periodos_' + (selectedObra?.nombre || ''), JSON.stringify(updated));
+                  return updated;
+                });
+                setShowAsignacionPeriodoModal(false);
+                alert(`Asignación "${editingAsignacionData.concepto}" guardada con éxito para el período configurado.`);
+              }}
+              className="space-y-4 text-xs"
+            >
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nombre / Concepto de la Asignación o Bono</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="ej. Viático Faena Norte / Bono Desempeño"
+                  value={editingAsignacionData.concepto}
+                  onChange={(e) => setEditingAsignacionData({ ...editingAsignacionData, concepto: e.target.value })}
+                  className="w-full border border-slate-300 rounded-lg p-2 text-xs font-bold text-slate-900 bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Beneficiarios / Aplicado A</label>
+                <select
+                  value={editingAsignacionData.destinatario}
+                  onChange={(e) => setEditingAsignacionData({ ...editingAsignacionData, destinatario: e.target.value })}
+                  className="w-full border border-slate-300 rounded-lg p-2 text-xs font-bold text-slate-800 bg-white"
+                >
+                  <option value="Toda la Dotación">Toda la Dotación de Obra (100+ Personas)</option>
+                  {(personalAsignadoList || []).map((p, idx) => (
+                    <option key={idx} value={p.nombre}>{p.nombre} ({p.cargo || 'Personal'})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 bg-indigo-50/70 p-3 rounded-xl border border-indigo-200">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-indigo-900 mb-1">📅 Fecha Inicio Período</label>
+                  <input
+                    type="date"
+                    required
+                    value={editingAsignacionData.fecha_inicio}
+                    onChange={(e) => setEditingAsignacionData({ ...editingAsignacionData, fecha_inicio: e.target.value })}
+                    className="w-full border border-indigo-300 rounded-lg p-2 text-xs font-mono font-bold text-slate-900 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-indigo-900 mb-1">🏁 Fecha Término Período</label>
+                  <input
+                    type="date"
+                    required
+                    value={editingAsignacionData.fecha_termino}
+                    onChange={(e) => setEditingAsignacionData({ ...editingAsignacionData, fecha_termino: e.target.value })}
+                    className="w-full border border-indigo-300 rounded-lg p-2 text-xs font-mono font-bold text-slate-900 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Monto Proyectado por Período ($ Mensual)</label>
+                <input
+                  type="number"
+                  required
+                  value={editingAsignacionData.monto_mensual}
+                  onChange={(e) => setEditingAsignacionData({ ...editingAsignacionData, monto_mensual: parseFloat(e.target.value) || 0 })}
+                  placeholder="50000"
+                  className="w-full border border-slate-300 rounded-lg p-2 text-xs font-mono font-extrabold text-emerald-900 bg-white"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-indigo-900 hover:bg-indigo-800 text-white font-bold py-2.5 rounded-xl shadow-xs text-xs cursor-pointer transition"
+              >
+                <span>💾 Guardar Asignación por Período</span>
               </button>
             </form>
           </div>
