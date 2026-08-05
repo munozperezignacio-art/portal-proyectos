@@ -5616,6 +5616,31 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 </select>
               </div>
 
+              {/* AUTO-COMPLETADO DESDE PERSONAL / DOTACIÓN DE FAENA */}
+              {asistenciaList.length > 0 && (
+                <div className="bg-emerald-50/70 p-2.5 rounded-xl border border-emerald-200">
+                  <label className="block text-[10px] font-bold uppercase text-emerald-900 mb-1">💡 Opcional: Auto-completar con Personal Asignado a Faena</label>
+                  <select
+                    onChange={(e) => {
+                      const selectedWorkerName = e.target.value;
+                      if (!selectedWorkerName) return;
+                      setProyeccionFormData(prev => ({
+                        ...prev,
+                        tipo_proyeccion: 'TIEMPO',
+                        nombre_item: `Personal: ${selectedWorkerName}`,
+                        tarifa_tiempo_dia: 35000
+                      }));
+                    }}
+                    className="w-full border border-emerald-300 rounded-lg p-2 text-xs font-bold text-slate-800 bg-white"
+                  >
+                    <option value="">-- Seleccionar Trabajador Registrado en Obra --</option>
+                    {[...new Set(asistenciaList.map(a => a.trabajador))].map(name => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Tipo de Proyección</label>
                 <select
