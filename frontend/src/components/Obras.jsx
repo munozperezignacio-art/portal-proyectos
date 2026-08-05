@@ -3923,31 +3923,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                         <Plus className="w-3.5 h-3.5" />
                         <span>Agregar Gasto Partida</span>
                       </button>
-                      <button
-                        onClick={() => {
-                          setShowProyeccionMasivaRrhhModal(true);
-                        }}
-                        className="bg-indigo-950 hover:bg-indigo-900 text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs border border-indigo-700"
-                      >
-                        <span>⚡ Proyección Masiva (100+ Personas)</span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          const validWorkers = Array.from(new Set([...(personalAsignadoList || []).map(p => p.nombre), ...(asistenciaList || []).map(a => a.trabajador)])).filter(Boolean);
-                          setProyeccionRrhhFormData({
-                            concepto: validWorkers.length > 0 ? `Personal: ${validWorkers[0]}` : 'Cuadrilla de Terreno',
-                            partida: 'Gastos Generales',
-                            sueldo_base: 600000,
-                            horas_extras: 150000,
-                            asignaciones: 50000
-                          });
-                          setShowProyeccionRrhhModal(true);
-                        }}
-                        className="bg-indigo-900 hover:bg-indigo-800 text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs border border-indigo-700"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Configurar Proyección Individual</span>
-                      </button>
+                      
                     </div>
                   )}
                 </div>
@@ -4616,24 +4592,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                             <span className="text-[9px] font-bold bg-blue-100 text-blue-900 px-2 py-0.5 rounded uppercase">
                                               {w.cargo}
                                             </span>
-                                            <button
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                setEditingWorkerData({
-                                                  nombre: w.nombre,
-                                                  cargo: w.cargo,
-                                                  sueldo_base: w.sueldo_base || 1200000,
-                                                  costo_dia: Math.round((w.sueldo_base || 1200000) / 30),
-                                                  horas_extras: w.horas_extras || 0,
-                                                  asignaciones: w.asignaciones || 0
-                                                });
-                                                setShowEditSueldoModal(true);
-                                              }}
-                                              className="text-[10px] bg-slate-200 hover:bg-blue-900 hover:text-white text-slate-700 font-bold px-2 py-0.5 rounded transition cursor-pointer"
-                                              title="Editar sueldo, H.E. y asignaciones de este trabajador"
-                                            >
-                                              ✏️ Editar
-                                            </button>
+                                            
                                           </div>
                                         </div>
                                         <div className="space-y-1 text-[11px]">
