@@ -346,6 +346,26 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [costosList, setCostosList] = useState([]);
   const [costosSubTab, setCostosSubTab] = useState('reales'); // 'reales' | 'proyectados'
   const [proyeccionesList, setProyeccionesList] = useState([]);
+  const [proyeccionesRrhhList, setProyeccionesRrhhList] = useState([]);
+  const [liquidacionesList, setLiquidacionesList] = useState([]);
+  const [showProyeccionRrhhModal, setShowProyeccionRrhhModal] = useState(false);
+  const [showLiquidacionModal, setShowLiquidacionModal] = useState(false);
+
+  const [proyeccionRrhhFormData, setProyeccionRrhhFormData] = useState({
+    concepto: 'Cuadrilla de Terreno',
+    partida: 'Gastos Generales',
+    sueldo_base: 600000,
+    horas_extras: 150000,
+    asignaciones: 50000
+  });
+
+  const [liquidacionFormData, setLiquidacionFormData] = useState({
+    trabajador: '',
+    periodo: new Date().toISOString().slice(0, 7),
+    num_folio: '',
+    monto_real: '',
+    partida: 'Gastos Generales'
+  });
   const [fechaCorteProyeccion, setFechaCorteProyeccion] = useState(new Date().toISOString().split('T')[0]);
   const [showProyeccionModal, setShowProyeccionModal] = useState(false);
   const [proyeccionFormData, setProyeccionFormData] = useState({
@@ -734,6 +754,12 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
       const { data: listPers } = await supabase.from('maestro_personal').select('*').eq('obra_nombre', obraNombre);
       setPersonalAsignadoList(listPers || []);
+      try {
+        const savedProjRrhh = localStorage.getItem(`obraxis_proj_rrhh_${obraNombre}`);
+        if (savedProjRrhh) setProyeccionesRrhhList(JSON.parse(savedProjRrhh));
+        const savedLiq = localStorage.getItem(`obraxis_liquidaciones_${obraNombre}`);
+        if (savedLiq) setLiquidacionesList(JSON.parse(savedLiq));
+      } catch (err) {}
       setPersonalList(listPers || []);
     } catch (e) {
       console.warn('Aviso personal:', e);
@@ -3685,45 +3711,83 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   </div>
 
                   {costosSubTab === 'reales' ? (
-                    <button
-                      onClick={() => {
-                        const validPartidas = partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo));
-                        setEditingCosto(null);
-                        setCostoFormData({
-                          nombre: '',
-                          tipo_costo: 'Materiales',
-                          asociar_factura: 'SI',
-                          num_factura: '',
-                          monto: '',
-                          imputaciones: validPartidas.length > 0 ? [{ partida: validPartidas[0].partida, porcentaje: 100 }] : []
-                        });
-                        setShowCostoModal(true);
-                      }}
-                      className="bg-emerald-900 hover:bg-emerald-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>Registrar Costo Real (Factura/Guía)</span>
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={() => {
+                          const validPartidas = partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo));
+                          setEditingCosto(null);
+                          setCostoFormData({
+                            nombre: '',
+                            tipo_costo: 'Materiales',
+                            asociar_factura: 'SI',
+                            num_factura: '',
+                            monto: '',
+                            imputaciones: validPartidas.length > 0 ? [{ partida: validPartidas[0].partida, porcentaje: 100 }] : []
+                          });
+                          setShowCostoModal(true);
+                        }}
+                        className="bg-emerald-900 hover:bg-emerald-800 text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Registrar Factura / Compra</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          const validWorkers = Array.from(new Set([...(personalAsignadoList || []).map(p => p.nombre), ...(asistenciaList || []).map(a => a.trabajador)])).filter(Boolean);
+                          setLiquidacionFormData({
+                            trabajador: validWorkers.length > 0 ? validWorkers[0] : '',
+                            periodo: new Date().toISOString().slice(0, 7),
+                            num_folio: '',
+                            monto_real: '',
+                            partida: 'Gastos Generales'
+                          });
+                          setShowLiquidacionModal(true);
+                        }}
+                        className="bg-emerald-800 hover:bg-emerald-700 text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs border border-emerald-600"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Cargar Liquidación de Sueldo Real</span>
+                      </button>
+                    </div>
                   ) : (
-                    <button
-                      onClick={() => {
-                        const validPartidas = partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo));
-                        setProyeccionFormData({
-                          partida: validPartidas.length > 0 ? validPartidas[0].partida : '',
-                          tipo_proyeccion: 'TIEMPO',
-                          nombre_item: 'Costo Operativo Diario',
-                          tarifa_tiempo_dia: 20000,
-                          unidad_insumo: 'Saco',
-                          tasa_rendimiento_insumo: 1,
-                          precio_unitario_insumo: 5000
-                        });
-                        setShowProyeccionModal(true);
-                      }}
-                      className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>Agregar Gasto Proyectado</span>
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={() => {
+                          const validPartidas = partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo));
+                          setProyeccionFormData({
+                            partida: validPartidas.length > 0 ? validPartidas[0].partida : '',
+                            tipo_proyeccion: 'TIEMPO',
+                            nombre_item: 'Costo Operativo Diario',
+                            tarifa_tiempo_dia: 20000,
+                            unidad_insumo: 'Saco',
+                            tasa_rendimiento_insumo: 1,
+                            precio_unitario_insumo: 5000
+                          });
+                          setShowProyeccionModal(true);
+                        }}
+                        className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Agregar Gasto Partida</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          const validWorkers = Array.from(new Set([...(personalAsignadoList || []).map(p => p.nombre), ...(asistenciaList || []).map(a => a.trabajador)])).filter(Boolean);
+                          setProyeccionRrhhFormData({
+                            concepto: validWorkers.length > 0 ? `Personal: ${validWorkers[0]}` : 'Cuadrilla de Terreno',
+                            partida: 'Gastos Generales',
+                            sueldo_base: 600000,
+                            horas_extras: 150000,
+                            asignaciones: 50000
+                          });
+                          setShowProyeccionRrhhModal(true);
+                        }}
+                        className="bg-indigo-900 hover:bg-indigo-800 text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs border border-indigo-700"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Configurar Proyección RRHH (Base + H.E. + Asignaciones)</span>
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -3765,7 +3829,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 }, 0);
 
                 const totalFacturas = costosList.reduce((acc, c) => acc + (parseFloat(c.monto) || 0), 0);
-                const totalCostosReales = totalFacturas + totalPersonalIncurrido;
+                const totalLiquidacionesReales = liquidacionesList.reduce((acc, l) => acc + (parseFloat(l.monto_real) || 0), 0);
+                const totalCostosReales = totalFacturas + totalLiquidacionesReales + totalPersonalIncurrido;
                 const saldoReal = totalPres - totalCostosReales;
 
                 // Proyección de gastos por partidas ejecutables
@@ -3782,7 +3847,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   return acc + Math.round(dias * 20000);
                 }, 0);
 
-                const totalPersonalProyectado = Array.from(workerMapReal.values()).reduce((acc, val) => acc + (20 * val), 0);
+                const totalProyectadoRrhhForm = proyeccionesRrhhList.reduce((acc, r) => acc + (parseFloat(r.sueldo_base || 0) + parseFloat(r.horas_extras || 0) + parseFloat(r.asignaciones || 0)), 0);
+                const totalPersonalProyectado = totalProyectadoRrhhForm > 0 ? totalProyectadoRrhhForm : Array.from(workerMapReal.values()).reduce((acc, val) => acc + (20 * val), 0);
                 const totalCostoProyectado = totalProyectadoPartidas + totalPersonalProyectado;
                 const saldoProyectado = totalPres - totalCostoProyectado;
 
@@ -3944,6 +4010,83 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                     </div>
                   )}
 
+                  {/* TABLA DE LIQUIDACIONES DE SUELDO REALES EMITIDAS */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+                    <div className="flex justify-between items-center border-b pb-2">
+                      <h4 className="font-extrabold text-slate-800 text-xs flex items-center gap-2">
+                        <span>🧾 Liquidaciones de Sueldo Reales Emitidas (Nómina RRHH)</span>
+                        <span className="text-[10px] bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded-full font-black">
+                          {liquidacionesList.length} Liquidaciones
+                        </span>
+                      </h4>
+                      <button
+                        onClick={() => {
+                          const validWorkers = Array.from(new Set([...(personalAsignadoList || []).map(p => p.nombre), ...(asistenciaList || []).map(a => a.trabajador)])).filter(Boolean);
+                          setLiquidacionFormData({
+                            trabajador: validWorkers.length > 0 ? validWorkers[0] : '',
+                            periodo: new Date().toISOString().slice(0, 7),
+                            num_folio: '',
+                            monto_real: '',
+                            partida: 'Gastos Generales'
+                          });
+                          setShowLiquidacionModal(true);
+                        }}
+                        className="text-xs font-bold text-emerald-800 hover:underline cursor-pointer"
+                      >
+                        + Cargar Liquidación
+                      </button>
+                    </div>
+
+                    {liquidacionesList.length === 0 ? (
+                      <p className="text-xs text-slate-500 italic p-3 text-center bg-slate-50 rounded-xl">
+                        No se han registrado liquidaciones de sueldo emitidas aún. Puedes cargar las liquidaciones mensuales con sus montos líquidos/costo empresa.
+                      </p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs text-left border-collapse">
+                          <thead>
+                            <tr className="bg-slate-100 border-b text-slate-700 font-bold uppercase text-[10px]">
+                              <th className="p-2.5">Periodo</th>
+                              <th className="p-2.5">Trabajador / Personal</th>
+                              <th className="p-2.5">N° Folio / Respaldo</th>
+                              <th className="p-2.5">Partida Imputada</th>
+                              <th className="p-2.5 text-right">Monto Real Líquido ($)</th>
+                              <th className="p-2.5 text-center">Acciones</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-150 text-[11px]">
+                            {liquidacionesList.map((liq, idx) => (
+                              <tr key={idx} className="hover:bg-slate-50">
+                                <td className="p-2.5 font-mono text-[10px] text-slate-600 font-bold">{liq.periodo}</td>
+                                <td className="p-2.5 font-bold text-slate-800">{liq.trabajador}</td>
+                                <td className="p-2.5 font-mono text-slate-700">{liq.num_folio || 'N/A'}</td>
+                                <td className="p-2.5 text-slate-600">{liq.partida || 'Gastos Generales'}</td>
+                                <td className="p-2.5 font-mono font-black text-emerald-900 text-right">
+                                  ${(parseFloat(liq.monto_real) || 0).toLocaleString('es-CL')}
+                                </td>
+                                <td className="p-2.5 text-center">
+                                  <button
+                                    onClick={() => {
+                                      setLiquidacionesList(prev => {
+                                        const updated = prev.filter((_, i) => i !== idx);
+                                        localStorage.setItem(`obraxis_liquidaciones_${selectedObra?.nombre}`, JSON.stringify(updated));
+                                        return updated;
+                                      });
+                                    }}
+                                    className="p-1 text-slate-500 hover:text-red-700 cursor-pointer"
+                                    title="Eliminar Liquidación"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
                   {/* SECCIÓN DE NÓMINA Y ASISTENCIA DE PERSONAL INCURRIDA */}
                   <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
                     <div className="flex justify-between items-center border-b pb-2">
@@ -4086,6 +4229,93 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                         </tbody>
                       </table>
                     </div>
+                  </div>
+
+                  {/* TABLA DEDICADA DE PROYECCIÓN DE RECURSOS HUMANOS (BASE + HORAS EXTRAS + ASIGNACIONES) */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b pb-2">
+                      <div>
+                        <h4 className="font-extrabold text-slate-800 text-xs flex items-center gap-2">
+                          <span>👥 Proyección de Recursos Humanos (Base + Horas Extras + Asignaciones)</span>
+                          <span className="text-[10px] bg-indigo-100 text-indigo-900 px-2 py-0.5 rounded-full font-black">
+                            {proyeccionesRrhhList.length} Proyecciones RRHH
+                          </span>
+                        </h4>
+                        <p className="text-[10px] text-slate-500">Configuración teórica de sueldos base, horas extras y asignaciones por trabajador o cuadrilla</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const validWorkers = Array.from(new Set([...(personalAsignadoList || []).map(p => p.nombre), ...(asistenciaList || []).map(a => a.trabajador)])).filter(Boolean);
+                          setProyeccionRrhhFormData({
+                            concepto: validWorkers.length > 0 ? `Personal: ${validWorkers[0]}` : 'Cuadrilla de Terreno',
+                            partida: 'Gastos Generales',
+                            sueldo_base: 600000,
+                            horas_extras: 150000,
+                            asignaciones: 50000
+                          });
+                          setShowProyeccionRrhhModal(true);
+                        }}
+                        className="bg-indigo-900 text-white font-bold px-3 py-1.5 rounded-lg text-xs hover:bg-indigo-800 cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                      >
+                        + Configurar Proyección RRHH
+                      </button>
+                    </div>
+
+                    {proyeccionesRrhhList.length === 0 ? (
+                      <p className="text-xs text-slate-500 italic p-3 text-center bg-slate-50 rounded-xl">
+                        No hay configuraciones personalizadas de RRHH aún. Puedes presionar "+ Configurar Proyección RRHH" para estimar Sueldo Base, Horas Extras y Asignaciones.
+                      </p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs text-left border-collapse">
+                          <thead>
+                            <tr className="bg-indigo-50/70 border-b border-indigo-200 text-indigo-950 font-bold uppercase text-[10px]">
+                              <th className="p-3">Trabajador / Concepto</th>
+                              <th className="p-3">Partida Imputada</th>
+                              <th className="p-3 text-right">Sueldo Base ($)</th>
+                              <th className="p-3 text-right">Horas Extras (H.E. $)</th>
+                              <th className="p-3 text-right">Asignaciones / Viáticos ($)</th>
+                              <th className="p-3 text-right">Total Proyectado RRHH ($)</th>
+                              <th className="p-3 text-center">Acciones</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-150 text-[11px]">
+                            {proyeccionesRrhhList.map((rrh, idx) => {
+                              const sBase = parseFloat(rrh.sueldo_base) || 0;
+                              const hEx = parseFloat(rrh.horas_extras) || 0;
+                              const asig = parseFloat(rrh.asignaciones) || 0;
+                              const totRrh = sBase + hEx + asig;
+
+                              return (
+                                <tr key={idx} className="hover:bg-indigo-50/30">
+                                  <td className="p-3 font-bold text-slate-800">{rrh.concepto}</td>
+                                  <td className="p-3 font-semibold text-slate-600">{rrh.partida || 'Gastos Generales'}</td>
+                                  <td className="p-3 font-mono font-bold text-slate-700 text-right">${sBase.toLocaleString('es-CL')}</td>
+                                  <td className="p-3 font-mono font-bold text-blue-900 text-right">${hEx.toLocaleString('es-CL')}</td>
+                                  <td className="p-3 font-mono font-bold text-amber-900 text-right">${asig.toLocaleString('es-CL')}</td>
+                                  <td className="p-3 font-mono font-black text-indigo-950 text-right">${totRrh.toLocaleString('es-CL')}</td>
+                                  <td className="p-3 text-center">
+                                    <button
+                                      onClick={() => {
+                                        setProyeccionesRrhhList(prev => {
+                                          const updated = prev.filter((_, i) => i !== idx);
+                                          localStorage.setItem(`obraxis_proj_rrhh_${selectedObra?.nombre}`, JSON.stringify(updated));
+                                          return updated;
+                                        });
+                                      }}
+                                      className="p-1 text-slate-500 hover:text-red-700 cursor-pointer"
+                                      title="Eliminar Proyección RRHH"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
 
                   {/* SECCIÓN DEDICADA DE PERSONAL ASIGNADO Y PROYECCIÓN DE MANO DE OBRA */}
@@ -7070,6 +7300,208 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 className="w-full bg-emerald-800 hover:bg-emerald-900 text-white font-bold py-2.5 rounded-xl shadow-xs text-xs cursor-pointer transition flex items-center justify-center gap-1.5"
               >
                 {modalLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>{partidaFormData.es_titulo || partidaFormData.unidad === 'TITULO' ? 'Guardar Título o Grupo' : 'Guardar Partida de Obra'}</span>}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CONFIGURACIÓN PROYECCIÓN DE RECURSOS HUMANOS */}
+      {showProyeccionRrhhModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                <Users className="w-4 h-4 text-indigo-900" />
+                <span>Configurar Proyección de RRHH (Base + H.E. + Asignaciones)</span>
+              </h3>
+              <button onClick={() => setShowProyeccionRrhhModal(false)} className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer">✕</button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                setProyeccionesRrhhList(prev => {
+                  const updated = [...prev, proyeccionRrhhFormData];
+                  localStorage.setItem(`obraxis_proj_rrhh_${selectedObra?.nombre}`, JSON.stringify(updated));
+                  return updated;
+                });
+                setShowProyeccionRrhhModal(false);
+              }}
+              className="space-y-4 text-xs"
+            >
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Trabajador / Concepto RRHH</label>
+                <input
+                  type="text"
+                  required
+                  value={proyeccionRrhhFormData.concepto}
+                  onChange={(e) => setProyeccionRrhhFormData({ ...proyeccionRrhhFormData, concepto: e.target.value })}
+                  placeholder="Ej. Operador Excavadora / Cuadrilla Moldajes"
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-xs font-bold text-slate-800 bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Partida Imputada</label>
+                <select
+                  value={proyeccionRrhhFormData.partida}
+                  onChange={(e) => setProyeccionRrhhFormData({ ...proyeccionRrhhFormData, partida: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 bg-white font-semibold"
+                >
+                  <option value="Gastos Generales">Gastos Generales de Obra</option>
+                  {partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo)).map(p => (
+                    <option key={p.partida} value={p.partida}>{p.partida}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 bg-indigo-50/50 p-3 rounded-xl border border-indigo-100">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-indigo-950 mb-1">Sueldo Base ($)</label>
+                  <input
+                    type="number"
+                    required
+                    value={proyeccionRrhhFormData.sueldo_base}
+                    onChange={(e) => setProyeccionRrhhFormData({ ...proyeccionRrhhFormData, sueldo_base: e.target.value })}
+                    placeholder="600000"
+                    className="w-full border border-indigo-200 rounded-lg p-2 text-xs font-mono font-bold text-slate-800 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-indigo-950 mb-1">Proyección H.E. ($)</label>
+                  <input
+                    type="number"
+                    value={proyeccionRrhhFormData.horas_extras}
+                    onChange={(e) => setProyeccionRrhhFormData({ ...proyeccionRrhhFormData, horas_extras: e.target.value })}
+                    placeholder="150000"
+                    className="w-full border border-indigo-200 rounded-lg p-2 text-xs font-mono font-bold text-slate-800 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-indigo-950 mb-1">Asignaciones ($)</label>
+                  <input
+                    type="number"
+                    value={proyeccionRrhhFormData.asignaciones}
+                    onChange={(e) => setProyeccionRrhhFormData({ ...proyeccionRrhhFormData, asignaciones: e.target.value })}
+                    placeholder="50000"
+                    className="w-full border border-indigo-200 rounded-lg p-2 text-xs font-mono font-bold text-slate-800 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-indigo-950 text-white p-3 rounded-xl flex justify-between items-center text-xs font-bold shadow-2xs">
+                <span>Costo Total Proyectado RRHH:</span>
+                <span className="font-mono text-emerald-400 text-sm">
+                  ${(
+                    (parseFloat(proyeccionRrhhFormData.sueldo_base) || 0) +
+                    (parseFloat(proyeccionRrhhFormData.horas_extras) || 0) +
+                    (parseFloat(proyeccionRrhhFormData.asignaciones) || 0)
+                  ).toLocaleString('es-CL')}
+                </span>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-indigo-900 hover:bg-indigo-800 text-white font-bold py-2.5 rounded-xl shadow-xs text-xs cursor-pointer transition flex items-center justify-center gap-1.5"
+              >
+                <span>Guardar Proyección RRHH</span>
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CARGA DE LIQUIDACIÓN DE SUELDO REAL */}
+      {showLiquidacionModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                <FileText className="w-4 h-4 text-emerald-900" />
+                <span>Registrar Liquidación de Sueldo Real Emitida</span>
+              </h3>
+              <button onClick={() => setShowLiquidacionModal(false)} className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer">✕</button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                setLiquidacionesList(prev => {
+                  const updated = [...prev, liquidacionFormData];
+                  localStorage.setItem(`obraxis_liquidaciones_${selectedObra?.nombre}`, JSON.stringify(updated));
+                  return updated;
+                });
+                setShowLiquidacionModal(false);
+              }}
+              className="space-y-4 text-xs"
+            >
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Trabajador / Personal</label>
+                <input
+                  type="text"
+                  required
+                  value={liquidacionFormData.trabajador}
+                  onChange={(e) => setLiquidacionFormData({ ...liquidacionFormData, trabajador: e.target.value })}
+                  placeholder="Nombre completo del trabajador"
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-xs font-bold text-slate-800 bg-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Periodo / Mes</label>
+                  <input
+                    type="month"
+                    required
+                    value={liquidacionFormData.periodo}
+                    onChange={(e) => setLiquidacionFormData({ ...liquidacionFormData, periodo: e.target.value })}
+                    className="w-full border border-slate-200 rounded-lg p-2 text-xs font-mono font-bold text-slate-800 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">N° Folio / Respaldo</label>
+                  <input
+                    type="text"
+                    value={liquidacionFormData.num_folio}
+                    onChange={(e) => setLiquidacionFormData({ ...liquidacionFormData, num_folio: e.target.value })}
+                    placeholder="Ej. LIQ-2026-07-001"
+                    className="w-full border border-slate-200 rounded-lg p-2 text-xs font-mono font-semibold text-slate-800 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Monto Real Líquido / Costo Empresa ($)</label>
+                <input
+                  type="number"
+                  required
+                  value={liquidacionFormData.monto_real}
+                  onChange={(e) => setLiquidacionFormData({ ...liquidacionFormData, monto_real: e.target.value })}
+                  placeholder="Monto real total de la liquidación emitada ($)"
+                  className="w-full border border-emerald-300 rounded-lg p-2.5 text-xs font-mono font-bold text-emerald-950 bg-emerald-50/50"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Partida Imputada</label>
+                <select
+                  value={liquidacionFormData.partida}
+                  onChange={(e) => setLiquidacionFormData({ ...liquidacionFormData, partida: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 bg-white font-semibold"
+                >
+                  <option value="Gastos Generales">Gastos Generales de Obra</option>
+                  {partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo)).map(p => (
+                    <option key={p.partida} value={p.partida}>{p.partida}</option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-emerald-900 hover:bg-emerald-800 text-white font-bold py-2.5 rounded-xl shadow-xs text-xs cursor-pointer transition flex items-center justify-center gap-1.5"
+              >
+                <span>Guardar Liquidación de Sueldo</span>
               </button>
             </form>
           </div>
