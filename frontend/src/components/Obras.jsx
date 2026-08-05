@@ -4484,6 +4484,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             horas_extras: hExtras,
                             asignaciones: asig,
                             costo_empresa: cEmpresa,
+                            fecha_asig: p.fecha_asig || p.fecha_ingreso || p.fecha_inicio || p.created_at,
                             costo_dia: Math.round(sBase / 30),
                             dias_estimados: 30
                           });
@@ -4676,44 +4677,15 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                           </div>
                                         </div>
                                         
-                                        {/* FECHAS DE VIGENCIA DE ASIGNACIÓN EN OBRA */}
-                                        <div className="bg-slate-100/90 p-2 rounded-lg border border-slate-200 space-y-1">
-                                          <div className="flex justify-between items-center text-[10px] font-bold text-slate-600">
-                                            <span>📅 Período Asignación en Obra:</span>
+                                        {/* PERÍODO DE ASIGNACIÓN (DESDE FECHA ASIGNACIÓN A OBRA HASTA CORTE GLOBAL) */}
+                                        <div className="bg-slate-100/90 p-2 rounded-lg border border-slate-200 flex justify-between items-center text-[10px] text-slate-600">
+                                          <div>
+                                            <span className="font-bold block text-slate-700">📅 Asignado a Obra desde:</span>
+                                            <span className="font-mono text-slate-800 font-bold">{w.fecha_asig || w.fecha_inicio || fechaInicioReal || 'Fecha de Asignación'}</span>
                                           </div>
-                                          <div className="grid grid-cols-2 gap-1.5 text-[10px]">
-                                            <div>
-                                              <label className="text-[9px] text-slate-400 block font-semibold">Desde:</label>
-                                              <input
-                                                type="date"
-                                                value={customSalariesMap[w.nombre]?.fecha_inicio || w.fecha_inicio || fechaInicioReal || '2026-08-01'}
-                                                onChange={(e) => {
-                                                  const val = e.target.value;
-                                                  setCustomSalariesMap(prev => {
-                                                    const updated = { ...prev, [w.nombre]: { ...(prev[w.nombre] || {}), fecha_inicio: val } };
-                                                    localStorage.setItem('obraxis_custom_salaries_' + (selectedObra?.nombre || ''), JSON.stringify(updated));
-                                                    return updated;
-                                                  });
-                                                }}
-                                                className="w-full bg-white border border-slate-300 rounded px-1 py-0.5 font-mono text-[10px] font-bold text-slate-800"
-                                              />
-                                            </div>
-                                            <div>
-                                              <label className="text-[9px] text-slate-400 block font-semibold">Hasta:</label>
-                                              <input
-                                                type="date"
-                                                value={customSalariesMap[w.nombre]?.fecha_termino || w.fecha_termino || fechaTerminoEstimada || '2026-12-31'}
-                                                onChange={(e) => {
-                                                  const val = e.target.value;
-                                                  setCustomSalariesMap(prev => {
-                                                    const updated = { ...prev, [w.nombre]: { ...(prev[w.nombre] || {}), fecha_termino: val } };
-                                                    localStorage.setItem('obraxis_custom_salaries_' + (selectedObra?.nombre || ''), JSON.stringify(updated));
-                                                    return updated;
-                                                  });
-                                                }}
-                                                className="w-full bg-white border border-slate-300 rounded px-1 py-0.5 font-mono text-[10px] font-bold text-slate-800"
-                                              />
-                                            </div>
+                                          <div className="text-right">
+                                            <span className="font-bold block text-slate-700">🏁 Corte / Término Proyección:</span>
+                                            <span className="font-mono text-indigo-900 font-extrabold">{fechaCorteProyeccion || fechaTerminoEstimada || 'Fecha de Corte'}</span>
                                           </div>
                                         </div>
                                         <div className="space-y-1 text-[11px]">
