@@ -234,6 +234,14 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       const savedEnd = localStorage.getItem('obraxis_fecha_termino_est_' + selectedObra.nombre) || selectedObra.fecha_termino || '2026-12-31';
       setFechaInicioReal(savedStart);
       setFechaTerminoEstimada(savedEnd);
+
+      // Restaurar customSalariesMap guardado para la obra
+      try {
+        const savedSalaries = localStorage.getItem('obraxis_custom_salaries_' + selectedObra.nombre) || localStorage.getItem('obraxis_global_custom_salaries');
+        if (savedSalaries) {
+          setCustomSalariesMap(JSON.parse(savedSalaries));
+        }
+      } catch (e) {}
     }
   }, [selectedObra]);
 
@@ -4359,7 +4367,9 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           const sBase = custom?.sueldo_base || parseFloat(p.sueldo_base) || 1200000;
                           const hExtras = custom?.horas_extras || 0;
                           const asig = custom?.asignaciones || 0;
-                          const cEmpresa = Math.round(sBase * 1.25) + hExtras + asig;
+                          // H.E. son imponibles en Chile (Art. 41), por lo que acumulan el 25% de Leyes Sociales
+                          const imponibleTotal = sBase + hExtras;
+                          const cEmpresa = Math.round(imponibleTotal * 1.25) + asig;
                           workerMap.set(p.nombre, {
                             nombre: p.nombre,
                             cargo: custom?.cargo || p.cargo || 'Trabajador Faena',
@@ -7087,14 +7097,19 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
                 const newBulkProjections = allWorkerNames.map(wName => {
                   const workerObj = (personalAsignadoList || []).find(p => p.nombre === wName);
-                  const sueldoBase = workerObj ? (parseFloat(workerObj.sueldo_base) || (parseFloat(workerObj.costo_dia || 35000) * 20)) : 600000;
+                  const custom = customSalariesMap[wName];
+                  const sueldoBase = custom?.sueldo_base || (workerObj ? parseFloat(workerObj.sueldo_base) : 1200000);
 
                   let calcHE = 0;
                   if (proyeccionMasivaFormData.he_modo === 'HORAS') {
                     const horasDia = parseFloat(proyeccionMasivaFormData.he_horas_dia) || 0;
-                    const tarifaHora = parseFloat(proyeccionMasivaFormData.tarifa_hora_promedio) || 4500;
                     const diasMes = parseFloat(proyeccionMasivaFormData.dias_habiles_mes) || 20;
-                    calcHE = Math.round(horasDia * tarifaHora * diasMes);
+                    // Cálculo Legal DT Chile (Art. 32 Código del Trabajo, 44 hrs semanales + 50% recargo)
+                    // Valor Hora Ordinaria = (Sueldo Base / 30) * (7 / 44)
+                    // Valor Hora Extra (50% recargo) = Valor Hora Ordinaria * 1.5 = Sueldo Base * 0.00795454
+                    const factorHeChile = (1 / 30) * (7 / 44) * 1.5; // ~0.00795454
+                    const valorHoraExtraLegal = sueldoBase * factorHeChile;
+                    calcHE = Math.round(horasDia * diasMes * valorHoraExtraLegal);
                   } else {
                     calcHE = parseFloat(proyeccionMasivaFormData.he_monto_fijo) || 0;
                   }
@@ -7128,7 +7143,9 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                       asignaciones: proj.asignaciones || 0
                     };
                   });
-                  localStorage.setItem('obraxis_custom_salaries_' + (selectedObra?.nombre || ''), JSON.stringify(updated));
+                  const nameKey = selectedObra?.nombre || 'default';
+                  localStorage.setItem('obraxis_custom_salaries_' + nameKey, JSON.stringify(updated));
+                  localStorage.setItem('obraxis_global_custom_salaries', JSON.stringify(updated));
                   return updated;
                 });
 
