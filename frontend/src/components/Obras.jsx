@@ -4421,12 +4421,23 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                               </div>
                             </div>
 
-                            <div className="bg-emerald-50 px-3.5 py-1.5 rounded-xl border border-emerald-200 flex items-center gap-2">
-                              <div className="text-right">
-                                <span className="text-[9px] font-bold text-slate-500 uppercase block">SUBTOTAL PROYECTADO PERSONAL (COSTO EMPRESA):</span>
-                                <span className="font-mono font-black text-emerald-900 text-sm">${totalCostoPersonalObra.toLocaleString('es-CL')}</span>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowProyeccionMasivaRrhhModal(true);
+                                }}
+                                className="bg-indigo-900 hover:bg-indigo-800 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs border border-indigo-700"
+                              >
+                                <span>⚡ Asignación Masiva H.E. & Asignaciones</span>
+                              </button>
+                              <div className="bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 flex items-center gap-2">
+                                <div className="text-right">
+                                  <span className="text-[9px] font-bold text-slate-500 uppercase block">SUBTOTAL PROYECTADO PERSONAL (COSTO EMPRESA):</span>
+                                  <span className="font-mono font-black text-emerald-900 text-sm">${totalCostoPersonalObra.toLocaleString('es-CL')}</span>
+                                </div>
+                                <span className="text-xs text-emerald-800 font-bold ml-1">{isPersonalCollapseOpen ? '▲' : '▼'}</span>
                               </div>
-                              <span className="text-xs text-emerald-800 font-bold ml-1">{isPersonalCollapseOpen ? '▲' : '▼'}</span>
                             </div>
                           </div>
 
@@ -4441,25 +4452,49 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                   {workersArray.map((w, wIdx) => {
                                     const cEmpresa = w.costo_empresa || Math.round((w.sueldo_base || 1200000) * 1.25);
                                     return (
-                                      <div key={wIdx} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 shadow-2xs">
+                                      <div key={wIdx} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 shadow-2xs hover:border-blue-300 transition">
                                         <div className="flex justify-between items-center border-b border-slate-200/60 pb-1.5">
                                           <span className="font-extrabold text-slate-900 text-xs">{w.nombre}</span>
-                                          <span className="text-[9px] font-bold bg-blue-100 text-blue-900 px-2 py-0.5 rounded uppercase">
-                                            {w.cargo}
-                                          </span>
+                                          <div className="flex items-center gap-1">
+                                            <span className="text-[9px] font-bold bg-blue-100 text-blue-900 px-2 py-0.5 rounded uppercase">
+                                              {w.cargo}
+                                            </span>
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setEditingWorkerData({
+                                                  nombre: w.nombre,
+                                                  cargo: w.cargo,
+                                                  sueldo_base: w.sueldo_base || 1200000,
+                                                  costo_dia: Math.round((w.sueldo_base || 1200000) / 30),
+                                                  horas_extras: w.horas_extras || 0,
+                                                  asignaciones: w.asignaciones || 0
+                                                });
+                                                setShowEditSueldoModal(true);
+                                              }}
+                                              className="text-[10px] bg-slate-200 hover:bg-blue-900 hover:text-white text-slate-700 font-bold px-2 py-0.5 rounded transition cursor-pointer"
+                                              title="Editar sueldo, H.E. y asignaciones de este trabajador"
+                                            >
+                                              ✏️ Editar
+                                            </button>
+                                          </div>
                                         </div>
                                         <div className="space-y-1 text-[11px]">
                                           <div className="flex justify-between items-center">
                                             <span className="text-slate-500 font-semibold">Sueldo Base Mensual:</span>
-                                            <span className="font-mono font-bold text-slate-800">${(w.sueldo_base || 1200000).toLocaleString('es-CL')}/mes</span>
+                                            <span className="font-mono font-bold text-slate-800">${(w.sueldo_base || 1200000).toLocaleString('es-CL')}</span>
                                           </div>
                                           <div className="flex justify-between items-center text-emerald-800">
                                             <span className="font-semibold">+ Leyes Sociales (25%):</span>
                                             <span className="font-mono font-bold">${Math.round((w.sueldo_base || 1200000) * 0.25).toLocaleString('es-CL')}</span>
                                           </div>
-                                          <div className="flex justify-between items-center">
-                                            <span className="text-slate-500 font-semibold">Días Proyectados:</span>
-                                            <span className="font-mono font-bold text-slate-700">30 Días (Mes Completo)</span>
+                                          <div className="flex justify-between items-center text-indigo-900">
+                                            <span className="font-semibold">+ Horas Extras Proyectadas:</span>
+                                            <span className="font-mono font-bold">${(w.horas_extras || 0).toLocaleString('es-CL')}</span>
+                                          </div>
+                                          <div className="flex justify-between items-center text-amber-900">
+                                            <span className="font-semibold">+ Asignaciones / Viáticos:</span>
+                                            <span className="font-mono font-bold">${(w.asignaciones || 0).toLocaleString('es-CL')}</span>
                                           </div>
                                         </div>
                                         <div className="flex justify-between items-center pt-2 border-t border-slate-200 text-xs bg-emerald-50 p-2 rounded-lg">
@@ -6270,6 +6305,31 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-3 bg-indigo-50/70 p-3 rounded-xl border border-indigo-200">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-indigo-900 mb-1">Horas Extras Proyectadas ($)</label>
+                  <input
+                    type="number"
+                    value={editingWorkerData.horas_extras || ''}
+                    onChange={(e) => setEditingWorkerData({ ...editingWorkerData, horas_extras: parseFloat(e.target.value) || 0 })}
+                    placeholder="0"
+                    className="w-full border border-indigo-300 rounded-lg p-2 text-xs font-mono font-bold text-slate-800 bg-white"
+                  />
+                  <span className="text-[9px] text-slate-500 block mt-0.5">Calculado o monto fijo imponible</span>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-amber-900 mb-1">Asignaciones / Viáticos ($)</label>
+                  <input
+                    type="number"
+                    value={editingWorkerData.asignaciones || ''}
+                    onChange={(e) => setEditingWorkerData({ ...editingWorkerData, asignaciones: parseFloat(e.target.value) || 0 })}
+                    placeholder="0"
+                    className="w-full border border-amber-300 rounded-lg p-2 text-xs font-mono font-bold text-slate-800 bg-white"
+                  />
+                  <span className="text-[9px] text-slate-500 block mt-0.5">Asignaciones de colación/movilidad</span>
+                </div>
+              </div>
+
               <button
                 type="submit"
                 disabled={modalLoading}
@@ -6997,25 +7057,29 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 e.preventDefault();
                 const newCostoDia = parseFloat(editingWorkerData.costo_dia) || Math.round((parseFloat(editingWorkerData.sueldo_base) || 0) / 30);
                 const newSueldoBase = parseFloat(editingWorkerData.sueldo_base) || Math.round(newCostoDia * 30);
+                const newHExtras = parseFloat(editingWorkerData.horas_extras) || 0;
+                const newAsig = parseFloat(editingWorkerData.asignaciones) || 0;
 
-                // Actualizar localState
-                setPersonalAsignadoList(prev => prev.map(p => {
-                  if (p.nombre === editingWorkerData.nombre) {
-                    return { ...p, cargo: editingWorkerData.cargo, costo_dia: newCostoDia, sueldo_base: newSueldoBase };
-                  }
-                  return p;
-                }));
-
-                // Intentar actualizar maestro_personal en Supabase
-                try {
-                  await supabase
-                    .from('maestro_personal')
-                    .update({ cargo: editingWorkerData.cargo, costo_dia: newCostoDia, sueldo_base: newSueldoBase })
-                    .eq('nombre', editingWorkerData.nombre);
-                } catch (err) {}
+                // Actualizar customSalariesMap de forma permanente
+                setCustomSalariesMap(prev => {
+                  const updated = {
+                    ...prev,
+                    [editingWorkerData.nombre]: {
+                      cargo: editingWorkerData.cargo,
+                      sueldo_base: newSueldoBase,
+                      costo_dia: newCostoDia,
+                      horas_extras: newHExtras,
+                      asignaciones: newAsig
+                    }
+                  };
+                  const nameKey = selectedObra?.nombre || 'default';
+                  localStorage.setItem('obraxis_custom_salaries_' + nameKey, JSON.stringify(updated));
+                  localStorage.setItem('obraxis_global_custom_salaries', JSON.stringify(updated));
+                  return updated;
+                });
 
                 setShowEditSueldoModal(false);
-                alert(`Sueldo de ${editingWorkerData.nombre} actualizado a ${newCostoDia.toLocaleString('es-CL')}/día con éxito.`);
+                alert(`Remuneración y asignaciones de ${editingWorkerData.nombre} actualizadas con éxito.`);
               }}
               className="space-y-4 text-xs"
             >
