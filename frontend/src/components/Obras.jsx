@@ -378,7 +378,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [showPeriodoRrhhModal, setShowPeriodoRrhhModal] = useState(false);
   const [showEditSueldoModal, setShowEditSueldoModal] = useState(false);
   const [showFechasObraModal, setShowFechasObraModal] = useState(false);
-  const [isPersonalCollapseOpen, setIsPersonalCollapseOpen] = useState(false);
+  const [isPersonalCollapseOpen, setIsPersonalCollapseOpen] = useState(true);
   const [editingWorkerData, setEditingWorkerData] = useState(null);
 
   const [fechaInicioRrhh, setFechaInicioRrhh] = useState(() => {
