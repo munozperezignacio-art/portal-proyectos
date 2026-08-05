@@ -3905,7 +3905,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 }, 0);
 
                 const totalProyectadoRrhhForm = proyeccionesRrhhList.reduce((acc, r) => acc + (parseFloat(r.sueldo_base || 0) + parseFloat(r.horas_extras || 0) + parseFloat(r.asignaciones || 0)), 0);
-                const totalPersonalProyectado = totalProyectadoRrhhForm > 0 ? totalProyectadoRrhhForm : Array.from(workerMapReal.values()).reduce((acc, val) => acc + (20 * val), 0);
+                const totalPersonalProyectado = totalProyectadoRrhhForm > 0 ? totalProyectadoRrhhForm : Array.from(workerMapReal.values()).reduce((acc, w) => acc + (w.sueldo_base || (w.dias_estimados * w.costo_dia)), 0);
                 const totalCostoProyectado = totalProyectadoPartidas + totalPersonalProyectado;
                 const saldoProyectado = totalPres - totalCostoProyectado;
 
@@ -6941,7 +6941,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 localStorage.setItem('obraxis_fecha_inicio_real_' + (selectedObra?.nombre || ''), fechaInicioReal);
                 localStorage.setItem('obraxis_fecha_termino_est_' + (selectedObra?.nombre || ''), fechaTerminoEstimada);
                 setShowFechasObraModal(false);
-                alert('Fechas de Inicio Real y Término Estimado guardadas con éxito.');
+                alert('Fechas de Inicio Real y Hito: Fecha de Término de Obra guardadas con éxito.');
               }}
               className="space-y-4 text-xs"
             >
@@ -6958,7 +6958,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">🏁 Fecha de Término Estimada / Contratada</label>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">🏁 🏁 Hito: Fecha de Término de Obra / Contratada</label>
                 <input
                   type="date"
                   required
