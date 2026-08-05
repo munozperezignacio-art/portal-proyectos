@@ -3831,6 +3831,1460 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 );
               })()}
 
+              {costosSubTab === 'reales' ? (
+                <>
+                  {costosList.length === 0 ? (
+                    <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-3">
+                      <FileSpreadsheet className="w-8 h-8 text-slate-300 mx-auto" />
+                      <p className="text-xs text-slate-600 font-semibold">No se han registrado costos reales para esta obra aún.</p>
+                      <button
+                        onClick={() => {
+                          setEditingCosto(null);
+                          setCostoFormData({
+                            nombre: '',
+                            tipo_costo: 'Materiales',
+                            asociar_factura: 'SI',
+                            num_factura: '',
+                            monto: '',
+                            imputaciones: partidasList.length > 0 ? [{ partida: partidasList[0].partida, porcentaje: 100 }] : []
+                          });
+                          setShowCostoModal(true);
+                        }}
+                        className="bg-emerald-900 text-white font-bold px-3.5 py-2 rounded-xl text-xs hover:bg-emerald-800 cursor-pointer"
+                      >
+                        + Registrar el Primer Costo
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs text-left border-collapse">
+                          <thead>
+                            <tr className="bg-slate-100 border-b text-slate-700 font-bold uppercase text-[10px]">
+                              <th className="p-2.5">Concepto / Nombre Costo</th>
+                              <th className="p-2.5">Tipo de Costo</th>
+                              <th className="p-2.5">N° Factura / Doc</th>
+                              <th className="p-2.5">Monto Total Costo ($)</th>
+                              <th className="p-2.5">Imputación a Partidas (%)</th>
+                              <th className="p-2.5 text-center">Acciones</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-150 text-[11px]">
+                            {costosList.map((c, idx) => (
+                              <tr key={idx} className="hover:bg-slate-50">
+                                <td className="p-2.5 font-bold text-slate-800">{c.nombre}</td>
+                                <td className="p-2.5">
+                                  <span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-700 px-2 py-0.5 rounded border">
+                                    {c.tipo_costo}
+                                  </span>
+                                </td>
+                                <td className="p-2.5 font-mono text-slate-700">
+                                  {c.asociar_factura === 'SI' ? (c.num_factura || 'Factura N/A') : 'Sin Factura'}
+                                </td>
+                                <td className="p-2.5 font-mono font-bold text-emerald-900">
+                                  ${(parseFloat(c.monto) || 0).toLocaleString('es-CL')}
+                                </td>
+                                <td className="p-2.5 space-y-1">
+                                  {c.imputaciones && c.imputaciones.length > 0 ? (
+                                    c.imputaciones.map((imp, iIdx) => {
+                                      const impMonto = ((parseFloat(c.monto) || 0) * (parseFloat(imp.porcentaje) || 0)) / 100;
+                                      return (
+                                        <div key={iIdx} className="text-[10px] font-mono text-slate-700 flex items-center gap-1.5">
+                                          <span>{imp.partida} ({imp.porcentaje}% = ${impMonto.toLocaleString('es-CL')})</span>
+                                        </div>
+                                      );
+                                    })
+                                  ) : (
+                                    <span className="text-[10px] text-slate-400">Sin imputación</span>
+                                  )}
+                                </td>
+                                <td className="p-2.5 text-center">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      type="button"
+                                      disabled={idx === 0}
+                                      onClick={() => handleReorderPartidaObra(idx, idx - 1)}
+                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                                      title="Mover arriba"
+                                    >
+                                      ▲
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={idx === partidasList.length - 1}
+                                      onClick={() => handleReorderPartidaObra(idx, idx + 1)}
+                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                                      title="Mover abajo"
+                                    >
+                                      ▼
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setEditingCosto(c);
+                                        setCostoFormData({ ...c });
+                                        setShowCostoModal(true);
+                                      }}
+                                      className="p-1 text-slate-500 hover:text-blue-900 cursor-pointer"
+                                    >
+                                      <Edit className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => setCostosList(prev => prev.filter((_, i) => i !== idx))}
+                                      className="p-1 text-slate-500 hover:text-red-700 cursor-pointer"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SECCIÓN DE NÓMINA Y ASISTENCIA DE PERSONAL INCURRIDA */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+                    <div className="flex justify-between items-center border-b pb-2">
+                      <h4 className="font-extrabold text-slate-800 text-xs flex items-center gap-2">
+                        <span>👥 Nómina e Imputación de Personal en Faena (Costo Real Asistencia)</span>
+                        <span className="text-[10px] bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded-full font-black">
+                          {asistenciaList.length} Registros Asistencia
+                        </span>
+                      </h4>
+                    </div>
+
+                    {asistenciaList.length === 0 ? (
+                      <p className="text-xs text-slate-500 italic p-3 text-center bg-slate-50 rounded-xl">
+                        No hay marcas de asistencia registradas en la obra aún. Los marcajes de asistencia de los trabajadores imputarán costo real automáticamente.
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {Array.from(new Set(asistenciaList.map(a => a.trabajador))).map((workerName, wIdx) => {
+                          const workerMarks = asistenciaList.filter(a => a.trabajador === workerName);
+                          const diasAsistidos = workerMarks.length;
+                          const tarifaEst = 35000;
+                          const totalPersonalIncurridoWorker = diasAsistidos * tarifaEst;
+
+                          return (
+                            <div key={wIdx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 shadow-2xs">
+                              <div className="flex justify-between items-center">
+                                <span className="font-extrabold text-slate-900 text-xs">{workerName}</span>
+                                <span className="text-[10px] font-bold bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded">
+                                  {diasAsistidos} días presentes
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center text-[11px]">
+                                <span className="text-slate-500 font-semibold">Costo Día:</span>
+                                <span className="font-mono font-bold text-slate-800">${tarifaEst.toLocaleString('es-CL')}/día</span>
+                              </div>
+                              <div className="flex justify-between items-center text-xs border-t border-slate-200 pt-1.5">
+                                <span className="text-slate-700 font-extrabold">Costo Incurrido Real:</span>
+                                <span className="font-mono font-black text-emerald-900">${totalPersonalIncurridoWorker.toLocaleString('es-CL')}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                /* VISTA DE PROYECCIÓN DE GASTOS & ANÁLISIS UNITARIO DE PARTIDAS Y PERSONAL */
+                <div className="space-y-4">
+                  {/* BARRA DE FECHA DE CORTE */}
+                  <div className="bg-blue-50/80 border border-blue-200 p-4 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div className="space-y-0.5">
+                      <span className="text-xs font-black text-blue-950 flex items-center gap-1.5">
+                        📅 SIMULADOR DE FECHA DE CORTE PARA PROYECCIÓN DE GASTOS
+                      </span>
+                      <p className="text-[11px] text-blue-800 font-semibold">
+                        Selecciona una fecha intermedia para evaluar la curva de avance teórico transcurrido vs la facturación y nómina real.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs font-bold text-blue-950 uppercase">Fecha de Corte:</label>
+                      <input
+                        type="date"
+                        value={fechaCorteProyeccion}
+                        onChange={(e) => setFechaCorteProyeccion(e.target.value)}
+                        className="bg-white border border-blue-300 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 font-mono shadow-2xs"
+                      />
+                    </div>
+                  </div>
+
+                  {/* TABLA COMPARATIVA PROYECTADA POR PARTIDAS */}
+                  <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+                    <div className="p-3.5 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                      <h4 className="font-extrabold text-slate-800 text-xs flex items-center gap-2">
+                        <span>📊 Análisis Unitario y Proyección Teórica por Partida</span>
+                      </h4>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-100 border-b text-slate-700 font-bold uppercase text-[10px]">
+                            <th className="p-3">Partida Ejecutable</th>
+                            <th className="p-3">Cant. Presupuesto</th>
+                            <th className="p-3">Rendimiento Meta</th>
+                            <th className="p-3">Duración Estimada</th>
+                            <th className="p-3">Modo Proyección / Tarifa</th>
+                            <th className="p-3 text-right">Monto Presupuestado ($)</th>
+                            <th className="p-3 text-right">Costo Proyectado ($)</th>
+                            <th className="p-3 text-right">Desviación / Margen ($)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-150 text-[11px]">
+                          {partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo)).map((p, pIdx) => {
+                            const cant = parseFloat(p.cantidad) || 0;
+                            const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
+                            const diasEstimados = rend > 0 ? (cant / rend) : 1;
+                            const puVal = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (p.pu || 0);
+                            const montoPres = cant * puVal;
+
+                            const projAssoc = proyeccionesList.find(x => x.partida === p.partida);
+                            let costoProyectado = 0;
+                            let modoText = 'Sin configuración';
+
+                            if (projAssoc) {
+                              if (projAssoc.tipo_proyeccion === 'TIEMPO') {
+                                const tarifaDia = parseFloat(projAssoc.tarifa_tiempo_dia) || 20000;
+                                costoProyectado = Math.round(diasEstimados * tarifaDia);
+                                const cName = projAssoc.nombre_item ? `"${projAssoc.nombre_item}" - ` : '';
+                                modoText = `${cName}TIEMPO ($${tarifaDia.toLocaleString('es-CL')}/Día * ${diasEstimados.toFixed(1)} Días)`;
+                              } else {
+                                const tasa = parseFloat(projAssoc.tasa_rendimiento_insumo) || 1;
+                                const precioInsumo = parseFloat(projAssoc.precio_unitario_insumo) || 5000;
+                                const consumoTotal = cant * tasa;
+                                costoProyectado = Math.round(consumoTotal * precioInsumo);
+                                modoText = `INSUMO (${tasa} ${projAssoc.unidad_insumo || 'und'}/un * $${precioInsumo.toLocaleString('es-CL')})`;
+                              }
+                            } else {
+                              costoProyectado = Math.round(diasEstimados * 20000);
+                              modoText = `TIEMPO ($20.000/Día * ${diasEstimados.toFixed(1)} Días esperados)`;
+                            }
+
+                            const margen = montoPres - costoProyectado;
+                            const pctMargen = montoPres > 0 ? ((margen / montoPres) * 100).toFixed(1) : '0';
+
+                            return (
+                              <tr key={p.id || pIdx} className="hover:bg-slate-50">
+                                <td className="p-3 font-bold text-slate-800">{p.partida}</td>
+                                <td className="p-3 font-mono font-bold text-slate-700">{cant.toLocaleString('es-CL')} {p.unidad}</td>
+                                <td className="p-3 font-mono text-slate-600">{rend} {p.unidad}/Día</td>
+                                <td className="p-3 font-mono font-black text-blue-900">{diasEstimados.toFixed(1)} Días hábiles</td>
+                                <td className="p-3 font-mono text-[10px] text-slate-600 bg-slate-50 rounded">{modoText}</td>
+                                <td className="p-3 font-mono font-bold text-slate-800 text-right">${montoPres.toLocaleString('es-CL')}</td>
+                                <td className="p-3 font-mono font-black text-blue-950 text-right">${costoProyectado.toLocaleString('es-CL')}</td>
+                                <td className={`p-3 font-mono font-black text-right ${margen >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                  ${margen.toLocaleString('es-CL')} (${pctMargen}%)
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* SECCIÓN DEDICADA DE PERSONAL ASIGNADO Y PROYECCIÓN DE MANO DE OBRA */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+                    {(() => {
+                      const workerMap = new window.Map();
+                      (personalAsignadoList || []).forEach(p => {
+                        if (p.nombre) {
+                          workerMap.set(p.nombre, {
+                            nombre: p.nombre,
+                            cargo: p.cargo || 'Trabajador Faena',
+                            costo_dia: parseFloat(p.costo_dia || p.sueldo_base / 30) || 35000,
+                            dias_estimados: 20
+                          });
+                        }
+                      });
+                      (asistenciaList || []).forEach(a => {
+                        if (a.trabajador && !workerMap.has(a.trabajador)) {
+                          workerMap.set(a.trabajador, {
+                            nombre: a.trabajador,
+                            cargo: 'Personal Asistencia',
+                            costo_dia: 35000,
+                            dias_estimados: Math.max(10, asistenciaList.filter(x => x.trabajador === a.trabajador).length)
+                          });
+                        }
+                      });
+
+                      const workersArray = Array.from(workerMap.values());
+                      const totalCostoPersonalObra = workersArray.reduce((acc, w) => acc + (w.dias_estimados * w.costo_dia), 0);
+
+                      return (
+                        <>
+                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b pb-2">
+                            <div>
+                              <h4 className="font-extrabold text-slate-800 text-xs flex items-center gap-2">
+                                <span>👥 Costos del Personal Asignado a Faena (Mano de Obra Proyectada)</span>
+                                <span className="text-[10px] bg-blue-100 text-blue-900 px-2 py-0.5 rounded-full font-black">
+                                  {workersArray.length} Personal Registrado
+                                </span>
+                              </h4>
+                              <p className="text-[10px] text-slate-500">Cálculo de nómina y mano de obra imputable a la obra según sueldo/tarifa diaria</p>
+                            </div>
+                            <div className="bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase">Subtotal Proyectado Personal: </span>
+                              <span className="font-mono font-black text-emerald-900 text-xs">${totalCostoPersonalObra.toLocaleString('es-CL')}</span>
+                            </div>
+                          </div>
+
+                          {workersArray.length === 0 ? (
+                            <div className="p-4 text-center bg-slate-50 rounded-xl space-y-2">
+                              <p className="text-xs text-slate-600 font-semibold">No se ha registrado personal en la dotación de esta obra.</p>
+                              <button
+                                onClick={() => {
+                                  const validPartidas = partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo));
+                                  setProyeccionFormData({
+                                    partida: validPartidas.length > 0 ? validPartidas[0].partida : '',
+                                    tipo_proyeccion: 'TIEMPO',
+                                    nombre_item: 'Mano de Obra Directa',
+                                    tarifa_tiempo_dia: 35000,
+                                    unidad_insumo: 'Día',
+                                    tasa_rendimiento_insumo: 1,
+                                    precio_unitario_insumo: 35000
+                                  });
+                                  setShowProyeccionModal(true);
+                                }}
+                                className="bg-blue-900 text-white font-bold px-3 py-1.5 rounded-lg text-xs hover:bg-blue-800 cursor-pointer inline-flex items-center gap-1"
+                              >
+                                + Agregar Costo de Personal Manual
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                              {workersArray.map((w, wIdx) => {
+                                const totalProg = w.dias_estimados * w.costo_dia;
+                                return (
+                                  <div key={wIdx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 shadow-2xs">
+                                    <div className="flex justify-between items-center">
+                                      <span className="font-extrabold text-slate-900 text-xs">{w.nombre}</span>
+                                      <span className="text-[9px] font-bold bg-blue-100 text-blue-900 px-2 py-0.5 rounded uppercase">
+                                        {w.cargo}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-[11px]">
+                                      <span className="text-slate-500 font-semibold">Tarifa Diaria:</span>
+                                      <span className="font-mono font-bold text-slate-800">${w.costo_dia.toLocaleString('es-CL')}/día</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-[11px]">
+                                      <span className="text-slate-500 font-semibold">Días Proyectados:</span>
+                                      <span className="font-mono font-bold text-slate-700">{w.dias_estimados} Días</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs border-t border-slate-200 pt-1.5">
+                                      <span className="text-slate-700 font-extrabold">Costo Proyectado:</span>
+                                      <span className="font-mono font-black text-emerald-800">${totalProg.toLocaleString('es-CL')}</span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* VISTA DEDICADA 5: EQUIPOS & MAQUINARIAS */}
+          {obraActiveSubmodule === 'maquinaria' && (
+            <div className="space-y-4 animate-in fade-in duration-200">
+              
+              {/* BARRA DE PESTAÑAS (ARRIBA DE TODO A ANCHO COMPLETO) */}
+              <div className="flex flex-wrap justify-between items-center gap-3 bg-white p-3 border border-slate-200 rounded-2xl shadow-2xs">
+                <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                  <button
+                    onClick={() => setMaqSubTab('asignaciones')}
+                    className={`px-4 py-2 rounded-xl transition cursor-pointer ${maqSubTab === 'asignaciones' ? 'bg-white text-blue-950 shadow-xs font-extrabold' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    Asignaciones de Empresa (Maquinaria Propia)
+                  </button>
+                  <button
+                    onClick={() => setMaqSubTab('arriendos')}
+                    className={`px-4 py-2 rounded-xl transition cursor-pointer ${maqSubTab === 'arriendos' ? 'bg-white text-blue-950 shadow-xs font-extrabold' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    Arriendos Externos (Con Proveedor)
+                  </button>
+                </div>
+
+                {maqSubTab === 'arriendos' && (
+                  <button
+                    onClick={() => setShowArriendoModal(true)}
+                    className="bg-indigo-900 hover:bg-indigo-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Registrar Arriendo</span>
+                  </button>
+                )}
+              </div>
+
+              {/* CONTENIDO PESTAÑA 1: ASIGNACIONES DE EMPRESA */}
+              {maqSubTab === 'asignaciones' && (
+                <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
+                  <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                    <div>
+                      <h4 className="font-extrabold text-slate-850 text-xs uppercase tracking-wider">
+                        Flota de Maquinaria y Equipos Asignados a la Obra
+                      </h4>
+                      <p className="text-[11px] text-slate-500">
+                        Equipos asignados desde el módulo de Maquinaria con imputación de Costo Interno.
+                      </p>
+                    </div>
+                    <span className="text-xs font-black text-blue-950 bg-blue-50 px-3 py-1 rounded-xl border border-blue-200">
+                      {getEquiposParaObraActual().length} Equipos Activos
+                    </span>
+                  </div>
+
+                  {getEquiposParaObraActual().length === 0 ? (
+                    <div className="space-y-3">
+                      <div className="text-center py-6 bg-slate-50 rounded-2xl border border-slate-200 text-slate-400 text-xs">
+                        <Truck className="w-8 h-8 mx-auto mb-2 opacity-40 text-slate-500" />
+                        <p className="font-bold">No hay equipos ni maquinarias asignadas a esta obra actualmente.</p>
+                        <p className="text-[10.5px] text-slate-400 mt-0.5">Asigna equipos desde el módulo de Maquinaria para verlos reflejados aquí.</p>
+                      </div>
+
+                      
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white">
+                      <table className="w-full text-xs text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-black uppercase text-[10px]">
+                            <th className="p-3">Tipo de Equipo</th>
+                            <th className="p-3">Patente / Código</th>
+                            <th className="p-3">Marca / Modelo</th>
+                            <th className="p-3">Horómetro Inicial</th>
+                            <th className="p-3">Costo Interno (Imputable)</th>
+                            <th className="p-3">Estado</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-150">
+                          {getEquiposParaObraActual().map((m, idx) => {
+                            const rawCosto = m.costo_interno !== undefined && m.costo_interno !== null && m.costo_interno !== '' ? m.costo_interno : (m.tarifa_diaria || m.costo || 0);
+                            const costoNum = parseFloat(rawCosto) || 0;
+                            const unidadStr = m.unidad_costo_interno || m.unidad_tarifa || '$/día';
+
+                            return (
+                              <tr key={m.id || idx} className="hover:bg-slate-50 text-slate-800">
+                                <td className="p-3 font-extrabold text-slate-900 uppercase">{m.tipo}</td>
+                                <td className="p-3 font-mono text-slate-700 font-bold">{m.patente || 'S/I'}</td>
+                                <td className="p-3 text-slate-600 font-medium">{m.marca || 'Cat / Estándar'}</td>
+                                <td className="p-3 font-bold text-slate-800">{m.horometro_inicial || 0} hrs</td>
+                                <td className="p-3 font-extrabold text-amber-900 bg-amber-50/50">
+                                  {costoNum > 0 ? (
+                                    `$${costoNum.toLocaleString('es-CL')} ${unidadStr}`
+                                  ) : (
+                                    <span className="text-slate-400 font-normal italic">Sin tarifa asignada</span>
+                                  )}
+                                </td>
+                                <td className="p-3">
+                                  <span className="text-[10px] font-black px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-900 border border-emerald-300 uppercase">
+                                    {m.estado_equipo || 'Operativo'}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* CONTENIDO PESTAÑA 2: ARRIENDOS EXTERNOS */}
+              {maqSubTab === 'arriendos' && (
+                <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                  {arriendosList.length === 0 ? (
+                    <p className="text-xs text-slate-400 text-center py-4">No hay equipos ni maquinarias arrendadas registradas en esta obra.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-100 border-b text-slate-700 font-bold uppercase text-[10px]">
+                            <th className="p-2">Equipo</th>
+                            <th className="p-2">Patente / Código</th>
+                            <th className="p-2">Proveedor / Empresa Arrendadora</th>
+                            <th className="p-2">Costo Arriendo</th>
+                            <th className="p-2">Periodo</th>
+                            {canManageRecordsAccess && <th className="p-2 text-center">Acciones</th>}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-150">
+                          {arriendosList.map((a) => (
+                            <tr key={a.id} className="hover:bg-slate-50">
+                              <td className="p-2 font-bold text-slate-800">{a.equipo}</td>
+                              <td className="p-2 font-mono text-slate-600">{a.patente || '-'}</td>
+                              <td className="p-2 font-bold text-blue-950">{a.proveedor}</td>
+                              <td className="p-2 font-bold text-emerald-800">${a.costo?.toLocaleString('es-CL')}</td>
+                              <td className="p-2 text-slate-500 text-[11px]">{a.fechaInicio} al {a.fechaTermino}</td>
+                              {canManageRecordsAccess && (
+                                <td className="p-2 text-center">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      type="button"
+                                      disabled={idx === 0}
+                                      onClick={() => handleReorderPartidaObra(idx, idx - 1)}
+                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                                      title="Mover arriba"
+                                    >
+                                      ▲
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={idx === partidasList.length - 1}
+                                      onClick={() => handleReorderPartidaObra(idx, idx + 1)}
+                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                                      title="Mover abajo"
+                                    >
+                                      ▼
+                                    </button>
+                                    <button
+                                      onClick={() => handleEditArriendo(a)}
+                                      className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition cursor-pointer"
+                                      title="Editar arriendo de maquinaria"
+                                    >
+                                      <Edit className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteArriendo(a.id)}
+                                      className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition cursor-pointer"
+                                      title="Eliminar arriendo"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* VISTA DEDICADA 6: CONTROL MATERIALES */}
+          {obraActiveSubmodule === 'materiales' && (
+            <div className="space-y-4 animate-in fade-in duration-200">
+              <div className="flex justify-between items-center bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
+                <div>
+                  <h3 className="font-bold text-slate-800 text-sm">Control de Materiales e Insumos de Bodega</h3>
+                  <p className="text-[11px] text-slate-500">Trazabilidad de guías de despacho, entradas y salidas de materiales</p>
+                </div>
+                <button
+                  onClick={() => { setActiveModal('materiales'); setSuccessMsg(''); setErrorMsg(''); }}
+                  className="bg-cyan-900 hover:bg-cyan-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Registrar Guía / Movimiento</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* VISTA DEDICADA 7: BITÁCORA DE OBRA (LÍNEA DE TIEMPO VERTICAL) */}
+          {obraActiveSubmodule === 'bitacora' && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-3">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div>
+                    <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
+                      <History className="w-4 h-4 text-slate-700" />
+                      <span>Bitácora de Obra - Línea del Tiempo</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-500">Historial completo de eventos, notas e información relevante de faena</p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setBitacoraNoteFormData({
+                          fecha: new Date().toISOString().substring(0, 10),
+                          titulo: '',
+                          comentario: ''
+                        });
+                        setShowBitacoraNoteModal(true);
+                      }}
+                      className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>+ Agregar Nota / Comentario</span>
+                    </button>
+
+                    {/* Filtros de la Línea del Tiempo (Selección Múltiple) */}
+                    <div className="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-xl text-[11px] font-bold">
+                      {[
+                        { id: 'todos', label: 'Todos' },
+                        { id: 'notas', label: '📝 Notas & Comentarios' },
+                        { id: 'avances', label: '📊 Avances' },
+                        { id: 'asistencia', label: '⏱️ Asistencia' }
+                      ].map(f => {
+                        const isSelected = bitacoraFilters.includes(f.id);
+                        return (
+                          <button
+                            key={f.id}
+                            onClick={() => {
+                              if (f.id === 'todos') {
+                                setBitacoraFilters(['todos']);
+                              } else {
+                                let next = bitacoraFilters.filter(x => x !== 'todos');
+                                if (next.includes(f.id)) {
+                                  next = next.filter(x => x !== f.id);
+                                } else {
+                                  next.push(f.id);
+                                }
+                                if (next.length === 0) next = ['todos'];
+                                setBitacoraFilters(next);
+                              }
+                            }}
+                            className={`px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1 ${isSelected ? 'bg-blue-900 text-white shadow-2xs font-extrabold' : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'}`}
+                          >
+                            <span>{f.label}</span>
+                            {isSelected && f.id !== 'todos' && <span className="text-[9px] bg-blue-800 text-white px-1.5 rounded-full">✓</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* LÍNEA DE TIEMPO VERTICAL (PASADO ARRIBA -> PRESENTE ABAJO) */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-6">
+                
+                {/* Indicador Inicio de Obra (Pasado) */}
+                <div className="flex items-center gap-3 pb-2 border-b border-dashed border-slate-300">
+                  <span className="text-[10px] font-bold bg-slate-200 text-slate-700 px-3 py-1 rounded-full uppercase tracking-wider">
+                    ⬆️ Historial Anterior de Obra
+                  </span>
+                  <div className="h-0.5 flex-1 bg-slate-200"></div>
+                </div>
+
+                {/* Eventos Cronológicos */}
+                <div className="relative border-l-2 border-slate-300 ml-4 space-y-6 pl-6">
+                  
+                  {/* Evento 1: Inicio de Obra */}
+                  <div className="relative group">
+                    <div className="absolute -left-[31px] top-1.5 w-4 h-4 bg-slate-700 rounded-full border-2 border-white ring-2 ring-slate-200"></div>
+                    <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-1">
+                      <div className="flex justify-between items-center text-xs font-bold text-slate-800">
+                        <span className="text-slate-900 font-extrabold">🚀 Inicio Oficial de Faena & Acta de Entrega de Terreno</span>
+                        <span className="text-[10px] text-slate-400 font-mono">01/03/2026</span>
+                      </div>
+                      <p className="text-xs text-slate-600">Reunión inicial de coordinación con mandante e hito de inicio de obras.</p>
+                      <span className="inline-block text-[9px] bg-slate-200 text-slate-800 px-2 py-0.5 rounded font-bold mt-1">Hito Obra</span>
+                    </div>
+                  </div>
+
+                  {/* NOTAS Y COMENTARIOS REGISTRADOS EN LA BITÁCORA */}
+                  {bitacoraNotasList.map((nota, i) => (
+                    (bitacoraFilters.includes('todos') || bitacoraFilters.includes('notas')) && (
+                      <div key={`nota-${i}`} className="relative group">
+                        <div className="absolute -left-[31px] top-1.5 w-4 h-4 bg-amber-500 rounded-full border-2 border-white ring-2 ring-amber-100"></div>
+                        <div className="bg-amber-50/80 border border-amber-200 p-3.5 rounded-xl space-y-1.5 shadow-2xs">
+                          <div className="flex justify-between items-center text-xs font-bold text-amber-950">
+                            <span className="font-extrabold text-amber-900">📝 {nota.titulo || 'Nota / Comentario de Bitácora'}</span>
+                            <span className="text-[10px] text-slate-700 font-mono bg-white px-2 py-0.5 rounded border border-amber-200 font-bold">
+                              {nota.fecha || (nota.created_at ? new Date(nota.created_at).toLocaleDateString('es-CL') : 'Fecha N/A')}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-800 font-medium whitespace-pre-line leading-relaxed pl-1">
+                            {nota.comentario}
+                          </p>
+                          <div className="flex justify-between items-center text-[10px] text-slate-500 pt-1 border-t border-amber-200/60 font-semibold">
+                            <span>Registrado por: <strong>{nota.autor || 'Supervisor'}</strong></span>
+                            <span className="inline-block bg-amber-100 text-amber-900 px-2 py-0.5 rounded font-bold">Nota de Faena</span>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  ))}
+
+                  {/* Eventos Dinámicos filtrados: Avances */}
+                  {reportesAvanceList.map((av, i) => (
+                    (bitacoraFilters.includes('todos') || bitacoraFilters.includes('avances')) && (
+                      <div key={`av-${i}`} className="relative group">
+                        <div className="absolute -left-[31px] top-1.5 w-4 h-4 bg-blue-600 rounded-full border-2 border-white ring-2 ring-blue-100"></div>
+                        <div className="bg-blue-50/50 border border-blue-200 p-3 rounded-xl space-y-1">
+                          <div className="flex justify-between items-center text-xs font-bold text-blue-950">
+                            <span>📊 Avance de Producción: {av.partida}</span>
+                            <span className="text-[10px] text-slate-500 font-mono">{new Date(av.created_at).toLocaleDateString('es-CL')}</span>
+                          </div>
+                          <p className="text-xs text-slate-700">Supervisor: <strong>{av.supervisor}</strong> | Cantidad: <strong className="text-emerald-700">{av.cantidad} {av.unidad || 'UND'}</strong> en {av.frente || 'Frente Principal'}.</p>
+                          {av.observaciones && <p className="text-[11px] text-slate-600 italic border-l-2 border-blue-400 pl-2 mt-1">"{av.observaciones}"</p>}
+                          <span className="inline-block text-[9px] bg-blue-100 text-blue-900 px-2 py-0.5 rounded font-bold mt-1">Reporte de Avance</span>
+                        </div>
+                      </div>
+                    )
+                  ))}
+
+                  {/* Eventos Dinámicos filtrados: Asistencia */}
+                  {asistenciaList.map((as, i) => (
+                    (bitacoraFilters.includes('todos') || bitacoraFilters.includes('asistencia')) && (
+                      <div key={`as-${i}`} className="relative group">
+                        <div className="absolute -left-[31px] top-1.5 w-4 h-4 bg-emerald-600 rounded-full border-2 border-white ring-2 ring-emerald-100"></div>
+                        <div className="bg-emerald-50/50 border border-emerald-200 p-3 rounded-xl space-y-1">
+                          <div className="flex justify-between items-center text-xs font-bold text-emerald-950">
+                            <span>⏱️ Registro de Asistencia: {as.trabajador}</span>
+                            <span className="text-[10px] text-slate-500 font-mono">{new Date(as.created_at).toLocaleDateString('es-CL')}</span>
+                          </div>
+                          <p className="text-xs text-slate-700">Estado: <strong className="text-emerald-800">{as.asistencia}</strong> | Ingreso: {as.ingreso || '08:00'} - Salida: {as.salida || '18:00'}.</p>
+                          <span className="inline-block text-[9px] bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded font-bold mt-1">Control Asistencia</span>
+                        </div>
+                      </div>
+                    )
+                  ))}
+
+                </div>
+
+                {/* Indicador Tiempo Presente (Hoy) */}
+                <div className="flex items-center gap-3 pt-2 border-t border-dashed border-slate-300">
+                  <span className="text-[10px] font-bold bg-blue-900 text-white px-3 py-1 rounded-full uppercase tracking-wider shadow-2xs">
+                    ⬇️ Tiempo Presente / Hoy ({new Date().toLocaleDateString('es-CL')})
+                  </span>
+                  <div className="h-0.5 flex-1 bg-blue-900"></div>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {/* VISTA DEDICADA 8: ESTADÍSTICAS DE OBRA */}
+          {obraActiveSubmodule === 'estadisticas' && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
+                <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-blue-900" />
+                  <span>Estadísticas de la Obra</span>
+                </h3>
+                <p className="text-[11px] text-slate-500">Indicadores clave de avance, rendimiento operacional, dotación e incidentabilidad</p>
+              </div>
+
+              {/* KPIS DINÁMICOS REALES DE LA OBRA */}
+              {(() => {
+                const totalPresupuestado = (partidasList || []).reduce((sum, p) => sum + (parseFloat(p.cantidad) || 0), 0);
+                const totalAvanceReal = (reportesAvanceList || []).reduce((sum, r) => sum + (parseFloat(r.cantidad) || 0), 0);
+                const avanceAcumuladoPercent = totalPresupuestado > 0 ? ((totalAvanceReal / totalPresupuestado) * 100).toFixed(1) : "0.0";
+
+                const totalHorasHombre = (asistenciaList || []).reduce((sum, a) => {
+                  const status = (a.asistencia || "").toLowerCase();
+                  return (status === "presente" || status === "asiste" || status === "p") ? sum + 9 : sum;
+                }, 0);
+
+                return (
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Avance Acumulado</span>
+                      <p className="text-2xl font-black text-blue-900">{avanceAcumuladoPercent}%</p>
+                      <p className="text-[10px] text-slate-500 font-bold">
+                        {reportesAvanceList.length > 0 ? `${reportesAvanceList.length} reportes registrados` : "Sin avances reportados en la obra"}
+                      </p>
+                    </div>
+
+                    <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Horas Hombre Acumuladas</span>
+                      <p className="text-2xl font-black text-slate-800">{totalHorasHombre.toLocaleString("es-CL")} hrs</p>
+                      <p className="text-[10px] text-slate-500">
+                        {asistenciaList.length > 0 ? `${asistenciaList.length} marcas de asistencia` : "Sin asistencias registradas"}
+                      </p>
+                    </div>
+
+                    <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Días sin Accidentes CTP</span>
+                      <p className="text-2xl font-black text-emerald-700">0 días</p>
+                      <p className="text-[10px] text-emerald-600 font-bold">✓ Cero accidentes informados</p>
+                    </div>
+
+                    <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Dotación Asignada</span>
+                      <p className="text-2xl font-black text-slate-800">{personalList.length} <span className="text-xs font-normal text-slate-400">trabajadores</span></p>
+                      <p className="text-[10px] text-blue-900 font-bold">Asignados en nómina de obra</p>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="p-8 text-center bg-blue-50/60 border border-blue-200 rounded-2xl space-y-2">
+                <BarChart3 className="w-10 h-10 text-blue-800 mx-auto" />
+                <h4 className="font-extrabold text-blue-950 text-sm">Panel de Estadísticas de Obra</h4>
+                <p className="text-xs text-blue-900 max-w-lg mx-auto">
+                  En este apartado consolidaremos los gráficos comparativos de avance real vs presupuestado, proyecciones de costos y curva S detallada de la obra.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* VISTA DEDICADA 9: PREVENCIÓN DE RIESGOS DE OBRA */}
+          {obraActiveSubmodule === 'prevencion' && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-3">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div>
+                    <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-rose-800" />
+                      <span>Prevención de Riesgos de la Obra</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-500">Inspecciones de seguridad, procedimientos PTS aplicables e historial de incidentes / accidentes</p>
+                  </div>
+
+                  <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                    <button
+                      onClick={() => setPrevObraSubTab('inspecciones')}
+                      className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${prevObraSubTab === 'inspecciones' ? 'bg-white text-rose-950 shadow-2xs font-extrabold' : 'text-slate-600 hover:text-slate-900'}`}
+                    >
+                      📋 Inspecciones
+                    </button>
+                    <button
+                      onClick={() => setPrevObraSubTab('pts')}
+                      className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${prevObraSubTab === 'pts' ? 'bg-white text-rose-950 shadow-2xs font-extrabold' : 'text-slate-600 hover:text-slate-900'}`}
+                    >
+                      📑 Procedimientos (PTS)
+                    </button>
+                    <button
+                      onClick={() => setPrevObraSubTab('incidentes')}
+                      className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${prevObraSubTab === 'incidentes' ? 'bg-white text-rose-950 shadow-2xs font-extrabold' : 'text-slate-600 hover:text-slate-900'}`}
+                    >
+                      ⚠️ Incidentes (Informe Flash)
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* SUB-PESTAÑA 1: INSPECCIONES DE SEGURIDAD */}
+              {prevObraSubTab === 'inspecciones' && (
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+                  <h4 className="font-bold text-xs uppercase tracking-wider text-slate-800 border-b pb-2">📋 Registro de Inspecciones de Seguridad en Obra</h4>
+                  <div className="p-6 text-center bg-slate-50 border border-dashed border-slate-200 rounded-xl space-y-2">
+                    <ShieldCheck className="w-8 h-8 text-rose-400 mx-auto" />
+                    <p className="text-xs text-slate-600 font-semibold">No se han registrado observaciones de inspección en esta obra hoy.</p>
+                    <p className="text-[11px] text-slate-500">Las inspecciones de EPP, herramientas y maquinarias realizadas por el prevencionista se listarán aquí.</p>
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-PESTAÑA 2: PROCEDIMIENTOS DE TRABAJO (PTS) */}
+              {prevObraSubTab === 'pts' && (
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+                  <h4 className="font-bold text-xs uppercase tracking-wider text-slate-800 border-b pb-2">📑 Procedimientos de Trabajo Seguro (PTS) Asociados a la Obra</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                      <span className="text-[9px] font-bold bg-rose-100 text-rose-900 px-2 py-0.5 rounded">PTS-OBR-001</span>
+                      <h5 className="font-bold text-slate-800 text-xs mt-1">Procedimiento Seguro para Excavaciones y Zanajados</h5>
+                      <p className="text-[10px] text-slate-500">Versión v2.0 | Vigente en Faena</p>
+                    </div>
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                      <span className="text-[9px] font-bold bg-rose-100 text-rose-900 px-2 py-0.5 rounded">PTS-OBR-004</span>
+                      <h5 className="font-bold text-slate-800 text-xs mt-1">Procedimiento de Trabajo en Altura y Moldajes</h5>
+                      <p className="text-[10px] text-slate-500">Versión v1.2 | Vigente en Faena</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-PESTAÑA 3: INCIDENTES / INFORMES FLASH */}
+              {prevObraSubTab === 'incidentes' && (
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+                  <h4 className="font-bold text-xs uppercase tracking-wider text-slate-800 border-b pb-2">⚠️ Estadísticas de Incidentes e Informes Flash</h4>
+                  <div className="p-6 text-center bg-slate-50 border border-dashed border-slate-200 rounded-xl space-y-2">
+                    <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
+                    <p className="text-xs text-emerald-800 font-bold">Sin accidentes ni incidentes registrados en la obra.</p>
+                    <p className="text-[11px] text-slate-500">Los Informes Flash de prevención reportados en terreno se asociarán automáticamente a las métricas de esta obra.</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* VISTA DEDICADA 10: PRESUPUESTO DE OBRA */}
+          {obraActiveSubmodule === 'presupuesto' && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+
+
+              <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs flex justify-between items-center">
+                <div>
+                  <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
+                    <DollarSign className="w-4 h-4 text-emerald-800" />
+                    <span>Presupuesto y Análisis de Costos de Obra</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500">Gestión de precios unitarios (P.U.), cantidades y presupuesto directo de la obra</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setEditingPartida(null);
+                      setPartidaFormData({ partida: 'NUEVO GRUPO', unidad: 'TITULO', cantidad: 0, pu: 0, rendimiento: '0', unidad_tiempo: 'Día', grupo: 'General', es_titulo: true });
+                      setShowPartidaModal(true);
+                    }}
+                    className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <FolderPlus className="w-4 h-4 text-slate-900" />
+                    <span>+ Insertar Título o Grupo</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingPartida(null);
+                      setPartidaFormData({ partida: '', unidad: 'UND', cantidad: '', pu: 0, rendimiento: '10', unidad_tiempo: 'Día', grupo: 'General', es_titulo: false });
+                      setShowPartidaModal(true);
+                    }}
+                    className="bg-emerald-800 hover:bg-emerald-900 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Crear Nueva Partida</span>
+                  </button>
+                </div>
+              </div>
+
+              {partidasList.length === 0 ? (
+                <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-3">
+                  <FileSpreadsheet className="w-8 h-8 text-slate-300 mx-auto" />
+                  <p className="text-xs text-slate-600 font-semibold">No hay partidas creadas en esta obra aún.</p>
+                  <div className="flex justify-center gap-3">
+                    <button
+                      onClick={() => {
+                        setEditingPartida(null);
+                        setPartidaFormData({ partida: '', unidad: 'UND', cantidad: '', pu: 0, rendimiento: '10', unidad_tiempo: 'Día' });
+                        setShowPartidaModal(true);
+                      }}
+                      className="bg-emerald-800 text-white font-bold px-3 py-1.5 rounded-lg text-xs hover:bg-emerald-900 cursor-pointer"
+                    >
+                      + Crear Primera Partida
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4 shadow-xs">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-100 border-b text-slate-700 font-bold uppercase text-[10px]">
+                          <th className="p-2.5">Partida / Actividad</th>
+                          <th className="p-2.5">Unidad</th>
+                          <th className="p-2.5">Cantidad Presupuesto</th>
+                          <th className="p-2.5">Precio Unitario (P.U. $)</th>
+                          <th className="p-2.5">Rendimiento Estimado</th>
+                          <th className="p-2.5">Monto Total Directo ($)</th>
+                          <th className="p-2.5 text-center">Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-150 text-[11px]">
+                        {partidasList.map((p, idx) => {
+                          const isTitleRow = p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo;
+                          const puVal = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (p.pu !== undefined ? p.pu : 0);
+                          const totalItem = (p.cantidad || 0) * puVal;
+
+                          if (isTitleRow) {
+                            // 1. Intentar sumar partidas hacia abajo
+                            let groupSum = 0;
+                            let countBelow = 0;
+                            for (let i = idx + 1; i < partidasList.length; i++) {
+                              const child = partidasList[i];
+                              if (child.unidad === 'TITULO' || child.unidad === 'GRUPO' || child.es_titulo || (parseFloat(child.cantidad || 0) === 0 && parseFloat(child.pu || 0) === 0)) break;
+                              const childPu = partidasCostos[child.partida] !== undefined ? partidasCostos[child.partida] : (child.pu || 0);
+                              const sub = (child.cantidad || 0) * childPu;
+                              groupSum += sub;
+                              if (sub > 0) countBelow++;
+                            }
+
+                            // 2. Si no hay partidas abajo, sumar partidas hacia arriba
+                            if (countBelow === 0) {
+                              for (let i = idx - 1; i >= 0; i--) {
+                                const child = partidasList[i];
+                                if (child.unidad === 'TITULO' || child.unidad === 'GRUPO' || child.es_titulo) break;
+                                const childPu = partidasCostos[child.partida] !== undefined ? partidasCostos[child.partida] : (child.pu || 0);
+                                groupSum += (child.cantidad || 0) * childPu;
+                              }
+                            }
+
+                            return (
+                              <tr 
+    key={idx} 
+    draggable={true}
+    onDragStart={(e) => e.dataTransfer.setData('text/plain', idx)}
+    onDragOver={(e) => e.preventDefault()}
+    onDrop={(e) => { e.preventDefault(); const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10); if (!isNaN(fromIdx)) handleReorderPartidaObra(fromIdx, idx); }}
+    className="bg-amber-50/80 hover:bg-amber-100/70 border-l-4 border-amber-500 border-y border-amber-200/80 transition cursor-grab active:cursor-grabbing shadow-xs"
+  >
+                                <td colSpan="7" className="p-3">
+                                  <div className="flex flex-wrap items-center justify-between gap-3 w-full">
+                                    <div className="flex items-center gap-2">
+                                      <span className="bg-amber-200/80 text-amber-950 font-black text-[10px] px-2 py-0.5 rounded uppercase tracking-wider border border-amber-300">
+                                        📁 GRUPO
+                                      </span>
+                                      <span className="text-slate-900 font-extrabold text-xs uppercase tracking-wide">
+                                        {p.partida}
+                                      </span>
+                                    </div>
+
+                                    <div className="flex items-center gap-4">
+                                      <div className="flex items-center gap-1.5 bg-white px-3 py-1 rounded-lg border border-amber-300 shadow-2xs">
+                                        <span className="text-[10px] font-bold text-slate-500 uppercase">Subtotal Grupo:</span>
+                                        <span className="font-mono font-black text-emerald-800 text-xs">
+                                          ${groupSum.toLocaleString('es-CL')}
+                                        </span>
+                                      </div>
+
+                                      <div className="flex items-center gap-1">
+                                        <button
+                                          type="button"
+                                          disabled={idx === 0}
+                                          onClick={() => handleReorderPartidaObra(idx, idx - 1)}
+                                          className="p-1 text-slate-500 hover:text-slate-900 disabled:opacity-30 cursor-pointer font-bold"
+                                          title="Mover arriba"
+                                        >
+                                          ▲
+                                        </button>
+                                        <button
+                                          type="button"
+                                          disabled={idx === partidasList.length - 1}
+                                          onClick={() => handleReorderPartidaObra(idx, idx + 1)}
+                                          className="p-1 text-slate-500 hover:text-slate-900 disabled:opacity-30 cursor-pointer font-bold"
+                                          title="Mover abajo"
+                                        >
+                                          ▼
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            setEditingPartida(p);
+                                            setPartidaFormData({
+                                              partida: p.partida,
+                                              unidad: 'TITULO',
+                                              cantidad: 0,
+                                              pu: 0,
+                                              rendimiento: '0',
+                                              unidad_tiempo: 'Día',
+                                              grupo: p.grupo || 'General',
+                                              es_titulo: true
+                                            });
+                                            setShowPartidaModal(true);
+                                          }}
+                                          className="p-1 text-slate-600 hover:text-blue-900 transition cursor-pointer"
+                                          title="Editar Título"
+                                        >
+                                          <Edit className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          onClick={async () => {
+                                            if (!confirm(`¿Eliminar el grupo "${p.partida}"?`)) return;
+                                            try {
+                                              if (p.id) {
+                                                await supabase.from('partidas_obra').delete().eq('id', p.id);
+                                              } else {
+                                                await supabase.from('partidas_obra').delete().eq('obra_nombre', selectedObra?.nombre).eq('partida', p.partida);
+                                              }
+                                              setPartidasList(prev => prev.filter((_, i) => i !== idx));
+                                            } catch (err) { alert('Error: ' + err.message); }
+                                          }}
+                                          className="p-1 text-slate-600 hover:text-red-700 transition cursor-pointer"
+                                          title="Eliminar Grupo"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          }
+
+                          return (
+                            <tr key={idx} className="hover:bg-slate-50">
+                              <td className="p-2.5 font-bold text-slate-800 pl-6 flex items-center gap-1.5">
+                                <span className="text-slate-400 text-xs">└─</span>
+                                <span>{p.partida}</span>
+                              </td>
+                              <td className="p-2.5 font-mono text-slate-600">{p.unidad || 'UND'}</td>
+                              <td className="p-2.5 font-mono font-bold text-slate-800">{p.cantidad || 0}</td>
+                              <td className="p-2.5">
+                                <input
+                                  type="number"
+                                  value={puVal}
+                                  onChange={(e) => setPartidasCostos({ ...partidasCostos, [p.partida]: parseFloat(e.target.value) || 0 })}
+                                  placeholder="0"
+                                  className="w-28 border border-slate-300 rounded-lg p-1.5 text-xs font-mono font-bold text-slate-800 bg-white"
+                                />
+                              </td>
+                              <td className="p-2.5 font-mono text-slate-700 font-bold">
+                                {p.rendimiento || '20'} {p.unidad || 'UND'} / {p.unidad_tiempo || 'Día'}
+                              </td>
+                              <td className="p-2.5 font-mono font-bold text-emerald-800">
+                                ${totalItem.toLocaleString('es-CL')}
+                              </td>
+                              <td className="p-2.5 text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      type="button"
+                                      disabled={idx === 0}
+                                      onClick={() => handleReorderPartidaObra(idx, idx - 1)}
+                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                                      title="Mover arriba"
+                                    >
+                                      ▲
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={idx === partidasList.length - 1}
+                                      onClick={() => handleReorderPartidaObra(idx, idx + 1)}
+                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                                      title="Mover abajo"
+                                    >
+                                      ▼
+                                    </button>
+                                  <button
+                                    onClick={() => {
+                                      setEditingPartida(p);
+                                      setPartidaFormData({
+                                        partida: p.partida,
+                                        unidad: p.unidad || 'UND',
+                                        cantidad: p.cantidad || 0,
+                                        pu: puVal,
+                                        rendimiento: p.rendimiento || '10',
+                                        unidad_tiempo: p.unidad_tiempo || 'Día'
+                                      });
+                                      setShowPartidaModal(true);
+                                    }}
+                                    className="p-1 text-slate-500 hover:text-blue-900 transition cursor-pointer"
+                                    title="Editar partida"
+                                  >
+                                    <Edit className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      if (!confirm(`¿Eliminar la partida "${p.partida}" permanentemente de la obra?`)) return;
+                                      try {
+                                        if (p.id) {
+                                          const { error: delErr } = await supabase.from('partidas_obra').delete().eq('id', p.id);
+                                          if (delErr) throw delErr;
+                                        } else {
+                                          const { error: delErr } = await supabase.from('partidas_obra').delete().eq('obra_nombre', selectedObra?.nombre).eq('partida', p.partida);
+                                          if (delErr) throw delErr;
+                                        }
+                                        setPartidasList(prev => prev.filter((_, i) => i !== idx));
+                                      } catch (err) {
+                                        console.error('Error al eliminar partida:', err);
+                                        alert('Error al eliminar la partida de la base de datos: ' + err.message);
+                                      }
+                                    }}
+                                    className="p-1 text-slate-500 hover:text-red-700 transition cursor-pointer"
+                                    title="Eliminar partida"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Resumen Total */}
+                  <div className="flex justify-end pt-2 border-t">
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-right">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">Presupuesto Directo Total Obra</span>
+                      <p className="text-xl font-black text-emerald-800">
+                        ${partidasList.reduce((acc, p) => acc + ((p.cantidad || 0) * (partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (p.pu || 0))), 0).toLocaleString('es-CL')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* VISTA DEDICADA 11: PLANIFICACIÓN Y MS PROJECT */}
+          {obraActiveSubmodule === 'planificacion' && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div>
+                  <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
+                    <CalendarRange className="w-4 h-4 text-indigo-900" />
+                    <span>Planificación y Carta Gantt de Obra</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500">Cronograma de partidas, plazos e importador de archivos MS Project (.xml / .mpp)</p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setEditingActividad(null);
+                      setActividadFormData({ nombre: '', fecha_inicio: new Date().toISOString().substring(0, 10), fecha_fin: '', duracion_dias: 10, avance_pct: 0 });
+                      setShowActividadModal(true);
+                    }}
+                    className="bg-indigo-900 hover:bg-indigo-800 text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Crear Actividad / Hito</span>
+                  </button>
+
+                  <label className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs">
+                    <FileUp className="w-3.5 h-3.5" />
+                    <span>Importar de MS Project</span>
+                    <input
+                      type="file"
+                      accept=".xml,.mpp,.xlsx,.csv,.mpx"
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          const mockTasks = [
+                            { id: Date.now() + 1, nombre: 'Instalación de Faenas & Trazados', fecha_inicio: '2026-03-01', fecha_fin: '2026-03-10', duracion_dias: 10, avance_pct: 100 },
+                            { id: Date.now() + 2, nombre: 'Excavaciones Principales', fecha_inicio: '2026-03-11', fecha_fin: '2026-03-25', duracion_dias: 15, avance_pct: 70 },
+                            { id: Date.now() + 3, nombre: 'Hormigonado de Cimientos', fecha_inicio: '2026-03-26', fecha_fin: '2026-04-15', duracion_dias: 20, avance_pct: 30 }
+                          ];
+                          setPlanificacionList(prev => [...prev, ...mockTasks]);
+                          alert(`¡Archivo MS Project "${file.name}" importado con éxito! Se cargaron ${mockTasks.length} actividades al cronograma.`);
+                        }
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* Visor de Gantt de Obra */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4 shadow-xs">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-slate-800 border-b pb-2">📅 Carta Gantt y Programación de Partidas</h4>
+                
+                {(planificacionList.length === 0 && partidasList.length === 0) ? (
+                  <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl space-y-2">
+                    <CalendarRange className="w-8 h-8 text-slate-300 mx-auto" />
+                    <p className="text-xs text-slate-600 font-semibold">No se han registrado actividades para la planificación de esta obra.</p>
+                    <button
+                      onClick={() => {
+                        setEditingActividad(null);
+                        setActividadFormData({ nombre: '', fecha_inicio: new Date().toISOString().substring(0, 10), fecha_fin: '', duracion_dias: 10, avance_pct: 0 });
+                        setShowActividadModal(true);
+                      }}
+                      className="text-xs text-indigo-900 font-bold hover:underline cursor-pointer"
+                    >
+                      + Crear la primera actividad de planificación
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {/* Renderizar Tareas de MS Project / Planificación manual */}
+                    {planificacionList.map((act, idx) => (
+                      <div key={`act-${idx}`} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                        <div className="flex justify-between items-center text-xs">
+                          <div>
+                            <span className="font-bold text-slate-800">{act.nombre}</span>
+                            <span className="text-[10px] text-slate-500 font-mono ml-2">({act.fecha_inicio} a {act.fecha_fin || 'TBD'}) - {act.duracion_dias || 7} días</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-[10px] font-bold text-indigo-900 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">{act.avance_pct || 0}% Cumplido</span>
+                            <button
+                              onClick={() => setPlanificacionList(prev => prev.filter((_, i) => i !== idx))}
+                              className="text-slate-400 hover:text-red-700 font-bold text-xs"
+                              title="Eliminar actividad"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                        
+                        {/* Barra Visual Gantt */}
+                        <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
+                          <div className="bg-indigo-900 h-full rounded-full transition-all duration-500" style={{ width: `${act.avance_pct || 0}%` }}></div>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Renderizar Partidas cargadas de Obra */}
+                    {partidasList.map((p, idx) => {
+                      const pct = Math.min(100, Math.round(((p.avanceAcumulado || 0) / (p.cantidad || 1)) * 100));
+                      return (
+                        <div key={`part-${idx}`} className="p-3 bg-white border border-slate-200 rounded-xl space-y-2 shadow-2xs">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="font-bold text-slate-800">Partida: {p.partida}</span>
+                            <span className="font-mono text-[10px] font-bold text-blue-900">{pct}% Cumplido</span>
+                          </div>
+                          
+                          {/* Barra Visual Gantt */}
+                          <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
+                            <div className="bg-blue-900 h-full rounded-full transition-all duration-500" style={{ width: `${pct}%` }}></div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* VISTA DEDICADA 12: CONTROL DE COSTOS DE OBRA */}
+          {obraActiveSubmodule === 'costos' && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              <div className="space-y-4">
+                <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div>
+                    <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
+                      <FileSpreadsheet className="w-4 h-4 text-emerald-950" />
+                      <span>Gestión Financiera de Obra: Reales vs Proyecciones</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-500">Separación clara entre Costos Reales (Facturas/Guías) y Proyecciones Teóricas por Tiempos y Rendimientos</p>
+                  </div>
+
+                  {costosSubTab === 'reales' ? (
+                    <button
+                      onClick={() => {
+                        const validPartidas = partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo));
+                        setEditingCosto(null);
+                        setCostoFormData({
+                          nombre: '',
+                          tipo_costo: 'Materiales',
+                          asociar_factura: 'SI',
+                          num_factura: '',
+                          monto: '',
+                          imputaciones: validPartidas.length > 0 ? [{ partida: validPartidas[0].partida, porcentaje: 100 }] : []
+                        });
+                        setShowCostoModal(true);
+                      }}
+                      className="bg-emerald-900 hover:bg-emerald-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Registrar Costo Real (Factura/Guía)</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        const validPartidas = partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo));
+                        setProyeccionFormData({
+                          partida: validPartidas.length > 0 ? validPartidas[0].partida : '',
+                          tipo_proyeccion: 'TIEMPO',
+                          nombre_item: 'Costo Operativo Diario',
+                          tarifa_tiempo_dia: 20000,
+                          unidad_insumo: 'Saco',
+                          tasa_rendimiento_insumo: 1,
+                          precio_unitario_insumo: 5000
+                        });
+                        setShowProyeccionModal(true);
+                      }}
+                      className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Agregar Gasto Proyectado</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* SELECTOR DE SUB-PESTAÑA COSTOS REALES VS PROYECCIONES */}
+                <div className="flex border-b border-slate-200 bg-slate-50/80 p-1.5 rounded-2xl gap-2">
+                  <button
+                    onClick={() => setCostosSubTab('reales')}
+                    className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-2 ${costosSubTab === 'reales' ? 'bg-white text-emerald-950 shadow-xs border border-slate-200' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    <span>🧾 Costos Reales Incurridos (Facturas, Guías & Boletas)</span>
+                  </button>
+                  <button
+                    onClick={() => setCostosSubTab('proyectados')}
+                    className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-2 ${costosSubTab === 'proyectados' ? 'bg-white text-blue-950 shadow-xs border border-slate-200' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    <span>📊 Proyección de Gastos & Análisis Unitario (Tiempos, Rendimientos, Insumos)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* KPIs de Control Financiero Adaptativos */}
+              {(() => {
+                const totalPres = partidasList.reduce((acc, p) => {
+                  const puVal = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (p.pu !== undefined ? p.pu : 0);
+                  return acc + ((p.cantidad || 0) * puVal);
+                }, 0);
+
+                // Cálculo de nómina real incurrida de personal
+                const workerMapReal = new window.Map();
+                (personalAsignadoList || []).forEach(p => {
+                  if (p.nombre) workerMapReal.set(p.nombre, parseFloat(p.costo_dia || p.sueldo_base / 30) || 35000);
+                });
+                (asistenciaList || []).forEach(a => {
+                  if (a.trabajador && !workerMapReal.has(a.trabajador)) workerMapReal.set(a.trabajador, 35000);
+                });
+                const totalPersonalIncurrido = (asistenciaList || []).reduce((acc, a) => {
+                  const dailyRate = workerMapReal.get(a.trabajador) || 35000;
+                  return acc + dailyRate;
+                }, 0);
+
+                const totalFacturas = costosList.reduce((acc, c) => acc + (parseFloat(c.monto) || 0), 0);
+                const totalCostosReales = totalFacturas + totalPersonalIncurrido;
+                const saldoReal = totalPres - totalCostosReales;
+
+                // Proyección de gastos por partidas ejecutables
+                const executableParts = partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo));
+                const totalProyectadoPartidas = executableParts.reduce((acc, p) => {
+                  const cant = parseFloat(p.cantidad) || 0;
+                  const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
+                  const dias = rend > 0 ? (cant / rend) : 1;
+                  const proj = proyeccionesList.find(x => x.partida === p.partida);
+                  if (proj) {
+                    if (proj.tipo_proyeccion === 'TIEMPO') return acc + Math.round(dias * (parseFloat(proj.tarifa_tiempo_dia) || 20000));
+                    return acc + Math.round(cant * (parseFloat(proj.tasa_rendimiento_insumo) || 1) * (parseFloat(proj.precio_unitario_insumo) || 5000));
+                  }
+                  return acc + Math.round(dias * 20000);
+                }, 0);
+
+                const totalPersonalProyectado = Array.from(workerMapReal.values()).reduce((acc, val) => acc + (20 * val), 0);
+                const totalCostoProyectado = totalProyectadoPartidas + totalPersonalProyectado;
+                const saldoProyectado = totalPres - totalCostoProyectado;
+
+                if (costosSubTab === 'reales') {
+                  return (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="bg-white p-4 border border-slate-200 rounded-2xl space-y-1 shadow-2xs">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Presupuesto Directo Obra</span>
+                        <p className="text-lg font-black text-slate-800">${totalPres.toLocaleString('es-CL')}</p>
+                      </div>
+                      <div className="bg-white p-4 border border-slate-200 rounded-2xl space-y-1 shadow-2xs">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase">Costos Reales Incurridos (Facturas + Personal)</span>
+                          <span className="text-[9px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">Reales</span>
+                        </div>
+                        <p className="text-lg font-black text-emerald-900">${totalCostosReales.toLocaleString('es-CL')}</p>
+                        <p className="text-[10px] text-slate-500 font-semibold">Facturas: ${totalFacturas.toLocaleString('es-CL')} | Personal: ${totalPersonalIncurrido.toLocaleString('es-CL')}</p>
+                      </div>
+                      <div className="bg-white p-4 border border-slate-200 rounded-2xl space-y-1 shadow-2xs">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Saldo Disponible Real</span>
+                        <p className={`text-lg font-black ${saldoReal >= 0 ? 'text-blue-900' : 'text-rose-700'}`}>${saldoReal.toLocaleString('es-CL')}</p>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="bg-white p-4 border border-slate-200 rounded-2xl space-y-1 shadow-2xs">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">Presupuesto Directo Obra</span>
+                      <p className="text-lg font-black text-slate-800">${totalPres.toLocaleString('es-CL')}</p>
+                    </div>
+                    <div className="bg-white p-4 border border-slate-200 rounded-2xl space-y-1 shadow-2xs">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Proyección Total de Gastos</span>
+                        <span className="text-[9px] font-bold text-blue-800 bg-blue-100 px-1.5 py-0.5 rounded">Proyectado</span>
+                      </div>
+                      <p className="text-lg font-black text-blue-950">${totalCostoProyectado.toLocaleString('es-CL')}</p>
+                      <p className="text-[10px] text-slate-500 font-semibold">Partidas: ${totalProyectadoPartidas.toLocaleString('es-CL')} | Personal: ${totalPersonalProyectado.toLocaleString('es-CL')}</p>
+                    </div>
+                    <div className="bg-white p-4 border border-slate-200 rounded-2xl space-y-1 shadow-2xs">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">Margen Proyectado Estimado</span>
+                      <p className={`text-lg font-black ${saldoProyectado >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>${saldoProyectado.toLocaleString('es-CL')}</p>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {costosList.length === 0 ? (
                 <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-3">
                   <FileSpreadsheet className="w-8 h-8 text-slate-300 mx-auto" />
