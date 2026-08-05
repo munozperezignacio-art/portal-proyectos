@@ -385,6 +385,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
   // Registros reales de Supabase
   const [asistenciaList, setAsistenciaList] = useState([]);
+  const [personalAsignadoList, setPersonalAsignadoList] = useState([]);
   const [reportesAvanceList, setReportesAvanceList] = useState([]);
 
   // Filtros avanzados para Libro de Asistencia Digital (Toda la Obra / Persona Individual / Grupo de Cuadrilla)
@@ -731,7 +732,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         .eq('obra_nombre', obraNombre);
       setPersonalCount(countPers || 0);
 
-      const { data: listPers } = await supabase.from('maestro_personal').select('nombre, rut, cargo').eq('obra_nombre', obraNombre);
+      const { data: listPers } = await supabase.from('maestro_personal').select('*').eq('obra_nombre', obraNombre);
+      setPersonalAsignadoList(listPers || []);
       setPersonalList(listPers || []);
     } catch (e) {
       console.warn('Aviso personal:', e);
@@ -5634,7 +5636,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                     className="w-full border border-emerald-300 rounded-lg p-2 text-xs font-bold text-slate-800 bg-white"
                   >
                     <option value="">-- Seleccionar Trabajador Registrado en Obra --</option>
-                    {[...new Set(asistenciaList.map(a => a.trabajador))].map(name => (
+                    {Array.from(new Set([...(personalAsignadoList || []).map(p => p.nombre), ...(asistenciaList || []).map(a => a.trabajador)])).filter(Boolean).map(name => (
                       <option key={name} value={name}>{name}</option>
                     ))}
                   </select>
