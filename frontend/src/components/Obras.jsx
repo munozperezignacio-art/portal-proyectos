@@ -543,7 +543,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
   const [arriendosList, setArriendosList] = useState([]);
   const [showArriendoModal, setShowArriendoModal] = useState(false);
-  const [arriendoData, setArriendoData] = useState({ equipo: '', patente: '', proveedor: '', costo: '', fechaInicio: '', fechaTermino: '', observaciones: '' });
+  const [arriendoData, setArriendoData] = useState({ equipo: '', patente: '', proveedor: '', costo: '', unidad_costo: '$/mes', tipo_condicion_minima: 'sin_minimo', cantidad_minima: '', fechaInicio: '', fechaTermino: '', observaciones: '' });
 
   // Estado para Libro de Asistencia Digital
   const [selectedMonthLibro, setSelectedMonthLibro] = useState(new Date().toISOString().substring(0, 7)); // YYYY-MM
@@ -1634,6 +1634,9 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       patente: arriendoData.patente.trim(),
       proveedor: arriendoData.proveedor.trim(),
       costo: parseFloat(arriendoData.costo) || 0,
+      unidad_costo: arriendoData.unidad_costo || '$/mes',
+      tipo_condicion_minima: arriendoData.tipo_condicion_minima || 'sin_minimo',
+      cantidad_minima: parseFloat(arriendoData.cantidad_minima) || 0,
       fechaInicio: arriendoData.fechaInicio,
       fechaTermino: arriendoData.fechaTermino,
       observaciones: arriendoData.observaciones
@@ -1644,7 +1647,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       localStorage.setItem(`arriendos_${selectedObra.id}`, JSON.stringify(updated));
     } catch(e) {}
     setShowArriendoModal(false);
-    setArriendoData({ equipo: '', patente: '', proveedor: '', costo: '', fechaInicio: '', fechaTermino: '', observaciones: '' });
+    setArriendoData({ equipo: '', patente: '', proveedor: '', costo: '', unidad_costo: '$/mes', tipo_condicion_minima: 'sin_minimo', cantidad_minima: '', fechaInicio: '', fechaTermino: '', observaciones: '' });
   };
 
   // Cargar Cuadrillas y Arriendos desde localStorage cuando cambia la obra
@@ -4118,8 +4121,29 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 }, 0);
 
                 const totalMaquinariaProyectado = (maquinariaList || []).reduce((acc, m) => {
-                  const cMensual = parseFloat(m.costo_mensual || m.valor_arriendo_mensual || m.costo_arriendo || (m.costo_interno ? m.costo_interno * 30 : 1500000)) || 1500000;
-                  const valorDia = Math.round(cMensual / 30);
+                  const tarifaBase = parseFloat(m.costo_mensual || m.valor_arriendo_mensual || m.costo_arriendo || m.costo_interno || m.costo) || 1500000;
+                  const unidad = m.unidad_costo_interno || m.unidad_costo || m.unidad_tarifa || '$/mes';
+                  const tipoMin = m.tipo_condicion_minima || m.tipo_minimo || 'sin_minimo';
+                  const cantMin = parseFloat(m.cantidad_minima || m.minimo_garantizado || 0);
+
+                  let valorDia = 0;
+                  if (unidad === '$/mes') {
+                    if (tipoMin === 'dias_mes' && cantMin > 0) {
+                      valorDia = Math.round(tarifaBase / Math.min(30, cantMin));
+                    } else {
+                      valorDia = Math.round(tarifaBase / 30);
+                    }
+                  } else if (unidad === '$/hr') {
+                    let hrsDia = 8;
+                    if (tipoMin === 'horas_dia' && cantMin > 0) {
+                      hrsDia = Math.max(hrsDia, cantMin);
+                    } else if (tipoMin === 'horas_mes' && cantMin > 0) {
+                      hrsDia = cantMin / 30;
+                    }
+                    valorDia = Math.round(tarifaBase * hrsDia);
+                  } else {
+                    valorDia = Math.round(tarifaBase);
+                  }
 
                   const rawAsigDate = m.fecha_asig || m.fecha_asignacion || m.fecha_inicio || m.created_at ? String(m.fecha_asig || m.fecha_asignacion || m.fecha_inicio || m.created_at).split('T')[0] : (selectedObra?.fecha_inicio ? String(selectedObra.fecha_inicio).split('T')[0] : fInicioStr);
                   let diasMaq = 0;
@@ -5034,8 +5058,40 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                       const dateCorte = new Date(fCorteStr);
 
                       const maqArray = (maquinariaList || []).map(m => {
-                        const cMensual = parseFloat(m.costo_mensual || m.valor_arriendo_mensual || m.costo_arriendo || (m.costo_interno ? m.costo_interno * 30 : 1500000)) || 1500000;
-                        const valorDia = Math.round(cMensual / 30); // Siempre dividido por 30
+                        const tarifaBase = parseFloat(m.costo_mensual || m.valor_arriendo_mensual || m.costo_arriendo || m.costo_interno || m.costo) || 1500000;
+                        const unidad = m.unidad_costo_interno || m.unidad_costo || m.unidad_tarifa || '$/mes';
+                        const tipoMin = m.tipo_condicion_minima || m.tipo_minimo || 'sin_minimo';
+                        const cantMin = parseFloat(m.cantidad_minima || m.minimo_garantizado || 0);
+
+                        let valorDia = 0;
+                        let labelTarifa = `${unidad}`;
+                        let labelMinimo = 'Sin Mínimo Exigido';
+
+                        if (unidad === '$/mes') {
+                          if (tipoMin === 'dias_mes' && cantMin > 0) {
+                            valorDia = Math.round(tarifaBase / Math.min(30, cantMin));
+                            labelMinimo = `Mín. ${cantMin} Días/Mes`;
+                          } else {
+                            valorDia = Math.round(tarifaBase / 30);
+                          }
+                        } else if (unidad === '$/hr') {
+                          let hrsDia = 8;
+                          if (tipoMin === 'horas_dia' && cantMin > 0) {
+                            hrsDia = Math.max(hrsDia, cantMin);
+                            labelMinimo = `Mín. ${cantMin} Hrs/Día`;
+                          } else if (tipoMin === 'horas_mes' && cantMin > 0) {
+                            hrsDia = cantMin / 30;
+                            labelMinimo = `Mín. ${cantMin} Hrs/Mes`;
+                          } else {
+                            labelMinimo = 'Estándar 8 Hrs/Día';
+                          }
+                          valorDia = Math.round(tarifaBase * hrsDia);
+                        } else {
+                          valorDia = Math.round(tarifaBase);
+                          if (tipoMin === 'horas_dia' && cantMin > 0) {
+                            labelMinimo = `Mín. ${cantMin} Hrs/Día`;
+                          }
+                        }
 
                         const rawAsigDate = m.fecha_asig || m.fecha_asignacion || m.fecha_inicio || m.created_at ? String(m.fecha_asig || m.fecha_asignacion || m.fecha_inicio || m.created_at).split('T')[0] : (selectedObra?.fecha_inicio ? String(selectedObra.fecha_inicio).split('T')[0] : fInicioStr);
                         const formattedAsig = rawAsigDate ? (() => {
@@ -5059,7 +5115,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
                         return {
                           ...m,
-                          cMensual,
+                          tarifaBase,
+                          unidad,
+                          labelTarifa,
+                          labelMinimo,
                           valorDia,
                           rawAsigDate,
                           formattedAsig,
@@ -5141,11 +5200,15 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
                                       <div className="space-y-1 text-[11px]">
                                         <div className="flex justify-between items-center">
-                                          <span className="text-slate-500 font-semibold">Costo Mensual Base:</span>
-                                          <span className="font-mono font-bold text-slate-800">${m.cMensual.toLocaleString('es-CL')}</span>
+                                          <span className="text-slate-500 font-semibold">Tarifa Base / Unidad:</span>
+                                          <span className="font-mono font-bold text-slate-800">${m.tarifaBase.toLocaleString('es-CL')} <span className="text-[9px] bg-slate-200 px-1 py-0.5 rounded">{m.unidad}</span></span>
                                         </div>
                                         <div className="flex justify-between items-center text-slate-600">
-                                          <span className="font-semibold">Valor Día (Costo Mensual ÷ 30):</span>
+                                          <span className="font-semibold">Condición Mínima:</span>
+                                          <span className="font-mono font-bold text-slate-700 text-[10px] bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">{m.labelMinimo}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-slate-600">
+                                          <span className="font-semibold">Valor Día Proyectado:</span>
                                           <span className="font-mono font-bold text-amber-900">${m.valorDia.toLocaleString('es-CL')}/día</span>
                                         </div>
                                       </div>
@@ -6277,15 +6340,67 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Costo de Arriendo ($ CLP)</label>
-                <input
-                  type="number"
-                  value={arriendoData.costo}
-                  onChange={(e) => setArriendoData({ ...arriendoData, costo: e.target.value })}
-                  placeholder="Ej. 250000"
-                  className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 font-bold text-emerald-800"
-                />
+              <div className="bg-amber-50/80 p-3 rounded-xl border border-amber-300 space-y-2">
+                <span className="text-[10px] font-extrabold text-amber-950 uppercase tracking-wider block">
+                  💲 Tarifas y Condición Mínima de Contrato:
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[9.5px] font-bold uppercase text-amber-900 mb-1">Costo / Tarifa ($ CLP)</label>
+                    <input
+                      type="number"
+                      required
+                      value={arriendoData.costo}
+                      onChange={(e) => setArriendoData({ ...arriendoData, costo: e.target.value })}
+                      placeholder="Ej. 250000"
+                      className="w-full border border-amber-300 rounded-lg p-2 text-xs font-bold text-slate-900 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[9.5px] font-bold uppercase text-amber-900 mb-1">Unidad de Cobro</label>
+                    <select
+                      value={arriendoData.unidad_costo || '$/mes'}
+                      onChange={(e) => setArriendoData({ ...arriendoData, unidad_costo: e.target.value })}
+                      className="w-full border border-amber-300 rounded-lg p-2 font-bold text-slate-900 bg-white text-xs"
+                    >
+                      <option value="$/mes">$/mes (Tarifa Mensual Base)</option>
+                      <option value="$/día">$/día (Por Día de Obra)</option>
+                      <option value="$/hr">$/hr (Por Hora Horómetro)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-amber-200/60">
+                  <div>
+                    <label className="block text-[9.5px] font-bold uppercase text-amber-900 mb-1">Garantía / Condición Mínima</label>
+                    <select
+                      value={arriendoData.tipo_condicion_minima || 'sin_minimo'}
+                      onChange={(e) => setArriendoData({ ...arriendoData, tipo_condicion_minima: e.target.value })}
+                      className="w-full border border-amber-300 rounded-lg p-2 font-bold text-slate-900 bg-white text-xs"
+                    >
+                      <option value="sin_minimo">Sin Mínimo Exigido</option>
+                      <option value="horas_dia">Horas Mínimas / Día</option>
+                      <option value="horas_mes">Horas Mínimas / Mes</option>
+                      <option value="dias_mes">Días Mínimos / Mes</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[9.5px] font-bold uppercase text-amber-900 mb-1">
+                      {arriendoData.tipo_condicion_minima === 'dias_mes' ? 'Días Mínimos (ej. 20)' : 'Horas Mínimas (ej. 8 o 180)'}
+                    </label>
+                    <input
+                      type="number"
+                      disabled={arriendoData.tipo_condicion_minima === 'sin_minimo'}
+                      value={arriendoData.cantidad_minima}
+                      onChange={(e) => setArriendoData({ ...arriendoData, cantidad_minima: e.target.value })}
+                      placeholder={arriendoData.tipo_condicion_minima === 'horas_dia' ? 'ej. 8 hrs' : (arriendoData.tipo_condicion_minima === 'horas_mes' ? 'ej. 180 hrs' : 'ej. 20 días')}
+                      className="w-full border border-amber-300 rounded-lg p-2 font-bold text-slate-900 bg-white text-xs disabled:bg-slate-100 disabled:opacity-60"
+                    />
+                  </div>
+                </div>
+                <p className="text-[9px] text-amber-900 font-semibold leading-tight">
+                  💡 Si la operación real es menor al mínimo garantizado, las proyecciones calcularán el costo con la condición mínima contratada.
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-2">

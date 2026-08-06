@@ -312,6 +312,8 @@ export default function Maquinaria({ user, onBack }) {
       horometro_inicial: '0',
       costo_interno: '',
       unidad_costo_interno: '$/día',
+      tipo_condicion_minima: 'sin_minimo',
+      cantidad_minima: '',
       tipo_activo: 'Propio',
       estado_equipo: 'Operativo',
       foto_frontal: '',
@@ -334,6 +336,8 @@ export default function Maquinaria({ user, onBack }) {
       horometro_inicial: equip.horometro_inicial ? equip.horometro_inicial.toString() : '0',
       costo_interno: (equip.costo_interno !== undefined && equip.costo_interno !== null && equip.costo_interno !== 0) ? equip.costo_interno.toString() : '',
       unidad_costo_interno: equip.unidad_costo_interno || '$/día',
+      tipo_condicion_minima: equip.tipo_condicion_minima || 'sin_minimo',
+      cantidad_minima: equip.cantidad_minima ? equip.cantidad_minima.toString() : '',
       tipo_activo: equip.tipo_activo || 'Propio',
       estado_equipo: equip.estado_equipo || 'Operativo',
       foto_frontal: equip.foto_frontal || '',
@@ -376,6 +380,8 @@ export default function Maquinaria({ user, onBack }) {
       horometro_inicial: parseFloat(formData.horometro_inicial) || 0,
       costo_interno: parseFloat(formData.costo_interno) || 0,
       unidad_costo_interno: formData.unidad_costo_interno || '$/día',
+      tipo_condicion_minima: formData.tipo_condicion_minima || 'sin_minimo',
+      cantidad_minima: parseFloat(formData.cantidad_minima) || 0,
       tipo_activo: formData.tipo_activo,
       estado_equipo: formData.estado_equipo,
       foto_frontal: formData.foto_frontal || null,
@@ -2772,8 +2778,37 @@ export default function Maquinaria({ user, onBack }) {
                     </select>
                   </div>
                 </div>
+
+                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-amber-200">
+                  <div>
+                    <label className="block text-[9.5px] font-bold uppercase text-amber-900 mb-1">Condición Mínima Garantizada</label>
+                    <select
+                      value={formData.tipo_condicion_minima || 'sin_minimo'}
+                      onChange={(e) => setFormData(prev => ({ ...prev, tipo_condicion_minima: e.target.value }))}
+                      className="w-full border border-amber-300 rounded-xl p-2.5 font-bold text-slate-900 bg-white text-xs"
+                    >
+                      <option value="sin_minimo">Sin Mínimo Exigido</option>
+                      <option value="horas_dia">Horas Mínimas / Día (ej. 8 hrs)</option>
+                      <option value="horas_mes">Horas Mínimas / Mes (ej. 180 hrs)</option>
+                      <option value="dias_mes">Días Mínimos / Mes (ej. 20 días)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[9.5px] font-bold uppercase text-amber-900 mb-1">
+                      {formData.tipo_condicion_minima === 'dias_mes' ? 'Días Mínimos Mes' : 'Horas Mínimas (Día / Mes)'}
+                    </label>
+                    <input
+                      type="number"
+                      disabled={formData.tipo_condicion_minima === 'sin_minimo'}
+                      placeholder={formData.tipo_condicion_minima === 'horas_dia' ? 'ej. 8' : (formData.tipo_condicion_minima === 'horas_mes' ? 'ej. 180' : 'ej. 20')}
+                      value={formData.cantidad_minima || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, cantidad_minima: e.target.value }))}
+                      className="w-full border border-amber-300 rounded-xl p-2.5 font-bold text-slate-900 bg-white text-xs disabled:bg-slate-100 disabled:opacity-60"
+                    />
+                  </div>
+                </div>
                 <p className="text-[9.5px] font-medium text-amber-900 leading-tight">
-                  💡 Este valor se imputará internamente como costo del equipo a la obra de la propia empresa cuando esté asignado.
+                  💡 Este valor se imputará internamente como costo del equipo a la obra respetando la unidad de cobro y condición mínima contratada.
                 </p>
               </div>
 
