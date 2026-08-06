@@ -1210,7 +1210,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       const savedAStr = localStorage.getItem(`arriendos_${selectedObra?.id || selectedObra?.nombre}`) || localStorage.getItem(`arriendos_${obraNombre}`);
       const savedA = savedAStr ? JSON.parse(savedAStr) : [];
 
-      const mergedMap = new Map();
+      const mergedMap = new window.Map();
       (savedA || []).forEach(item => {
         const key = String(item.id || `${item.equipo}_${item.patente}`);
         mergedMap.set(key, item);
@@ -4123,7 +4123,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 const executablePartidasList = initialItems.filter(i => !i.isGroup);
 
                 // 2. Motor de cálculo de dependencias en cascada (Predecesoras + Tipo Relación + Desfase)
-                const itemsMap = new Map();
+                const itemsMap = new window.Map();
                 initialItems.forEach(item => {
                   itemsMap.set(item.partida || item.id, { ...item });
                 });
