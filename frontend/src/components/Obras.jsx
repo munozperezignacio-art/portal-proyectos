@@ -716,6 +716,72 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [isDrawing, setIsDrawing] = useState(false);
   const getPartidaScheduledStart = (partidaObj, fInicioFallback) => {
     if (!partidaObj) return fInicioFallback || new Date().toISOString().substring(0, 10);
+
+    const fInicioObraDefault = selectedObra?.fecha_inicio ? String(selectedObra.fecha_inicio).split('T')[0] : (fechaInicioReal || new Date().toISOString().substring(0, 10));
+
+    // 1. Evaluar dependencias y cascada en partidasList
+    if (partidasList && partidasList.length > 0) {
+      const pKey = String(partidaObj.partida || partidaObj.id || '').trim();
+
+      const initialItems = partidasList.map(p => {
+        const isGroup = p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo;
+        const cant = parseFloat(p.cantidad) || 0;
+        const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
+        const duracionDias = isGroup ? 0 : Math.max(1, Math.ceil(cant / rend));
+        const fechaInicio = p.fecha_inicio ? String(p.fecha_inicio).split('T')[0] : fInicioObraDefault;
+        const fechaTermino = isGroup ? '' : addChileanBusinessDays(fechaInicio, duracionDias);
+        return { ...p, isGroup, cant, rend, duracionDias, fechaInicio, fechaTermino };
+      });
+
+      const itemsMap = new window.Map();
+      initialItems.forEach(item => {
+        itemsMap.set(String(item.partida || item.id).trim(), { ...item });
+      });
+
+      for (let pass = 0; pass < 5; pass++) {
+        initialItems.forEach(item => {
+          if (item.isGroup) return;
+          const curr = itemsMap.get(String(item.partida || item.id).trim());
+          if (!curr || !curr.predecesora) return;
+
+          const pred = itemsMap.get(String(curr.predecesora).trim());
+          if (!pred) return;
+
+          const relType = curr.tipo_relacion || 'FS';
+          const lag = parseInt(curr.desfase_dias || 0, 10) || 0;
+
+          let calcStart = curr.fechaInicio;
+
+          if (relType === 'FS') {
+            const predEnd = pred.fechaTermino || pred.fechaInicio;
+            const nextBus = addChileanBusinessDays(predEnd, 2);
+            calcStart = lag !== 0 ? (lag > 0 ? addChileanBusinessDays(nextBus, lag + 1) : subtractChileanBusinessDays(nextBus, Math.abs(lag) + 1)) : nextBus;
+          } else if (relType === 'SS') {
+            const predStart = pred.fechaInicio;
+            calcStart = lag !== 0 ? (lag > 0 ? addChileanBusinessDays(predStart, lag + 1) : subtractChileanBusinessDays(predStart, Math.abs(lag) + 1)) : predStart;
+          } else if (relType === 'FF') {
+            const predEnd = pred.fechaTermino;
+            const calcEnd = lag !== 0 ? (lag > 0 ? addChileanBusinessDays(predEnd, lag + 1) : subtractChileanBusinessDays(predEnd, Math.abs(lag) + 1)) : predEnd;
+            calcStart = subtractChileanBusinessDays(calcEnd, curr.duracionDias);
+          } else if (relType === 'SF') {
+            const predStart = pred.fechaInicio;
+            const calcEnd = lag !== 0 ? (lag > 0 ? addChileanBusinessDays(predStart, lag + 1) : subtractChileanBusinessDays(predStart, Math.abs(lag) + 1)) : predStart;
+            calcStart = subtractChileanBusinessDays(calcEnd, curr.duracionDias);
+          }
+
+          if (calcStart) {
+            curr.fechaInicio = calcStart;
+            curr.fechaTermino = addChileanBusinessDays(calcStart, curr.duracionDias);
+          }
+        });
+      }
+
+      const matchedTarget = itemsMap.get(pKey);
+      if (matchedTarget && matchedTarget.fechaInicio) {
+        return matchedTarget.fechaInicio;
+      }
+    }
+
     if (partidaObj.fecha_inicio) return String(partidaObj.fecha_inicio).split('T')[0];
     if (partidaObj.fecha_inicio_programada) return String(partidaObj.fecha_inicio_programada).split('T')[0];
 
@@ -729,7 +795,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         return String(match.fecha_inicio).split('T')[0];
       }
     }
-    return fInicioFallback || fechaInicioReal || selectedObra?.fecha_inicio || (new Date().toISOString().substring(0, 8) + '01');
+
+    return fInicioFallback || fechaInicioReal || selectedObra?.fecha_inicio || fInicioObraDefault;
   };
 
   const getHaversineDistance = (lat1, lon1, lat2, lon2) => {
