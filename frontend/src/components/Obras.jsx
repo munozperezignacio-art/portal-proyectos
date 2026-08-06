@@ -3865,130 +3865,142 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           )}
 
           {/* VISTA DEDICADA 8: PANEL DE ESTADÍSTICAS EJECUTIVAS DE OBRA */}
-          {obraActiveSubmodule === 'estadisticas' && (
-            <div className="space-y-6 animate-in fade-in duration-200">
-              {/* CABECERA PRINCIPAL Y BARRA DE FILTROS Y ACCIONES */}
-              <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs space-y-4">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b pb-4">
-                  <div>
-                    <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
-                      <BarChart3 className="w-5 h-5 text-blue-900" />
-                      <span>📊 Panel de Estadísticas Ejecutivas de Obra</span>
-                    </h3>
-                    <p className="text-xs text-slate-500 font-medium">Consolidado operacional de Avance, Cuadrillas, Maquinarias, HSE y Análisis EVM de Valor Ganado</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => window.print()}
-                      className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
-                      title="Imprimir o Exportar PDF del Panel Estadístico"
-                    >
-                      <Printer className="w-3.5 h-3.5" />
-                      <span>Exportar / Imprimir PDF</span>
-                    </button>
-                    <button
-                      onClick={() => setShowContextualEmailModal(true)}
-                      className="bg-indigo-900 hover:bg-indigo-800 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
-                      title="Enviar Reporte por Correo"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                      <span>Enviar Reporte</span>
-                    </button>
-                  </div>
-                </div>
+          {obraActiveSubmodule === 'estadisticas' && (() => {
+            const availableGroups = [];
+            let currGrp = null;
+            (partidasList || []).forEach(p => {
+              if (p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo) {
+                currGrp = { partida: p.partida, children: [] };
+                availableGroups.push(currGrp);
+              } else if (currGrp) {
+                currGrp.children.push(p);
+              }
+            });
 
-                {/* FILTROS DE FECHA DE CORTE Y ALCANCE DE PARTIDA/GRUPO */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-700 whitespace-nowrap flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5 text-blue-900" />
-                      <span>Fecha de Corte Histórica:</span>
-                    </span>
-                    <input
-                      type="date"
-                      value={fCorteEstadisticas}
-                      onChange={(e) => setFCorteEstadisticas(e.target.value)}
-                      className="border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-slate-800 bg-white shadow-2xs"
-                    />
-                    <span className="text-[10px] text-slate-500 italic">Cálculos al corte</span>
+            return (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                {/* CABECERA PRINCIPAL Y BARRA DE FILTROS Y ACCIONES */}
+                <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs space-y-4">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b pb-4">
+                    <div>
+                      <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
+                        <BarChart3 className="w-5 h-5 text-blue-900" />
+                        <span>📊 Panel de Estadísticas Ejecutivas de Obra</span>
+                      </h3>
+                      <p className="text-xs text-slate-500 font-medium">Consolidado operacional de Avance, Cuadrillas, Maquinarias, HSE y Análisis EVM de Valor Ganado</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => window.print()}
+                        className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                        title="Imprimir o Exportar PDF del Panel Estadístico"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>Exportar / Imprimir PDF</span>
+                      </button>
+                      <button
+                        onClick={() => setShowContextualEmailModal(true)}
+                        className="bg-indigo-900 hover:bg-indigo-800 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                        title="Enviar Reporte por Correo"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Enviar Reporte</span>
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-700 whitespace-nowrap flex items-center gap-1">
-                      <Filter className="w-3.5 h-3.5 text-blue-900" />
-                      <span>Filtro de Alcance:</span>
-                    </span>
-                    <select
-                      value={filtroPartidaEstadisticas}
-                      onChange={(e) => setFiltroPartidaEstadisticas(e.target.value)}
-                      className="border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 bg-white shadow-2xs flex-1"
-                    >
-                      <option value="GLOBAL">🌐 Global (Toda la Obra Consolidada)</option>
-                      <optgroup label="📂 Filtrar por Grupos / Títulos">
-                        {(finalGanttGroups || []).map((g, idx) => (
-                          <option key={`grp-${idx}`} value={`GRUPO:${g.partida}`}>
-                            📁 Grupo: {g.partida} ({g.children?.length || 0} partidas)
-                          </option>
-                        ))}
-                      </optgroup>
-                      <optgroup label="📦 Filtrar por Partidas Ejecutables">
-                        {(partidasList || [])
-                          .filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo))
-                          .map((p, idx) => (
-                            <option key={`part-${idx}`} value={`PARTIDA:${p.partida}`}>
-                              📦 Partida: {p.partida}
+                  {/* FILTROS DE FECHA DE CORTE Y ALCANCE DE PARTIDA/GRUPO */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-700 whitespace-nowrap flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5 text-blue-900" />
+                        <span>Fecha de Corte Histórica:</span>
+                      </span>
+                      <input
+                        type="date"
+                        value={fCorteEstadisticas}
+                        onChange={(e) => setFCorteEstadisticas(e.target.value)}
+                        className="border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-slate-800 bg-white shadow-2xs"
+                      />
+                      <span className="text-[10px] text-slate-500 italic">Cálculos al corte</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-700 whitespace-nowrap flex items-center gap-1">
+                        <Filter className="w-3.5 h-3.5 text-blue-900" />
+                        <span>Filtro de Alcance:</span>
+                      </span>
+                      <select
+                        value={filtroPartidaEstadisticas}
+                        onChange={(e) => setFiltroPartidaEstadisticas(e.target.value)}
+                        className="border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 bg-white shadow-2xs flex-1"
+                      >
+                        <option value="GLOBAL">🌐 Global (Toda la Obra Consolidada)</option>
+                        <optgroup label="📂 Filtrar por Grupos / Títulos">
+                          {(availableGroups || []).map((g, idx) => (
+                            <option key={`grp-${idx}`} value={`GRUPO:${g.partida}`}>
+                              📁 Grupo: {g.partida} ({g.children?.length || 0} partidas)
                             </option>
                           ))}
-                      </optgroup>
-                    </select>
+                        </optgroup>
+                        <optgroup label="📦 Filtrar por Partidas Ejecutables">
+                          {(partidasList || [])
+                            .filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo))
+                            .map((p, idx) => (
+                              <option key={`part-${idx}`} value={`PARTIDA:${p.partida}`}>
+                                📦 Partida: {p.partida}
+                              </option>
+                            ))}
+                        </optgroup>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* BARRA DE NAVEGACIÓN POR SUB-PESTAÑAS DE ESTADÍSTICAS */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100">
+                    {[
+                      { id: 'avance', label: '📈 Avance Físico' },
+                      { id: 'cuadrillas', label: '👷 Cuadrillas & RRHH' },
+                      { id: 'maquinarias', label: '🚜 Maquinarias & Flota' },
+                      { id: 'prevencion', label: '🛡️ Prevención & HSE' },
+                      { id: 'costos', label: '💰 Costos & EVM' },
+                      { id: 'bodega', label: '📦 Bodega', isComingSoon: true }
+                    ].map(tab => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setEstadisticasTab(tab.id)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border ${
+                          estadisticasTab === tab.id
+                            ? 'bg-blue-900 text-white border-blue-900 shadow-xs'
+                            : 'bg-white text-slate-700 hover:bg-slate-100 border-slate-200'
+                        }`}
+                      >
+                        <span>{tab.label}</span>
+                        {tab.isComingSoon && (
+                          <span className="text-[9px] bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded font-extrabold">Próximamente</span>
+                        )}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                {/* BARRA DE NAVEGACIÓN POR SUB-PESTAÑAS DE ESTADÍSTICAS */}
-                <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100">
-                  {[
-                    { id: 'avance', label: '📈 Avance Físico' },
-                    { id: 'cuadrillas', label: '👷 Cuadrillas & RRHH' },
-                    { id: 'maquinarias', label: '🚜 Maquinarias & Flota' },
-                    { id: 'prevencion', label: '🛡️ Prevención & HSE' },
-                    { id: 'costos', label: '💰 Costos & EVM' },
-                    { id: 'bodega', label: '📦 Bodega', isComingSoon: true }
-                  ].map(tab => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setEstadisticasTab(tab.id)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border ${
-                        estadisticasTab === tab.id
-                          ? 'bg-blue-900 text-white border-blue-900 shadow-xs'
-                          : 'bg-white text-slate-700 hover:bg-slate-100 border-slate-200'
-                      }`}
-                    >
-                      <span>{tab.label}</span>
-                      {tab.isComingSoon && (
-                        <span className="text-[9px] bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded font-extrabold">Próximamente</span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
+                {/* EVALUACIÓN DE DATOS Y CÁLCULOS DINÁMICOS AL CORTE */}
+                {(() => {
+                  const fCorteStr = fCorteEstadisticas || new Date().toISOString().substring(0, 10);
 
-              {/* EVALUACIÓN DE DATOS Y CÁLCULOS DINÁMICOS AL CORTE */}
-              {(() => {
-                const fCorteStr = fCorteEstadisticas || new Date().toISOString().substring(0, 10);
-
-                // 1. Filtrar Partidas de acuerdo al selector de alcance
-                let targetPartidas = (partidasList || []).filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo));
-                if (filtroPartidaEstadisticas.startsWith('GRUPO:')) {
-                  const grpName = filtroPartidaEstadisticas.replace('GRUPO:', '');
-                  const grpObj = (finalGanttGroups || []).find(g => g.partida === grpName);
-                  if (grpObj && grpObj.children) {
-                    const childNames = grpObj.children.map(c => c.partida);
-                    targetPartidas = targetPartidas.filter(p => childNames.includes(p.partida));
+                  // 1. Filtrar Partidas de acuerdo al selector de alcance
+                  let targetPartidas = (partidasList || []).filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo));
+                  if (filtroPartidaEstadisticas.startsWith('GRUPO:')) {
+                    const grpName = filtroPartidaEstadisticas.replace('GRUPO:', '');
+                    const grpObj = (availableGroups || []).find(g => g.partida === grpName);
+                    if (grpObj && grpObj.children) {
+                      const childNames = grpObj.children.map(c => c.partida);
+                      targetPartidas = targetPartidas.filter(p => childNames.includes(p.partida));
+                    }
+                  } else if (filtroPartidaEstadisticas.startsWith('PARTIDA:')) {
+                    const partName = filtroPartidaEstadisticas.replace('PARTIDA:', '');
+                    targetPartidas = targetPartidas.filter(p => p.partida === partName);
                   }
-                } else if (filtroPartidaEstadisticas.startsWith('PARTIDA:')) {
-                  const partName = filtroPartidaEstadisticas.replace('PARTIDA:', '');
-                  targetPartidas = targetPartidas.filter(p => p.partida === partName);
-                }
 
                 const targetNames = targetPartidas.map(p => p.partida);
 
@@ -4666,7 +4678,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 );
               })()}
             </div>
-          )}
+          );
+        })()}
 
           {/* VISTA DEDICADA 9: PREVENCIÓN DE RIESGOS DE OBRA */}
           {obraActiveSubmodule === 'prevencion' && (
