@@ -629,6 +629,69 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     }
   };
 
+  const subtractChileanBusinessDays = (endStr, workingDays) => {
+    if (!endStr) return '';
+    const daysToSubtract = Math.max(1, Math.round(workingDays));
+    let cur = new Date(endStr + 'T00:00:00');
+    if (isNaN(cur.getTime())) return endStr;
+
+    let subtracted = 0;
+    while (subtracted < daysToSubtract) {
+      const dayOfWeek = cur.getDay();
+      const dateStr = cur.getFullYear() + '-' + String(cur.getMonth() + 1).padStart(2, '0') + '-' + String(cur.getDate()).padStart(2, '0');
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      const isHoliday = CHILEAN_HOLIDAYS.includes(dateStr);
+
+      if (!isWeekend && !isHoliday) {
+        subtracted++;
+      }
+      if (subtracted < daysToSubtract) {
+        cur.setDate(cur.getDate() - 1);
+      }
+    }
+    return cur.getFullYear() + '-' + String(cur.getMonth() + 1).padStart(2, '0') + '-' + String(cur.getDate()).padStart(2, '0');
+  };
+
+  const handleUpdatePartidaDependency = async (partidaObj, predecesora, tipoRelacion, desfaseDias) => {
+    const updatedPartidas = partidasList.map(p => {
+      if (p.partida === partidaObj.partida || (p.id && String(p.id) === String(partidaObj.id))) {
+        return {
+          ...p,
+          predecesora: predecesora || null,
+          tipo_relacion: tipoRelacion || 'FS',
+          desfase_dias: parseInt(desfaseDias, 10) || 0
+        };
+      }
+      return p;
+    });
+
+    setPartidasList(updatedPartidas);
+
+    try {
+      if (selectedObra?.id) {
+        localStorage.setItem(`partidas_${selectedObra.id}`, JSON.stringify(updatedPartidas));
+      }
+      if (selectedObra?.nombre) {
+        localStorage.setItem(`partidas_${selectedObra.nombre}`, JSON.stringify(updatedPartidas));
+      }
+    } catch(e) {}
+
+    try {
+      const payload = {
+        predecesora: predecesora || null,
+        tipo_relacion: tipoRelacion || 'FS',
+        desfase_dias: parseInt(desfaseDias, 10) || 0
+      };
+      if (partidaObj.id && !isNaN(parseInt(partidaObj.id))) {
+        await supabase.from('partidas_obra').update(payload).eq('id', partidaObj.id);
+      } else if (selectedObra?.nombre && partidaObj.partida) {
+        await supabase.from('partidas_obra').update(payload).eq('obra_nombre', selectedObra.nombre).eq('partida', partidaObj.partida);
+      }
+    } catch(err) {
+      console.warn('Sync warning on partida dependency:', err);
+    }
+  };
+
   // Estado para Libro de Asistencia Digital
   const [selectedMonthLibro, setSelectedMonthLibro] = useState(new Date().toISOString().substring(0, 7)); // YYYY-MM
 
@@ -4026,14 +4089,14 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
             </div>
           )}
 
-          {/* VISTA DEDICADA 11: PLANIFICACIÓN Y CARTA GANTT DE OBRA (CONECTADO A PRESUPUESTO) */}
+          {/* VISTA DEDICADA 11: PLANIFICACIÓN Y CARTA GANTT DE OBRA (CONECTADO A PRESUPUESTO Y ENLACES) */}
           {obraActiveSubmodule === 'planificacion' && (
             <div className="space-y-6 animate-in fade-in duration-200">
               {(() => {
                 const fInicioObraDefault = selectedObra?.fecha_inicio ? String(selectedObra.fecha_inicio).split('T')[0] : new Date().toISOString().substring(0, 10);
                 const fCorteStr = fechaCorteProyeccion || new Date().toISOString().substring(0, 10);
 
-                // Helper para procesar partidas ejecutables
+                // 1. Helper para procesar partidas ejecutables
                 const processPartidaItem = (p) => {
                   const isGroup = p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo;
                   const cant = parseFloat(p.cantidad) || 0;
@@ -4056,9 +4119,64 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   };
                 };
 
-                const processedItems = partidasList.map(processPartidaItem);
+                const initialItems = partidasList.map(processPartidaItem);
+                const executablePartidasList = initialItems.filter(i => !i.isGroup);
 
-                // Agrupar partidas bajo Títulos / Grupos
+                // 2. Motor de cálculo de dependencias en cascada (Predecesoras + Tipo Relación + Desfase)
+                const itemsMap = new Map();
+                initialItems.forEach(item => {
+                  itemsMap.set(item.partida || item.id, { ...item });
+                });
+
+                for (let pass = 0; pass < 5; pass++) {
+                  initialItems.forEach(item => {
+                    if (item.isGroup) return;
+
+                    const curr = itemsMap.get(item.partida || item.id);
+                    if (!curr || !curr.predecesora) return;
+
+                    const pred = itemsMap.get(curr.predecesora);
+                    if (!pred) return;
+
+                    const relType = curr.tipo_relacion || 'FS';
+                    const lag = parseInt(curr.desfase_dias || 0, 10) || 0;
+
+                    let calcStart = curr.fechaInicio;
+
+                    if (relType === 'FS') {
+                      // Fin a Inicio
+                      const predEnd = pred.fechaTermino || pred.fechaInicio;
+                      const nextBus = addChileanBusinessDays(predEnd, 2);
+                      calcStart = lag !== 0 ? (lag > 0 ? addChileanBusinessDays(nextBus, lag + 1) : subtractChileanBusinessDays(nextBus, Math.abs(lag) + 1)) : nextBus;
+                    } else if (relType === 'SS') {
+                      // Inicio a Inicio
+                      const predStart = pred.fechaInicio;
+                      calcStart = lag !== 0 ? (lag > 0 ? addChileanBusinessDays(predStart, lag + 1) : subtractChileanBusinessDays(predStart, Math.abs(lag) + 1)) : predStart;
+                    } else if (relType === 'FF') {
+                      // Fin a Fin
+                      const predEnd = pred.fechaTermino;
+                      const calcEnd = lag !== 0 ? (lag > 0 ? addChileanBusinessDays(predEnd, lag + 1) : subtractChileanBusinessDays(predEnd, Math.abs(lag) + 1)) : predEnd;
+                      calcStart = subtractChileanBusinessDays(calcEnd, curr.duracionDias);
+                    } else if (relType === 'SF') {
+                      // Inicio a Fin
+                      const predStart = pred.fechaInicio;
+                      const calcEnd = lag !== 0 ? (lag > 0 ? addChileanBusinessDays(predStart, lag + 1) : subtractChileanBusinessDays(predStart, Math.abs(lag) + 1)) : predStart;
+                      calcStart = subtractChileanBusinessDays(calcEnd, curr.duracionDias);
+                    }
+
+                    if (calcStart && calcStart !== curr.fechaInicio) {
+                      curr.fechaInicio = calcStart;
+                      curr.fechaTermino = addChileanBusinessDays(calcStart, curr.duracionDias);
+                    }
+                  });
+                }
+
+                const processedItems = initialItems.map(item => {
+                  if (item.isGroup) return item;
+                  return itemsMap.get(item.partida || item.id) || item;
+                });
+
+                // 3. Agrupar partidas bajo Títulos / Grupos
                 const groupsMap = [];
                 let currentGroup = null;
 
@@ -4083,7 +4201,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   }
                 });
 
-                // Calcular Fechas de Inicio/Término y Duración Total para cada Grupo
+                // 4. Calcular Fechas de Inicio/Término y Duración Total para cada Grupo
                 const finalGanttGroups = groupsMap.map(g => {
                   if (g.children.length === 0) {
                     return {
@@ -4136,7 +4254,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           <span>Planificación y Carta Gantt de Obra</span>
                         </h3>
                         <p className="text-[11px] text-slate-500">
-                          Programación automática vinculada al Presupuesto: Duraciones calculadas por Rendimiento (Cantidad ÷ Rendimiento) y días laborales en Chile.
+                          Programación automática conectada a Presupuesto y enlaces de Predecesoras (FS, SS, FF, SF) con desfases (+ / - días hábiles).
                         </p>
                       </div>
 
@@ -4214,7 +4332,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           </span>
                         </h4>
                         <span className="text-[10px] text-slate-500 italic font-medium">
-                          💡 Cambia la Fecha de Inicio de cualquier partida para recalcular automáticamente su Fecha de Término y la duración del Grupo.
+                          💡 Enlaza partidas con Predecesoras y Desfase (+ / - días) para calcular en cascada el cronograma.
                         </span>
                       </div>
 
@@ -4230,9 +4348,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                               <tr className="bg-slate-100 border-b text-slate-700 font-bold uppercase text-[10px]">
                                 <th className="p-3">Grupo / Partida Imputada</th>
                                 <th className="p-3">Cantidad / Rendimiento</th>
-                                <th className="p-3 text-center">Duración (Días Hábiles)</th>
-                                <th className="p-3">Fecha Inicio (Programada)</th>
-                                <th className="p-3">Fecha Término (Calculada)</th>
+                                <th className="p-3 text-center">Duración</th>
+                                <th className="p-3">🔗 Enlace Predecesora & Desfase</th>
+                                <th className="p-3">Fecha Inicio</th>
+                                <th className="p-3">Fecha Término</th>
                                 <th className="p-3 text-center">Avance / Gantt</th>
                               </tr>
                             </thead>
@@ -4256,6 +4375,9 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                     <td className="p-3 text-center font-mono font-bold text-amber-300 text-[10.5px]">
                                       {g.duracionDias} Días Hábiles
                                     </td>
+                                    <td className="p-3 text-slate-400 font-mono text-[9.5px] italic">
+                                      Min / Max Hijos
+                                    </td>
                                     <td className="p-3 font-mono font-bold text-indigo-200">
                                       {g.fechaInicio} <span className="text-[9px] text-slate-400 font-normal">(Pronta)</span>
                                     </td>
@@ -4276,6 +4398,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                   {g.children.map((p, pIdx) => {
                                     const isPendiente = p.fechaInicio && fCorteStr && p.fechaInicio > fCorteStr;
                                     const isFinalizada = p.avancePct >= 100;
+                                    const hasPredecessor = !!p.predecesora;
 
                                     return (
                                       <tr key={`child-${p.id || pIdx}`} className="hover:bg-slate-50 border-b border-slate-200 bg-white">
@@ -4287,17 +4410,74 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                             <span>{p.partida}</span>
                                           </div>
                                         </td>
+
                                         <td className="p-3 font-mono text-slate-700 text-[10.5px]">
                                           <span className="font-bold">{p.cant.toLocaleString('es-CL')} {p.unidad}</span>
                                           <span className="text-[9.5px] text-slate-400 block font-normal">Rend: {p.rend} {p.unidad}/Día</span>
                                         </td>
+
                                         <td className="p-3 text-center font-mono font-black text-blue-950 text-xs">
                                           <span className="bg-blue-50 text-blue-950 px-2 py-0.5 rounded border border-blue-200">
                                             ⏱️ {p.duracionDias} Días Hábiles
                                           </span>
                                         </td>
+
+                                        {/* CONTROLES DE ENLACE DE PREDECESORA Y DESFASE (+ / - DÍAS) */}
                                         <td className="p-3">
-                                          <div className="flex items-center gap-1">
+                                          <div className="flex flex-col gap-1">
+                                            <select
+                                              value={p.predecesora || ''}
+                                              onChange={(e) => handleUpdatePartidaDependency(p, e.target.value, p.tipo_relacion || 'FS', p.desfase_dias || 0)}
+                                              className="border border-slate-300 rounded px-1.5 py-0.5 text-[10px] font-semibold text-slate-800 bg-slate-50 hover:bg-white transition cursor-pointer max-w-[170px]"
+                                            >
+                                              <option value="">(Sin Predecesora / Libre)</option>
+                                              {executablePartidasList
+                                                .filter(item => (item.partida !== p.partida) && (item.id !== p.id))
+                                                .map((item, iIdx) => (
+                                                  <option key={iIdx} value={item.partida || item.id}>
+                                                    🔗 {item.partida}
+                                                  </option>
+                                                ))
+                                              }
+                                            </select>
+
+                                            {hasPredecessor && (
+                                              <div className="flex items-center gap-1">
+                                                <select
+                                                  value={p.tipo_relacion || 'FS'}
+                                                  onChange={(e) => handleUpdatePartidaDependency(p, p.predecesora, e.target.value, p.desfase_dias || 0)}
+                                                  className="border border-slate-300 rounded px-1 py-0.5 text-[9.5px] font-bold text-indigo-900 bg-indigo-50"
+                                                >
+                                                  <option value="FS">FS (Fin-Inicio)</option>
+                                                  <option value="SS">SS (Inicio-Inicio)</option>
+                                                  <option value="FF">FF (Fin-Fin)</option>
+                                                  <option value="SF">SF (Inicio-Fin)</option>
+                                                </select>
+
+                                                <div className="flex items-center gap-0.5">
+                                                  <span className="text-[9px] font-bold text-slate-500">Desfase:</span>
+                                                  <input
+                                                    type="number"
+                                                    value={p.desfase_dias !== undefined ? p.desfase_dias : 0}
+                                                    onChange={(e) => handleUpdatePartidaDependency(p, p.predecesora, p.tipo_relacion || 'FS', e.target.value)}
+                                                    placeholder="0"
+                                                    className="w-12 border border-slate-300 rounded px-1 py-0.5 text-[10px] font-bold text-slate-900 bg-white text-center font-mono"
+                                                    title="Días hábiles de desfase (+ positivo para retrasar, - negativo para adelantar)"
+                                                  />
+                                                  <span className="text-[9px] font-bold text-slate-500">días</span>
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        </td>
+
+                                        {/* FECHA DE INICIO (INTERACTIVA SI LIBRE / CALCULADA SI ENLAZADA) */}
+                                        <td className="p-3 font-mono font-bold text-slate-900">
+                                          {hasPredecessor ? (
+                                            <span className="bg-indigo-50 text-indigo-950 px-2 py-1 rounded-lg border border-indigo-200 text-xs flex items-center gap-1 w-max" title={`Calculado automáticamente en cascada desde la predecesora "${p.predecesora}"`}>
+                                              <span>⚡ {p.fechaInicio}</span>
+                                            </span>
+                                          ) : (
                                             <input
                                               type="date"
                                               value={p.fechaInicio}
@@ -4305,13 +4485,16 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                               className="border border-slate-300 rounded-lg px-2 py-1 text-xs font-mono font-bold text-slate-900 bg-slate-50 hover:bg-white focus:bg-white transition cursor-pointer"
                                               title="Haz clic para cambiar la Fecha de Inicio de esta partida"
                                             />
-                                          </div>
+                                          )}
                                         </td>
+
+                                        {/* FECHA DE TÉRMINO (SIEMPRE CALCULADA SEGÚN RENDIMIENTO Y DÍAS HÁBILES) */}
                                         <td className="p-3 font-mono font-bold text-emerald-950">
                                           <span className="bg-emerald-50 text-emerald-950 px-2 py-1 rounded-lg border border-emerald-200 text-xs flex items-center gap-1 w-max" title="Calculada automáticamente sumando los días hábiles según rendimiento">
                                             <span>🏁 {p.fechaTermino}</span>
                                           </span>
                                         </td>
+
                                         <td className="p-3 text-center">
                                           <div className="flex items-center justify-center gap-2">
                                             <div className="w-20 bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200">
@@ -4337,7 +4520,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                               {planificacionList.length > 0 && (
                                 <>
                                   <tr className="bg-indigo-950 text-white font-extrabold text-[10.5px]">
-                                    <td colSpan="6" className="p-2.5 bg-indigo-950 text-white border-y border-indigo-900">
+                                    <td colSpan="7" className="p-2.5 bg-indigo-950 text-white border-y border-indigo-900">
                                       📌 HITOS Y TAREAS ADICIONALES DE PLANIFICACIÓN ({planificacionList.length})
                                     </td>
                                   </tr>
@@ -4351,6 +4534,9 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                       </td>
                                       <td className="p-3 text-center font-mono font-bold text-slate-800">
                                         {act.duracion_dias || 7} Días
+                                      </td>
+                                      <td className="p-3 text-slate-400 font-mono text-[9.5px]">
+                                        Manual
                                       </td>
                                       <td className="p-3 font-mono font-bold text-slate-800">
                                         {act.fecha_inicio}
