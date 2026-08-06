@@ -379,6 +379,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [showEditSueldoModal, setShowEditSueldoModal] = useState(false);
   const [showFechasObraModal, setShowFechasObraModal] = useState(false);
   const [isPersonalCollapseOpen, setIsPersonalCollapseOpen] = useState(true);
+  const [isMaquinariaCollapseOpen, setIsMaquinariaCollapseOpen] = useState(true);
   const [editingWorkerData, setEditingWorkerData] = useState(null);
 
   const [fechaInicioRrhh, setFechaInicioRrhh] = useState(() => {
@@ -4115,7 +4116,26 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   }
                   return acc + (diasTrab * valorDia);
                 }, 0);
-                const totalCostoProyectado = totalProyectadoPartidas + totalPersonalProyectado;
+
+                const totalMaquinariaProyectado = (maquinariaList || []).reduce((acc, m) => {
+                  const cMensual = parseFloat(m.costo_mensual || m.valor_arriendo_mensual || m.costo_arriendo || (m.costo_interno ? m.costo_interno * 30 : 1500000)) || 1500000;
+                  const valorDia = Math.round(cMensual / 30);
+
+                  const rawAsigDate = m.fecha_asig || m.fecha_asignacion || m.fecha_inicio || m.created_at ? String(m.fecha_asig || m.fecha_asignacion || m.fecha_inicio || m.created_at).split('T')[0] : (selectedObra?.fecha_inicio ? String(selectedObra.fecha_inicio).split('T')[0] : fInicioStr);
+                  let diasMaq = 0;
+                  if (rawAsigDate && fCorteStr && rawAsigDate <= fCorteStr) {
+                    const dAsig = new Date(rawAsigDate);
+                    if (!isNaN(dAsig.getTime()) && !isNaN(dCorte.getTime())) {
+                      const diffDays = Math.floor((dCorte.getTime() - dAsig.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                      diasMaq = Math.max(1, diffDays);
+                    } else {
+                      diasMaq = 1;
+                    }
+                  }
+                  return acc + (diasMaq * valorDia);
+                }, 0);
+
+                const totalCostoProyectado = totalProyectadoPartidas + totalPersonalProyectado + totalMaquinariaProyectado;
                 const saldoProyectado = totalPres - totalCostoProyectado;
 
                 if (costosSubTab === 'reales') {
@@ -5001,6 +5021,144 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                               )}
                             </div>
                           </div>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+
+                  {/* SECCIÓN DEDICADA DE MAQUINARIA Y EQUIPOS ASIGNADOS (PROYECCIÓN AL CORTE) */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs mt-4">
+                    {(() => {
+                      const fCorteStr = fechaCorteProyeccion || new Date().toISOString().substring(0, 10);
+                      const dateCorte = new Date(fCorteStr);
+
+                      const maqArray = (maquinariaList || []).map(m => {
+                        const cMensual = parseFloat(m.costo_mensual || m.valor_arriendo_mensual || m.costo_arriendo || (m.costo_interno ? m.costo_interno * 30 : 1500000)) || 1500000;
+                        const valorDia = Math.round(cMensual / 30); // Siempre dividido por 30
+
+                        const rawAsigDate = m.fecha_asig || m.fecha_asignacion || m.fecha_inicio || m.created_at ? String(m.fecha_asig || m.fecha_asignacion || m.fecha_inicio || m.created_at).split('T')[0] : (selectedObra?.fecha_inicio ? String(selectedObra.fecha_inicio).split('T')[0] : fInicioStr);
+                        const formattedAsig = rawAsigDate ? (() => {
+                          const pts = rawAsigDate.split('-');
+                          return pts.length === 3 ? `${pts[2]}-${pts[1]}-${pts[0]}` : rawAsigDate;
+                        })() : 'Fecha N/A';
+
+                        let diasOperativosCorte = 0;
+                        if (rawAsigDate && fCorteStr && rawAsigDate <= fCorteStr) {
+                          const dAsig = new Date(rawAsigDate);
+                          if (!isNaN(dAsig.getTime()) && !isNaN(dateCorte.getTime())) {
+                            const diffDays = Math.floor((dateCorte.getTime() - dAsig.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                            diasOperativosCorte = Math.max(1, diffDays);
+                          } else {
+                            diasOperativosCorte = 1;
+                          }
+                        }
+
+                        const isPosteriorACorte = rawAsigDate && fCorteStr && rawAsigDate > fCorteStr;
+                        const costoProyectadoAlCorte = diasOperativosCorte * valorDia;
+
+                        return {
+                          ...m,
+                          cMensual,
+                          valorDia,
+                          rawAsigDate,
+                          formattedAsig,
+                          diasOperativosCorte,
+                          isPosteriorACorte,
+                          costoProyectadoAlCorte
+                        };
+                      });
+
+                      const totalCostoMaquinariaObraAlCorte = maqArray.reduce((acc, m) => acc + m.costoProyectadoAlCorte, 0);
+
+                      return (
+                        <>
+                          <div
+                            onClick={() => setIsMaquinariaCollapseOpen(!isMaquinariaCollapseOpen)}
+                            className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-200 pb-2 cursor-pointer hover:bg-slate-50 p-2 rounded-xl transition"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <span className="p-1.5 bg-amber-600 text-white rounded-lg text-xs font-bold shadow-2xs">
+                                {isMaquinariaCollapseOpen ? '▲' : '▼'}
+                              </span>
+                              <div>
+                                <h4 className="font-extrabold text-slate-800 text-xs flex items-center gap-2">
+                                  <span>🚜 Costos de Maquinaria y Equipos Asignados a Faena (Proyección)</span>
+                                  <span className="text-[10px] bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-black">
+                                    {maqArray.length} Equipos Registrados
+                                  </span>
+                                </h4>
+                                <p className="text-[10px] text-slate-500 font-semibold">
+                                  {isMaquinariaCollapseOpen ? 'Haz clic para replegar flota de equipos' : 'Haz clic para desplegar el detalle de maquinaria y costo diario al corte'}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200 flex items-center gap-2">
+                                <div className="text-right">
+                                  <span className="text-[9px] font-bold text-slate-500 uppercase block">SUBTOTAL PROYECTADO MAQUINARIA (AL CORTE):</span>
+                                  <span className="font-mono font-black text-amber-900 text-sm">${totalCostoMaquinariaObraAlCorte.toLocaleString('es-CL')}</span>
+                                </div>
+                                <span className="text-xs text-amber-800 font-bold ml-1">{isMaquinariaCollapseOpen ? '▲' : '▼'}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {isMaquinariaCollapseOpen && (
+                            <div className="pt-2">
+                              {maqArray.length === 0 ? (
+                                <div className="p-4 text-center bg-slate-50 rounded-xl space-y-1">
+                                  <p className="text-xs text-slate-600 font-semibold">No hay maquinaria ni equipos asignados actualmente a esta obra.</p>
+                                  <p className="text-[10px] text-slate-400">Asigna equipos desde el módulo de Maquinaria o crea arriendos para proyectar su costo.</p>
+                                </div>
+                              ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                  {maqArray.map((m, mIdx) => (
+                                    <div key={mIdx} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 shadow-2xs hover:border-amber-400 transition">
+                                      <div className="flex justify-between items-center border-b border-slate-200/60 pb-1.5">
+                                        <span className="font-extrabold text-slate-900 text-xs">{m.nombre || m.equipo || m.tipo || `Equipo #${mIdx + 1}`}</span>
+                                        <span className="text-[9px] font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded font-mono">
+                                          {m.patente || m.codigo || 'S/P'}
+                                        </span>
+                                      </div>
+
+                                      <div className="bg-slate-100/90 p-2 rounded-lg border border-slate-200 flex justify-between items-center text-[10px] text-slate-600">
+                                        <div>
+                                          <span className="font-bold block text-slate-700">📅 Asignado desde:</span>
+                                          <span className="font-mono text-slate-800 font-bold">{m.formattedAsig}</span>
+                                        </div>
+                                        <div className="text-right">
+                                          <span className="font-bold block text-slate-700">⏱️ Días al Corte ({fechaCorteProyeccion}):</span>
+                                          <span className="font-mono text-amber-900 font-extrabold">{m.diasOperativosCorte} Días</span>
+                                        </div>
+                                      </div>
+                                      {m.isPosteriorACorte && (
+                                        <div className="bg-rose-50 border border-rose-200 text-rose-900 text-[10px] font-bold p-1.5 rounded-lg text-center">
+                                          ⚠️ Equipo asignado posterior a la fecha de corte ({m.formattedAsig})
+                                        </div>
+                                      )}
+
+                                      <div className="space-y-1 text-[11px]">
+                                        <div className="flex justify-between items-center">
+                                          <span className="text-slate-500 font-semibold">Costo Mensual Base:</span>
+                                          <span className="font-mono font-bold text-slate-800">${m.cMensual.toLocaleString('es-CL')}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-slate-600">
+                                          <span className="font-semibold">Valor Día (Costo Mensual ÷ 30):</span>
+                                          <span className="font-mono font-bold text-amber-900">${m.valorDia.toLocaleString('es-CL')}/día</span>
+                                        </div>
+                                      </div>
+
+                                      <div className="flex justify-between items-center pt-2 border-t border-slate-200 text-xs bg-amber-50 p-2 rounded-lg">
+                                        <span className="font-extrabold text-amber-950">Costo Proyectado ({m.diasOperativosCorte} días):</span>
+                                        <span className="font-mono font-black text-amber-900 text-sm">${m.costoProyectadoAlCorte.toLocaleString('es-CL')}</span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           )}
                         </>
                       );
