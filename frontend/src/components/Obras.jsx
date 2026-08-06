@@ -1197,16 +1197,30 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     if (!obraNombre) return;
     const targetName = obraNombre.trim().toLowerCase();
 
+    const isMatchObra = (itemObra, targetObra) => {
+      if (!itemObra || !targetObra) return false;
+      const rawObra = String(itemObra).trim().toLowerCase();
+      const rawTarget = String(targetObra).trim().toLowerCase();
+      if (!rawObra) return false;
+      if (rawObra === rawTarget) return true;
+
+      const normObra = rawObra.replace(/[^a-z0-9]/g, '');
+      const normTarget = rawTarget.replace(/[^a-z0-9]/g, '');
+      if (normObra === normTarget || (normTarget && normObra.includes(normTarget)) || (normObra && normTarget.includes(normObra))) return true;
+
+      const coreObra = normObra.replace(/^(obra|proyecto)/, '');
+      const coreTarget = normTarget.replace(/^(obra|proyecto)/, '');
+      return coreObra === coreTarget || (coreTarget && coreObra.includes(coreTarget)) || (coreObra && coreTarget.includes(coreObra));
+    };
+
     // 1. Cargar personal
     try {
-      const { count: countPers } = await supabase
-        .from('maestro_personal')
-        .select('*', { count: 'exact', head: true })
-        .eq('obra_nombre', obraNombre);
-      setPersonalCount(countPers || 0);
+      const { data: allPers } = await supabase.from('maestro_personal').select('*');
+      const listPers = (allPers || []).filter(p => isMatchObra(p.obra_nombre, obraNombre));
+      setPersonalCount(listPers.length);
+      setPersonalAsignadoList(listPers);
+      setPersonalList(listPers);
 
-      const { data: listPers } = await supabase.from('maestro_personal').select('*').eq('obra_nombre', obraNombre);
-      setPersonalAsignadoList(listPers || []);
       try {
         const savedProjRrhh = localStorage.getItem(`obraxis_proj_rrhh_${obraNombre}`);
         if (savedProjRrhh) setProyeccionesRrhhList(JSON.parse(savedProjRrhh));
@@ -1217,32 +1231,35 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           try { setCostosList(JSON.parse(savedCostosStr)); } catch (err) {}
         }
         try {
-          const { data: supaCostos } = await supabase.from('costos_reales_obra').select('*').eq('obra_nombre', obraNombre);
+          const { data: allCostos } = await supabase.from('costos_reales_obra').select('*');
+          const supaCostos = (allCostos || []).filter(c => isMatchObra(c.obra_nombre, obraNombre));
           if (supaCostos && supaCostos.length > 0) setCostosList(supaCostos);
         } catch (errC) {}
         // Cargar Mantenciones, Paralizaciones y Accidentes de la Obra
         try {
           const savedMant = localStorage.getItem(`obraxis_mantenciones_${obraNombre}`);
           if (savedMant) setMantencionesMaquinariaList(JSON.parse(savedMant));
-          const { data: supaMant } = await supabase.from('mantenciones_maquinaria').select('*').eq('obra_nombre', obraNombre);
+          const { data: allMant } = await supabase.from('mantenciones_maquinaria').select('*');
+          const supaMant = (allMant || []).filter(m => isMatchObra(m.obra_nombre, obraNombre));
           if (supaMant && supaMant.length > 0) setMantencionesMaquinariaList(supaMant);
         } catch (errM) {}
 
         try {
           const savedPara = localStorage.getItem(`obraxis_paralizaciones_${obraNombre}`);
           if (savedPara) setParalizacionesMaquinariaList(JSON.parse(savedPara));
-          const { data: supaPara } = await supabase.from('paralizaciones_maquinaria').select('*').eq('obra_nombre', obraNombre);
+          const { data: allPara } = await supabase.from('paralizaciones_maquinaria').select('*');
+          const supaPara = (allPara || []).filter(p => isMatchObra(p.obra_nombre, obraNombre));
           if (supaPara && supaPara.length > 0) setParalizacionesMaquinariaList(supaPara);
         } catch (errP) {}
 
         try {
           const savedAcc = localStorage.getItem(`obraxis_accidentes_${obraNombre}`);
           if (savedAcc) setAccidentesPrevencionList(JSON.parse(savedAcc));
-          const { data: supaAcc } = await supabase.from('accidentes_prevencion_obra').select('*').eq('obra_nombre', obraNombre);
+          const { data: allAcc } = await supabase.from('accidentes_prevencion_obra').select('*');
+          const supaAcc = (allAcc || []).filter(a => isMatchObra(a.obra_nombre, obraNombre));
           if (supaAcc && supaAcc.length > 0) setAccidentesPrevencionList(supaAcc);
         } catch (errA) {}
       } catch (err) {}
-      setPersonalList(listPers || []);
     } catch (e) {
       console.warn('Aviso personal:', e);
     }
@@ -1314,29 +1331,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         localStorage.setItem('obraxis_inventario_maquinaria', JSON.stringify(combinedFleet));
       } catch (err) {}
 
-      const isEquipForObra = (item) => {
-        if (!item || !item.obra_nombre) return false;
-        const rawObra = String(item.obra_nombre).trim().toLowerCase();
-        const rawTarget = String(obraNombre || '').trim().toLowerCase();
-        if (!rawObra || rawObra.includes('bodega') || rawObra === 'libre') return false;
-
-        // 1. Comparación exacta directa
-        if (rawObra === rawTarget) return true;
-
-        // 2. Normalización alfanumérica stripping espacios y caracteres especiales
-        const normObra = rawObra.replace(/[^a-z0-9]/g, '');
-        const normTarget = rawTarget.replace(/[^a-z0-9]/g, '');
-
-        if (normObra === normTarget || (normTarget && normObra.includes(normTarget)) || (normObra && normTarget.includes(normObra))) return true;
-
-        // 3. Normalización sin prefijos 'obra' o 'proyecto'
-        const coreObra = normObra.replace(/^(obra|proyecto)/, '');
-        const coreTarget = normTarget.replace(/^(obra|proyecto)/, '');
-
-        return coreObra === coreTarget || (coreTarget && coreObra.includes(coreTarget)) || (coreObra && coreTarget.includes(coreObra));
-      };
-
-      const finalMaqObra = combinedFleet.filter(isEquipForObra);
+      const finalMaqObra = combinedFleet.filter(item => isMatchObra(item.obra_nombre, obraNombre));
       setMaquinariaCount(finalMaqObra.length);
       setMaquinariaList(finalMaqObra);
     } catch (eMaq) {
@@ -1345,7 +1340,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
     // 3. Cargar partidas de obra
     try {
-      const { data: listPart } = await supabase.from('partidas_obra').select('*').eq('obra_nombre', obraNombre);
+      const { data: allPart } = await supabase.from('partidas_obra').select('*');
+      const listPart = (allPart || []).filter(p => isMatchObra(p.obra_nombre, obraNombre));
 
       const savedLocalPartidasStr = localStorage.getItem(`partidas_${selectedObra?.id}`) || localStorage.getItem(`partidas_${obraNombre}`);
       let savedLocalPartidas = [];
@@ -1391,24 +1387,20 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     // 4. Asistencias de personal
     let fullAsist = [];
     try {
-      const { data } = await supabase
-        .from('asistencia_personal')
-        .select('*')
-        .eq('obra_nombre', obraNombre)
-        .order('created_at', { ascending: false });
-      if (data) fullAsist = data;
+      const { data: asist1 } = await supabase.from('asistencia_personal').select('*');
+      const { data: asist2 } = await supabase.from('asistencia').select('*');
+      const combinedAsist = [...(asist1 || []), ...(asist2 || [])];
+      fullAsist = combinedAsist.filter(a => isMatchObra(a.obra_nombre, obraNombre));
       setAsistenciaList(fullAsist);
     } catch (e) {}
 
     // 5. Avances de producción
     let fullAvances = [];
     try {
-      const { data } = await supabase
-        .from('avances_produccion_partidas')
-        .select('*')
-        .eq('obra_nombre', obraNombre)
-        .order('created_at', { ascending: false });
-      if (data) fullAvances = data;
+      const { data: av1 } = await supabase.from('avances_produccion_partidas').select('*');
+      const { data: av2 } = await supabase.from('reportes_avance').select('*');
+      const combinedAv = [...(av1 || []), ...(av2 || [])];
+      fullAvances = combinedAv.filter(r => isMatchObra(r.obra_nombre, obraNombre));
       setReportesAvanceList(fullAvances);
     } catch (e) {}
 
