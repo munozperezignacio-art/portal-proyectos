@@ -4059,18 +4059,39 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 const totalCostosReales = totalFacturas + totalLiquidacionesReales + totalPersonalIncurrido;
                 const saldoReal = totalPres - totalCostosReales;
 
-                // Proyección de gastos por partidas ejecutables
+                // Proyección de gastos por partidas ejecutables a fecha de corte
+                const fInicioStr = fechaInicioReal || selectedObra?.fecha_inicio || (new Date().toISOString().substring(0, 8) + '01');
+                const fCorteStr = fechaCorteProyeccion || new Date().toISOString().substring(0, 10);
+                const dInicio = new Date(fInicioStr);
+                const dCorte = new Date(fCorteStr);
+                let diasTranscurridosCorte = 1;
+                if (!isNaN(dInicio.getTime()) && !isNaN(dCorte.getTime())) {
+                  const diffDays = Math.floor((dCorte.getTime() - dInicio.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                  diasTranscurridosCorte = Math.max(1, diffDays);
+                }
+
                 const executableParts = partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo));
                 const totalProyectadoPartidas = executableParts.reduce((acc, p) => {
                   const cant = parseFloat(p.cantidad) || 0;
                   const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
-                  const dias = rend > 0 ? (cant / rend) : 1;
-                  const proj = proyeccionesList.find(x => x.partida === p.partida);
-                  if (proj) {
-                    if (proj.tipo_proyeccion === 'TIEMPO') return acc + Math.round(dias * (parseFloat(proj.tarifa_tiempo_dia) || 20000));
-                    return acc + Math.round(cant * (parseFloat(proj.tasa_rendimiento_insumo) || 1) * (parseFloat(proj.precio_unitario_insumo) || 5000));
+                  const diasTotalesPartida = rend > 0 ? (cant / rend) : 1;
+                  const diasEfectivosCorte = Math.min(diasTranscurridosCorte, diasTotalesPartida);
+
+                  const projItems = proyeccionesList.filter(x => x.partida === p.partida);
+                  if (projItems.length > 0) {
+                    const sumPartida = projItems.reduce((pAcc, proj) => {
+                      if (proj.tipo_proyeccion === 'TIEMPO') {
+                        return pAcc + Math.round(diasEfectivosCorte * (parseFloat(proj.tarifa_tiempo_dia) || 20000));
+                      } else {
+                        const tasa = parseFloat(proj.tasa_rendimiento_insumo) || 1;
+                        const pu = parseFloat(proj.precio_unitario_insumo) || 5000;
+                        const insumosAlCorte = diasEfectivosCorte * (rend * tasa);
+                        return pAcc + Math.round(insumosAlCorte * pu);
+                      }
+                    }, 0);
+                    return acc + sumPartida;
                   }
-                  return acc + Math.round(dias * 20000);
+                  return acc + Math.round(diasEfectivosCorte * 20000);
                 }, 0);
 
                 const totalProyectadoRrhhForm = proyeccionesRrhhList.reduce((acc, r) => acc + (parseFloat(r.sueldo_base || 0) + parseFloat(r.horas_extras || 0) + parseFloat(r.asignaciones || 0)), 0);
@@ -4441,7 +4462,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           {partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo)).map((p, pIdx) => {
                             const cant = parseFloat(p.cantidad) || 0;
                             const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
-                            const diasEstimados = rend > 0 ? (cant / rend) : 1;
+                            const diasTotalesPartida = rend > 0 ? (cant / rend) : 1;
+                            const diasEfectivosCorte = Math.min(diasTranscurridosCorte, diasTotalesPartida);
                             const puVal = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (p.pu || 0);
                             const montoPres = cant * puVal;
 
@@ -4453,17 +4475,18 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                               costoProyectado = projItems.reduce((sum, item) => {
                                 if (item.tipo_proyeccion === 'TIEMPO') {
                                   const tarifaDia = parseFloat(item.tarifa_tiempo_dia) || 20000;
-                                  return sum + Math.round(diasEstimados * tarifaDia);
+                                  return sum + Math.round(diasEfectivosCorte * tarifaDia);
                                 } else {
                                   const tasa = parseFloat(item.tasa_rendimiento_insumo) || 1;
                                   const precioInsumo = parseFloat(item.precio_unitario_insumo) || 5000;
-                                  return sum + Math.round(cant * tasa * precioInsumo);
+                                  const insumosAlCorte = diasEfectivosCorte * (rend * tasa);
+                                  return sum + Math.round(insumosAlCorte * precioInsumo);
                                 }
                               }, 0);
                               modoText = `${projItems.length} Gastos Registrados`;
                             } else {
-                              costoProyectado = Math.round(diasEstimados * 20000);
-                              modoText = `Default ($20.000/Día * ${diasEstimados.toFixed(1)} Días)`;
+                              costoProyectado = Math.round(diasEfectivosCorte * 20000);
+                              modoText = `Default ($20.000/Día * ${diasEfectivosCorte.toFixed(1)} Días corte)`;
                             }
 
                             const margen = montoPres - costoProyectado;
@@ -4485,7 +4508,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                   </td>
                                   <td className="p-3 font-mono font-bold text-slate-700">{cant.toLocaleString('es-CL')} {p.unidad}</td>
                                   <td className="p-3 font-mono text-slate-600">{rend} {p.unidad}/Día</td>
-                                  <td className="p-3 font-mono font-black text-blue-900">{diasEstimados.toFixed(1)} Días hábiles</td>
+                                  <td className="p-3 font-mono text-slate-700">
+                                    <span className="font-bold text-blue-900">{diasEfectivosCorte.toFixed(1)} / {diasTotalesPartida.toFixed(1)} Días</span>
+                                    <span className="text-[9px] text-slate-400 block font-normal">al corte {fechaCorteProyeccion}</span>
+                                  </td>
                                   <td className="p-3 font-mono text-[10px]">
                                     <button
                                       onClick={() => toggleExpandPartida(p.partida)}
@@ -4571,7 +4597,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                                   <th className="p-2">#</th>
                                                   <th className="p-2">Concepto / Nombre Gasto</th>
                                                   <th className="p-2">Tipo Proyección</th>
-                                                  <th className="p-2">Fórmula / Cálculo Aplicado</th>
+                                                  <th className="p-2">Fórmula / Cálculo Aplicado (al corte {fechaCorteProyeccion})</th>
                                                   <th className="p-2 text-right">Subtotal Proyectado</th>
                                                   <th className="p-2 text-center">Acciones</th>
                                                 </tr>
@@ -4582,13 +4608,14 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                                   let formulaStr = '';
                                                   if (item.tipo_proyeccion === 'TIEMPO') {
                                                     const tDia = parseFloat(item.tarifa_tiempo_dia) || 20000;
-                                                    subtotalItem = Math.round(diasEstimados * tDia);
-                                                    formulaStr = `$${tDia.toLocaleString('es-CL')}/Día * ${diasEstimados.toFixed(1)} Días hábiles`;
+                                                    subtotalItem = Math.round(diasEfectivosCorte * tDia);
+                                                    formulaStr = `$${tDia.toLocaleString('es-CL')}/Día * ${diasEfectivosCorte.toFixed(1)} Días transcurridos`;
                                                   } else {
                                                     const tasa = parseFloat(item.tasa_rendimiento_insumo) || 1;
                                                     const pu = parseFloat(item.precio_unitario_insumo) || 5000;
-                                                    subtotalItem = Math.round(cant * tasa * pu);
-                                                    formulaStr = `${tasa} ${item.unidad_insumo || 'und'}/unidad * $${pu.toLocaleString('es-CL')} (Cant. ${cant})`;
+                                                    const insumosCorte = Math.round(diasEfectivosCorte * rend * tasa);
+                                                    subtotalItem = Math.round(insumosCorte * pu);
+                                                    formulaStr = `${insumosCorte} ${item.unidad_insumo || 'und'} (${diasEfectivosCorte.toFixed(1)} Días * ${rend} und/día * ${tasa} ins/und) * $${pu.toLocaleString('es-CL')}`;
                                                   }
                                                   return (
                                                     <tr key={item.id || itemIdx} className="hover:bg-slate-50 transition">
