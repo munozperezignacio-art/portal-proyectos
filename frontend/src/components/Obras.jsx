@@ -380,8 +380,25 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [showEditSueldoModal, setShowEditSueldoModal] = useState(false);
   const [showFechasObraModal, setShowFechasObraModal] = useState(false);
   const [isPersonalCollapseOpen, setIsPersonalCollapseOpen] = useState(true);
-  const [isMaquinariaCollapseOpen, setIsMaquinariaCollapseOpen] = useState(true);
   const [editingWorkerData, setEditingWorkerData] = useState(null);
+
+  // Estados del Sub-módulo de Estadísticas Ejecutivas de Obra
+  const [estadisticasTab, setEstadisticasTab] = useState('avance'); // 'avance' | 'cuadrillas' | 'maquinarias' | 'prevencion' | 'costos' | 'bodega'
+  const [fCorteEstadisticas, setFCorteEstadisticas] = useState(() => new Date().toISOString().substring(0, 10));
+  const [filtroPartidaEstadisticas, setFiltroPartidaEstadisticas] = useState('GLOBAL');
+  
+  const [mantencionesMaquinariaList, setMantencionesMaquinariaList] = useState([]);
+  const [paralizacionesMaquinariaList, setParalizacionesMaquinariaList] = useState([]);
+  const [accidentesPrevencionList, setAccidentesPrevencionList] = useState([]);
+
+  const [showMantencionModal, setShowMantencionModal] = useState(false);
+  const [mantencionFormData, setMantencionFormData] = useState({ equipo_nombre: '', fecha: new Date().toISOString().substring(0, 10), tipo: 'Preventiva', costo: '', descripcion: '' });
+
+  const [showParalizacionModal, setShowParalizacionModal] = useState(false);
+  const [paralizacionFormData, setParalizacionFormData] = useState({ equipo_nombre: '', fecha_inicio: new Date().toISOString().substring(0, 10), horas_parada: 8, motivo: '' });
+
+  const [showAccidenteModal, setShowAccidenteModal] = useState(false);
+  const [accidenteFormData, setAccidenteFormData] = useState({ fecha: new Date().toISOString().substring(0, 10), tipo: 'STP', trabajador: '', dias_perdidos: 0, descripcion: '' });
 
   const [fechaInicioRrhh, setFechaInicioRrhh] = useState(() => {
     return localStorage.getItem('obraxis_fecha_inicio_rrhh_' + (selectedObra?.nombre || '')) || '2026-07-15';
@@ -713,6 +730,79 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     } catch (err) {
       console.warn('Sync warning on delete costos_reales_obra:', err);
     }
+  };
+
+  const handleSaveMantencion = async (e) => {
+    e.preventDefault();
+    if (!mantencionFormData.equipo_nombre) return;
+    const newMant = {
+      id: Date.now(),
+      equipo_nombre: mantencionFormData.equipo_nombre,
+      fecha: mantencionFormData.fecha,
+      tipo: mantencionFormData.tipo,
+      costo: parseFloat(mantencionFormData.costo) || 0,
+      descripcion: mantencionFormData.descripcion.trim(),
+      obra_nombre: selectedObra?.nombre || ''
+    };
+    const updated = [...mantencionesMaquinariaList, newMant];
+    setMantencionesMaquinariaList(updated);
+    try {
+      const key = selectedObra?.nombre || 'default';
+      localStorage.setItem(`obraxis_mantenciones_${key}`, JSON.stringify(updated));
+    } catch(eErr) {}
+    try {
+      await supabase.from('mantenciones_maquinaria').insert([newMant]);
+    } catch(err) {}
+    setShowMantencionModal(false);
+    alert('Mantención registrada con éxito.');
+  };
+
+  const handleSaveParalizacion = async (e) => {
+    e.preventDefault();
+    if (!paralizacionFormData.equipo_nombre) return;
+    const newPara = {
+      id: Date.now(),
+      equipo_nombre: paralizacionFormData.equipo_nombre,
+      fecha_inicio: paralizacionFormData.fecha_inicio,
+      horas_parada: parseFloat(paralizacionFormData.horas_parada) || 0,
+      motivo: paralizacionFormData.motivo.trim(),
+      obra_nombre: selectedObra?.nombre || ''
+    };
+    const updated = [...paralizacionesMaquinariaList, newPara];
+    setParalizacionesMaquinariaList(updated);
+    try {
+      const key = selectedObra?.nombre || 'default';
+      localStorage.setItem(`obraxis_paralizaciones_${key}`, JSON.stringify(updated));
+    } catch(eErr) {}
+    try {
+      await supabase.from('paralizaciones_maquinaria').insert([newPara]);
+    } catch(err) {}
+    setShowParalizacionModal(false);
+    alert('Paralización técnica registrada con éxito.');
+  };
+
+  const handleSaveAccidente = async (e) => {
+    e.preventDefault();
+    const newAcc = {
+      id: Date.now(),
+      fecha: accidenteFormData.fecha,
+      tipo: accidenteFormData.tipo,
+      trabajador: accidenteFormData.trabajador.trim(),
+      dias_perdidos: parseInt(accidenteFormData.dias_perdidos, 10) || 0,
+      descripcion: accidenteFormData.descripcion.trim(),
+      obra_nombre: selectedObra?.nombre || ''
+    };
+    const updated = [...accidentesPrevencionList, newAcc];
+    setAccidentesPrevencionList(updated);
+    try {
+      const key = selectedObra?.nombre || 'default';
+      localStorage.setItem(`obraxis_accidentes_${key}`, JSON.stringify(updated));
+    } catch(eErr) {}
+    try {
+      await supabase.from('accidentes_prevencion_obra').insert([newAcc]);
+    } catch(err) {}
+    setShowAccidenteModal(false);
+    alert('Incidente / Accidente registrado con éxito.');
   };
 
   // Estado para Libro de Asistencia Digital
@@ -1130,10 +1220,27 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           const { data: supaCostos } = await supabase.from('costos_reales_obra').select('*').eq('obra_nombre', obraNombre);
           if (supaCostos && supaCostos.length > 0) setCostosList(supaCostos);
         } catch (errC) {}
-        const savedProjs = localStorage.getItem(`obraxis_proyecciones_obras_${obraNombre}`);
-        if (savedProjs) {
-          try { setProyeccionesList(JSON.parse(savedProjs)); } catch (err) {}
-        }
+        // Cargar Mantenciones, Paralizaciones y Accidentes de la Obra
+        try {
+          const savedMant = localStorage.getItem(`obraxis_mantenciones_${obraNombre}`);
+          if (savedMant) setMantencionesMaquinariaList(JSON.parse(savedMant));
+          const { data: supaMant } = await supabase.from('mantenciones_maquinaria').select('*').eq('obra_nombre', obraNombre);
+          if (supaMant && supaMant.length > 0) setMantencionesMaquinariaList(supaMant);
+        } catch (errM) {}
+
+        try {
+          const savedPara = localStorage.getItem(`obraxis_paralizaciones_${obraNombre}`);
+          if (savedPara) setParalizacionesMaquinariaList(JSON.parse(savedPara));
+          const { data: supaPara } = await supabase.from('paralizaciones_maquinaria').select('*').eq('obra_nombre', obraNombre);
+          if (supaPara && supaPara.length > 0) setParalizacionesMaquinariaList(supaPara);
+        } catch (errP) {}
+
+        try {
+          const savedAcc = localStorage.getItem(`obraxis_accidentes_${obraNombre}`);
+          if (savedAcc) setAccidentesPrevencionList(JSON.parse(savedAcc));
+          const { data: supaAcc } = await supabase.from('accidentes_prevencion_obra').select('*').eq('obra_nombre', obraNombre);
+          if (supaAcc && supaAcc.length > 0) setAccidentesPrevencionList(supaAcc);
+        } catch (errA) {}
       } catch (err) {}
       setPersonalList(listPers || []);
     } catch (e) {
@@ -3757,68 +3864,807 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
             </div>
           )}
 
-          {/* VISTA DEDICADA 8: ESTADÍSTICAS DE OBRA */}
+          {/* VISTA DEDICADA 8: PANEL DE ESTADÍSTICAS EJECUTIVAS DE OBRA */}
           {obraActiveSubmodule === 'estadisticas' && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
-                <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4 text-blue-900" />
-                  <span>Estadísticas de la Obra</span>
-                </h3>
-                <p className="text-[11px] text-slate-500">Indicadores clave de avance, rendimiento operacional, dotación e incidentabilidad</p>
+              {/* CABECERA PRINCIPAL Y BARRA DE FILTROS Y ACCIONES */}
+              <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b pb-4">
+                  <div>
+                    <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
+                      <BarChart3 className="w-5 h-5 text-blue-900" />
+                      <span>📊 Panel de Estadísticas Ejecutivas de Obra</span>
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium">Consolidado operacional de Avance, Cuadrillas, Maquinarias, HSE y Análisis EVM de Valor Ganado</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => window.print()}
+                      className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      title="Imprimir o Exportar PDF del Panel Estadístico"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Exportar / Imprimir PDF</span>
+                    </button>
+                    <button
+                      onClick={() => setShowContextualEmailModal(true)}
+                      className="bg-indigo-900 hover:bg-indigo-800 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      title="Enviar Reporte por Correo"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Enviar Reporte</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* FILTROS DE FECHA DE CORTE Y ALCANCE DE PARTIDA/GRUPO */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-700 whitespace-nowrap flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5 text-blue-900" />
+                      <span>Fecha de Corte Histórica:</span>
+                    </span>
+                    <input
+                      type="date"
+                      value={fCorteEstadisticas}
+                      onChange={(e) => setFCorteEstadisticas(e.target.value)}
+                      className="border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-slate-800 bg-white shadow-2xs"
+                    />
+                    <span className="text-[10px] text-slate-500 italic">Cálculos al corte</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-700 whitespace-nowrap flex items-center gap-1">
+                      <Filter className="w-3.5 h-3.5 text-blue-900" />
+                      <span>Filtro de Alcance:</span>
+                    </span>
+                    <select
+                      value={filtroPartidaEstadisticas}
+                      onChange={(e) => setFiltroPartidaEstadisticas(e.target.value)}
+                      className="border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 bg-white shadow-2xs flex-1"
+                    >
+                      <option value="GLOBAL">🌐 Global (Toda la Obra Consolidada)</option>
+                      <optgroup label="📂 Filtrar por Grupos / Títulos">
+                        {(finalGanttGroups || []).map((g, idx) => (
+                          <option key={`grp-${idx}`} value={`GRUPO:${g.partida}`}>
+                            📁 Grupo: {g.partida} ({g.children?.length || 0} partidas)
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="📦 Filtrar por Partidas Ejecutables">
+                        {(partidasList || [])
+                          .filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo))
+                          .map((p, idx) => (
+                            <option key={`part-${idx}`} value={`PARTIDA:${p.partida}`}>
+                              📦 Partida: {p.partida}
+                            </option>
+                          ))}
+                      </optgroup>
+                    </select>
+                  </div>
+                </div>
+
+                {/* BARRA DE NAVEGACIÓN POR SUB-PESTAÑAS DE ESTADÍSTICAS */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100">
+                  {[
+                    { id: 'avance', label: '📈 Avance Físico' },
+                    { id: 'cuadrillas', label: '👷 Cuadrillas & RRHH' },
+                    { id: 'maquinarias', label: '🚜 Maquinarias & Flota' },
+                    { id: 'prevencion', label: '🛡️ Prevención & HSE' },
+                    { id: 'costos', label: '💰 Costos & EVM' },
+                    { id: 'bodega', label: '📦 Bodega', isComingSoon: true }
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setEstadisticasTab(tab.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border ${
+                        estadisticasTab === tab.id
+                          ? 'bg-blue-900 text-white border-blue-900 shadow-xs'
+                          : 'bg-white text-slate-700 hover:bg-slate-100 border-slate-200'
+                      }`}
+                    >
+                      <span>{tab.label}</span>
+                      {tab.isComingSoon && (
+                        <span className="text-[9px] bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded font-extrabold">Próximamente</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {/* KPIS DINÁMICOS REALES DE LA OBRA */}
+              {/* EVALUACIÓN DE DATOS Y CÁLCULOS DINÁMICOS AL CORTE */}
               {(() => {
-                const totalPresupuestado = (partidasList || []).reduce((sum, p) => sum + (parseFloat(p.cantidad) || 0), 0);
-                const totalAvanceReal = (reportesAvanceList || []).reduce((sum, r) => sum + (parseFloat(r.cantidad) || 0), 0);
-                const avanceAcumuladoPercent = totalPresupuestado > 0 ? ((totalAvanceReal / totalPresupuestado) * 100).toFixed(1) : "0.0";
+                const fCorteStr = fCorteEstadisticas || new Date().toISOString().substring(0, 10);
 
-                const totalHorasHombre = (asistenciaList || []).reduce((sum, a) => {
-                  const status = (a.asistencia || "").toLowerCase();
-                  return (status === "presente" || status === "asiste" || status === "p") ? sum + 9 : sum;
+                // 1. Filtrar Partidas de acuerdo al selector de alcance
+                let targetPartidas = (partidasList || []).filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo));
+                if (filtroPartidaEstadisticas.startsWith('GRUPO:')) {
+                  const grpName = filtroPartidaEstadisticas.replace('GRUPO:', '');
+                  const grpObj = (finalGanttGroups || []).find(g => g.partida === grpName);
+                  if (grpObj && grpObj.children) {
+                    const childNames = grpObj.children.map(c => c.partida);
+                    targetPartidas = targetPartidas.filter(p => childNames.includes(p.partida));
+                  }
+                } else if (filtroPartidaEstadisticas.startsWith('PARTIDA:')) {
+                  const partName = filtroPartidaEstadisticas.replace('PARTIDA:', '');
+                  targetPartidas = targetPartidas.filter(p => p.partida === partName);
+                }
+
+                const targetNames = targetPartidas.map(p => p.partida);
+
+                // 2. Reportes de Avance hasta la fecha de corte
+                const filteredAvances = (reportesAvanceList || []).filter(r => {
+                  const fRep = r.fecha || r.fecha_avance || (r.created_at ? String(r.created_at).substring(0, 10) : '');
+                  return fRep <= fCorteStr && (targetNames.length === 0 || targetNames.includes(r.partida));
+                });
+
+                // Presupuesto Venta Total de Partidas Filtradas
+                const totalVentaPresupuestada = targetPartidas.reduce((sum, p) => {
+                  const cant = parseFloat(p.cantidad) || 0;
+                  const pu = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (parseFloat(p.pu) || 0);
+                  return sum + Math.round(cant * pu);
                 }, 0);
 
+                // Avance Acumulado al corte
+                const avanceMontoAcumulado = targetPartidas.reduce((sum, p) => {
+                  const pu = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (parseFloat(p.pu) || 0);
+                  const pReps = filteredAvances.filter(r => r.partida === p.partida);
+                  const cantAv = pReps.reduce((rSum, r) => rSum + (parseFloat(r.cantidad) || 0), 0);
+                  return sum + Math.round(Math.min(parseFloat(p.cantidad) || 0, cantAv) * pu);
+                }, 0);
+
+                const pctAvanceGlobal = totalVentaPresupuestada > 0 ? ((avanceMontoAcumulado / totalVentaPresupuestada) * 100).toFixed(1) : "0.0";
+
+                // Promedio, Máximo y Mínimo de Avance por Partida
+                let pAvanceRates = targetPartidas.map(p => {
+                  const cantTotal = parseFloat(p.cantidad) || 0;
+                  const pReps = filteredAvances.filter(r => r.partida === p.partida);
+                  const cantAv = pReps.reduce((rSum, r) => rSum + (parseFloat(r.cantidad) || 0), 0);
+                  const pct = cantTotal > 0 ? Math.min(100, (cantAv / cantTotal) * 100) : 0;
+                  
+                  // Días transcurridos con reporte
+                  const uniqueDays = new Set(pReps.map(r => r.fecha || r.fecha_avance || (r.created_at ? String(r.created_at).substring(0, 10) : ''))).size;
+                  const pctPerDay = uniqueDays > 0 ? (pct / uniqueDays) : 0;
+
+                  return { partida: p.partida, pct, cantAv, cantTotal, unidad: p.unidad, pctPerDay, uniqueDays };
+                });
+
+                const maxPartida = pAvanceRates.length > 0 ? [...pAvanceRates].sort((a, b) => b.pct - a.pct)[0] : null;
+                const minPartida = pAvanceRates.length > 0 ? [...pAvanceRates].sort((a, b) => a.pct - b.pct)[0] : null;
+                const avgPctPerDay = pAvanceRates.length > 0 ? (pAvanceRates.reduce((acc, p) => acc + p.pctPerDay, 0) / pAvanceRates.length).toFixed(2) : "0.00";
+
+                // 3. Últimos 5 Días Laborales para Gráfico de Barras de Avance
+                const last5BusinessDays = [];
+                let curDay = new Date(fCorteStr + 'T00:00:00');
+                if (!isNaN(curDay.getTime())) {
+                  while (last5BusinessDays.length < 5) {
+                    const dayOfWeek = curDay.getDay();
+                    const dStr = curDay.getFullYear() + '-' + String(curDay.getMonth() + 1).padStart(2, '0') + '-' + String(curDay.getDate()).padStart(2, '0');
+                    if (dayOfWeek !== 0 && dayOfWeek !== 6 && !CHILEAN_HOLIDAYS.includes(dStr)) {
+                      last5BusinessDays.unshift(dStr);
+                    }
+                    curDay.setDate(curDay.getDate() - 1);
+                  }
+                }
+
+                const last5DaysData = last5BusinessDays.map(dStr => {
+                  const repsDay = (reportesAvanceList || []).filter(r => {
+                    const fRep = r.fecha || r.fecha_avance || (r.created_at ? String(r.created_at).substring(0, 10) : '');
+                    return fRep === dStr && (targetNames.length === 0 || targetNames.includes(r.partida));
+                  });
+                  const sumVal = repsDay.reduce((acc, r) => {
+                    const pMatch = targetPartidas.find(p => p.partida === r.partida);
+                    const pu = pMatch ? (partidasCostos[pMatch.partida] !== undefined ? partidasCostos[pMatch.partida] : (parseFloat(pMatch.pu) || 0)) : 1;
+                    return acc + ((parseFloat(r.cantidad) || 0) * pu);
+                  }, 0);
+                  return { date: dStr, monto: sumVal, count: repsDay.length };
+                });
+
+                const max5DaysMonto = Math.max(1, ...last5DaysData.map(d => d.monto));
+
+                // 4. Asistencia y HHT
+                const filteredAsistencia = (asistenciaList || []).filter(a => {
+                  const fAs = a.fecha || (a.created_at ? String(a.created_at).substring(0, 10) : '');
+                  return fAs <= fCorteStr;
+                });
+                const totalHHT = filteredAsistencia.reduce((sum, a) => {
+                  const st = (a.asistencia || '').toLowerCase();
+                  return (st === 'presente' || st === 'asiste' || st === 'p') ? sum + 9 : sum;
+                }, 0);
+
+                const activeWorkerCount = (personalList || []).length;
+                const uniqueAsistDays = new Set(filteredAsistencia.map(a => a.fecha || String(a.created_at).substring(0, 10))).size || 1;
+                const avgDailyWorkers = (filteredAsistencia.length / uniqueAsistDays).toFixed(1);
+
+                // 5. Maquinaria y Paralizaciones
+                const filteredMantenciones = (mantencionesMaquinariaList || []).filter(m => m.fecha <= fCorteStr);
+                const filteredParalizaciones = (paralizacionesMaquinariaList || []).filter(p => p.fecha_inicio <= fCorteStr);
+                const totalCostoMantencion = filteredMantenciones.reduce((acc, m) => acc + (parseFloat(m.costo) || 0), 0);
+                const totalHorasParada = filteredParalizaciones.reduce((acc, p) => acc + (parseFloat(p.horas_parada) || 0), 0);
+                const totalEquiposFlota = (maquinariaList || []).length + (arriendosList || []).length;
+
+                // 6. Prevención de Riesgos y Accidentabilidad
+                const filteredAccidentes = (accidentesPrevencionList || []).filter(a => a.fecha <= fCorteStr);
+                const countCTP = filteredAccidentes.filter(a => a.tipo === 'CTP').length;
+                const countSTP = filteredAccidentes.filter(a => a.tipo === 'STP' || a.tipo === 'CASI_ACCIDENTE').length;
+                const totalDiasPerdidos = filteredAccidentes.reduce((acc, a) => acc + (parseInt(a.dias_perdidos, 10) || 0), 0);
+                
+                // Tasas HSE (Frecuencia y Gravidez)
+                const tasaFrecuencia = totalHHT > 0 ? ((countCTP * 1000000) / totalHHT).toFixed(2) : "0.00";
+                const tasaGravidez = totalHHT > 0 ? ((totalDiasPerdidos * 1000000) / totalHHT).toFixed(2) : "0.00";
+
+                // 7. CÁLCULO DE VALOR GANADO (EVM) Y DESVIACIONES CRÍTICAS DE COSTO
+                const EV = avanceMontoAcumulado; // Earned Value ($)
+                
+                // PV (Planned Value): Venta programada al corte
+                const PV = targetPartidas.reduce((sum, p) => {
+                  const pu = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (parseFloat(p.pu) || 0);
+                  const startP = getPartidaScheduledStart(p);
+                  let dEf = 0;
+                  if (startP && startP <= fCorteStr) {
+                    const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
+                    const cantTotal = parseFloat(p.cantidad) || 0;
+                    const dBus = countChileanBusinessDays(startP, fCorteStr);
+                    dEf = Math.min(dBus, rend > 0 ? (cantTotal / rend) : 1);
+                  }
+                  const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
+                  const cantProg = Math.min(parseFloat(p.cantidad) || 0, Math.round(dEf * rend));
+                  return sum + Math.round(cantProg * pu);
+                }, 0);
+
+                // AC (Actual Cost): Costos reales acumulados al corte (Facturas + Personal + Maquinaria)
+                const AC_facturas = (costosList || []).reduce((acc, c) => acc + (parseFloat(c.monto) || 0), 0);
+                const AC_personal = (liquidacionesList || []).reduce((acc, l) => acc + (parseFloat(l.monto_real) || 0), 0);
+                const AC_maquinaria = totalCostoMantencion;
+                const AC = AC_facturas + AC_personal + AC_maquinaria; // Costo Real Actual Total
+
+                const BAC = totalVentaPresupuestada; // Presupuesto Total Venta
+                const CPI = AC > 0 ? (EV / AC) : (EV > 0 ? 1.2 : 1.0); // Cost Performance Index
+                const SPI = PV > 0 ? (EV / PV) : 1.0; // Schedule Performance Index
+                const EAC = CPI > 0 ? Math.round(BAC / CPI) : BAC; // Estimate at Completion
+                const CV = EV - AC; // Cost Variance
+                const SV = EV - PV; // Schedule Variance
+
+                // PARTIDAS CON ALERTA Y DESVIACIÓN CRÍTICA DE COSTO
+                const partidasConDesviacion = targetPartidas.map(p => {
+                  const cantTotal = parseFloat(p.cantidad) || 0;
+                  const puVenta = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (parseFloat(p.pu) || 0);
+                  const ventaTotal = Math.round(cantTotal * puVenta);
+
+                  const pReps = filteredAvances.filter(r => r.partida === p.partida);
+                  const cantAv = pReps.reduce((rSum, r) => rSum + (parseFloat(r.cantidad) || 0), 0);
+                  const ventaAvance = Math.round(Math.min(cantTotal, cantAv) * puVenta);
+
+                  // Imputaciones reales a esta partida
+                  const costoImputadoReal = (costosList || []).reduce((cSum, c) => {
+                    if (!c.imputaciones) return cSum;
+                    const impMatch = c.imputaciones.find(i => i.partida === p.partida);
+                    if (impMatch) {
+                      return cSum + Math.round(((parseFloat(c.monto) || 0) * (parseFloat(impMatch.porcentaje) || 0)) / 100);
+                    }
+                    return cSum;
+                  }, 0);
+
+                  const esSobrecosto = costoImputadoReal > 0 && costoImputadoReal > ventaAvance;
+                  const variacionMonto = costoImputadoReal - ventaAvance;
+                  const pctSobrecosto = ventaAvance > 0 ? ((variacionMonto / ventaAvance) * 100).toFixed(1) : "0.0";
+
+                  return {
+                    partida: p.partida,
+                    unidad: p.unidad,
+                    cantTotal,
+                    cantAv,
+                    ventaTotal,
+                    ventaAvance,
+                    costoImputadoReal,
+                    esSobrecosto,
+                    variacionMonto,
+                    pctSobrecosto
+                  };
+                }).filter(p => p.costoImputadoReal > 0 || p.esSobrecosto);
+
                 return (
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                    <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Avance Acumulado</span>
-                      <p className="text-2xl font-black text-blue-900">{avanceAcumuladoPercent}%</p>
-                      <p className="text-[10px] text-slate-500 font-bold">
-                        {reportesAvanceList.length > 0 ? `${reportesAvanceList.length} reportes registrados` : "Sin avances reportados en la obra"}
-                      </p>
-                    </div>
+                  <div className="space-y-6">
 
-                    <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Horas Hombre Acumuladas</span>
-                      <p className="text-2xl font-black text-slate-800">{totalHorasHombre.toLocaleString("es-CL")} hrs</p>
-                      <p className="text-[10px] text-slate-500">
-                        {asistenciaList.length > 0 ? `${asistenciaList.length} marcas de asistencia` : "Sin asistencias registradas"}
-                      </p>
-                    </div>
+                    {/* PESTAÑA 1: 📈 AVANCE FÍSICO Y EJECUCIÓN */}
+                    {estadisticasTab === 'avance' && (
+                      <div className="space-y-6">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Avance Real al Corte</span>
+                            <p className="text-2xl font-black text-blue-900">{pctAvanceGlobal}%</p>
+                            <p className="text-[10px] text-slate-500 font-bold">${avanceMontoAcumulado.toLocaleString('es-CL')} de ${totalVentaPresupuestada.toLocaleString('es-CL')}</p>
+                          </div>
 
-                    <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Días sin Accidentes CTP</span>
-                      <p className="text-2xl font-black text-emerald-700">0 días</p>
-                      <p className="text-[10px] text-emerald-600 font-bold">✓ Cero accidentes informados</p>
-                    </div>
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Promedio de Avance Diario</span>
+                            <p className="text-2xl font-black text-emerald-800">{avgPctPerDay}% <span className="text-xs font-normal text-slate-400">/día</span></p>
+                            <p className="text-[10px] text-slate-500 font-semibold">Tasa de rendimiento por jornada</p>
+                          </div>
 
-                    <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Dotación Asignada</span>
-                      <p className="text-2xl font-black text-slate-800">{personalList.length} <span className="text-xs font-normal text-slate-400">trabajadores</span></p>
-                      <p className="text-[10px] text-blue-900 font-bold">Asignados en nómina de obra</p>
-                    </div>
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Mayor Avance por Partida</span>
+                            <p className="text-lg font-black text-blue-950 truncate" title={maxPartida?.partida}>{maxPartida ? maxPartida.partida : 'N/A'}</p>
+                            <p className="text-[10px] text-blue-900 font-bold">{maxPartida ? `${maxPartida.pct.toFixed(1)}% completado` : 'Sin datos'}</p>
+                          </div>
+
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Menor Avance por Partida</span>
+                            <p className="text-lg font-black text-amber-900 truncate" title={minPartida?.partida}>{minPartida ? minPartida.partida : 'N/A'}</p>
+                            <p className="text-[10px] text-amber-800 font-bold">{minPartida ? `${minPartida.pct.toFixed(1)}% completado` : 'Sin datos'}</p>
+                          </div>
+                        </div>
+
+                        {/* GRÁFICO DE BARRAS: ÚLTIMOS 5 DÍAS LABORALES */}
+                        <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs space-y-3">
+                          <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider flex items-center justify-between border-b pb-2">
+                            <span>📊 Avance Físico de los Últimos 5 Días Laborales (al {fCorteStr})</span>
+                            <span className="text-[10px] bg-blue-100 text-blue-900 px-2 py-0.5 rounded font-extrabold">Días Hábiles Chile</span>
+                          </h4>
+
+                          <div className="h-44 flex items-end justify-around gap-2 pt-4 px-2 bg-slate-50 rounded-xl border border-slate-100">
+                            {last5DaysData.map((d, dIdx) => {
+                              const pctHeight = max5DaysMonto > 0 ? Math.max(8, Math.round((d.monto / max5DaysMonto) * 100)) : 8;
+                              return (
+                                <div key={`d-${dIdx}`} className="flex-1 flex flex-col items-center gap-1 group">
+                                  <span className="text-[9.5px] font-mono font-bold text-blue-950 opacity-0 group-hover:opacity-100 transition">
+                                    ${d.monto.toLocaleString('es-CL')}
+                                  </span>
+                                  <div className="w-full max-w-[48px] bg-gradient-to-t from-blue-900 to-indigo-600 rounded-t-lg transition-all duration-500 shadow-2xs relative" style={{ height: `${pctHeight}%` }}>
+                                    <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 rounded-t-lg transition"></div>
+                                  </div>
+                                  <span className="text-[10px] font-bold text-slate-700 font-mono">{d.date.substring(5)}</span>
+                                  <span className="text-[8.5px] text-slate-400">{d.count} reportes</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* TABLA DETALLADA DE AVANCE POR PARTIDAS */}
+                        <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-3">
+                          <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">📦 Resumen de Avance Físico por Partida</h4>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-xs text-left border-collapse">
+                              <thead>
+                                <tr className="bg-slate-100 border-b text-slate-700 font-bold uppercase text-[10px]">
+                                  <th className="p-2.5">Partida</th>
+                                  <th className="p-2.5">Cant. Presupuestada</th>
+                                  <th className="p-2.5">Avance Acumulado</th>
+                                  <th className="p-2.5 text-center">% Cumplimiento</th>
+                                  <th className="p-2.5 text-center">Promedio % / Día</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-150 text-[11px]">
+                                {pAvanceRates.map((p, idx) => (
+                                  <tr key={idx} className="hover:bg-slate-50">
+                                    <td className="p-2.5 font-bold text-slate-800">{p.partida}</td>
+                                    <td className="p-2.5 font-mono text-slate-700">{p.cantTotal.toLocaleString('es-CL')} {p.unidad}</td>
+                                    <td className="p-2.5 font-mono font-bold text-blue-900">{p.cantAv.toLocaleString('es-CL')} {p.unidad}</td>
+                                    <td className="p-2.5 text-center font-mono font-black text-slate-800">
+                                      <span className={`px-2 py-0.5 rounded text-[10.5px] ${p.pct >= 100 ? 'bg-emerald-100 text-emerald-900' : (p.pct > 0 ? 'bg-blue-100 text-blue-900' : 'bg-slate-100 text-slate-600')}`}>
+                                        {p.pct.toFixed(1)}%
+                                      </span>
+                                    </td>
+                                    <td className="p-2.5 text-center font-mono font-bold text-slate-600">
+                                      {p.pctPerDay.toFixed(2)}% / día
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* PESTAÑA 2: 👷 CUADRILLAS & RRHH */}
+                    {estadisticasTab === 'cuadrillas' && (
+                      <div className="space-y-6">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Horas Hombre Acumuladas</span>
+                            <p className="text-2xl font-black text-indigo-900">{totalHHT.toLocaleString('es-CL')} <span className="text-xs font-normal text-slate-400">HHT</span></p>
+                            <p className="text-[10px] text-slate-500 font-semibold">{filteredAsistencia.length} marcas de asistencia registradas</p>
+                          </div>
+
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Dotación Presente Promedio</span>
+                            <p className="text-2xl font-black text-slate-800">{avgDailyWorkers} <span className="text-xs font-normal text-slate-400">trab/día</span></p>
+                            <p className="text-[10px] text-slate-500 font-semibold">De {activeWorkerCount} asignados en la nómina</p>
+                          </div>
+
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Tasa de Asistencia</span>
+                            <p className="text-2xl font-black text-emerald-800">
+                              {activeWorkerCount > 0 ? ((avgDailyWorkers / activeWorkerCount) * 100).toFixed(1) : "100"}%
+                            </p>
+                            <p className="text-[10px] text-emerald-600 font-bold">✓ Asistencia registrada en obra</p>
+                          </div>
+
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Rendimiento HHT Promedio</span>
+                            <p className="text-2xl font-black text-slate-800">
+                              {totalHHT > 0 ? (avanceMontoAcumulado / totalHHT).toLocaleString('es-CL', { maximumFractionDigits: 0 }) : 0} <span className="text-xs font-normal text-slate-400">$/HHT</span>
+                            </p>
+                            <p className="text-[10px] text-slate-500 font-semibold">Venta producida por hora trabajada</p>
+                          </div>
+                        </div>
+
+                        {/* TABLA DE DOTACIÓN Y CUADRILLAS */}
+                        <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-3">
+                          <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">👷 Personal Asignado y Control Operativo por Cuadrilla</h4>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-xs text-left border-collapse">
+                              <thead>
+                                <tr className="bg-slate-100 border-b text-slate-700 font-bold uppercase text-[10px]">
+                                  <th className="p-2.5">Nombre Trabajador</th>
+                                  <th className="p-2.5">RUT</th>
+                                  <th className="p-2.5">Cargo / Especialidad</th>
+                                  <th className="p-2.5 text-center">Asistencias Acumuladas</th>
+                                  <th className="p-2.5 text-right">Costo Diario Estimado</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-150 text-[11px]">
+                                {(personalList || []).map((p, idx) => {
+                                  const pAsistCount = filteredAsistencia.filter(a => a.trabajador === p.nombre || a.rut === p.rut).length;
+                                  const custom = customSalariesMap[p.nombre];
+                                  const sBase = custom?.sueldo_base || parseFloat(p.sueldo_base) || 1200000;
+                                  const cEmpresa = Math.round(sBase * 1.25);
+                                  const valorDia = Math.round(cEmpresa / 30);
+                                  return (
+                                    <tr key={idx} className="hover:bg-slate-50">
+                                      <td className="p-2.5 font-bold text-slate-800">{p.nombre}</td>
+                                      <td className="p-2.5 font-mono text-slate-600">{formatRut(p.rut) || '-'}</td>
+                                      <td className="p-2.5">
+                                        <span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-700 px-2 py-0.5 rounded border">
+                                          {p.cargo || 'Operario'}
+                                        </span>
+                                      </td>
+                                      <td className="p-2.5 text-center font-mono font-bold text-indigo-900">{pAsistCount} días</td>
+                                      <td className="p-2.5 text-right font-mono font-bold text-emerald-800">${valorDia.toLocaleString('es-CL')} /día</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* PESTAÑA 3: 🚜 MAQUINARIAS & FLOTA */}
+                    {estadisticasTab === 'maquinarias' && (
+                      <div className="space-y-6">
+                        <div className="flex justify-between items-center bg-amber-50/60 p-3.5 border border-amber-200 rounded-2xl">
+                          <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                            <Truck className="w-4 h-4 text-amber-800" />
+                            <span>Gestión Operativa de Mantenciones y Fallas Técnicas de Maquinarias</span>
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                setMantencionFormData({ equipo_nombre: (maquinariaList[0]?.nombre || arriendosList[0]?.equipo || ''), fecha: fCorteStr, tipo: 'Preventiva', costo: '', descripcion: '' });
+                                setShowMantencionModal(true);
+                              }}
+                              className="bg-amber-800 hover:bg-amber-900 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 cursor-pointer shadow-xs"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>+ Registrar Mantención</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                setParalizacionFormData({ equipo_nombre: (maquinariaList[0]?.nombre || arriendosList[0]?.equipo || ''), fecha_inicio: fCorteStr, horas_parada: 8, motivo: '' });
+                                setShowParalizacionModal(true);
+                              }}
+                              className="bg-rose-800 hover:bg-rose-900 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 cursor-pointer shadow-xs"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>+ Registrar Paralización</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Flota de Equipos en Obra</span>
+                            <p className="text-2xl font-black text-amber-900">{totalEquiposFlota} <span className="text-xs font-normal text-slate-400">maquinarias</span></p>
+                            <p className="text-[10px] text-slate-500 font-semibold">{maquinariaList.length} propias | {arriendosList.length} arrendadas</p>
+                          </div>
+
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Mantenciones Realizadas</span>
+                            <p className="text-2xl font-black text-slate-800">{filteredMantenciones.length} <span className="text-xs font-normal text-slate-400">mant.</span></p>
+                            <p className="text-[10px] text-amber-800 font-bold">Costo Acum.: ${totalCostoMantencion.toLocaleString('es-CL')}</p>
+                          </div>
+
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Paralizaciones / Fallas</span>
+                            <p className="text-2xl font-black text-rose-700">{filteredParalizaciones.length} <span className="text-xs font-normal text-slate-400">eventos</span></p>
+                            <p className="text-[10px] text-rose-800 font-bold">{totalHorasParada} horas de parada acumuladas</p>
+                          </div>
+
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Disponibilidad de Flota</span>
+                            <p className="text-2xl font-black text-emerald-800">
+                              {totalEquiposFlota > 0 ? (100 - Math.min(100, (totalHorasParada / (totalEquiposFlota * 160)) * 100)).toFixed(1) : "100"}%
+                            </p>
+                            <p className="text-[10px] text-emerald-600 font-bold">✓ Nivel de operatividad de equipos</p>
+                          </div>
+                        </div>
+
+                        {/* HISTORIAL DE MANTENCIONES Y PARALIZACIONES */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-3">
+                            <h4 className="font-extrabold text-amber-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                              <Wrench className="w-3.5 h-3.5" />
+                              <span>Historial de Mantenciones Realizadas</span>
+                            </h4>
+                            {filteredMantenciones.length === 0 ? (
+                              <p className="text-xs text-slate-500 italic p-3 text-center bg-slate-50 rounded-xl">No hay mantenciones registradas a la fecha.</p>
+                            ) : (
+                              <div className="space-y-2 max-h-60 overflow-y-auto">
+                                {filteredMantenciones.map((m, mIdx) => (
+                                  <div key={mIdx} className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl space-y-0.5">
+                                    <div className="flex justify-between items-center text-xs font-bold text-slate-800">
+                                      <span>{m.equipo_nombre}</span>
+                                      <span className="font-mono text-amber-900">${(parseFloat(m.costo) || 0).toLocaleString('es-CL')}</span>
+                                    </div>
+                                    <p className="text-[10.5px] text-slate-600">{m.tipo} - {m.fecha} | {m.descripcion || 'Sin observación'}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-3">
+                            <h4 className="font-extrabold text-rose-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                              <AlertTriangle className="w-3.5 h-3.5" />
+                              <span>Historial de Paralizaciones / Fallas Técnicas</span>
+                            </h4>
+                            {filteredParalizaciones.length === 0 ? (
+                              <p className="text-xs text-slate-500 italic p-3 text-center bg-slate-50 rounded-xl">No se registraron fallas técnicas a la fecha.</p>
+                            ) : (
+                              <div className="space-y-2 max-h-60 overflow-y-auto">
+                                {filteredParalizaciones.map((p, pIdx) => (
+                                  <div key={pIdx} className="bg-rose-50/60 border border-rose-200 p-2.5 rounded-xl space-y-0.5">
+                                    <div className="flex justify-between items-center text-xs font-bold text-rose-950">
+                                      <span>{p.equipo_nombre}</span>
+                                      <span className="font-mono text-rose-800 font-black">{p.horas_parada} hrs parada</span>
+                                    </div>
+                                    <p className="text-[10.5px] text-slate-700">Inicio: {p.fecha_inicio} | Motivo: {p.motivo}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* PESTAÑA 4: 🛡️ PREVENCIÓN DE RIESGOS (HSE) */}
+                    {estadisticasTab === 'prevencion' && (
+                      <div className="space-y-6">
+                        <div className="flex justify-between items-center bg-emerald-50/60 p-3.5 border border-emerald-200 rounded-2xl">
+                          <span className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                            <ShieldAlert className="w-4 h-4 text-emerald-800" />
+                            <span>Control Estadístico de Seguridad Industrial y Prevención de Riesgos (HSE)</span>
+                          </span>
+                          <button
+                            onClick={() => {
+                              setAccidenteFormData({ fecha: fCorteStr, tipo: 'STP', trabajador: '', dias_perdidos: 0, descripcion: '' });
+                              setShowAccidenteModal(true);
+                            }}
+                            className="bg-emerald-800 hover:bg-emerald-900 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 cursor-pointer shadow-xs"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>+ Registrar Incidente HSE</span>
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Horas Hombre Trabajadas (HHT)</span>
+                            <p className="text-2xl font-black text-slate-800">{totalHHT.toLocaleString('es-CL')} <span className="text-xs font-normal text-slate-400">HHT</span></p>
+                            <p className="text-[10px] text-slate-500 font-semibold">Basado en registro de asistencia</p>
+                          </div>
+
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Accidentes CTP / Días Perdidos</span>
+                            <p className="text-2xl font-black text-rose-700">{countCTP} <span className="text-xs font-normal text-slate-400">accidentes</span></p>
+                            <p className="text-[10px] text-rose-800 font-bold">{totalDiasPerdidos} días perdidos acumulados</p>
+                          </div>
+
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Tasa de Frecuencia (TF)</span>
+                            <p className="text-2xl font-black text-emerald-800">{tasaFrecuencia}</p>
+                            <p className="text-[10px] text-slate-500 font-semibold">(N° Accidentes CTP × 1M) / HHT</p>
+                          </div>
+
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Tasa de Gravidez (TG)</span>
+                            <p className="text-2xl font-black text-slate-800">{tasaGravidez}</p>
+                            <p className="text-[10px] text-slate-500 font-semibold">(Días Perdidos × 1M) / HHT</p>
+                          </div>
+                        </div>
+
+                        {/* TACÓMETRO / HISTORIAL DE INCIDENTES HSE */}
+                        <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-3">
+                          <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider flex items-center justify-between">
+                            <span>🛡️ Registro Histórico de Incidentes y Accidentabilidad</span>
+                            <span className="text-[10px] bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded font-extrabold">
+                              {countCTP === 0 ? '✓ Obra sin Accidentes CTP' : `⚠️ ${countCTP} Accidentes con Tiempo Perdido`}
+                            </span>
+                          </h4>
+
+                          {filteredAccidentes.length === 0 ? (
+                            <p className="text-xs text-slate-500 italic p-4 text-center bg-slate-50 rounded-xl">No hay accidentes ni incidentes registrados a la fecha de corte.</p>
+                          ) : (
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-xs text-left border-collapse">
+                                <thead>
+                                  <tr className="bg-slate-100 border-b text-slate-700 font-bold uppercase text-[10px]">
+                                    <th className="p-2.5">Fecha</th>
+                                    <th className="p-2.5">Tipo Evento</th>
+                                    <th className="p-2.5">Trabajador / Cuadrilla</th>
+                                    <th className="p-2.5 text-center">Días Perdidos</th>
+                                    <th className="p-2.5">Descripción / Medida Aplicada</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-150 text-[11px]">
+                                  {filteredAccidentes.map((a, idx) => (
+                                    <tr key={idx} className="hover:bg-slate-50">
+                                      <td className="p-2.5 font-mono text-slate-700 font-bold">{a.fecha}</td>
+                                      <td className="p-2.5">
+                                        <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded border ${a.tipo === 'CTP' ? 'bg-rose-100 text-rose-900 border-rose-300' : 'bg-emerald-100 text-emerald-900 border-emerald-300'}`}>
+                                          {a.tipo === 'CTP' ? '🔴 CTP (Con Tiempo Perdido)' : '🟢 STP (Sin Tiempo Perdido)'}
+                                        </span>
+                                      </td>
+                                      <td className="p-2.5 font-bold text-slate-800">{a.trabajador}</td>
+                                      <td className="p-2.5 text-center font-mono font-bold text-rose-800">{a.dias_perdidos} días</td>
+                                      <td className="p-2.5 text-slate-600">{a.descripcion}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* PESTAÑA 5: 💰 COSTOS & EVM (VALOR GANADO) + ALERTAS CRÍTICAS DE SOBRECOSTO */}
+                    {estadisticasTab === 'costos' && (
+                      <div className="space-y-6">
+
+                        {/* ALERTAS CRÍTICAS DE DESVIACIÓN DE COSTOS */}
+                        {partidasConDesviacion.length > 0 ? (
+                          <div className="bg-rose-50 border-2 border-rose-400 p-4 rounded-2xl space-y-3 animate-in fade-in">
+                            <div className="flex items-center justify-between border-b border-rose-200 pb-2">
+                              <h4 className="font-black text-rose-950 text-xs uppercase tracking-wider flex items-center gap-2">
+                                <ShieldAlert className="w-5 h-5 text-rose-700 animate-bounce" />
+                                <span>🚨 ALERTAS DE DESVIACIÓN DE COSTOS (Partidas Saliendo Más Caras de lo Esperado)</span>
+                              </h4>
+                              <span className="bg-rose-900 text-white font-extrabold text-[10px] px-2.5 py-0.5 rounded-full">
+                                {partidasConDesviacion.length} Partida(s) con Sobrecosto
+                              </span>
+                            </div>
+
+                            <p className="text-xs text-rose-900 font-semibold">
+                              Se han detectado partidas cuyo <strong>Costo Real Incurridos supera la Venta de Avance acumulada</strong> a la fecha de corte ({fCorteStr}):
+                            </p>
+
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-xs text-left border-collapse bg-white rounded-xl overflow-hidden shadow-2xs border border-rose-200">
+                                <thead>
+                                  <tr className="bg-rose-100 text-rose-950 font-bold uppercase text-[10px]">
+                                    <th className="p-2.5">Partida Afectada</th>
+                                    <th className="p-2.5 text-right">Venta por Avance ($)</th>
+                                    <th className="p-2.5 text-right">Costo Real Incurrido ($)</th>
+                                    <th className="p-2.5 text-right">Sobrecosto / Desviación ($)</th>
+                                    <th className="p-2.5 text-center">% Sobrecosto</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-rose-150 text-[11px]">
+                                  {partidasConDesviacion.map((p, idx) => (
+                                    <tr key={idx} className="hover:bg-rose-50/50">
+                                      <td className="p-2.5 font-bold text-slate-900 flex items-center gap-1.5">
+                                        <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                                        <span>{p.partida}</span>
+                                      </td>
+                                      <td className="p-2.5 text-right font-mono text-slate-700">${p.ventaAvance.toLocaleString('es-CL')}</td>
+                                      <td className="p-2.5 text-right font-mono font-bold text-slate-900">${p.costoImputadoReal.toLocaleString('es-CL')}</td>
+                                      <td className="p-2.5 text-right font-mono font-black text-rose-700">
+                                        +${p.variacionMonto.toLocaleString('es-CL')}
+                                      </td>
+                                      <td className="p-2.5 text-center font-mono font-bold">
+                                        <span className="bg-rose-100 text-rose-900 px-2 py-0.5 rounded border border-rose-300">
+                                          +{p.pctSobrecosto}%
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl flex items-center justify-between">
+                            <span className="text-xs font-bold text-emerald-950 flex items-center gap-2">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+                              <span>✓ Control de Costos Saludable: Ninguna partida presenta sobrecosto respecto a su venta de avance.</span>
+                            </span>
+                            <span className="text-[10px] bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded font-extrabold">100% Bajo Control</span>
+                          </div>
+                        )}
+
+                        {/* KPIS DE VALOR GANADO (EVM - EARNED VALUE MANAGEMENT) */}
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">EV - Valor Ganado (Venta Real)</span>
+                            <p className="text-2xl font-black text-blue-950">${EV.toLocaleString('es-CL')}</p>
+                            <p className="text-[10px] text-slate-500 font-semibold">Valor monetario del avance producido</p>
+                          </div>
+
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">AC - Costo Real Incurrido</span>
+                            <p className="text-2xl font-black text-slate-800">${AC.toLocaleString('es-CL')}</p>
+                            <p className="text-[10px] text-slate-500 font-semibold">Facturas + Personal + Maquinaria</p>
+                          </div>
+
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">CPI (Índice Eficiencia de Costo)</span>
+                            <p className={`text-2xl font-black ${CPI >= 1.0 ? 'text-emerald-700' : 'text-rose-700'}`}>{CPI.toFixed(2)}</p>
+                            <p className="text-[10px] font-bold">{CPI >= 1.0 ? '🟢 Bajo Presupuesto (Eficiente)' : '🔴 Sobre Presupuesto'}</p>
+                          </div>
+
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">SPI (Índice Eficiencia Cronograma)</span>
+                            <p className={`text-2xl font-black ${SPI >= 1.0 ? 'text-emerald-700' : 'text-amber-700'}`}>{SPI.toFixed(2)}</p>
+                            <p className="text-[10px] font-bold">{SPI >= 1.0 ? '🟢 Adelantado según Carta Gantt' : '⚠️ Atrasado según Carta Gantt'}</p>
+                          </div>
+                        </div>
+
+                        {/* CUADRO COMPARATIVO EVM COMPLETO */}
+                        <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-3">
+                          <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">📊 Métricas Consolidadas de Valor Ganado (EVM)</h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase">PV - Valor Planificado (Venta Programada)</span>
+                              <p className="text-base font-black text-slate-800">${PV.toLocaleString('es-CL')}</p>
+                              <p className="text-[9.5px] text-slate-500">Venta que debía haberse alcanzado al corte</p>
+                            </div>
+                            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase">EAC - Costo Proyectado al Término</span>
+                              <p className="text-base font-black text-blue-900">${EAC.toLocaleString('es-CL')}</p>
+                              <p className="text-[9.5px] text-slate-500">Proyección final ajustada por CPI actual</p>
+                            </div>
+                            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase">Variación de Costo (CV = EV - AC)</span>
+                              <p className={`text-base font-black ${CV >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                {CV >= 0 ? `+$${CV.toLocaleString('es-CL')}` : `-$${Math.abs(CV).toLocaleString('es-CL')}`}
+                              </p>
+                              <p className="text-[9.5px] text-slate-500">{CV >= 0 ? 'Ahorro a la fecha' : 'Pérdida/Diferencia a la fecha'}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* PESTAÑA 6: 📦 BODEGA (PRÓXIMAMENTE) */}
+                    {estadisticasTab === 'bodega' && (
+                      <div className="p-12 text-center bg-slate-50 border border-dashed border-slate-300 rounded-2xl space-y-3">
+                        <FileSpreadsheet className="w-12 h-12 text-slate-400 mx-auto" />
+                        <h4 className="font-extrabold text-slate-800 text-sm">📦 Módulo de Inventario y Control de Bodega de Obra</h4>
+                        <p className="text-xs text-slate-500 max-w-md mx-auto">
+                          Próximamente incorporaremos las estadísticas de consumo de materiales, entradas y salidas de bodega y rotación de stock.
+                        </p>
+                      </div>
+                    )}
+
                   </div>
                 );
               })()}
-
-              <div className="p-8 text-center bg-blue-50/60 border border-blue-200 rounded-2xl space-y-2">
-                <BarChart3 className="w-10 h-10 text-blue-800 mx-auto" />
-                <h4 className="font-extrabold text-blue-950 text-sm">Panel de Estadísticas de Obra</h4>
-                <p className="text-xs text-blue-900 max-w-lg mx-auto">
-                  En este apartado consolidaremos los gráficos comparativos de avance real vs presupuestado, proyecciones de costos y curva S detallada de la obra.
-                </p>
-              </div>
             </div>
           )}
 
@@ -9159,6 +10005,254 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 className="w-full bg-blue-900 hover:bg-blue-800 text-white font-bold py-3 rounded-xl shadow-xs text-xs cursor-pointer disabled:opacity-70 flex items-center justify-center gap-1.5"
               >
                 {modalLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Guardar Nota en Bitácora</span>}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: REGISTRAR MANTENCIÓN DE MAQUINARIA */}
+      {showMantencionModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center mb-3 border-b pb-2">
+              <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-1.5">
+                <Wrench className="w-4 h-4 text-amber-600" />
+                <span>Registrar Mantención de Maquinaria</span>
+              </h3>
+              <button onClick={() => setShowMantencionModal(false)} className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer">✕</button>
+            </div>
+            <form onSubmit={handleSaveMantencion} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Maquinaria / Equipo *</label>
+                <select
+                  required
+                  value={mantencionFormData.equipo_nombre}
+                  onChange={(e) => setMantencionFormData({ ...mantencionFormData, equipo_nombre: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-800 bg-white"
+                >
+                  <option value="">(Seleccionar Equipo de Flota)</option>
+                  {(maquinariaList || []).map((m, idx) => (
+                    <option key={`m-${idx}`} value={m.nombre || m.equipo}>{m.nombre || m.equipo} ({m.patente || 'Propio'})</option>
+                  ))}
+                  {(arriendosList || []).map((a, idx) => (
+                    <option key={`a-${idx}`} value={a.equipo}>[Arriendo] {a.equipo} ({a.patente || 'S/P'})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Fecha</label>
+                  <input
+                    type="date"
+                    required
+                    value={mantencionFormData.fecha}
+                    onChange={(e) => setMantencionFormData({ ...mantencionFormData, fecha: e.target.value })}
+                    className="w-full border border-slate-200 rounded-lg p-2 text-xs font-mono font-bold text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Tipo de Mantención</label>
+                  <select
+                    value={mantencionFormData.tipo}
+                    onChange={(e) => setMantencionFormData({ ...mantencionFormData, tipo: e.target.value })}
+                    className="w-full border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-800 bg-white"
+                  >
+                    <option value="Preventiva">🔧 Preventiva Programada</option>
+                    <option value="Correctiva">🚨 Correctiva por Falla</option>
+                    <option value="Overhaul">⚙️ Overhaul / Cambio Piezas</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Costo Estimado / Real ($)</label>
+                <input
+                  type="text"
+                  placeholder="ej. 250.000"
+                  value={formatNumberWithDots(mantencionFormData.costo)}
+                  onChange={(e) => setMantencionFormData({ ...mantencionFormData, costo: parseNumberFromDots(e.target.value) })}
+                  className="w-full border border-slate-200 rounded-lg p-2 text-xs font-mono font-bold text-slate-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Descripción / Trabajos Realizados</label>
+                <textarea
+                  rows={3}
+                  value={mantencionFormData.descripcion}
+                  onChange={(e) => setMantencionFormData({ ...mantencionFormData, descripcion: e.target.value })}
+                  placeholder="Detalle de aceites, filtros, reparaciones o revisión mecánica..."
+                  className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 rounded-xl text-xs cursor-pointer shadow-xs"
+              >
+                Guardar Registro de Mantención
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: REGISTRAR PARALIZACIÓN DE MAQUINARIA */}
+      {showParalizacionModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center mb-3 border-b pb-2">
+              <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4 text-rose-600" />
+                <span>Registrar Paralización / Falla Técnica</span>
+              </h3>
+              <button onClick={() => setShowParalizacionModal(false)} className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer">✕</button>
+            </div>
+            <form onSubmit={handleSaveParalizacion} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Maquinaria / Equipo *</label>
+                <select
+                  required
+                  value={paralizacionFormData.equipo_nombre}
+                  onChange={(e) => setParalizacionFormData({ ...paralizacionFormData, equipo_nombre: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-800 bg-white"
+                >
+                  <option value="">(Seleccionar Equipo de Flota)</option>
+                  {(maquinariaList || []).map((m, idx) => (
+                    <option key={`m-${idx}`} value={m.nombre || m.equipo}>{m.nombre || m.equipo} ({m.patente || 'Propio'})</option>
+                  ))}
+                  {(arriendosList || []).map((a, idx) => (
+                    <option key={`a-${idx}`} value={a.equipo}>[Arriendo] {a.equipo} ({a.patente || 'S/P'})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Fecha Inicio Detención</label>
+                  <input
+                    type="date"
+                    required
+                    value={paralizacionFormData.fecha_inicio}
+                    onChange={(e) => setParalizacionFormData({ ...paralizacionFormData, fecha_inicio: e.target.value })}
+                    className="w-full border border-slate-200 rounded-lg p-2 text-xs font-mono font-bold text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Horas de Parada</label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={paralizacionFormData.horas_parada}
+                    onChange={(e) => setParalizacionFormData({ ...paralizacionFormData, horas_parada: e.target.value })}
+                    className="w-full border border-slate-200 rounded-lg p-2 text-xs font-mono font-bold text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Motivo / Causa de Detención</label>
+                <textarea
+                  rows={3}
+                  required
+                  value={paralizacionFormData.motivo}
+                  onChange={(e) => setParalizacionFormData({ ...paralizacionFormData, motivo: e.target.value })}
+                  placeholder="Falla hidráulica, panne de motor, falta de repuestos, clima..."
+                  className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 rounded-xl text-xs cursor-pointer shadow-xs"
+              >
+                Registrar Paralización de Equipo
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: REGISTRAR ACCIDENTE / INCIDENTE DE PREVENCIÓN */}
+      {showAccidenteModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center mb-3 border-b pb-2">
+              <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-1.5">
+                <ShieldAlert className="w-4 h-4 text-emerald-700" />
+                <span>Registrar Incidente / Accidente HSE</span>
+              </h3>
+              <button onClick={() => setShowAccidenteModal(false)} className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer">✕</button>
+            </div>
+            <form onSubmit={handleSaveAccidente} className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Fecha Ocurrencia</label>
+                  <input
+                    type="date"
+                    required
+                    value={accidenteFormData.fecha}
+                    onChange={(e) => setAccidenteFormData({ ...accidenteFormData, fecha: e.target.value })}
+                    className="w-full border border-slate-200 rounded-lg p-2 text-xs font-mono font-bold text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Tipo de Evento</label>
+                  <select
+                    value={accidenteFormData.tipo}
+                    onChange={(e) => setAccidenteFormData({ ...accidenteFormData, tipo: e.target.value })}
+                    className="w-full border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-800 bg-white"
+                  >
+                    <option value="STP">🟢 Sin Tiempo Perdido (STP)</option>
+                    <option value="CTP">🔴 Con Tiempo Perdido (CTP)</option>
+                    <option value="CASI_ACCIDENTE">⚠️ Casi Accidente / Cuasi Incidente</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Trabajador Involucrado / Cuadrilla</label>
+                <input
+                  type="text"
+                  required
+                  value={accidenteFormData.trabajador}
+                  onChange={(e) => setAccidenteFormData({ ...accidenteFormData, trabajador: e.target.value })}
+                  placeholder="Nombre de trabajador o cuadrilla..."
+                  className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Días Perdidos (Licencia Médica / Parada)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={accidenteFormData.dias_perdidos}
+                  onChange={(e) => setAccidenteFormData({ ...accidenteFormData, dias_perdidos: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg p-2 text-xs font-mono font-bold text-slate-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Descripción del Incidente / Causa Raíz</label>
+                <textarea
+                  rows={3}
+                  required
+                  value={accidenteFormData.descripcion}
+                  onChange={(e) => setAccidenteFormData({ ...accidenteFormData, descripcion: e.target.value })}
+                  placeholder="Relato de los hechos, medidas correctivas aplicadas..."
+                  className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-emerald-800 hover:bg-emerald-900 text-white font-bold py-2.5 rounded-xl text-xs cursor-pointer shadow-xs"
+              >
+                Guardar Incidente HSE
               </button>
             </form>
           </div>
