@@ -4220,7 +4220,25 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   return acc + (diasTrab * valorDia);
                 }, 0);
 
-                const totalMaquinariaProyectado = (maquinariaList || []).reduce((acc, m) => {
+                const combinedEquipFleet = [
+                  ...(maquinariaList || []),
+                  ...(arriendosList || []).map(a => ({
+                    nombre: a.equipo,
+                    equipo: a.equipo,
+                    patente: a.patente,
+                    proveedor: a.proveedor,
+                    costo_interno: a.costo,
+                    costo: a.costo,
+                    unidad_costo_interno: a.unidad_costo || '$/mes',
+                    tipo_condicion_minima: a.tipo_condicion_minima || 'sin_minimo',
+                    cantidad_minima: a.cantidad_minima || 0,
+                    fecha_asig: a.fechaInicio || a.created_at,
+                    fecha_inicio: a.fechaInicio || a.created_at,
+                    isArriendo: true
+                  }))
+                ];
+
+                const totalMaquinariaProyectado = combinedEquipFleet.reduce((acc, m) => {
                   const tarifaBase = parseFloat(m.costo_mensual || m.valor_arriendo_mensual || m.costo_arriendo || m.costo_interno || m.costo) || 1500000;
                   const unidad = m.unidad_costo_interno || m.unidad_costo || m.unidad_tarifa || '$/mes';
                   const tipoMin = m.tipo_condicion_minima || m.tipo_minimo || 'sin_minimo';
@@ -5157,7 +5175,25 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                       const fCorteStr = fechaCorteProyeccion || new Date().toISOString().substring(0, 10);
                       const dateCorte = new Date(fCorteStr);
 
-                      const maqArray = (maquinariaList || []).map(m => {
+                      const combinedFleet = [
+                        ...(maquinariaList || []),
+                        ...(arriendosList || []).map(a => ({
+                          nombre: a.equipo,
+                          equipo: a.equipo,
+                          patente: a.patente,
+                          proveedor: a.proveedor,
+                          costo_interno: a.costo,
+                          costo: a.costo,
+                          unidad_costo_interno: a.unidad_costo || '$/mes',
+                          tipo_condicion_minima: a.tipo_condicion_minima || 'sin_minimo',
+                          cantidad_minima: a.cantidad_minima || 0,
+                          fecha_asig: a.fechaInicio || a.created_at,
+                          fecha_inicio: a.fechaInicio || a.created_at,
+                          isArriendo: true
+                        }))
+                      ];
+
+                      const maqArray = combinedFleet.map(m => {
                         const tarifaBase = parseFloat(m.costo_mensual || m.valor_arriendo_mensual || m.costo_arriendo || m.costo_interno || m.costo) || 1500000;
                         const unidad = m.unidad_costo_interno || m.unidad_costo || m.unidad_tarifa || '$/mes';
                         const tipoMin = m.tipo_condicion_minima || m.tipo_minimo || 'sin_minimo';
@@ -5277,9 +5313,17 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                     <div key={mIdx} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 shadow-2xs hover:border-amber-400 transition">
                                       <div className="flex justify-between items-center border-b border-slate-200/60 pb-1.5">
                                         <span className="font-extrabold text-slate-900 text-xs">{m.nombre || m.equipo || m.tipo || `Equipo #${mIdx + 1}`}</span>
-                                        <span className="text-[9px] font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded font-mono">
-                                          {m.patente || m.codigo || 'S/P'}
-                                        </span>
+                                        <div className="flex items-center gap-1">
+                                          {m.isArriendo ? (
+                                            <span className="text-[9px] font-bold bg-purple-100 text-purple-900 px-2 py-0.5 rounded font-mono">
+                                              📜 Arriendo: {m.proveedor}
+                                            </span>
+                                          ) : (
+                                            <span className="text-[9px] font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded font-mono">
+                                              {m.patente || m.codigo || 'Propio'}
+                                            </span>
+                                          )}
+                                        </div>
                                       </div>
 
                                       <div className="bg-slate-100/90 p-2 rounded-lg border border-slate-200 flex justify-between items-center text-[10px] text-slate-600">
