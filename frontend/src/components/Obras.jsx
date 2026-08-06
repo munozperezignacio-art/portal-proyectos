@@ -4136,7 +4136,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           <span>Planificación y Carta Gantt de Obra</span>
                         </h3>
                         <p className="text-[11px] text-slate-500">
-                          Programación automática vinculada al Presupuesto: Duraciones calculadas por Rendimiento ($\lceil \text{Cantidad} / \text{Rendimiento} \rceil$) y días laborales en Chile.
+                          Programación automática vinculada al Presupuesto: Duraciones calculadas por Rendimiento (Cantidad ÷ Rendimiento) y días laborales en Chile.
                         </p>
                       </div>
 
