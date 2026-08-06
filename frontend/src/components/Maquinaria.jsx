@@ -314,6 +314,7 @@ export default function Maquinaria({ user, onBack }) {
       unidad_costo_interno: '$/día',
       tipo_condicion_minima: 'sin_minimo',
       cantidad_minima: '',
+      modalidad_dias: 'laborales',
       tipo_activo: 'Propio',
       estado_equipo: 'Operativo',
       foto_frontal: '',
@@ -338,6 +339,7 @@ export default function Maquinaria({ user, onBack }) {
       unidad_costo_interno: equip.unidad_costo_interno || '$/día',
       tipo_condicion_minima: equip.tipo_condicion_minima || 'sin_minimo',
       cantidad_minima: equip.cantidad_minima ? equip.cantidad_minima.toString() : '',
+      modalidad_dias: equip.modalidad_dias || 'laborales',
       tipo_activo: equip.tipo_activo || 'Propio',
       estado_equipo: equip.estado_equipo || 'Operativo',
       foto_frontal: equip.foto_frontal || '',
@@ -382,6 +384,7 @@ export default function Maquinaria({ user, onBack }) {
       unidad_costo_interno: formData.unidad_costo_interno || '$/día',
       tipo_condicion_minima: formData.tipo_condicion_minima || 'sin_minimo',
       cantidad_minima: parseFloat(formData.cantidad_minima) || 0,
+      modalidad_dias: formData.modalidad_dias || 'laborales',
       tipo_activo: formData.tipo_activo,
       estado_equipo: formData.estado_equipo,
       foto_frontal: formData.foto_frontal || null,
@@ -2807,8 +2810,21 @@ export default function Maquinaria({ user, onBack }) {
                     />
                   </div>
                 </div>
+
+                <div className="pt-2 border-t border-amber-200">
+                  <label className="block text-[9.5px] font-bold uppercase text-amber-900 mb-1">Modalidad Días de Operación / Arriendo</label>
+                  <select
+                    value={formData.modalidad_dias || 'laborales'}
+                    onChange={(e) => setFormData(prev => ({ ...prev, modalidad_dias: e.target.value }))}
+                    className="w-full border border-amber-300 rounded-xl p-2.5 font-bold text-slate-900 bg-white text-xs"
+                  >
+                    <option value="laborales">🗓️ Días Laborales (Lunes a Viernes, excluye feriados Chile)</option>
+                    <option value="calendario">📅 Días Calendario (Días Corridos)</option>
+                  </select>
+                </div>
+
                 <p className="text-[9.5px] font-medium text-amber-900 leading-tight">
-                  💡 Este valor se imputará internamente como costo del equipo a la obra respetando la unidad de cobro y condición mínima contratada.
+                  💡 Este valor se imputará internamente como costo del equipo a la obra respetando la unidad de cobro, la modalidad de días y la condición mínima contratada.
                 </p>
               </div>
 

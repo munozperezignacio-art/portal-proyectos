@@ -543,7 +543,36 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
   const [arriendosList, setArriendosList] = useState([]);
   const [showArriendoModal, setShowArriendoModal] = useState(false);
-  const [arriendoData, setArriendoData] = useState({ equipo: '', patente: '', proveedor: '', costo: '', unidad_costo: '$/mes', tipo_condicion_minima: 'sin_minimo', cantidad_minima: '', fechaInicio: '', fechaTermino: '', observaciones: '' });
+  const [arriendoData, setArriendoData] = useState({ equipo: '', patente: '', proveedor: '', costo: '', unidad_costo: '$/mes', tipo_condicion_minima: 'sin_minimo', cantidad_minima: '', modalidad_dias: 'laborales', fechaInicio: '', fechaTermino: '', observaciones: '' });
+
+  // Días Feriados Oficiales de Chile (para cálculo exacto de avance y arriendos en Días Laborales)
+  const CHILEAN_HOLIDAYS = [
+    '2026-01-01', '2026-04-03', '2026-04-04', '2026-05-01', '2026-05-21', '2026-06-07', '2026-06-29', '2026-07-16', '2026-08-15', '2026-09-18', '2026-09-19', '2026-10-12', '2026-10-31', '2026-11-01', '2026-12-08', '2026-12-25',
+    '2025-01-01', '2025-04-18', '2025-04-19', '2025-05-01', '2025-05-21', '2025-06-20', '2025-06-29', '2025-07-16', '2025-08-15', '2025-09-18', '2025-09-19', '2025-10-12', '2025-10-31', '2025-11-01', '2025-12-08', '2025-12-25',
+    '2024-01-01', '2024-03-29', '2024-03-30', '2024-05-01', '2024-05-21', '2024-06-20', '2024-06-29', '2024-07-16', '2024-08-15', '2024-09-18', '2024-09-19', '2024-09-20', '2024-10-12', '2024-10-31', '2024-11-01', '2024-12-08', '2024-12-25'
+  ];
+
+  const countChileanBusinessDays = (startStr, endStr) => {
+    if (!startStr || !endStr) return 0;
+    const start = new Date(startStr + 'T00:00:00');
+    const end = new Date(endStr + 'T00:00:00');
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) return 0;
+
+    let count = 0;
+    const cur = new Date(start);
+    while (cur <= end) {
+      const dayOfWeek = cur.getDay(); // 0 = Sunday, 6 = Saturday
+      const dateStr = cur.getFullYear() + '-' + String(cur.getMonth() + 1).padStart(2, '0') + '-' + String(cur.getDate()).padStart(2, '0');
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      const isHoliday = CHILEAN_HOLIDAYS.includes(dateStr);
+
+      if (!isWeekend && !isHoliday) {
+        count++;
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+    return Math.max(1, count);
+  };
 
   // Estado para Libro de Asistencia Digital
   const [selectedMonthLibro, setSelectedMonthLibro] = useState(new Date().toISOString().substring(0, 7)); // YYYY-MM
@@ -1547,6 +1576,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       unidad_costo: a.unidad_costo || '$/mes',
       tipo_condicion_minima: a.tipo_condicion_minima || 'sin_minimo',
       cantidad_minima: a.cantidad_minima || '',
+      modalidad_dias: a.modalidad_dias || 'laborales',
       fechaInicio: a.fechaInicio || '',
       fechaTermino: a.fechaTermino || '',
       observaciones: a.observaciones || ''
@@ -1715,6 +1745,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       unidad_costo: arriendoData.unidad_costo || '$/mes',
       tipo_condicion_minima: arriendoData.tipo_condicion_minima || 'sin_minimo',
       cantidad_minima: parseFloat(arriendoData.cantidad_minima) || 0,
+      modalidad_dias: arriendoData.modalidad_dias || 'laborales',
       fechaInicio: arriendoData.fechaInicio || '',
       fechaTermino: arriendoData.fechaTermino || '',
       observaciones: arriendoData.observaciones || ''
@@ -1749,6 +1780,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         unidad_costo: newArriendo.unidad_costo,
         tipo_condicion_minima: newArriendo.tipo_condicion_minima,
         cantidad_minima: newArriendo.cantidad_minima,
+        modalidad_dias: newArriendo.modalidad_dias,
         fecha_inicio: newArriendo.fechaInicio || null,
         fecha_termino: newArriendo.fechaTermino || null,
         observaciones: newArriendo.observaciones || null,
@@ -1766,7 +1798,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
     setShowArriendoModal(false);
     setEditingRecordId(null);
-    setArriendoData({ equipo: '', patente: '', proveedor: '', costo: '', unidad_costo: '$/mes', tipo_condicion_minima: 'sin_minimo', cantidad_minima: '', fechaInicio: '', fechaTermino: '', observaciones: '' });
+    setArriendoData({ equipo: '', patente: '', proveedor: '', costo: '', unidad_costo: '$/mes', tipo_condicion_minima: 'sin_minimo', cantidad_minima: '', modalidad_dias: 'laborales', fechaInicio: '', fechaTermino: '', observaciones: '' });
   };
 
   // Cargar Cuadrillas y Arriendos desde localStorage cuando cambia la obra
@@ -4187,7 +4219,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
                 const executableParts = partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo));
 
-                // 1. PRESUPUESTO DE VENTA PROYECTADO (AVANCE TEÓRICO AL CORTE SEGÚN PLANIFICACIÓN)
+                // 1. PRESUPUESTO DE VENTA PROYECTADO (AVANCE TEÓRICO AL CORTE SEGÚN PLANIFICACIÓN EN DÍAS LABORALES CHILE)
                 const totalVentaProyectadaObra = executableParts.reduce((acc, p) => {
                   const cantTotal = parseFloat(p.cantidad) || 0;
                   const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
@@ -4199,14 +4231,9 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   if (startDatePartida && fCorteStr && startDatePartida > fCorteStr) {
                     diasEfectivosCorte = 0;
                   } else {
-                    const dStart = new Date(startDatePartida);
-                    let diasTranscurridosPartida = 1;
-                    if (!isNaN(dStart.getTime()) && !isNaN(dCorte.getTime())) {
-                      const diffDays = Math.floor((dCorte.getTime() - dStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                      diasTranscurridosPartida = Math.max(1, diffDays);
-                    }
+                    const diasBus = countChileanBusinessDays(startDatePartida, fCorteStr);
                     const diasTotalesPartida = rend > 0 ? (cantTotal / rend) : 1;
-                    diasEfectivosCorte = Math.min(diasTranscurridosPartida, diasTotalesPartida);
+                    diasEfectivosCorte = Math.min(diasBus, diasTotalesPartida);
                   }
 
                   const cantAvanceAlCorte = diasEfectivosCorte === 0 ? 0 : Math.min(cantTotal, Math.round(diasEfectivosCorte * rend));
@@ -4224,14 +4251,9 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   if (startDatePartida && fCorteStr && startDatePartida > fCorteStr) {
                     diasEfectivosCorte = 0;
                   } else {
-                    const dStart = new Date(startDatePartida);
-                    let diasTranscurridosPartida = 1;
-                    if (!isNaN(dStart.getTime()) && !isNaN(dCorte.getTime())) {
-                      const diffDays = Math.floor((dCorte.getTime() - dStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                      diasTranscurridosPartida = Math.max(1, diffDays);
-                    }
+                    const diasBus = countChileanBusinessDays(startDatePartida, fCorteStr);
                     const diasTotalesPartida = rend > 0 ? (cantTotal / rend) : 1;
-                    diasEfectivosCorte = Math.min(diasTranscurridosPartida, diasTotalesPartida);
+                    diasEfectivosCorte = Math.min(diasBus, diasTotalesPartida);
                   }
 
                   if (diasEfectivosCorte === 0) return acc;
@@ -4264,13 +4286,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   const rawAsigDate = p.fecha_asig ? String(p.fecha_asig).split('T')[0] : (selectedObra?.fecha_inicio ? String(selectedObra.fecha_inicio).split('T')[0] : fInicioStr);
                   let diasTrab = 0;
                   if (rawAsigDate && fCorteStr && rawAsigDate <= fCorteStr) {
-                    const dAsig = new Date(rawAsigDate);
-                    if (!isNaN(dAsig.getTime()) && !isNaN(dCorte.getTime())) {
-                      const diffDays = Math.floor((dCorte.getTime() - dAsig.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                      diasTrab = Math.max(1, diffDays);
-                    } else {
-                      diasTrab = 1;
-                    }
+                    diasTrab = countChileanBusinessDays(rawAsigDate, fCorteStr);
                   }
                   return acc + (diasTrab * valorDia);
                 }, 0);
@@ -4287,6 +4303,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                     unidad_costo_interno: a.unidad_costo || '$/mes',
                     tipo_condicion_minima: a.tipo_condicion_minima || 'sin_minimo',
                     cantidad_minima: a.cantidad_minima || 0,
+                    modalidad_dias: a.modalidad_dias || 'laborales',
                     fecha_asig: a.fechaInicio || a.created_at,
                     fecha_inicio: a.fechaInicio || a.created_at,
                     isArriendo: true
@@ -4298,6 +4315,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   const unidad = m.unidad_costo_interno || m.unidad_costo || m.unidad_tarifa || '$/mes';
                   const tipoMin = m.tipo_condicion_minima || m.tipo_minimo || 'sin_minimo';
                   const cantMin = parseFloat(m.cantidad_minima || m.minimo_garantizado || 0);
+                  const modDias = m.modalidad_dias || 'laborales';
 
                   let valorDia = 0;
                   if (unidad === '$/mes') {
@@ -4321,12 +4339,16 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   const rawAsigDate = m.fecha_asig || m.fecha_asignacion || m.fecha_inicio || m.created_at ? String(m.fecha_asig || m.fecha_asignacion || m.fecha_inicio || m.created_at).split('T')[0] : (selectedObra?.fecha_inicio ? String(selectedObra.fecha_inicio).split('T')[0] : fInicioStr);
                   let diasMaq = 0;
                   if (rawAsigDate && fCorteStr && rawAsigDate <= fCorteStr) {
-                    const dAsig = new Date(rawAsigDate);
-                    if (!isNaN(dAsig.getTime()) && !isNaN(dCorte.getTime())) {
-                      const diffDays = Math.floor((dCorte.getTime() - dAsig.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                      diasMaq = Math.max(1, diffDays);
+                    if (modDias === 'laborales') {
+                      diasMaq = countChileanBusinessDays(rawAsigDate, fCorteStr);
                     } else {
-                      diasMaq = 1;
+                      const dAsig = new Date(rawAsigDate);
+                      if (!isNaN(dAsig.getTime()) && !isNaN(dCorte.getTime())) {
+                        const diffDays = Math.floor((dCorte.getTime() - dAsig.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                        diasMaq = Math.max(1, diffDays);
+                      } else {
+                        diasMaq = 1;
+                      }
                     }
                   }
                   return acc + (diasMaq * valorDia);
@@ -5272,6 +5294,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           unidad_costo_interno: a.unidad_costo || '$/mes',
                           tipo_condicion_minima: a.tipo_condicion_minima || 'sin_minimo',
                           cantidad_minima: a.cantidad_minima || 0,
+                          modalidad_dias: a.modalidad_dias || 'laborales',
                           fecha_asig: a.fechaInicio || a.created_at,
                           fecha_inicio: a.fechaInicio || a.created_at,
                           isArriendo: true
@@ -5283,6 +5306,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                         const unidad = m.unidad_costo_interno || m.unidad_costo || m.unidad_tarifa || '$/mes';
                         const tipoMin = m.tipo_condicion_minima || m.tipo_minimo || 'sin_minimo';
                         const cantMin = parseFloat(m.cantidad_minima || m.minimo_garantizado || 0);
+                        const modDias = m.modalidad_dias || 'laborales';
 
                         let valorDia = 0;
                         let labelTarifa = `${unidad}`;
@@ -5322,12 +5346,16 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
                         let diasOperativosCorte = 0;
                         if (rawAsigDate && fCorteStr && rawAsigDate <= fCorteStr) {
-                          const dAsig = new Date(rawAsigDate);
-                          if (!isNaN(dAsig.getTime()) && !isNaN(dateCorte.getTime())) {
-                            const diffDays = Math.floor((dateCorte.getTime() - dAsig.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                            diasOperativosCorte = Math.max(1, diffDays);
+                          if (modDias === 'calendario') {
+                            const dAsig = new Date(rawAsigDate);
+                            if (!isNaN(dAsig.getTime()) && !isNaN(dateCorte.getTime())) {
+                              const diffDays = Math.floor((dateCorte.getTime() - dAsig.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                              diasOperativosCorte = Math.max(1, diffDays);
+                            } else {
+                              diasOperativosCorte = 1;
+                            }
                           } else {
-                            diasOperativosCorte = 1;
+                            diasOperativosCorte = countChileanBusinessDays(rawAsigDate, fCorteStr);
                           }
                         }
 
@@ -5340,6 +5368,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           unidad,
                           labelTarifa,
                           labelMinimo,
+                          modDias,
                           valorDia,
                           rawAsigDate,
                           formattedAsig,
@@ -5431,6 +5460,12 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                         <div className="flex justify-between items-center">
                                           <span className="text-slate-500 font-semibold">Tarifa Base / Unidad:</span>
                                           <span className="font-mono font-bold text-slate-800">${m.tarifaBase.toLocaleString('es-CL')} <span className="text-[9px] bg-slate-200 px-1 py-0.5 rounded">{m.unidad}</span></span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-slate-600">
+                                          <span className="font-semibold">Modalidad Días:</span>
+                                          <span className="font-mono font-bold text-slate-700 text-[10px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                                            {m.modDias === 'calendario' ? '📅 Días Calendario' : '🗓️ Días Laborales (Chile)'}
+                                          </span>
                                         </div>
                                         <div className="flex justify-between items-center text-slate-600">
                                           <span className="font-semibold">Condición Mínima:</span>
@@ -6627,6 +6662,19 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                     />
                   </div>
                 </div>
+
+                <div className="pt-1 border-t border-amber-200/60">
+                  <label className="block text-[9.5px] font-bold uppercase text-amber-900 mb-1">Modalidad de Días de Cobro / Arriendo</label>
+                  <select
+                    value={arriendoData.modalidad_dias || 'laborales'}
+                    onChange={(e) => setArriendoData({ ...arriendoData, modalidad_dias: e.target.value })}
+                    className="w-full border border-amber-300 rounded-lg p-2 font-bold text-slate-900 bg-white text-xs"
+                  >
+                    <option value="laborales">🗓️ Días Laborales (Lunes a Viernes, excluye feriados Chile)</option>
+                    <option value="calendario">📅 Días Calendario (Días Corridos)</option>
+                  </select>
+                </div>
+
                 <p className="text-[9px] text-amber-900 font-semibold leading-tight">
                   💡 Si la operación real es menor al mínimo garantizado, las proyecciones calcularán el costo con la condición mínima contratada.
                 </p>
