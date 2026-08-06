@@ -4286,7 +4286,13 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   const rawAsigDate = p.fecha_asig ? String(p.fecha_asig).split('T')[0] : (selectedObra?.fecha_inicio ? String(selectedObra.fecha_inicio).split('T')[0] : fInicioStr);
                   let diasTrab = 0;
                   if (rawAsigDate && fCorteStr && rawAsigDate <= fCorteStr) {
-                    diasTrab = countChileanBusinessDays(rawAsigDate, fCorteStr);
+                    const dAsig = new Date(rawAsigDate);
+                    if (!isNaN(dAsig.getTime()) && !isNaN(dCorte.getTime())) {
+                      const diffDays = Math.floor((dCorte.getTime() - dAsig.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                      diasTrab = Math.max(1, diffDays);
+                    } else {
+                      diasTrab = 1;
+                    }
                   }
                   return acc + (diasTrab * valorDia);
                 }, 0);
@@ -5191,7 +5197,13 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
                                     let diasTrabajadosCorte = 0;
                                     if (rawAsigDate && fCorteStr && rawAsigDate <= fCorteStr) {
-                                      diasTrabajadosCorte = countChileanBusinessDays(rawAsigDate, fCorteStr);
+                                      const dAsig = new Date(rawAsigDate);
+                                      if (!isNaN(dAsig.getTime()) && !isNaN(dateCorte.getTime())) {
+                                        const diffDays = Math.floor((dateCorte.getTime() - dAsig.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                                        diasTrabajadosCorte = Math.max(1, diffDays);
+                                      } else {
+                                        diasTrabajadosCorte = 1;
+                                      }
                                     }
 
                                     const isPosteriorACorte = rawAsigDate && fCorteStr && rawAsigDate > fCorteStr;
