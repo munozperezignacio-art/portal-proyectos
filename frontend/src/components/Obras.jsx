@@ -574,6 +574,61 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     return Math.max(1, count);
   };
 
+  const addChileanBusinessDays = (startStr, workingDays) => {
+    if (!startStr) return '';
+    const daysToAdd = Math.max(1, Math.round(workingDays));
+    let cur = new Date(startStr + 'T00:00:00');
+    if (isNaN(cur.getTime())) return startStr;
+
+    let added = 0;
+    while (added < daysToAdd) {
+      const dayOfWeek = cur.getDay(); // 0 = Sun, 6 = Sat
+      const dateStr = cur.getFullYear() + '-' + String(cur.getMonth() + 1).padStart(2, '0') + '-' + String(cur.getDate()).padStart(2, '0');
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      const isHoliday = CHILEAN_HOLIDAYS.includes(dateStr);
+
+      if (!isWeekend && !isHoliday) {
+        added++;
+      }
+      if (added < daysToAdd) {
+        cur.setDate(cur.getDate() + 1);
+      }
+    }
+    return cur.getFullYear() + '-' + String(cur.getMonth() + 1).padStart(2, '0') + '-' + String(cur.getDate()).padStart(2, '0');
+  };
+
+  const handleUpdatePartidaFechaInicio = async (partidaObj, newStartDate) => {
+    if (!newStartDate) return;
+
+    const updatedPartidas = partidasList.map(p => {
+      if (p.partida === partidaObj.partida || (p.id && String(p.id) === String(partidaObj.id))) {
+        return { ...p, fecha_inicio: newStartDate };
+      }
+      return p;
+    });
+
+    setPartidasList(updatedPartidas);
+
+    try {
+      if (selectedObra?.id) {
+        localStorage.setItem(`partidas_${selectedObra.id}`, JSON.stringify(updatedPartidas));
+      }
+      if (selectedObra?.nombre) {
+        localStorage.setItem(`partidas_${selectedObra.nombre}`, JSON.stringify(updatedPartidas));
+      }
+    } catch(e) {}
+
+    try {
+      if (partidaObj.id && !isNaN(parseInt(partidaObj.id))) {
+        await supabase.from('partidas_obra').update({ fecha_inicio: newStartDate }).eq('id', partidaObj.id);
+      } else if (selectedObra?.nombre && partidaObj.partida) {
+        await supabase.from('partidas_obra').update({ fecha_inicio: newStartDate }).eq('obra_nombre', selectedObra.nombre).eq('partida', partidaObj.partida);
+      }
+    } catch(err) {
+      console.warn('Sync warning on partida fecha_inicio:', err);
+    }
+  };
+
   // Estado para Libro de Asistencia Digital
   const [selectedMonthLibro, setSelectedMonthLibro] = useState(new Date().toISOString().substring(0, 7)); // YYYY-MM
 
@@ -3971,123 +4026,362 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
             </div>
           )}
 
-          {/* VISTA DEDICADA 11: PLANIFICACIÓN Y MS PROJECT */}
+          {/* VISTA DEDICADA 11: PLANIFICACIÓN Y CARTA GANTT DE OBRA (CONECTADO A PRESUPUESTO) */}
           {obraActiveSubmodule === 'planificacion' && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                <div>
-                  <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
-                    <CalendarRange className="w-4 h-4 text-indigo-900" />
-                    <span>Planificación y Carta Gantt de Obra</span>
-                  </h3>
-                  <p className="text-[11px] text-slate-500">Cronograma de partidas, plazos e importador de archivos MS Project (.xml / .mpp)</p>
-                </div>
+              {(() => {
+                const fInicioObraDefault = selectedObra?.fecha_inicio ? String(selectedObra.fecha_inicio).split('T')[0] : new Date().toISOString().substring(0, 10);
+                const fCorteStr = fechaCorteProyeccion || new Date().toISOString().substring(0, 10);
 
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      setEditingActividad(null);
-                      setActividadFormData({ nombre: '', fecha_inicio: new Date().toISOString().substring(0, 10), fecha_fin: '', duracion_dias: 10, avance_pct: 0 });
-                      setShowActividadModal(true);
-                    }}
-                    className="bg-indigo-900 hover:bg-indigo-800 text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>+ Crear Actividad / Hito</span>
-                  </button>
+                // Helper para procesar partidas ejecutables
+                const processPartidaItem = (p) => {
+                  const isGroup = p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo;
+                  const cant = parseFloat(p.cantidad) || 0;
+                  const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
+                  const duracionDias = isGroup ? 0 : Math.max(1, Math.ceil(cant / rend));
 
-                  <label className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs">
-                    <FileUp className="w-3.5 h-3.5" />
-                    <span>Importar de MS Project</span>
-                    <input
-                      type="file"
-                      accept=".xml,.mpp,.xlsx,.csv,.mpx"
-                      onChange={(e) => {
-                        const file = e.target.files[0];
-                        if (file) {
-                          const mockTasks = [
-                            { id: Date.now() + 1, nombre: 'Instalación de Faenas & Trazados', fecha_inicio: '2026-03-01', fecha_fin: '2026-03-10', duracion_dias: 10, avance_pct: 100 },
-                            { id: Date.now() + 2, nombre: 'Excavaciones Principales', fecha_inicio: '2026-03-11', fecha_fin: '2026-03-25', duracion_dias: 15, avance_pct: 70 },
-                            { id: Date.now() + 3, nombre: 'Hormigonado de Cimientos', fecha_inicio: '2026-03-26', fecha_fin: '2026-04-15', duracion_dias: 20, avance_pct: 30 }
-                          ];
-                          setPlanificacionList(prev => [...prev, ...mockTasks]);
-                          alert(`¡Archivo MS Project "${file.name}" importado con éxito! Se cargaron ${mockTasks.length} actividades al cronograma.`);
-                        }
-                      }}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-              </div>
+                  const fechaInicio = p.fecha_inicio ? String(p.fecha_inicio).split('T')[0] : fInicioObraDefault;
+                  const fechaTermino = isGroup ? '' : addChileanBusinessDays(fechaInicio, duracionDias);
+                  const avancePct = cant > 0 ? Math.min(100, Math.round(((p.avanceAcumulado || 0) / cant) * 100)) : 0;
 
-              {/* Visor de Gantt de Obra */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4 shadow-xs">
-                <h4 className="font-bold text-xs uppercase tracking-wider text-slate-800 border-b pb-2">📅 Carta Gantt y Programación de Partidas</h4>
-                
-                {(planificacionList.length === 0 && partidasList.length === 0) ? (
-                  <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl space-y-2">
-                    <CalendarRange className="w-8 h-8 text-slate-300 mx-auto" />
-                    <p className="text-xs text-slate-600 font-semibold">No se han registrado actividades para la planificación de esta obra.</p>
-                    <button
-                      onClick={() => {
-                        setEditingActividad(null);
-                        setActividadFormData({ nombre: '', fecha_inicio: new Date().toISOString().substring(0, 10), fecha_fin: '', duracion_dias: 10, avance_pct: 0 });
-                        setShowActividadModal(true);
-                      }}
-                      className="text-xs text-indigo-900 font-bold hover:underline cursor-pointer"
-                    >
-                      + Crear la primera actividad de planificación
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {/* Renderizar Tareas de MS Project / Planificación manual */}
-                    {planificacionList.map((act, idx) => (
-                      <div key={`act-${idx}`} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                        <div className="flex justify-between items-center text-xs">
-                          <div>
-                            <span className="font-bold text-slate-800">{act.nombre}</span>
-                            <span className="text-[10px] text-slate-500 font-mono ml-2">({act.fecha_inicio} a {act.fecha_fin || 'TBD'}) - {act.duracion_dias || 7} días</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-[10px] font-bold text-indigo-900 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">{act.avance_pct || 0}% Cumplido</span>
-                            <button
-                              onClick={() => setPlanificacionList(prev => prev.filter((_, i) => i !== idx))}
-                              className="text-slate-400 hover:text-red-700 font-bold text-xs"
-                              title="Eliminar actividad"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        </div>
-                        
-                        {/* Barra Visual Gantt */}
-                        <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
-                          <div className="bg-indigo-900 h-full rounded-full transition-all duration-500" style={{ width: `${act.avance_pct || 0}%` }}></div>
-                        </div>
+                  return {
+                    ...p,
+                    isGroup,
+                    cant,
+                    rend,
+                    duracionDias,
+                    fechaInicio,
+                    fechaTermino,
+                    avancePct
+                  };
+                };
+
+                const processedItems = partidasList.map(processPartidaItem);
+
+                // Agrupar partidas bajo Títulos / Grupos
+                const groupsMap = [];
+                let currentGroup = null;
+
+                processedItems.forEach(item => {
+                  if (item.isGroup) {
+                    currentGroup = { group: item, children: [] };
+                    groupsMap.push(currentGroup);
+                  } else {
+                    if (!currentGroup) {
+                      currentGroup = {
+                        group: {
+                          id: 'grp-general',
+                          partida: 'PARTIDAS GENERALES DE OBRA',
+                          unidad: 'GRUPO',
+                          isGroup: true
+                        },
+                        children: []
+                      };
+                      groupsMap.push(currentGroup);
+                    }
+                    currentGroup.children.push(item);
+                  }
+                });
+
+                // Calcular Fechas de Inicio/Término y Duración Total para cada Grupo
+                const finalGanttGroups = groupsMap.map(g => {
+                  if (g.children.length === 0) {
+                    return {
+                      ...g.group,
+                      fechaInicio: g.group.fechaInicio || fInicioObraDefault,
+                      fechaTermino: g.group.fechaTermino || fInicioObraDefault,
+                      duracionDias: 1,
+                      avancePct: 0,
+                      children: []
+                    };
+                  }
+
+                  const childStarts = g.children.map(c => c.fechaInicio).filter(Boolean).sort();
+                  const groupStart = childStarts[0] || fInicioObraDefault;
+
+                  const childEnds = g.children.map(c => c.fechaTermino).filter(Boolean).sort();
+                  const groupEnd = childEnds[childEnds.length - 1] || groupStart;
+
+                  const groupDuration = countChileanBusinessDays(groupStart, groupEnd);
+
+                  const totalPresGroup = g.children.reduce((sum, c) => sum + (c.cant * (partidasCostos[c.partida] || c.pu || 0)), 0);
+                  const totalProgGroup = g.children.reduce((sum, c) => sum + ((c.avanceAcumulado || 0) * (partidasCostos[c.partida] || c.pu || 0)), 0);
+                  const groupPct = totalPresGroup > 0 ? Math.min(100, Math.round((totalProgGroup / totalPresGroup) * 100)) : 0;
+
+                  return {
+                    ...g.group,
+                    fechaInicio: groupStart,
+                    fechaTermino: groupEnd,
+                    duracionDias: groupDuration,
+                    avancePct: groupPct,
+                    children: g.children
+                  };
+                });
+
+                // Métricas Generales del Proyecto
+                const allGroupStarts = finalGanttGroups.map(g => g.fechaInicio).filter(Boolean).sort();
+                const allGroupEnds = finalGanttGroups.map(g => g.fechaTermino).filter(Boolean).sort();
+                const projStart = allGroupStarts[0] || fInicioObraDefault;
+                const projEnd = allGroupEnds[allGroupEnds.length - 1] || projStart;
+                const totalProjDays = countChileanBusinessDays(projStart, projEnd);
+                const totalExecutablePartidas = processedItems.filter(i => !i.isGroup).length;
+
+                return (
+                  <>
+                    {/* ENCABEZADO Y ACCIONES */}
+                    <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                      <div>
+                        <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
+                          <CalendarRange className="w-4 h-4 text-indigo-900" />
+                          <span>Planificación y Carta Gantt de Obra</span>
+                        </h3>
+                        <p className="text-[11px] text-slate-500">
+                          Programación automática vinculada al Presupuesto: Duraciones calculadas por Rendimiento ($\lceil \text{Cantidad} / \text{Rendimiento} \rceil$) y días laborales en Chile.
+                        </p>
                       </div>
-                    ))}
 
-                    {/* Renderizar Partidas cargadas de Obra */}
-                    {partidasList.map((p, idx) => {
-                      const pct = Math.min(100, Math.round(((p.avanceAcumulado || 0) / (p.cantidad || 1)) * 100));
-                      return (
-                        <div key={`part-${idx}`} className="p-3 bg-white border border-slate-200 rounded-xl space-y-2 shadow-2xs">
-                          <div className="flex justify-between items-center text-xs">
-                            <span className="font-bold text-slate-800">Partida: {p.partida}</span>
-                            <span className="font-mono text-[10px] font-bold text-blue-900">{pct}% Cumplido</span>
-                          </div>
-                          
-                          {/* Barra Visual Gantt */}
-                          <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
-                            <div className="bg-blue-900 h-full rounded-full transition-all duration-500" style={{ width: `${pct}%` }}></div>
-                          </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setEditingActividad(null);
+                            setActividadFormData({ nombre: '', fecha_inicio: new Date().toISOString().substring(0, 10), fecha_fin: '', duracion_dias: 10, avance_pct: 0 });
+                            setShowActividadModal(true);
+                          }}
+                          className="bg-indigo-900 hover:bg-indigo-800 text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>+ Crear Hito / Tarea Adicional</span>
+                        </button>
+
+                        <label className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs">
+                          <FileUp className="w-3.5 h-3.5" />
+                          <span>Importar MS Project</span>
+                          <input
+                            type="file"
+                            accept=".xml,.mpp,.xlsx,.csv,.mpx"
+                            onChange={(e) => {
+                              const file = e.target.files[0];
+                              if (file) {
+                                const mockTasks = [
+                                  { id: Date.now() + 1, nombre: 'Instalación de Faenas & Trazados', fecha_inicio: '2026-03-01', fecha_fin: '2026-03-10', duracion_dias: 10, avance_pct: 100 },
+                                  { id: Date.now() + 2, nombre: 'Excavaciones Principales', fecha_inicio: '2026-03-11', fecha_fin: '2026-03-25', duracion_dias: 15, avance_pct: 70 },
+                                  { id: Date.now() + 3, nombre: 'Hormigonado de Cimientos', fecha_inicio: '2026-03-26', fecha_fin: '2026-04-15', duracion_dias: 20, avance_pct: 30 }
+                                ];
+                                setPlanificacionList(prev => [...prev, ...mockTasks]);
+                                alert(`¡Archivo MS Project "${file.name}" importado con éxito! Se cargaron ${mockTasks.length} actividades al cronograma.`);
+                              }
+                            }}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* TARJETAS RESUMEN DE CRONOGRAMA */}
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                      <div className="bg-white p-3.5 border border-slate-200 rounded-2xl shadow-2xs space-y-0.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Inicio General Proyecto</span>
+                        <span className="text-sm font-black text-slate-800 font-mono">{projStart}</span>
+                        <span className="text-[9.5px] text-slate-400 block font-semibold">Fecha más pronta de inicio</span>
+                      </div>
+
+                      <div className="bg-white p-3.5 border border-slate-200 rounded-2xl shadow-2xs space-y-0.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Término Programado Proyecto</span>
+                        <span className="text-sm font-black text-indigo-950 font-mono">{projEnd}</span>
+                        <span className="text-[9.5px] text-slate-400 block font-semibold">Fecha más tardía de término</span>
+                      </div>
+
+                      <div className="bg-white p-3.5 border border-slate-200 rounded-2xl shadow-2xs space-y-0.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Plazo Total en Días Hábiles</span>
+                        <span className="text-sm font-black text-blue-900 font-mono">{totalProjDays} Días Laborales</span>
+                        <span className="text-[9.5px] text-slate-400 block font-semibold">Excluye Sábados, Domingos y Feriados Chile</span>
+                      </div>
+
+                      <div className="bg-white p-3.5 border border-slate-200 rounded-2xl shadow-2xs space-y-0.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Partidas Programadas</span>
+                        <span className="text-sm font-black text-emerald-900 font-mono">{totalExecutablePartidas} Partidas ({finalGanttGroups.length} Grupos)</span>
+                        <span className="text-[9.5px] text-slate-400 block font-semibold">Vinculadas al Presupuesto Obra</span>
+                      </div>
+                    </div>
+
+                    {/* TABLA PRINCIPAL CARTA GANTT Y CRONOGRAMA DE GRUPOS Y PARTIDAS */}
+                    <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4 shadow-xs">
+                      <div className="flex justify-between items-center border-b pb-2">
+                        <h4 className="font-bold text-xs uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                          <span>📅 Cronograma de Obra por Grupos y Partidas</span>
+                          <span className="text-[9px] bg-indigo-100 text-indigo-900 font-extrabold px-2 py-0.5 rounded">
+                            Días Hábiles Chile
+                          </span>
+                        </h4>
+                        <span className="text-[10px] text-slate-500 italic font-medium">
+                          💡 Cambia la Fecha de Inicio de cualquier partida para recalcular automáticamente su Fecha de Término y la duración del Grupo.
+                        </span>
+                      </div>
+
+                      {finalGanttGroups.length === 0 ? (
+                        <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl space-y-2">
+                          <CalendarRange className="w-8 h-8 text-slate-300 mx-auto" />
+                          <p className="text-xs text-slate-600 font-semibold">No hay partidas ni grupos presupuestados en esta obra.</p>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-xs text-left border-collapse">
+                            <thead>
+                              <tr className="bg-slate-100 border-b text-slate-700 font-bold uppercase text-[10px]">
+                                <th className="p-3">Grupo / Partida Imputada</th>
+                                <th className="p-3">Cantidad / Rendimiento</th>
+                                <th className="p-3 text-center">Duración (Días Hábiles)</th>
+                                <th className="p-3">Fecha Inicio (Programada)</th>
+                                <th className="p-3">Fecha Término (Calculada)</th>
+                                <th className="p-3 text-center">Avance / Gantt</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-150 text-[11px]">
+                              {finalGanttGroups.map((g, gIdx) => (
+                                <React.Fragment key={`group-${gIdx}`}>
+                                  {/* FILA DE ENCABEZADO DE GRUPO */}
+                                  <tr className="bg-slate-900 text-white font-extrabold text-[10.5px]">
+                                    <td className="p-3">
+                                      <div className="flex items-center gap-2">
+                                        <span className="bg-indigo-600 text-white px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider font-mono">
+                                          📂 GRUPO
+                                        </span>
+                                        <span>{g.partida}</span>
+                                        <span className="text-[9.5px] text-slate-300 font-normal">({g.children.length} Partidas)</span>
+                                      </div>
+                                    </td>
+                                    <td className="p-3 text-slate-300 font-mono text-[10px]">
+                                      Consolidado del Grupo
+                                    </td>
+                                    <td className="p-3 text-center font-mono font-bold text-amber-300 text-[10.5px]">
+                                      {g.duracionDias} Días Hábiles
+                                    </td>
+                                    <td className="p-3 font-mono font-bold text-indigo-200">
+                                      {g.fechaInicio} <span className="text-[9px] text-slate-400 font-normal">(Pronta)</span>
+                                    </td>
+                                    <td className="p-3 font-mono font-bold text-emerald-300">
+                                      {g.fechaTermino} <span className="text-[9px] text-slate-400 font-normal">(Tardía)</span>
+                                    </td>
+                                    <td className="p-3 text-center">
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-24 bg-slate-800 h-2.5 rounded-full overflow-hidden border border-slate-700">
+                                          <div className="bg-emerald-400 h-full rounded-full transition-all duration-500" style={{ width: `${g.avancePct}%` }}></div>
+                                        </div>
+                                        <span className="font-mono text-[10px] font-bold text-emerald-300">{g.avancePct}%</span>
+                                      </div>
+                                    </td>
+                                  </tr>
+
+                                  {/* FILAS DE PARTIDAS HIJAS DEL GRUPO */}
+                                  {g.children.map((p, pIdx) => {
+                                    const isPendiente = p.fechaInicio && fCorteStr && p.fechaInicio > fCorteStr;
+                                    const isFinalizada = p.avancePct >= 100;
+
+                                    return (
+                                      <tr key={`child-${p.id || pIdx}`} className="hover:bg-slate-50 border-b border-slate-200 bg-white">
+                                        <td className="p-3 pl-7 font-bold text-slate-800">
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-[9px] font-bold bg-blue-50 text-blue-900 border border-blue-200 px-1.5 py-0.5 rounded">
+                                              📦 Partida
+                                            </span>
+                                            <span>{p.partida}</span>
+                                          </div>
+                                        </td>
+                                        <td className="p-3 font-mono text-slate-700 text-[10.5px]">
+                                          <span className="font-bold">{p.cant.toLocaleString('es-CL')} {p.unidad}</span>
+                                          <span className="text-[9.5px] text-slate-400 block font-normal">Rend: {p.rend} {p.unidad}/Día</span>
+                                        </td>
+                                        <td className="p-3 text-center font-mono font-black text-blue-950 text-xs">
+                                          <span className="bg-blue-50 text-blue-950 px-2 py-0.5 rounded border border-blue-200">
+                                            ⏱️ {p.duracionDias} Días Hábiles
+                                          </span>
+                                        </td>
+                                        <td className="p-3">
+                                          <div className="flex items-center gap-1">
+                                            <input
+                                              type="date"
+                                              value={p.fechaInicio}
+                                              onChange={(e) => handleUpdatePartidaFechaInicio(p, e.target.value)}
+                                              className="border border-slate-300 rounded-lg px-2 py-1 text-xs font-mono font-bold text-slate-900 bg-slate-50 hover:bg-white focus:bg-white transition cursor-pointer"
+                                              title="Haz clic para cambiar la Fecha de Inicio de esta partida"
+                                            />
+                                          </div>
+                                        </td>
+                                        <td className="p-3 font-mono font-bold text-emerald-950">
+                                          <span className="bg-emerald-50 text-emerald-950 px-2 py-1 rounded-lg border border-emerald-200 text-xs flex items-center gap-1 w-max" title="Calculada automáticamente sumando los días hábiles según rendimiento">
+                                            <span>🏁 {p.fechaTermino}</span>
+                                          </span>
+                                        </td>
+                                        <td className="p-3 text-center">
+                                          <div className="flex items-center justify-center gap-2">
+                                            <div className="w-20 bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200">
+                                              <div className="bg-blue-900 h-full rounded-full transition-all duration-500" style={{ width: `${p.avancePct}%` }}></div>
+                                            </div>
+                                            <span className="font-mono text-[10px] font-bold text-slate-700">{p.avancePct}%</span>
+                                            {isFinalizada ? (
+                                              <span className="text-[9px] bg-emerald-100 text-emerald-900 font-bold px-1.5 py-0.5 rounded">🏁 Finalizada</span>
+                                            ) : isPendiente ? (
+                                              <span className="text-[9px] bg-amber-100 text-amber-900 font-bold px-1.5 py-0.5 rounded">⏳ Programada</span>
+                                            ) : (
+                                              <span className="text-[9px] bg-blue-100 text-blue-900 font-bold px-1.5 py-0.5 rounded">🟢 En Curso</span>
+                                            )}
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </React.Fragment>
+                              ))}
+
+                              {/* TAREAS / HITOS ADICIONALES DE PLANIFICACIÓN MANUAL */}
+                              {planificacionList.length > 0 && (
+                                <>
+                                  <tr className="bg-indigo-950 text-white font-extrabold text-[10.5px]">
+                                    <td colSpan="6" className="p-2.5 bg-indigo-950 text-white border-y border-indigo-900">
+                                      📌 HITOS Y TAREAS ADICIONALES DE PLANIFICACIÓN ({planificacionList.length})
+                                    </td>
+                                  </tr>
+                                  {planificacionList.map((act, idx) => (
+                                    <tr key={`act-${idx}`} className="hover:bg-slate-50 border-b border-slate-200">
+                                      <td className="p-3 font-bold text-indigo-950 pl-7">
+                                        📌 {act.nombre}
+                                      </td>
+                                      <td className="p-3 text-slate-500 font-mono text-[10px]">
+                                        Hito Adicional
+                                      </td>
+                                      <td className="p-3 text-center font-mono font-bold text-slate-800">
+                                        {act.duracion_dias || 7} Días
+                                      </td>
+                                      <td className="p-3 font-mono font-bold text-slate-800">
+                                        {act.fecha_inicio}
+                                      </td>
+                                      <td className="p-3 font-mono font-bold text-slate-800">
+                                        {act.fecha_fin || 'N/A'}
+                                      </td>
+                                      <td className="p-3 text-center">
+                                        <div className="flex items-center justify-center gap-2">
+                                          <span className="font-mono text-[10px] font-bold text-indigo-900">{act.avance_pct || 0}%</span>
+                                          <button
+                                            onClick={() => setPlanificacionList(prev => prev.filter((_, i) => i !== idx))}
+                                            className="text-slate-400 hover:text-red-700 font-bold text-xs"
+                                            title="Eliminar hito"
+                                          >
+                                            ✕
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           )}
 
