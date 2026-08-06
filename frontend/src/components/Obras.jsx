@@ -7707,11 +7707,69 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                         .eq('partida', editingPartida.partida);
                       if (updErr) throw updErr;
                     }
-                    setPartidasList(prev => prev.map(p => 
-                      (p.id && editingPartida.id && p.id === editingPartida.id) || p.partida === editingPartida.partida
-                        ? { ...p, ...savedPart }
-                        : p
-                    ));
+
+                    const oldPartidaName = editingPartida.partida;
+                    const newPartidaName = savedPart.partida;
+
+                    setPartidasList(prev => {
+                      const updated = prev.map(p => {
+                        const isTarget = (p.id && editingPartida.id && String(p.id) === String(editingPartida.id)) || p.partida === oldPartidaName;
+                        if (isTarget) {
+                          return { ...p, ...savedPart };
+                        }
+                        if (oldPartidaName !== newPartidaName && p.predecesora === oldPartidaName) {
+                          return { ...p, predecesora: newPartidaName };
+                        }
+                        return p;
+                      });
+
+                      if (selectedObra?.nombre) {
+                        try {
+                          const savedOrderStr = localStorage.getItem(`obraxis_obra_partidas_order_${selectedObra.nombre}`);
+                          let savedNames = savedOrderStr ? JSON.parse(savedOrderStr) : [];
+                          const idx = savedNames.indexOf(oldPartidaName);
+                          if (idx !== -1) {
+                            savedNames[idx] = newPartidaName;
+                          } else {
+                            savedNames = updated.map(p => p.partida);
+                          }
+                          localStorage.setItem(`obraxis_obra_partidas_order_${selectedObra.nombre}`, JSON.stringify(savedNames));
+                          localStorage.setItem(`partidas_${selectedObra.nombre}`, JSON.stringify(updated));
+                          if (selectedObra.id) localStorage.setItem(`partidas_${selectedObra.id}`, JSON.stringify(updated));
+                        } catch (e) {}
+                      }
+                      return updated;
+                    });
+
+                    if (oldPartidaName !== newPartidaName) {
+                      setPartidasCostos(prev => {
+                        const next = { ...prev };
+                        if (next[oldPartidaName] !== undefined) {
+                          next[newPartidaName] = next[oldPartidaName];
+                          delete next[oldPartidaName];
+                        }
+                        return next;
+                      });
+
+                      setCostosList(prev => {
+                        const updatedCostos = prev.map(c => {
+                          if (!c.imputaciones || c.imputaciones.length === 0) return c;
+                          const newImps = c.imputaciones.map(imp => {
+                            if (imp.partida === oldPartidaName) {
+                              return { ...imp, partida: newPartidaName };
+                            }
+                            return imp;
+                          });
+                          return { ...c, imputaciones: newImps };
+                        });
+                        if (selectedObra?.nombre) {
+                          try {
+                            localStorage.setItem(`obraxis_costos_${selectedObra.nombre}`, JSON.stringify(updatedCostos));
+                          } catch(e) {}
+                        }
+                        return updatedCostos;
+                      });
+                    }
                   } else {
                     if (selectedObra?.nombre) {
                       const { data: insData, error: insErr } = await supabase
@@ -7728,6 +7786,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                         try {
                           const orderNames = updated.map(p => p.partida);
                           localStorage.setItem(`obraxis_obra_partidas_order_${selectedObra.nombre}`, JSON.stringify(orderNames));
+                          localStorage.setItem(`partidas_${selectedObra.nombre}`, JSON.stringify(updated));
+                          if (selectedObra.id) localStorage.setItem(`partidas_${selectedObra.id}`, JSON.stringify(updated));
                         } catch (e) {}
                       }
                       return updated;
