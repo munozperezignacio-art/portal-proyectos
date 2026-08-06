@@ -4739,13 +4739,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                 diasEfectivosCorte = 0;
                                 isPendientePorGantt = true;
                               } else {
-                                const dStart = new Date(startDatePartida);
-                                let diasTranscurridosPartida = 1;
-                                if (!isNaN(dStart.getTime()) && !isNaN(dCorte.getTime())) {
-                                  const diffDays = Math.floor((dCorte.getTime() - dStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                                  diasTranscurridosPartida = Math.max(1, diffDays);
-                                }
-                                diasEfectivosCorte = Math.min(diasTranscurridosPartida, diasTotalesPartida);
+                                const diasBus = countChileanBusinessDays(startDatePartida, fCorteStr);
+                                diasEfectivosCorte = Math.min(diasBus, diasTotalesPartida);
                               }
 
                               // AVANCE TEÓRICO AL CORTE & PRESUPUESTO PROPORCIONAL AL CORTE
@@ -5196,13 +5191,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
                                     let diasTrabajadosCorte = 0;
                                     if (rawAsigDate && fCorteStr && rawAsigDate <= fCorteStr) {
-                                      const dAsig = new Date(rawAsigDate);
-                                      if (!isNaN(dAsig.getTime()) && !isNaN(dateCorte.getTime())) {
-                                        const diffDays = Math.floor((dateCorte.getTime() - dAsig.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                                        diasTrabajadosCorte = Math.max(1, diffDays);
-                                      } else {
-                                        diasTrabajadosCorte = 1;
-                                      }
+                                      diasTrabajadosCorte = countChileanBusinessDays(rawAsigDate, fCorteStr);
                                     }
 
                                     const isPosteriorACorte = rawAsigDate && fCorteStr && rawAsigDate > fCorteStr;
