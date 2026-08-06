@@ -231,8 +231,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   // Sincronización automática y persistente de fechas de la obra seleccionada
   useEffect(() => {
     if (selectedObra?.nombre) {
-      const savedStart = localStorage.getItem('obraxis_fecha_inicio_real_' + selectedObra.nombre) || selectedObra.fecha_inicio_real || selectedObra.fecha_inicio || '2026-08-01';
-      const savedEnd = localStorage.getItem('obraxis_fecha_termino_est_' + selectedObra.nombre) || selectedObra.fecha_termino || '2026-12-31';
+      const defaultStart = selectedObra.nombre?.includes('Parque Central') ? '2026-04-06' : '2026-08-01';
+      const defaultEnd = selectedObra.nombre?.includes('Parque Central') ? '2026-10-06' : '2026-12-31';
+      const savedStart = localStorage.getItem('obraxis_fecha_inicio_real_' + selectedObra.nombre) || selectedObra.fecha_inicio_real || selectedObra.fecha_inicio || defaultStart;
+      const savedEnd = localStorage.getItem('obraxis_fecha_termino_est_' + selectedObra.nombre) || selectedObra.fecha_termino || defaultEnd;
       setFechaInicioReal(savedStart);
       setFechaTerminoEstimada(savedEnd);
 
@@ -380,6 +382,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [showEditSueldoModal, setShowEditSueldoModal] = useState(false);
   const [showFechasObraModal, setShowFechasObraModal] = useState(false);
   const [isPersonalCollapseOpen, setIsPersonalCollapseOpen] = useState(true);
+  const [isMaquinariaCollapseOpen, setIsMaquinariaCollapseOpen] = useState(true);
   const [editingWorkerData, setEditingWorkerData] = useState(null);
 
   // Estados del Sub-módulo de Estadísticas Ejecutivas de Obra
@@ -3784,7 +3787,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   <div className="h-0.5 flex-1 bg-slate-200"></div>
                 </div>
 
-                {/* Eventos Cronológicos */}
+                {/* Eventos Cronológicos Unificados */}
                 <div className="relative border-l-2 border-slate-300 ml-4 space-y-6 pl-6">
                   
                   {/* HITO 1: INICIO OFICIAL DE FAENA */}
@@ -3817,13 +3820,99 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                     </div>
                   </div>
 
-                  {/* HITO 2: FECHA DE TÉRMINO DE OBRA */}
-                  <div className="relative group">
-                    <div className="absolute -left-[31px] top-1.5 w-4 h-4 bg-amber-600 rounded-full border-2 border-white ring-2 ring-amber-200"></div>
-                    <div className="bg-amber-50/70 border border-amber-200 p-3.5 rounded-xl space-y-2 shadow-2xs">
+                  {/* EVENTOS CRONOLÓGICOS UNIFICADOS POR FECHA */}
+                  {(() => {
+                    const unifiedBitacoraEvents = [];
+
+                    (bitacoraNotasList || []).forEach(n => {
+                      if (bitacoraFilters.includes('todos') || bitacoraFilters.includes('notas')) {
+                        const rawDt = n.fecha || (n.created_at ? String(n.created_at).substring(0, 10) : '2026-04-06');
+                        unifiedBitacoraEvents.push({
+                          type: 'nota',
+                          dateStr: rawDt,
+                          dateObj: new Date(rawDt + 'T12:00:00'),
+                          title: n.titulo || 'Nota / Comentario de Bitácora',
+                          description: n.comentario,
+                          author: n.autor || 'Supervisor',
+                          badge: '📝 Nota de Faena',
+                          color: 'amber'
+                        });
+                      }
+                    });
+
+                    (reportesAvanceList || []).forEach(av => {
+                      if (bitacoraFilters.includes('todos') || bitacoraFilters.includes('avances')) {
+                        const rawDt = av.fecha || av.fecha_avance || (av.created_at ? String(av.created_at).substring(0, 10) : '2026-04-06');
+                        unifiedBitacoraEvents.push({
+                          type: 'avance',
+                          dateStr: rawDt,
+                          dateObj: new Date(rawDt + 'T12:00:00'),
+                          title: `📊 Avance Físico: ${av.partida}`,
+                          description: `Supervisor: ${av.supervisor || 'N/A'} | Cantidad: ${av.cantidad} ${av.unidad || 'UND'}${av.frente ? ' (' + av.frente + ')' : ''}${av.observaciones ? ' - "' + av.observaciones + '"' : ''}`,
+                          author: av.supervisor || 'Supervisor',
+                          badge: 'Reporte Avance',
+                          color: 'blue'
+                        });
+                      }
+                    });
+
+                    (asistenciaList || []).forEach(as => {
+                      if (bitacoraFilters.includes('todos') || bitacoraFilters.includes('asistencia')) {
+                        const rawDt = as.fecha || (as.created_at ? String(as.created_at).substring(0, 10) : '2026-04-06');
+                        unifiedBitacoraEvents.push({
+                          type: 'asistencia',
+                          dateStr: rawDt,
+                          dateObj: new Date(rawDt + 'T12:00:00'),
+                          title: `⏱️ Registro Asistencia: ${as.trabajador}`,
+                          description: `Estado: ${as.asistencia} | RUT: ${as.rut || 'N/A'} | Ingreso: ${as.ingreso || '08:00'} - Salida: ${as.salida || '18:00'}`,
+                          author: 'Control Asistencia',
+                          badge: 'Control Asistencia',
+                          color: 'emerald'
+                        });
+                      }
+                    });
+
+                    unifiedBitacoraEvents.sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+
+                    return unifiedBitacoraEvents.map((item, idx) => {
+                      const isAmber = item.color === 'amber';
+                      const isBlue = item.color === 'blue';
+                      const isEmerald = item.color === 'emerald';
+
+                      return (
+                        <div key={`ev-${idx}`} className="relative group">
+                          <div className={`absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 border-white ${isAmber ? 'bg-amber-500 ring-2 ring-amber-100' : isBlue ? 'bg-blue-600 ring-2 ring-blue-100' : 'bg-emerald-600 ring-2 ring-emerald-100'}`}></div>
+                          <div className={`p-3.5 rounded-xl space-y-1.5 shadow-2xs border ${isAmber ? 'bg-amber-50/80 border-amber-200' : isBlue ? 'bg-blue-50/70 border-blue-200' : 'bg-emerald-50/70 border-emerald-200'}`}>
+                            <div className="flex justify-between items-center text-xs font-bold">
+                              <span className={isAmber ? 'text-amber-950 font-extrabold' : isBlue ? 'text-blue-950 font-extrabold' : 'text-emerald-950 font-extrabold'}>
+                                {item.title}
+                              </span>
+                              <span className="text-[10px] text-slate-700 font-mono bg-white px-2 py-0.5 rounded border border-slate-200 font-bold">
+                                {item.dateStr}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-800 font-medium leading-relaxed">
+                              {item.description}
+                            </p>
+                            <div className="flex justify-between items-center text-[10px] text-slate-500 pt-1 border-t border-slate-200/60 font-semibold">
+                              <span>Registrado por: <strong>{item.author}</strong></span>
+                              <span className={`inline-block px-2 py-0.5 rounded font-bold ${isAmber ? 'bg-amber-100 text-amber-900' : isBlue ? 'bg-blue-100 text-blue-900' : 'bg-emerald-100 text-emerald-900'}`}>
+                                {item.badge}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+
+                  {/* HITO 2: FECHA DE TÉRMINO DE OBRA (AL FINAL / ABAJO) */}
+                  <div className="relative group pt-4">
+                    <div className="absolute -left-[31px] top-5 w-4 h-4 bg-amber-600 rounded-full border-2 border-white ring-2 ring-amber-200"></div>
+                    <div className="bg-amber-50/90 border-2 border-amber-300 p-4 rounded-xl space-y-2 shadow-sm">
                       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-xs font-bold text-slate-800">
                         <span className="text-amber-950 font-extrabold text-sm flex items-center gap-1.5">
-                          🏁 Hito: Fecha de Término de Obra
+                          🏁 Hito Contractual: Fecha de Término y Entrega Final de Obra
                         </span>
                         <div className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border border-amber-300 shadow-2xs">
                           <label className="text-[10px] font-bold text-amber-900 uppercase">Fecha Término:</label>
@@ -3842,69 +3931,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           />
                         </div>
                       </div>
-                      <p className="text-xs text-slate-700 font-medium">Fecha hito contractual de término y entrega final de obras.</p>
-                      <span className="inline-block text-[9px] bg-amber-900 text-white px-2 py-0.5 rounded font-bold">Hito Obra Contractual</span>
+                      <p className="text-xs text-slate-700 font-medium">Fecha hito contractual de término y recepción de obras.</p>
+                      <span className="inline-block text-[9px] bg-amber-900 text-white px-2 py-0.5 rounded font-bold">Hito Obra Contractual Final</span>
                     </div>
                   </div>
-
-                  {/* NOTAS Y COMENTARIOS REGISTRADOS EN LA BITÁCORA */}
-                  {bitacoraNotasList.map((nota, i) => (
-                    (bitacoraFilters.includes('todos') || bitacoraFilters.includes('notas')) && (
-                      <div key={`nota-${i}`} className="relative group">
-                        <div className="absolute -left-[31px] top-1.5 w-4 h-4 bg-amber-500 rounded-full border-2 border-white ring-2 ring-amber-100"></div>
-                        <div className="bg-amber-50/80 border border-amber-200 p-3.5 rounded-xl space-y-1.5 shadow-2xs">
-                          <div className="flex justify-between items-center text-xs font-bold text-amber-950">
-                            <span className="font-extrabold text-amber-900">📝 {nota.titulo || 'Nota / Comentario de Bitácora'}</span>
-                            <span className="text-[10px] text-slate-700 font-mono bg-white px-2 py-0.5 rounded border border-amber-200 font-bold">
-                              {nota.fecha || (nota.created_at ? new Date(nota.created_at).toLocaleDateString('es-CL') : 'Fecha N/A')}
-                            </span>
-                          </div>
-                          <p className="text-xs text-slate-800 font-medium whitespace-pre-line leading-relaxed pl-1">
-                            {nota.comentario}
-                          </p>
-                          <div className="flex justify-between items-center text-[10px] text-slate-500 pt-1 border-t border-amber-200/60 font-semibold">
-                            <span>Registrado por: <strong>{nota.autor || 'Supervisor'}</strong></span>
-                            <span className="inline-block bg-amber-100 text-amber-900 px-2 py-0.5 rounded font-bold">Nota de Faena</span>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  ))}
-
-                  {/* Eventos Dinámicos filtrados: Avances */}
-                  {reportesAvanceList.map((av, i) => (
-                    (bitacoraFilters.includes('todos') || bitacoraFilters.includes('avances')) && (
-                      <div key={`av-${i}`} className="relative group">
-                        <div className="absolute -left-[31px] top-1.5 w-4 h-4 bg-blue-600 rounded-full border-2 border-white ring-2 ring-blue-100"></div>
-                        <div className="bg-blue-50/50 border border-blue-200 p-3 rounded-xl space-y-1">
-                          <div className="flex justify-between items-center text-xs font-bold text-blue-950">
-                            <span>📊 Avance de Producción: {av.partida}</span>
-                            <span className="text-[10px] text-slate-500 font-mono">{new Date(av.created_at).toLocaleDateString('es-CL')}</span>
-                          </div>
-                          <p className="text-xs text-slate-700">Supervisor: <strong>{av.supervisor}</strong> | Cantidad: <strong className="text-emerald-700">{av.cantidad} {av.unidad || 'UND'}</strong> en {av.frente || 'Frente Principal'}.</p>
-                          {av.observaciones && <p className="text-[11px] text-slate-600 italic border-l-2 border-blue-400 pl-2 mt-1">"{av.observaciones}"</p>}
-                          <span className="inline-block text-[9px] bg-blue-100 text-blue-900 px-2 py-0.5 rounded font-bold mt-1">Reporte de Avance</span>
-                        </div>
-                      </div>
-                    )
-                  ))}
-
-                  {/* Eventos Dinámicos filtrados: Asistencia */}
-                  {asistenciaList.map((as, i) => (
-                    (bitacoraFilters.includes('todos') || bitacoraFilters.includes('asistencia')) && (
-                      <div key={`as-${i}`} className="relative group">
-                        <div className="absolute -left-[31px] top-1.5 w-4 h-4 bg-emerald-600 rounded-full border-2 border-white ring-2 ring-emerald-100"></div>
-                        <div className="bg-emerald-50/50 border border-emerald-200 p-3 rounded-xl space-y-1">
-                          <div className="flex justify-between items-center text-xs font-bold text-emerald-950">
-                            <span>⏱️ Registro de Asistencia: {as.trabajador}</span>
-                            <span className="text-[10px] text-slate-500 font-mono">{new Date(as.created_at).toLocaleDateString('es-CL')}</span>
-                          </div>
-                          <p className="text-xs text-slate-700">Estado: <strong className="text-emerald-800">{as.asistencia}</strong> | Ingreso: {as.ingreso || '08:00'} - Salida: {as.salida || '18:00'}.</p>
-                          <span className="inline-block text-[9px] bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded font-bold mt-1">Control Asistencia</span>
-                        </div>
-                      </div>
-                    )
-                  ))}
 
                 </div>
 
