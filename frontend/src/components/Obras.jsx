@@ -472,7 +472,12 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   });
   const [fechaCorteProyeccion, setFechaCorteProyeccion] = useState(new Date().toISOString().split('T')[0]);
   const [showProyeccionModal, setShowProyeccionModal] = useState(false);
+  const [expandedPartidas, setExpandedPartidas] = useState({});
+  const toggleExpandPartida = (pName) => {
+    setExpandedPartidas(prev => ({ ...prev, [pName]: !prev[pName] }));
+  };
   const [proyeccionFormData, setProyeccionFormData] = useState({
+    id: null,
     partida: '',
     tipo_proyeccion: 'TIEMPO', // 'TIEMPO' | 'INSUMO'
     nombre_item: '',
@@ -863,6 +868,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         if (savedProjRrhh) setProyeccionesRrhhList(JSON.parse(savedProjRrhh));
         const savedLiq = localStorage.getItem(`obraxis_liquidaciones_${obraNombre}`);
         if (savedLiq) setLiquidacionesList(JSON.parse(savedLiq));
+        const savedProjs = localStorage.getItem(`obraxis_proyecciones_obras_${obraNombre}`);
+        if (savedProjs) {
+          try { setProyeccionesList(JSON.parse(savedProjs)); } catch (err) {}
+        }
       } catch (err) {}
       setPersonalList(listPers || []);
     } catch (e) {
@@ -4436,64 +4445,204 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             const puVal = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (p.pu || 0);
                             const montoPres = cant * puVal;
 
-                            const projAssoc = proyeccionesList.find(x => x.partida === p.partida);
+                            const projItems = proyeccionesList.filter(x => x.partida === p.partida);
                             let costoProyectado = 0;
-                            let modoText = 'Sin configuración';
+                            let modoText = '';
 
-                            if (projAssoc) {
-                              if (projAssoc.tipo_proyeccion === 'TIEMPO') {
-                                const tarifaDia = parseFloat(projAssoc.tarifa_tiempo_dia) || 20000;
-                                costoProyectado = Math.round(diasEstimados * tarifaDia);
-                                const cName = projAssoc.nombre_item ? `"${projAssoc.nombre_item}" - ` : '';
-                                modoText = `${cName}TIEMPO ($${tarifaDia.toLocaleString('es-CL')}/Día * ${diasEstimados.toFixed(1)} Días)`;
-                              } else {
-                                const tasa = parseFloat(projAssoc.tasa_rendimiento_insumo) || 1;
-                                const precioInsumo = parseFloat(projAssoc.precio_unitario_insumo) || 5000;
-                                const consumoTotal = cant * tasa;
-                                costoProyectado = Math.round(consumoTotal * precioInsumo);
-                                modoText = `INSUMO (${tasa} ${projAssoc.unidad_insumo || 'und'}/un * $${precioInsumo.toLocaleString('es-CL')})`;
-                              }
+                            if (projItems.length > 0) {
+                              costoProyectado = projItems.reduce((sum, item) => {
+                                if (item.tipo_proyeccion === 'TIEMPO') {
+                                  const tarifaDia = parseFloat(item.tarifa_tiempo_dia) || 20000;
+                                  return sum + Math.round(diasEstimados * tarifaDia);
+                                } else {
+                                  const tasa = parseFloat(item.tasa_rendimiento_insumo) || 1;
+                                  const precioInsumo = parseFloat(item.precio_unitario_insumo) || 5000;
+                                  return sum + Math.round(cant * tasa * precioInsumo);
+                                }
+                              }, 0);
+                              modoText = `${projItems.length} Gastos Registrados`;
                             } else {
                               costoProyectado = Math.round(diasEstimados * 20000);
-                              modoText = `TIEMPO ($20.000/Día * ${diasEstimados.toFixed(1)} Días esperados)`;
+                              modoText = `Default ($20.000/Día * ${diasEstimados.toFixed(1)} Días)`;
                             }
 
                             const margen = montoPres - costoProyectado;
                             const pctMargen = montoPres > 0 ? ((margen / montoPres) * 100).toFixed(1) : '0';
+                            const isExpanded = expandedPartidas[p.partida];
 
                             return (
-                              <tr key={p.id || pIdx} className="hover:bg-slate-50">
-                                <td className="p-3 font-bold text-slate-800">{p.partida}</td>
-                                <td className="p-3 font-mono font-bold text-slate-700">{cant.toLocaleString('es-CL')} {p.unidad}</td>
-                                <td className="p-3 font-mono text-slate-600">{rend} {p.unidad}/Día</td>
-                                <td className="p-3 font-mono font-black text-blue-900">{diasEstimados.toFixed(1)} Días hábiles</td>
-                                <td className="p-3 font-mono text-[10px] text-slate-600 bg-slate-50 rounded">{modoText}</td>
-                                <td className="p-3 font-mono font-bold text-slate-800 text-right">${montoPres.toLocaleString('es-CL')}</td>
-                                <td className="p-3 font-mono font-black text-blue-950 text-right">${costoProyectado.toLocaleString('es-CL')}</td>
-                                <td className={`p-3 font-mono font-black text-right ${margen >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                                  ${margen.toLocaleString('es-CL')} (${pctMargen}%)
-                                </td>
-                                <td className="p-3 text-center">
-                                  <button
-                                    onClick={() => {
-                                      setProyeccionFormData({
-                                        partida: p.partida,
-                                        tipo_proyeccion: projAssoc?.tipo_proyeccion || 'TIEMPO',
-                                        nombre_item: projAssoc?.nombre_item || `Costo Partida: ${p.partida}`,
-                                        tarifa_tiempo_dia: projAssoc?.tarifa_tiempo_dia || 20000,
-                                        unidad_insumo: projAssoc?.unidad_insumo || 'Unidad',
-                                        tasa_rendimiento_insumo: projAssoc?.tasa_rendimiento_insumo || 1,
-                                        precio_unitario_insumo: projAssoc?.precio_unitario_insumo || 5000
-                                      });
-                                      setShowProyeccionModal(true);
-                                    }}
-                                    className="bg-blue-100 hover:bg-blue-900 hover:text-white text-blue-900 px-2.5 py-1 rounded-lg text-[10px] font-extrabold cursor-pointer transition shadow-2xs"
-                                    title="Editar proyección de esta partida"
-                                  >
-                                    ✏️ Configurar
-                                  </button>
-                                </td>
-                              </tr>
+                              <React.Fragment key={p.id || pIdx}>
+                                <tr className="hover:bg-slate-50 border-b border-slate-200">
+                                  <td className="p-3 font-bold text-slate-800">
+                                    <div className="flex items-center gap-1.5">
+                                      <span>{p.partida}</span>
+                                      {projItems.length > 0 && (
+                                        <span className="bg-blue-100 text-blue-900 px-1.5 py-0.5 rounded text-[9px] font-black">
+                                          {projItems.length}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="p-3 font-mono font-bold text-slate-700">{cant.toLocaleString('es-CL')} {p.unidad}</td>
+                                  <td className="p-3 font-mono text-slate-600">{rend} {p.unidad}/Día</td>
+                                  <td className="p-3 font-mono font-black text-blue-900">{diasEstimados.toFixed(1)} Días hábiles</td>
+                                  <td className="p-3 font-mono text-[10px]">
+                                    <button
+                                      onClick={() => toggleExpandPartida(p.partida)}
+                                      className={`px-2 py-1 rounded font-bold cursor-pointer transition text-[10px] flex items-center gap-1 ${
+                                        projItems.length > 0 
+                                          ? 'bg-indigo-100 text-indigo-950 hover:bg-indigo-200 border border-indigo-300' 
+                                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                      }`}
+                                    >
+                                      <span>{isExpanded ? '▲ Ocultar' : `▼ ${modoText}`}</span>
+                                    </button>
+                                  </td>
+                                  <td className="p-3 font-mono font-bold text-slate-800 text-right">${montoPres.toLocaleString('es-CL')}</td>
+                                  <td className="p-3 font-mono font-black text-blue-950 text-right">${costoProyectado.toLocaleString('es-CL')}</td>
+                                  <td className={`p-3 font-mono font-black text-right ${margen >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                    ${margen.toLocaleString('es-CL')} (${pctMargen}%)
+                                  </td>
+                                  <td className="p-3 text-center">
+                                    <button
+                                      onClick={() => {
+                                        setProyeccionFormData({
+                                          id: null,
+                                          partida: p.partida,
+                                          tipo_proyeccion: 'TIEMPO',
+                                          nombre_item: `Costo Partida: ${p.partida}`,
+                                          tarifa_tiempo_dia: 20000,
+                                          unidad_insumo: 'Unidad',
+                                          tasa_rendimiento_insumo: 1,
+                                          precio_unitario_insumo: 5000
+                                        });
+                                        setShowProyeccionModal(true);
+                                      }}
+                                      className="bg-blue-900 hover:bg-blue-800 text-white px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition shadow-2xs flex items-center gap-1 mx-auto"
+                                    >
+                                      <span>+ Agregar Gasto</span>
+                                    </button>
+                                  </td>
+                                </tr>
+
+                                {/* DESGLOSE DESPLEGABLE DE GASTOS PARA ESTA PARTIDA */}
+                                {isExpanded && (
+                                  <tr className="bg-slate-100/90 border-b border-slate-300">
+                                    <td colSpan="9" className="p-3">
+                                      <div className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-3 shadow-2xs">
+                                        <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-xs font-black text-slate-900">
+                                              📋 Detalle de Gastos Proyectados para: <span className="text-blue-900">{p.partida}</span>
+                                            </span>
+                                            <span className="bg-blue-100 text-blue-900 text-[10px] font-black px-2 py-0.5 rounded-full">
+                                              {projItems.length} Gastos Registrados
+                                            </span>
+                                          </div>
+                                          <button
+                                            onClick={() => {
+                                              setProyeccionFormData({
+                                                id: null,
+                                                partida: p.partida,
+                                                tipo_proyeccion: 'TIEMPO',
+                                                nombre_item: '',
+                                                tarifa_tiempo_dia: 20000,
+                                                unidad_insumo: 'Unidad',
+                                                tasa_rendimiento_insumo: 1,
+                                                precio_unitario_insumo: 5000
+                                              });
+                                              setShowProyeccionModal(true);
+                                            }}
+                                            className="bg-emerald-800 hover:bg-emerald-700 text-white font-bold text-[10px] px-2.5 py-1 rounded-lg cursor-pointer transition flex items-center gap-1"
+                                          >
+                                            <span>+ Añadir Gasto a esta Partida</span>
+                                          </button>
+                                        </div>
+
+                                        {projItems.length === 0 ? (
+                                          <div className="p-3 text-center text-slate-500 italic text-xs bg-slate-50 rounded-lg">
+                                            No hay gastos personalizados agregados a esta partida aún (se está usando la tarifa estimada por defecto). Presiona "+ Añadir Gasto a esta Partida".
+                                          </div>
+                                        ) : (
+                                          <div className="overflow-x-auto">
+                                            <table className="w-full text-left text-xs border-collapse">
+                                              <thead>
+                                                <tr className="bg-slate-100 text-slate-600 font-extrabold text-[9px] uppercase border-b border-slate-200">
+                                                  <th className="p-2">#</th>
+                                                  <th className="p-2">Concepto / Nombre Gasto</th>
+                                                  <th className="p-2">Tipo Proyección</th>
+                                                  <th className="p-2">Fórmula / Cálculo Aplicado</th>
+                                                  <th className="p-2 text-right">Subtotal Proyectado</th>
+                                                  <th className="p-2 text-center">Acciones</th>
+                                                </tr>
+                                              </thead>
+                                              <tbody className="divide-y divide-slate-150">
+                                                {projItems.map((item, itemIdx) => {
+                                                  let subtotalItem = 0;
+                                                  let formulaStr = '';
+                                                  if (item.tipo_proyeccion === 'TIEMPO') {
+                                                    const tDia = parseFloat(item.tarifa_tiempo_dia) || 20000;
+                                                    subtotalItem = Math.round(diasEstimados * tDia);
+                                                    formulaStr = `$${tDia.toLocaleString('es-CL')}/Día * ${diasEstimados.toFixed(1)} Días hábiles`;
+                                                  } else {
+                                                    const tasa = parseFloat(item.tasa_rendimiento_insumo) || 1;
+                                                    const pu = parseFloat(item.precio_unitario_insumo) || 5000;
+                                                    subtotalItem = Math.round(cant * tasa * pu);
+                                                    formulaStr = `${tasa} ${item.unidad_insumo || 'und'}/unidad * $${pu.toLocaleString('es-CL')} (Cant. ${cant})`;
+                                                  }
+                                                  return (
+                                                    <tr key={item.id || itemIdx} className="hover:bg-slate-50 transition">
+                                                      <td className="p-2 font-mono font-bold text-slate-400">{itemIdx + 1}</td>
+                                                      <td className="p-2 font-extrabold text-slate-900">{item.nombre_item || `Gasto #${itemIdx + 1}`}</td>
+                                                      <td className="p-2">
+                                                        <span className={`px-2 py-0.5 rounded text-[9px] font-black ${item.tipo_proyeccion === 'TIEMPO' ? 'bg-blue-100 text-blue-900' : 'bg-amber-100 text-amber-900'}`}>
+                                                          {item.tipo_proyeccion === 'TIEMPO' ? '⏱️ TIEMPO' : '📦 INSUMO'}
+                                                        </span>
+                                                      </td>
+                                                      <td className="p-2 font-mono text-[10px] text-slate-600">{formulaStr}</td>
+                                                      <td className="p-2 font-mono font-black text-blue-950 text-right">${subtotalItem.toLocaleString('es-CL')}</td>
+                                                      <td className="p-2 text-center">
+                                                        <div className="flex justify-center items-center gap-1.5">
+                                                          <button
+                                                            onClick={() => {
+                                                              setProyeccionFormData(item);
+                                                              setShowProyeccionModal(true);
+                                                            }}
+                                                            className="text-[10px] bg-slate-200 hover:bg-blue-900 hover:text-white px-2 py-0.5 rounded font-bold transition cursor-pointer"
+                                                          >
+                                                            ✏️ Editar
+                                                          </button>
+                                                          <button
+                                                            onClick={() => {
+                                                              if (confirm(`¿Eliminar el gasto "${item.nombre_item || 'Gasto'}"?`)) {
+                                                                setProyeccionesList(prev => {
+                                                                  const updated = prev.filter(x => x.id !== item.id);
+                                                                  try {
+                                                                    const key = `obraxis_proyecciones_obras_${selectedObra?.nombre}`;
+                                                                    localStorage.setItem(key, JSON.stringify(updated));
+                                                                  } catch (err) {}
+                                                                  return updated;
+                                                                });
+                                                              }
+                                                            }}
+                                                            className="text-[10px] bg-rose-100 hover:bg-rose-700 hover:text-white text-rose-800 px-2 py-0.5 rounded font-bold transition cursor-pointer"
+                                                          >
+                                                            🗑️ Eliminar
+                                                          </button>
+                                                        </div>
+                                                      </td>
+                                                    </tr>
+                                                  );
+                                                })}
+                                              </tbody>
+                                            </table>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
                             );
                           })}
                         </tbody>
@@ -7887,14 +8036,16 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
               onSubmit={(e) => {
                 e.preventDefault();
                 setProyeccionesList(prev => {
-                  const filtered = prev.filter(x => x.partida !== proyeccionFormData.partida);
-                  return [...filtered, proyeccionFormData];
+                  const itemId = proyeccionFormData.id || ('proj-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6));
+                  const newItem = { ...proyeccionFormData, id: itemId };
+                  const exists = prev.some(x => x.id === itemId);
+                  const updated = exists ? prev.map(x => x.id === itemId ? newItem : x) : [...prev, newItem];
+                  try {
+                    const key = `obraxis_proyecciones_obras_${selectedObra?.nombre}`;
+                    localStorage.setItem(key, JSON.stringify(updated));
+                  } catch (err) {}
+                  return updated;
                 });
-                try {
-                  const key = `obraxis_proyecciones_obras_${selectedObra?.nombre}`;
-                  const updated = proyeccionesList.filter(x => x.partida !== proyeccionFormData.partida);
-                  localStorage.setItem(key, JSON.stringify([...updated, proyeccionFormData]));
-                } catch (err) {}
                 setShowProyeccionModal(false);
               }}
               className="space-y-4 text-xs"
