@@ -1363,14 +1363,24 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         if (savedLocalPartidasStr) savedLocalPartidas = JSON.parse(savedLocalPartidasStr);
       } catch(e) {}
 
-      let normalizedListPart = (listPart || []).map(p => {
+      let normalizedListPart = (listPart || []).map((p, pIdx) => {
         const localMatch = savedLocalPartidas.find(lp => lp.partida === p.partida || (lp.id && String(lp.id) === String(p.id)));
+        const isTit = p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo || (p.partida && /^[0-9]\./.test(p.partida.trim()));
+
+        // Fechas automáticas distribuidas desde abril 2026 si no tienen fecha
+        let autoDate = '2026-04-06';
+        if (pIdx > 12) autoDate = '2026-07-27';
+        else if (pIdx > 8) autoDate = '2026-07-01';
+        else if (pIdx > 4) autoDate = '2026-06-01';
+        else if (pIdx > 2) autoDate = '2026-04-27';
+
         return {
           ...p,
-          cantidad: parseFloat(p.cantidad_presupuestada !== undefined && p.cantidad_presupuestada !== null ? p.cantidad_presupuestada : p.cantidad) || 0,
-          pu: parseFloat(p.costo_por_dia !== undefined && p.costo_por_dia !== null ? p.costo_por_dia : p.pu) || 0,
+          es_titulo: isTit,
+          cantidad: isTit ? 0 : (parseFloat(p.cantidad_presupuestada !== undefined && p.cantidad_presupuestada !== null && p.cantidad_presupuestada !== 0 ? p.cantidad_presupuestada : p.cantidad) || 0),
+          pu: isTit ? 0 : (parseFloat(p.costo_por_dia !== undefined && p.costo_por_dia !== null && p.costo_por_dia !== 0 ? p.costo_por_dia : p.pu) || 0),
           rendimiento: p.rendimiento_meta || p.rendimiento || '10',
-          fecha_inicio: localMatch?.fecha_inicio || p.fecha_inicio || p.fecha_inicio_programada || null,
+          fecha_inicio: localMatch?.fecha_inicio || p.fecha_inicio || p.fecha_inicio_programada || autoDate,
           predecesora: localMatch?.predecesora !== undefined ? localMatch.predecesora : (p.predecesora || null),
           tipo_relacion: localMatch?.tipo_relacion || p.tipo_relacion || 'FS',
           desfase_dias: localMatch?.desfase_dias !== undefined ? localMatch.desfase_dias : (p.desfase_dias || 0)
