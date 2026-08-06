@@ -4349,7 +4349,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           className="bg-indigo-900 hover:bg-indigo-800 text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
                         >
                           <Plus className="w-3.5 h-3.5" />
-                          <span>+ Crear Hito / Tarea Adicional</span>
+                          <span>Crear Hito / Tarea Adicional</span>
                         </button>
 
                         <label className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs">
@@ -5257,7 +5257,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                         className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 cursor-pointer shadow-xs"
                       >
                         <Plus className="w-3.5 h-3.5" />
-                        <span>+ Configurar Gasto / Tarifa por Partida</span>
+                        <span>Configurar Gasto / Tarifa por Partida</span>
                       </button>
                     </div>
                     <div className="overflow-x-auto">
