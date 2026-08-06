@@ -4153,7 +4153,13 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 const avgPctPerDay = pAvanceRates.length > 0 ? (pAvanceRates.reduce((acc, p) => acc + p.pctPerDay, 0) / pAvanceRates.length).toFixed(2) : "0.00";
 
                 // 3. CÁLCULO DE PUNTOS PARA CURVA S DE AVANCE FÍSICO (SEMANAL - REAL VS PROGRAMADO)
-                const fInicioObraDefault = fechaInicioReal || (selectedObra?.fecha_inicio ? String(selectedObra.fecha_inicio).split('T')[0] : '2026-04-06');
+                const minPartidaStart = targetPartidas.reduce((min, p) => {
+                  const f = p.fecha_inicio ? String(p.fecha_inicio).split('T')[0] : null;
+                  if (!f) return min;
+                  return (!min || f < min) ? f : min;
+                }, null);
+
+                const fInicioObraDefault = minPartidaStart || (selectedObra?.nombre?.includes('Parque Central') ? '2026-04-06' : (fechaInicioReal || '2026-04-06'));
                 const timelineMilestones = [];
                 let sDate = new Date(fInicioObraDefault + 'T00:00:00');
                 const eDate = new Date(fCorteStr + 'T00:00:00');
@@ -4468,14 +4474,16 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
                             <div className="h-52 flex items-end justify-around gap-3 pt-6 px-3 bg-slate-50 rounded-xl border border-slate-100">
                               {last5DaysData.map((d, dIdx) => {
-                                const pctHeight = max5DaysMonto > 0 ? Math.max(12, Math.round((d.monto / max5DaysMonto) * 100)) : 12;
+                                const pctHeight = max5DaysMonto > 0 ? Math.max(15, Math.round((d.monto / max5DaysMonto) * 100)) : 15;
                                 return (
                                   <div key={`d-${dIdx}`} className="flex-1 flex flex-col items-center gap-1.5 group">
                                     <span className="text-[10px] font-mono font-bold text-blue-950 opacity-90 group-hover:opacity-100 transition">
                                       {d.monto > 0 ? `$${Math.round(d.monto / 1000000)}M` : '$0'}
                                     </span>
-                                    <div className="w-full max-w-[42px] bg-gradient-to-t from-blue-950 via-blue-800 to-indigo-600 rounded-t-lg transition-all duration-500 shadow-2xs relative" style={{ height: `${pctHeight}%` }}>
-                                      <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 rounded-t-lg transition"></div>
+                                    <div className="w-full h-32 flex flex-col justify-end items-center">
+                                      <div className="w-full max-w-[42px] bg-gradient-to-t from-blue-950 via-blue-800 to-indigo-600 rounded-t-lg transition-all duration-500 shadow-2xs relative" style={{ height: `${pctHeight}%` }}>
+                                        <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 rounded-t-lg transition"></div>
+                                      </div>
                                     </div>
                                     <span className="text-[10.5px] font-bold text-slate-700 font-mono">{d.date.substring(5)}</span>
                                     <span className="text-[9px] text-slate-500 font-semibold">{d.count} reportes</span>
@@ -4891,7 +4899,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
                             {/* Contenedor SVG Curva S */}
                             {(() => {
-                              const fStart = selectedObra?.fecha_inicio || '2026-06-01';
+                              const fStart = minPartidaStart || (selectedObra?.nombre?.includes('Parque Central') ? '2026-04-06' : (fechaInicioReal || '2026-04-06'));
                               const dStart = new Date(fStart + 'T00:00:00').getTime();
                               const dEnd = new Date(fCorteStr + 'T00:00:00').getTime();
                               const validEnd = isNaN(dEnd) || dEnd <= dStart ? dStart + 30 * 86400000 : dEnd;
@@ -4919,7 +4927,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                   const pu = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (parseFloat(p.pu) || 0);
                                   const pReps = (reportesAvanceList || []).filter(r => {
                                     const fRep = r.fecha || r.fecha_avance || (r.created_at ? String(r.created_at).substring(0, 10) : '');
-                                    return fRep <= ptDate && r.partida === p.partida;
+                                    return fRep <= ptDate && isMatchPartidaName(r.partida, p.partida);
                                   });
                                   const cantAv = pReps.reduce((rSum, r) => rSum + (parseFloat(r.cantidad) || 0), 0);
                                   return sum + Math.round(Math.min(parseFloat(p.cantidad) || 0, cantAv) * pu);
@@ -4995,42 +5003,47 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             </div>
 
                             <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
-                              {partidasConDesviacion.slice(0, 5).map((p, idx) => {
-                                const maxVal = Math.max(1, p.ventaAvance, p.costoImputadoReal);
-                                const pctVenta = Math.round((p.ventaAvance / maxVal) * 100);
-                                const pctCosto = Math.round((p.costoImputadoReal / maxVal) * 100);
+                              {(() => {
+                                const partidasParaComparar = (partidasConDesviacion.length > 0 ? partidasConDesviacion : targetPartidas.filter(p => !p.es_titulo).map(p => {
+                                  const pu = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (parseFloat(p.pu) || parseFloat(p.costo_por_dia) || 0);
+                                  const pReps = (reportesAvanceList || []).filter(r => {
+                                    const fRep = r.fecha || r.fecha_avance || (r.created_at ? String(r.created_at).substring(0, 10) : '');
+                                    return fRep <= fCorteStr && isMatchPartidaName(r.partida, p.partida);
+                                  });
+                                  const cantAv = pReps.reduce((rSum, r) => rSum + (parseFloat(r.cantidad) || 0), 0);
+                                  const ventaAvance = Math.round(Math.min(parseFloat(p.cantidad) || 0, cantAv) * pu);
 
-                                return (
-                                  <div key={idx} className="bg-slate-50 p-2 rounded-xl border border-slate-200 space-y-1">
-                                    <div className="flex justify-between text-[11px] font-bold">
-                                      <span className="truncate max-w-[200px] text-slate-800">{p.partida}</span>
-                                      <span className={p.esSobrecosto ? 'text-rose-700 font-black' : 'text-emerald-700 font-black'}>
-                                        {p.esSobrecosto ? `🚨 Sobrecosto: +$${p.variacionMonto.toLocaleString('es-CL')}` : '✓ Margen Ok'}
-                                      </span>
-                                    </div>
+                                  const cFact = (costosList || []).filter(c => (c.fecha || c.created_at?.substring(0, 10)) <= fCorteStr && isMatchPartidaName(c.partida, p.partida)).reduce((acc, c) => acc + (parseFloat(c.monto) || 0), 0);
+                                  const costoImputadoReal = cFact;
+                                  const esSobrecosto = costoImputadoReal > ventaAvance;
+                                  return { partida: p.partida, ventaAvance, costoImputadoReal, esSobrecosto };
+                                })).sort((a, b) => b.ventaAvance - a.ventaAvance).slice(0, 5);
 
-                                    <div className="space-y-0.5">
-                                      <div className="flex justify-between text-[9px] text-slate-500 font-semibold">
-                                        <span>Venta Avance</span>
-                                        <span className="font-mono font-bold text-blue-900">${p.ventaAvance.toLocaleString('es-CL')}</span>
-                                      </div>
-                                      <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                                        <div className="bg-blue-900 h-full rounded-full transition-all duration-500" style={{ width: `${pctVenta}%` }}></div>
-                                      </div>
-                                    </div>
+                                return partidasParaComparar.map((p, idx) => {
+                                  const maxVal = Math.max(1, p.ventaAvance, p.costoImputadoReal);
+                                  const pctVenta = Math.round((p.ventaAvance / maxVal) * 100);
+                                  const pctCosto = Math.round((p.costoImputadoReal / maxVal) * 100);
 
-                                    <div className="space-y-0.5">
-                                      <div className="flex justify-between text-[9px] text-slate-500 font-semibold">
-                                        <span>Costo Real</span>
-                                        <span className="font-mono font-bold text-rose-700">${p.costoImputadoReal.toLocaleString('es-CL')}</span>
+                                  return (
+                                    <div key={idx} className="bg-slate-50 p-2 rounded-xl border border-slate-200 space-y-1">
+                                      <div className="flex justify-between text-[11px] font-bold">
+                                        <span className="truncate max-w-[200px] text-slate-800">{p.partida}</span>
+                                        <span className={p.esSobrecosto ? 'text-rose-700 font-black' : 'text-emerald-700 font-black'}>
+                                          Venta: ${p.ventaAvance.toLocaleString('es-CL')} | Costo: ${p.costoImputadoReal.toLocaleString('es-CL')}
+                                        </span>
                                       </div>
-                                      <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                                        <div className={`h-full rounded-full transition-all duration-500 ${p.esSobrecosto ? 'bg-rose-600' : 'bg-slate-600'}`} style={{ width: `${pctCosto}%` }}></div>
+                                      <div className="space-y-1">
+                                        <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden flex">
+                                          <div className="bg-blue-900 h-full rounded-full transition-all duration-500" style={{ width: `${pctVenta}%` }}></div>
+                                        </div>
+                                        <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden flex">
+                                          <div className={`h-full rounded-full transition-all duration-500 ${p.esSobrecosto ? 'bg-rose-600' : 'bg-emerald-600'}`} style={{ width: `${pctCosto}%` }}></div>
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
-                                );
-                              })}
+                                  );
+                                });
+                              })()}
                             </div>
                           </div>
                         </div>
