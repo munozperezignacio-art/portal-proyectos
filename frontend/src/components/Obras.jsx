@@ -1141,12 +1141,26 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     // 3. Cargar partidas de obra
     try {
       const { data: listPart } = await supabase.from('partidas_obra').select('*').eq('obra_nombre', obraNombre);
-      let normalizedListPart = (listPart || []).map(p => ({
-        ...p,
-        cantidad: parseFloat(p.cantidad_presupuestada !== undefined && p.cantidad_presupuestada !== null ? p.cantidad_presupuestada : p.cantidad) || 0,
-        pu: parseFloat(p.costo_por_dia !== undefined && p.costo_por_dia !== null ? p.costo_por_dia : p.pu) || 0,
-        rendimiento: p.rendimiento_meta || p.rendimiento || '10'
-      }));
+
+      const savedLocalPartidasStr = localStorage.getItem(`partidas_${selectedObra?.id}`) || localStorage.getItem(`partidas_${obraNombre}`);
+      let savedLocalPartidas = [];
+      try {
+        if (savedLocalPartidasStr) savedLocalPartidas = JSON.parse(savedLocalPartidasStr);
+      } catch(e) {}
+
+      let normalizedListPart = (listPart || []).map(p => {
+        const localMatch = savedLocalPartidas.find(lp => lp.partida === p.partida || (lp.id && String(lp.id) === String(p.id)));
+        return {
+          ...p,
+          cantidad: parseFloat(p.cantidad_presupuestada !== undefined && p.cantidad_presupuestada !== null ? p.cantidad_presupuestada : p.cantidad) || 0,
+          pu: parseFloat(p.costo_por_dia !== undefined && p.costo_por_dia !== null ? p.costo_por_dia : p.pu) || 0,
+          rendimiento: p.rendimiento_meta || p.rendimiento || '10',
+          fecha_inicio: localMatch?.fecha_inicio || p.fecha_inicio || p.fecha_inicio_programada || null,
+          predecesora: localMatch?.predecesora !== undefined ? localMatch.predecesora : (p.predecesora || null),
+          tipo_relacion: localMatch?.tipo_relacion || p.tipo_relacion || 'FS',
+          desfase_dias: localMatch?.desfase_dias !== undefined ? localMatch.desfase_dias : (p.desfase_dias || 0)
+        };
+      });
 
       // Respetar orden guardado en memoria local para esta obra
       try {
@@ -4372,16 +4386,18 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                     <td className="p-3 text-slate-300 font-mono text-[10px]">
                                       Consolidado del Grupo
                                     </td>
-                                    <td className="p-3 text-center font-mono font-bold text-amber-300 text-[10.5px]">
-                                      {g.duracionDias} Días Hábiles
+                                    <td className="p-3 text-center whitespace-nowrap font-mono font-bold text-amber-300 text-[10.5px]">
+                                      <span className="whitespace-nowrap inline-flex items-center justify-center gap-1 bg-slate-800 text-amber-300 px-2 py-0.5 rounded border border-slate-700">
+                                        ⏱️ {g.duracionDias} Días Hábiles
+                                      </span>
                                     </td>
-                                    <td className="p-3 text-slate-400 font-mono text-[9.5px] italic">
+                                    <td className="p-3 text-slate-400 font-mono text-[9.5px] italic whitespace-nowrap">
                                       Min / Max Hijos
                                     </td>
-                                    <td className="p-3 font-mono font-bold text-indigo-200">
+                                    <td className="p-3 font-mono font-bold text-indigo-200 whitespace-nowrap">
                                       {g.fechaInicio} <span className="text-[9px] text-slate-400 font-normal">(Pronta)</span>
                                     </td>
-                                    <td className="p-3 font-mono font-bold text-emerald-300">
+                                    <td className="p-3 font-mono font-bold text-emerald-300 whitespace-nowrap">
                                       {g.fechaTermino} <span className="text-[9px] text-slate-400 font-normal">(Tardía)</span>
                                     </td>
                                     <td className="p-3 text-center">
@@ -4416,8 +4432,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                           <span className="text-[9.5px] text-slate-400 block font-normal">Rend: {p.rend} {p.unidad}/Día</span>
                                         </td>
 
-                                        <td className="p-3 text-center font-mono font-black text-blue-950 text-xs">
-                                          <span className="bg-blue-50 text-blue-950 px-2 py-0.5 rounded border border-blue-200">
+                                        <td className="p-3 text-center whitespace-nowrap font-mono font-black text-blue-950 text-xs">
+                                          <span className="whitespace-nowrap inline-flex items-center justify-center gap-1 bg-blue-50 text-blue-950 px-2.5 py-1 rounded-lg border border-blue-200 shadow-2xs font-bold text-[11px]">
                                             ⏱️ {p.duracionDias} Días Hábiles
                                           </span>
                                         </td>
