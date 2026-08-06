@@ -2143,18 +2143,60 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
   // Cargar Cuadrillas y Arriendos desde localStorage cuando cambia la obra
   useEffect(() => {
-    if (selectedObra?.id) {
+    if (selectedObra?.nombre || selectedObra?.id) {
       try {
-        const savedC = localStorage.getItem(`cuadrillas_${selectedObra.id}`);
-        if (savedC) setCuadrillasList(JSON.parse(savedC));
-        else setCuadrillasList([]);
+        const obraKey = selectedObra.id ? `cuadrillas_${selectedObra.id}` : `cuadrillas_${selectedObra.nombre}`;
+        const savedC = localStorage.getItem(obraKey) || localStorage.getItem(`cuadrillas_${selectedObra.nombre}`) || localStorage.getItem(`cuadrillas_${selectedObra.id}`);
+        
+        if (savedC && JSON.parse(savedC).length > 0) {
+          setCuadrillasList(JSON.parse(savedC));
+        } else if (personalAsignadoList && personalAsignadoList.length > 0) {
+          // Filtrar staff administrativo/directivo
+          const isStaff = (p) => {
+            const cargo = (p.cargo || p.funcion || '').toLowerCase();
+            return cargo.includes('administrad') || cargo.includes('jef') || cargo.includes('prevencion') || cargo.includes('oficina') || cargo.includes('rrhh') || cargo.includes('director');
+          };
+          
+          const operarios = personalAsignadoList.filter(p => !isStaff(p));
+          if (operarios.length > 0) {
+            const capatazObj = operarios.find(p => p.cargo?.toLowerCase().includes('capataz')) || operarios[0];
+            const pavimentadorObj = operarios.find(p => p.cargo?.toLowerCase().includes('instalad') || p.cargo?.toLowerCase().includes('paviment')) || operarios[1] || operarios[0];
+            const riegoObj = operarios.find(p => p.cargo?.toLowerCase().includes('riego') || p.cargo?.toLowerCase().includes('técnic')) || operarios[2] || operarios[0];
 
-        const savedA = localStorage.getItem(`arriendos_${selectedObra.id}`);
+            const autoCuadrillas = [
+              {
+                id: 101,
+                nombre: 'Cuadrilla 1: Movimiento de Tierras & Maquinaria',
+                lider: capatazObj?.nombre || 'Claudio Bravo Soto',
+                especialidad: 'Movimiento de Tierras & Mov. Maquinaria',
+                miembros: operarios.filter(p => p.cargo?.toLowerCase().includes('operad') || p.cargo?.toLowerCase().includes('topóg') || p.cargo?.toLowerCase().includes('capataz')).map(p => p.nombre)
+              },
+              {
+                id: 102,
+                nombre: 'Cuadrilla 2: Obras Civiles & Pavimentos',
+                lider: pavimentadorObj?.nombre || 'Gabriel Oyarzún',
+                especialidad: 'Pavimentos, Adoquines & Hormigón',
+                miembros: operarios.filter(p => p.cargo?.toLowerCase().includes('instalad') || p.cargo?.toLowerCase().includes('concret') || p.cargo?.toLowerCase().includes('paviment')).map(p => p.nombre)
+              },
+              {
+                id: 103,
+                nombre: 'Cuadrilla 3: Riego Automatizado & Paisajismo',
+                lider: riegoObj?.nombre || 'Mauricio Sanhueza',
+                especialidad: 'Red de Riego & Áreas Verdes',
+                miembros: operarios.filter(p => p.cargo?.toLowerCase().includes('riego') || p.cargo?.toLowerCase().includes('jornal')).map(p => p.nombre)
+              }
+            ];
+            setCuadrillasList(autoCuadrillas);
+            try { localStorage.setItem(obraKey, JSON.stringify(autoCuadrillas)); } catch(e) {}
+          }
+        }
+
+        const savedA = localStorage.getItem(`arriendos_${selectedObra.id}`) || localStorage.getItem(`arriendos_${selectedObra.nombre}`);
         if (savedA) setArriendosList(JSON.parse(savedA));
         else setArriendosList([]);
       } catch(e) {}
     }
-  }, [selectedObra?.id]);
+  }, [selectedObra, personalAsignadoList]);
 
   // Enviar Uso Maquinaria
   const submitMaquinaria = async (e) => {
