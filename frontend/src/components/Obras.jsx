@@ -4094,14 +4094,27 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   return acc + Math.round(diasEfectivosCorte * 20000);
                 }, 0);
 
-                const totalProyectadoRrhhForm = proyeccionesRrhhList.reduce((acc, r) => acc + (parseFloat(r.sueldo_base || 0) + parseFloat(r.horas_extras || 0) + parseFloat(r.asignaciones || 0)), 0);
-                const totalPersonalProyectado = totalProyectadoRrhhForm > 0
-                  ? totalProyectadoRrhhForm
-                  : (personalAsignadoList || []).reduce((acc, p) => {
-                      const custom = customSalariesMap[p.nombre];
-                      const sBase = custom?.sueldo_base || parseFloat(p.sueldo_base) || (parseFloat(p.costo_dia || 40000) * 30);
-                      return acc + (parseFloat(sBase) || 1200000);
-                    }, ((personalAsignadoList && personalAsignadoList.length > 0) ? 0 : 1200000));
+                const totalPersonalProyectado = (personalAsignadoList || []).reduce((acc, p) => {
+                  const custom = customSalariesMap[p.nombre];
+                  const sBase = custom?.sueldo_base || parseFloat(p.sueldo_base) || 1200000;
+                  const hExtras = custom?.horas_extras || 0;
+                  const asig = custom?.asignaciones || 0;
+                  const cEmpresa = Math.round((sBase + hExtras) * 1.25) + asig;
+                  const valorDia = Math.round(cEmpresa / 30);
+
+                  const rawAsigDate = p.fecha_asig ? String(p.fecha_asig).split('T')[0] : (selectedObra?.fecha_inicio ? String(selectedObra.fecha_inicio).split('T')[0] : fInicioStr);
+                  let diasTrab = 0;
+                  if (rawAsigDate && fCorteStr && rawAsigDate <= fCorteStr) {
+                    const dAsig = new Date(rawAsigDate);
+                    if (!isNaN(dAsig.getTime()) && !isNaN(dCorte.getTime())) {
+                      const diffDays = Math.floor((dCorte.getTime() - dAsig.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                      diasTrab = Math.max(1, diffDays);
+                    } else {
+                      diasTrab = 1;
+                    }
+                  }
+                  return acc + (diasTrab * valorDia);
+                }, 0);
                 const totalCostoProyectado = totalProyectadoPartidas + totalPersonalProyectado;
                 const saldoProyectado = totalPres - totalCostoProyectado;
 
@@ -4471,75 +4484,82 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             }
 
                             return partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo)).map((p, pIdx) => {
-                              const cant = parseFloat(p.cantidad) || 0;
+                              const cantTotal = parseFloat(p.cantidad) || 0;
                               const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
-                              const diasTotalesPartida = rend > 0 ? (cant / rend) : 1;
+                              const diasTotalesPartida = rend > 0 ? (cantTotal / rend) : 1;
                               const diasEfectivosCorte = Math.min(diasTranscurridosCorte, diasTotalesPartida);
                               const puVal = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (p.pu || 0);
-                              const montoPres = cant * puVal;
 
-                            const projItems = proyeccionesList.filter(x => x.partida === p.partida);
-                            let costoProyectado = 0;
-                            let modoText = '';
+                              // AVANCE TEÓRICO AL CORTE & PRESUPUESTO PROPORCIONAL AL CORTE
+                              const cantAvanceAlCorte = Math.min(cantTotal, Math.round(diasEfectivosCorte * rend));
+                              const montoPresAlCorte = Math.round(cantAvanceAlCorte * puVal);
+                              const montoPresTotal = Math.round(cantTotal * puVal);
 
-                            if (projItems.length > 0) {
-                              costoProyectado = projItems.reduce((sum, item) => {
-                                if (item.tipo_proyeccion === 'TIEMPO') {
-                                  const tarifaDia = parseFloat(item.tarifa_tiempo_dia) || 20000;
-                                  return sum + Math.round(diasEfectivosCorte * tarifaDia);
-                                } else {
-                                  const tasa = parseFloat(item.tasa_rendimiento_insumo) || 1;
-                                  const precioInsumo = parseFloat(item.precio_unitario_insumo) || 5000;
-                                  const insumosAlCorte = diasEfectivosCorte * (rend * tasa);
-                                  return sum + Math.round(insumosAlCorte * precioInsumo);
-                                }
-                              }, 0);
-                              modoText = `${projItems.length} Gastos Registrados`;
-                            } else {
-                              costoProyectado = Math.round(diasEfectivosCorte * 20000);
-                              modoText = `Default ($20.000/Día * ${diasEfectivosCorte.toFixed(1)} Días corte)`;
-                            }
+                              const projItems = proyeccionesList.filter(x => x.partida === p.partida);
+                              let costoProyectado = 0;
+                              let modoText = '';
 
-                            const margen = montoPres - costoProyectado;
-                            const pctMargen = montoPres > 0 ? ((margen / montoPres) * 100).toFixed(1) : '0';
-                            const isExpanded = expandedPartidas[p.partida];
+                              if (projItems.length > 0) {
+                                costoProyectado = projItems.reduce((sum, item) => {
+                                  if (item.tipo_proyeccion === 'TIEMPO') {
+                                    const tarifaDia = parseFloat(item.tarifa_tiempo_dia) || 20000;
+                                    return sum + Math.round(diasEfectivosCorte * tarifaDia);
+                                  } else {
+                                    const tasa = parseFloat(item.tasa_rendimiento_insumo) || 1;
+                                    const precioInsumo = parseFloat(item.precio_unitario_insumo) || 5000;
+                                    const insumosAlCorte = diasEfectivosCorte * (rend * tasa);
+                                    return sum + Math.round(insumosAlCorte * precioInsumo);
+                                  }
+                                }, 0);
+                                modoText = `${projItems.length} Gastos Registrados`;
+                              } else {
+                                costoProyectado = Math.round(diasEfectivosCorte * 20000);
+                                modoText = `Default ($20.000/Día * ${diasEfectivosCorte.toFixed(1)} Días corte)`;
+                              }
 
-                            return (
-                              <React.Fragment key={p.id || pIdx}>
-                                <tr className="hover:bg-slate-50 border-b border-slate-200">
-                                  <td className="p-3 font-bold text-slate-800">
-                                    <div className="flex items-center gap-1.5">
-                                      <span>{p.partida}</span>
-                                      {projItems.length > 0 && (
-                                        <span className="bg-blue-100 text-blue-900 px-1.5 py-0.5 rounded text-[9px] font-black">
-                                          {projItems.length}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td className="p-3 font-mono font-bold text-slate-700">{cant.toLocaleString('es-CL')} {p.unidad}</td>
-                                  <td className="p-3 font-mono text-slate-600">{rend} {p.unidad}/Día</td>
-                                  <td className="p-3 font-mono text-slate-700">
-                                    <span className="font-bold text-blue-900">{diasEfectivosCorte.toFixed(1)} / {diasTotalesPartida.toFixed(1)} Días</span>
-                                    <span className="text-[9px] text-slate-400 block font-normal">al corte {fechaCorteProyeccion}</span>
-                                  </td>
-                                  <td className="p-3 font-mono text-[10px]">
-                                    <button
-                                      onClick={() => toggleExpandPartida(p.partida)}
-                                      className={`px-2 py-1 rounded font-bold cursor-pointer transition text-[10px] flex items-center gap-1 ${
-                                        projItems.length > 0 
-                                          ? 'bg-indigo-100 text-indigo-950 hover:bg-indigo-200 border border-indigo-300' 
-                                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                      }`}
-                                    >
-                                      <span>{isExpanded ? '▲ Ocultar' : `▼ ${modoText}`}</span>
-                                    </button>
-                                  </td>
-                                  <td className="p-3 font-mono font-bold text-slate-800 text-right">${montoPres.toLocaleString('es-CL')}</td>
-                                  <td className="p-3 font-mono font-black text-blue-950 text-right">${costoProyectado.toLocaleString('es-CL')}</td>
-                                  <td className={`p-3 font-mono font-black text-right ${margen >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                                    ${margen.toLocaleString('es-CL')} (${pctMargen}%)
-                                  </td>
+                              const margenAlCorte = montoPresAlCorte - costoProyectado;
+                              const pctMargen = montoPresAlCorte > 0 ? ((margenAlCorte / montoPresAlCorte) * 100).toFixed(1) : '0';
+                              const isExpanded = expandedPartidas[p.partida];
+
+                              return (
+                                <React.Fragment key={p.id || pIdx}>
+                                  <tr className="hover:bg-slate-50 border-b border-slate-200">
+                                    <td className="p-3 font-bold text-slate-800">
+                                      <div className="flex items-center gap-1.5">
+                                        <span>{p.partida}</span>
+                                        {projItems.length > 0 && (
+                                          <span className="bg-blue-100 text-blue-900 px-1.5 py-0.5 rounded text-[9px] font-black">
+                                            {projItems.length}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="p-3 font-mono font-bold text-slate-700">{cantTotal.toLocaleString('es-CL')} {p.unidad}</td>
+                                    <td className="p-3 font-mono text-slate-600">{rend} {p.unidad}/Día</td>
+                                    <td className="p-3 font-mono text-slate-700">
+                                      <span className="font-bold text-blue-900">{diasEfectivosCorte.toFixed(1)} / {diasTotalesPartida.toFixed(1)} Días</span>
+                                      <span className="text-[9px] text-slate-400 block font-normal">al corte {fechaCorteProyeccion}</span>
+                                    </td>
+                                    <td className="p-3 font-mono text-[10px]">
+                                      <button
+                                        onClick={() => toggleExpandPartida(p.partida)}
+                                        className={`px-2 py-1 rounded font-bold cursor-pointer transition text-[10px] flex items-center gap-1 ${
+                                          projItems.length > 0 
+                                            ? 'bg-indigo-100 text-indigo-950 hover:bg-indigo-200 border border-indigo-300' 
+                                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                        }`}
+                                      >
+                                        <span>{isExpanded ? '▲ Ocultar' : `▼ ${modoText}`}</span>
+                                      </button>
+                                    </td>
+                                    <td className="p-3 font-mono text-right">
+                                      <span className="font-bold text-slate-900 block">${montoPresAlCorte.toLocaleString('es-CL')}</span>
+                                      <span className="text-[9px] text-slate-400 block font-normal">(Avance {cantAvanceAlCorte.toLocaleString('es-CL')} {p.unidad} de ${montoPresTotal.toLocaleString('es-CL')})</span>
+                                    </td>
+                                    <td className="p-3 font-mono font-black text-blue-950 text-right">${costoProyectado.toLocaleString('es-CL')}</td>
+                                    <td className={`p-3 font-mono font-black text-right ${margenAlCorte >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                      ${margenAlCorte.toLocaleString('es-CL')} (${pctMargen}%)
+                                    </td>
                                   <td className="p-3 text-center">
                                     <button
                                       onClick={() => {
@@ -4894,6 +4914,31 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                                   {workersArray.map((w, wIdx) => {
                                     const cEmpresa = w.costo_empresa || Math.round((w.sueldo_base || 1200000) * 1.25);
+                                    const valorDia = Math.round(cEmpresa / 30);
+
+                                    const rawAsigDate = w.fecha_asig ? String(w.fecha_asig).split('T')[0] : (selectedObra?.fecha_inicio ? String(selectedObra.fecha_inicio).split('T')[0] : null);
+                                    const formattedAsig = rawAsigDate ? (() => {
+                                      const pts = rawAsigDate.split('-');
+                                      return pts.length === 3 ? `${pts[2]}-${pts[1]}-${pts[0]}` : rawAsigDate;
+                                    })() : 'Fecha N/A';
+
+                                    const fCorteStr = fechaCorteProyeccion || new Date().toISOString().substring(0, 10);
+                                    const dateCorte = new Date(fCorteStr);
+
+                                    let diasTrabajadosCorte = 0;
+                                    if (rawAsigDate && fCorteStr && rawAsigDate <= fCorteStr) {
+                                      const dAsig = new Date(rawAsigDate);
+                                      if (!isNaN(dAsig.getTime()) && !isNaN(dateCorte.getTime())) {
+                                        const diffDays = Math.floor((dateCorte.getTime() - dAsig.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                                        diasTrabajadosCorte = Math.max(1, diffDays);
+                                      } else {
+                                        diasTrabajadosCorte = 1;
+                                      }
+                                    }
+
+                                    const isPosteriorACorte = rawAsigDate && fCorteStr && rawAsigDate > fCorteStr;
+                                    const costoProyectadoAlCorte = diasTrabajadosCorte * valorDia;
+
                                     return (
                                       <div key={wIdx} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 shadow-2xs hover:border-blue-300 transition">
                                         <div className="flex justify-between items-center border-b border-slate-200/60 pb-1.5">
@@ -4906,34 +4951,21 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                         </div>
                                         
                                         {/* PERÍODO DE ASIGNACIÓN (DESDE FECHA ASIGNACIÓN A OBRA HASTA CORTE GLOBAL) */}
-                                        {(() => {
-                                          const rawAsigDate = w.fecha_asig ? String(w.fecha_asig).split('T')[0] : (w.fecha_inicio ? String(w.fecha_inicio).split('T')[0] : null);
-                                          const formattedAsig = rawAsigDate ? (() => {
-                                            const pts = rawAsigDate.split('-');
-                                            return pts.length === 3 ? `${pts[2]}-${pts[1]}-${pts[0]}` : rawAsigDate;
-                                          })() : 'Fecha N/A';
-                                          const isPosteriorACorte = rawAsigDate && fechaCorteProyeccion && rawAsigDate > fechaCorteProyeccion;
-
-                                          return (
-                                            <>
-                                              <div className="bg-slate-100/90 p-2 rounded-lg border border-slate-200 flex justify-between items-center text-[10px] text-slate-600">
-                                                <div>
-                                                  <span className="font-bold block text-slate-700">📅 Asignado a Obra desde:</span>
-                                                  <span className="font-mono text-slate-800 font-bold">{formattedAsig}</span>
-                                                </div>
-                                                <div className="text-right">
-                                                  <span className="font-bold block text-slate-700">🏁 Corte / Término Proyección:</span>
-                                                  <span className="font-mono text-indigo-900 font-extrabold">{fechaCorteProyeccion || fechaTerminoEstimada || 'Fecha de Corte'}</span>
-                                                </div>
-                                              </div>
-                                              {isPosteriorACorte && (
-                                                <div className="bg-rose-50 border border-rose-200 text-rose-900 text-[10px] font-bold p-1.5 rounded-lg text-center">
-                                                  ⚠️ Asignación efectuada posterior a la fecha de corte ({formattedAsig})
-                                                </div>
-                                              )}
-                                            </>
-                                          );
-                                        })()}
+                                        <div className="bg-slate-100/90 p-2 rounded-lg border border-slate-200 flex justify-between items-center text-[10px] text-slate-600">
+                                          <div>
+                                            <span className="font-bold block text-slate-700">📅 Asignado desde:</span>
+                                            <span className="font-mono text-slate-800 font-bold">{formattedAsig}</span>
+                                          </div>
+                                          <div className="text-right">
+                                            <span className="font-bold block text-slate-700">⏱️ Días al Corte ({fechaCorteProyeccion}):</span>
+                                            <span className="font-mono text-indigo-900 font-extrabold">{diasTrabajadosCorte} Días</span>
+                                          </div>
+                                        </div>
+                                        {isPosteriorACorte && (
+                                          <div className="bg-rose-50 border border-rose-200 text-rose-900 text-[10px] font-bold p-1.5 rounded-lg text-center">
+                                            ⚠️ Asignación efectuada posterior a la fecha de corte ({formattedAsig})
+                                          </div>
+                                        )}
                                         <div className="space-y-1 text-[11px]">
                                           <div className="flex justify-between items-center">
                                             <span className="text-slate-500 font-semibold">Sueldo Base Mensual:</span>
@@ -4952,9 +4984,15 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                             <span className="font-mono font-bold">${(w.asignaciones || 0).toLocaleString('es-CL')}</span>
                                           </div>
                                         </div>
-                                        <div className="flex justify-between items-center pt-2 border-t border-slate-200 text-xs bg-emerald-50 p-2 rounded-lg">
-                                          <span className="font-extrabold text-emerald-950">Costo Proyectado Empresa:</span>
-                                          <span className="font-mono font-black text-emerald-900 text-sm">${cEmpresa.toLocaleString('es-CL')}</span>
+                                        <div className="space-y-1 pt-2 border-t border-slate-200 text-xs">
+                                          <div className="flex justify-between items-center text-[10px] text-slate-600">
+                                            <span>Valor Día (Costo Empresa ÷ 30):</span>
+                                            <span className="font-mono font-bold">${valorDia.toLocaleString('es-CL')}/día</span>
+                                          </div>
+                                          <div className="flex justify-between items-center bg-emerald-50 p-2 rounded-lg text-xs">
+                                            <span className="font-extrabold text-emerald-950">Costo Proyectado ({diasTrabajadosCorte} días):</span>
+                                            <span className="font-mono font-black text-emerald-900 text-sm">${costoProyectadoAlCorte.toLocaleString('es-CL')}</span>
+                                          </div>
                                         </div>
                                       </div>
                                     );
