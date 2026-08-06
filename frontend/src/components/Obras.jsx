@@ -4380,90 +4380,101 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           </div>
                         </div>
 
-                        {/* GRÁFICO DE CURVA S DE AVANCE FÍSICO REAL VS PROGRAMADO */}
-                        <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs space-y-4">
-                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b pb-3">
-                            <div>
-                              <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-2">
-                                <TrendingUp className="w-4 h-4 text-blue-900" />
-                                <span>📉 Curva S de Avance Físico Acumulado (Avance Real vs Programado)</span>
-                              </h4>
-                              <p className="text-[11px] text-slate-500 font-medium">Evolución porcentual del avance físico real acumulado vs curva de programación contractual</p>
+                        {/* SECCIÓN DUAL DE GRÁFICOS: CURVA S + ÚLTIMOS 5 DÍAS LABORALES SIDE-BY-SIDE */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
+                          
+                          {/* 1. GRÁFICO DE CURVA S DE AVANCE FÍSICO REAL VS PROGRAMADO */}
+                          <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs space-y-4 flex flex-col justify-between">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b pb-3">
+                              <div>
+                                <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-2">
+                                  <TrendingUp className="w-4 h-4 text-blue-900" />
+                                  <span>📉 Curva S (Real vs Programado)</span>
+                                </h4>
+                                <p className="text-[11px] text-slate-500 font-medium">Evolución real acumulada vs contractual</p>
+                              </div>
+                              <div className="flex items-center gap-2 text-[11px] font-bold">
+                                <span className="flex items-center gap-1 text-blue-950 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                                  <span className="w-2.5 h-2.5 bg-blue-900 rounded-full inline-block"></span>
+                                  <span>Real ({pctAvanceGlobal}%)</span>
+                                </span>
+                                <span className="flex items-center gap-1 text-emerald-950 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                  <span className="w-2.5 h-2.5 bg-emerald-600 rounded-full inline-block"></span>
+                                  <span>Prog. ({curvaSPoints.length > 0 ? curvaSPoints[curvaSPoints.length - 1].pvPct : "100"}%)</span>
+                                </span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-3 text-xs font-bold">
-                              <span className="flex items-center gap-1.5 text-blue-950 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
-                                <span className="w-3 h-3 bg-blue-900 rounded-full inline-block"></span>
-                                <span>Avance Real ({pctAvanceGlobal}%)</span>
-                              </span>
-                              <span className="flex items-center gap-1.5 text-emerald-950 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
-                                <span className="w-3 h-3 bg-emerald-600 rounded-full inline-block"></span>
-                                <span>Programado ({curvaSPoints.length > 0 ? curvaSPoints[curvaSPoints.length - 1].pvPct : "100"}%)</span>
-                              </span>
+
+                            {/* SVG CURVA S CON PROPORCIÓN DE ASPECTO FIJA Y LIMPIA */}
+                            <div className="w-full h-52 relative bg-slate-50 rounded-xl p-2 border border-slate-100 flex items-center justify-center">
+                              <svg className="w-full h-full" viewBox="0 0 500 200">
+                                {/* Guías Horizontales 0%, 25%, 50%, 75%, 100% */}
+                                <line x1="45" y1="20" x2="475" y2="20" stroke="#e2e8f0" strokeDasharray="3 3" />
+                                <text x="36" y="24" textAnchor="end" className="text-[10px] fill-slate-400 font-mono font-bold">100%</text>
+
+                                <line x1="45" y1="58" x2="475" y2="58" stroke="#e2e8f0" strokeDasharray="3 3" />
+                                <text x="36" y="62" textAnchor="end" className="text-[10px] fill-slate-400 font-mono font-bold">75%</text>
+
+                                <line x1="45" y1="95" x2="475" y2="95" stroke="#e2e8f0" strokeDasharray="3 3" />
+                                <text x="36" y="99" textAnchor="end" className="text-[10px] fill-slate-400 font-mono font-bold">50%</text>
+
+                                <line x1="45" y1="133" x2="475" y2="133" stroke="#e2e8f0" strokeDasharray="3 3" />
+                                <text x="36" y="137" textAnchor="end" className="text-[10px] fill-slate-400 font-mono font-bold">25%</text>
+
+                                <line x1="45" y1="170" x2="475" y2="170" stroke="#cbd5e1" strokeWidth="1.5" />
+                                <text x="36" y="174" textAnchor="end" className="text-[10px] fill-slate-400 font-mono font-bold">0%</text>
+
+                                {/* Trazo Línea Programada (Verde) */}
+                                <path d={pathPV} fill="none" stroke="#16a34a" strokeWidth="3" strokeDasharray="4 2" />
+
+                                {/* Trazo Línea Real (Azul) */}
+                                <path d={pathEV} fill="none" stroke="#1e3a8a" strokeWidth="3.5" />
+
+                                {/* Puntos y Nodos */}
+                                {curvaSPoints.map((pt, pIdx) => (
+                                  <g key={pIdx}>
+                                    <circle cx={pt.x} cy={pt.yEV} r="5" fill="#1e3a8a" stroke="#ffffff" strokeWidth="2" />
+                                    <circle cx={pt.x} cy={pt.yPV} r="4" fill="#16a34a" stroke="#ffffff" strokeWidth="1.5" />
+                                    <text x={pt.x} y={Math.max(14, pt.yEV - 8)} textAnchor="middle" className="text-[10px] fill-blue-950 font-extrabold font-mono">{pt.evPct}%</text>
+                                    <text x={pt.x} y="188" textAnchor="middle" className="text-[10px] fill-slate-600 font-mono font-bold">{pt.label}</text>
+                                  </g>
+                                ))}
+                              </svg>
                             </div>
                           </div>
 
-                          {/* SVG CURVA S */}
-                          <div className="w-full h-56 relative bg-slate-50 rounded-xl p-3 border border-slate-100 flex items-center justify-center">
-                            <svg className="w-full h-full overflow-visible" viewBox="0 0 500 180" preserveAspectRatio="none">
-                              {/* Guías Horizontales 0%, 25%, 50%, 75%, 100% */}
-                              <line x1="40" y1="20" x2="480" y2="20" stroke="#e2e8f0" strokeDasharray="3 3" />
-                              <text x="32" y="24" textAnchor="end" className="text-[9px] fill-slate-400 font-mono font-bold">100%</text>
+                          {/* 2. GRÁFICO DE BARRAS: ÚLTIMOS 5 DÍAS LABORALES */}
+                          <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs space-y-4 flex flex-col justify-between">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b pb-3">
+                              <div>
+                                <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-2">
+                                  <BarChart3 className="w-4 h-4 text-blue-900" />
+                                  <span>📊 Avance 5 Días Laborales</span>
+                                </h4>
+                                <p className="text-[11px] text-slate-500 font-medium">Producción diaria al corte ({fCorteStr})</p>
+                              </div>
+                              <span className="text-[10px] bg-blue-100 text-blue-900 px-2 py-0.5 rounded font-extrabold">Días Hábiles Chile</span>
+                            </div>
 
-                              <line x1="40" y1="55" x2="480" y2="55" stroke="#e2e8f0" strokeDasharray="3 3" />
-                              <text x="32" y="59" textAnchor="end" className="text-[9px] fill-slate-400 font-mono font-bold">75%</text>
-
-                              <line x1="40" y1="90" x2="480" y2="90" stroke="#e2e8f0" strokeDasharray="3 3" />
-                              <text x="32" y="94" textAnchor="end" className="text-[9px] fill-slate-400 font-mono font-bold">50%</text>
-
-                              <line x1="40" y1="125" x2="480" y2="125" stroke="#e2e8f0" strokeDasharray="3 3" />
-                              <text x="32" y="129" textAnchor="end" className="text-[9px] fill-slate-400 font-mono font-bold">25%</text>
-
-                              <line x1="40" y1="160" x2="480" y2="160" stroke="#cbd5e1" strokeWidth="1.5" />
-                              <text x="32" y="164" textAnchor="end" className="text-[9px] fill-slate-400 font-mono font-bold">0%</text>
-
-                              {/* Trazo Línea Programada (Verde) */}
-                              <path d={pathPV} fill="none" stroke="#16a34a" strokeWidth="3" strokeDasharray="4 2" />
-
-                              {/* Trazo Línea Real (Azul) */}
-                              <path d={pathEV} fill="none" stroke="#1e3a8a" strokeWidth="3.5" />
-
-                              {/* Puntos y Nodos */}
-                              {curvaSPoints.map((pt, pIdx) => (
-                                <g key={pIdx}>
-                                  <circle cx={pt.x} cy={pt.yEV} r="5" fill="#1e3a8a" stroke="#ffffff" strokeWidth="2" />
-                                  <circle cx={pt.x} cy={pt.yPV} r="4" fill="#16a34a" stroke="#ffffff" strokeWidth="1.5" />
-                                  <text x={pt.x} y={Math.max(15, pt.yEV - 8)} textAnchor="middle" className="text-[9px] fill-blue-950 font-bold font-mono">{pt.evPct}%</text>
-                                  <text x={pt.x} y="176" textAnchor="middle" className="text-[9px] fill-slate-600 font-mono font-bold">{pt.label}</text>
-                                </g>
-                              ))}
-                            </svg>
-                          </div>
-                        </div>
-
-                        {/* GRÁFICO DE BARRAS: ÚLTIMOS 5 DÍAS LABORALES */}
-                        <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs space-y-3">
-                          <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider flex items-center justify-between border-b pb-2">
-                            <span>📊 Avance Físico de los Últimos 5 Días Laborales (al {fCorteStr})</span>
-                            <span className="text-[10px] bg-blue-100 text-blue-900 px-2 py-0.5 rounded font-extrabold">Días Hábiles Chile</span>
-                          </h4>
-
-                          <div className="h-44 flex items-end justify-around gap-2 pt-4 px-2 bg-slate-50 rounded-xl border border-slate-100">
-                            {last5DaysData.map((d, dIdx) => {
-                              const pctHeight = max5DaysMonto > 0 ? Math.max(8, Math.round((d.monto / max5DaysMonto) * 100)) : 8;
-                              return (
-                                <div key={`d-${dIdx}`} className="flex-1 flex flex-col items-center gap-1 group">
-                                  <span className="text-[9.5px] font-mono font-bold text-blue-950 opacity-0 group-hover:opacity-100 transition">
-                                    ${d.monto.toLocaleString('es-CL')}
-                                  </span>
-                                  <div className="w-full max-w-[48px] bg-gradient-to-t from-blue-900 to-indigo-600 rounded-t-lg transition-all duration-500 shadow-2xs relative" style={{ height: `${pctHeight}%` }}>
-                                    <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 rounded-t-lg transition"></div>
+                            <div className="h-52 flex items-end justify-around gap-3 pt-6 px-3 bg-slate-50 rounded-xl border border-slate-100">
+                              {last5DaysData.map((d, dIdx) => {
+                                const pctHeight = max5DaysMonto > 0 ? Math.max(12, Math.round((d.monto / max5DaysMonto) * 100)) : 12;
+                                return (
+                                  <div key={`d-${dIdx}`} className="flex-1 flex flex-col items-center gap-1.5 group">
+                                    <span className="text-[10px] font-mono font-bold text-blue-950 opacity-90 group-hover:opacity-100 transition">
+                                      {d.monto > 0 ? `$${Math.round(d.monto / 1000000)}M` : '$0'}
+                                    </span>
+                                    <div className="w-full max-w-[42px] bg-gradient-to-t from-blue-950 via-blue-800 to-indigo-600 rounded-t-lg transition-all duration-500 shadow-2xs relative" style={{ height: `${pctHeight}%` }}>
+                                      <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 rounded-t-lg transition"></div>
+                                    </div>
+                                    <span className="text-[10.5px] font-bold text-slate-700 font-mono">{d.date.substring(5)}</span>
+                                    <span className="text-[9px] text-slate-500 font-semibold">{d.count} reportes</span>
                                   </div>
-                                  <span className="text-[10px] font-bold text-slate-700 font-mono">{d.date.substring(5)}</span>
-                                  <span className="text-[8.5px] text-slate-400">{d.count} reportes</span>
-                                </div>
-                              );
-                            })}
+                                );
+                              })}
+                            </div>
                           </div>
+
                         </div>
 
                         {/* TABLA DETALLADA DE AVANCE POR PARTIDAS */}
