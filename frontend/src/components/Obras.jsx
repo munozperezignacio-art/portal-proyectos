@@ -3081,59 +3081,56 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             <th className="p-2">Equipo</th>
                             <th className="p-2">Patente / Código</th>
                             <th className="p-2">Proveedor / Empresa Arrendadora</th>
-                            <th className="p-2">Costo Arriendo</th>
+                            <th className="p-2">Costo / Tarifa</th>
+                            <th className="p-2">Condición Mínima</th>
                             <th className="p-2">Periodo</th>
                             {canManageRecordsAccess && <th className="p-2 text-center">Acciones</th>}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-150">
-                          {arriendosList.map((a) => (
-                            <tr key={a.id} className="hover:bg-slate-50">
-                              <td className="p-2 font-bold text-slate-800">{a.equipo}</td>
-                              <td className="p-2 font-mono text-slate-600">{a.patente || '-'}</td>
-                              <td className="p-2 font-bold text-blue-950">{a.proveedor}</td>
-                              <td className="p-2 font-bold text-emerald-800">${a.costo?.toLocaleString('es-CL')}</td>
-                              <td className="p-2 text-slate-500 text-[11px]">{a.fechaInicio} al {a.fechaTermino}</td>
-                              {canManageRecordsAccess && (
-                                <td className="p-2 text-center">
-                                  <div className="flex items-center justify-center gap-1">
-                                    <button
-                                      type="button"
-                                      disabled={idx === 0}
-                                      onClick={() => handleReorderPartidaObra(idx, idx - 1)}
-                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
-                                      title="Mover arriba"
-                                    >
-                                      ▲
-                                    </button>
-                                    <button
-                                      type="button"
-                                      disabled={idx === partidasList.length - 1}
-                                      onClick={() => handleReorderPartidaObra(idx, idx + 1)}
-                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
-                                      title="Mover abajo"
-                                    >
-                                      ▼
-                                    </button>
-                                    <button
-                                      onClick={() => handleEditArriendo(a)}
-                                      className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition cursor-pointer"
-                                      title="Editar arriendo de maquinaria"
-                                    >
-                                      <Edit className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                      onClick={() => handleDeleteArriendo(a.id)}
-                                      className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition cursor-pointer"
-                                      title="Eliminar arriendo"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
-                                  </div>
+                          {arriendosList.map((a, aIdx) => {
+                            const tarifaVal = a.costo ? parseFloat(a.costo).toLocaleString('es-CL') : '0';
+                            const unidadStr = a.unidad_costo || '$/mes';
+                            let minStr = 'Sin Mínimo';
+                            if (a.tipo_condicion_minima === 'horas_dia' && a.cantidad_minima) minStr = `Mín. ${a.cantidad_minima} hrs/día`;
+                            else if (a.tipo_condicion_minima === 'horas_mes' && a.cantidad_minima) minStr = `Mín. ${a.cantidad_minima} hrs/mes`;
+                            else if (a.tipo_condicion_minima === 'dias_mes' && a.cantidad_minima) minStr = `Mín. ${a.cantidad_minima} días/mes`;
+
+                            return (
+                              <tr key={a.id || aIdx} className="hover:bg-slate-50">
+                                <td className="p-2 font-bold text-slate-800">{a.equipo}</td>
+                                <td className="p-2 font-mono text-slate-600">{a.patente || '-'}</td>
+                                <td className="p-2 font-bold text-blue-950">{a.proveedor}</td>
+                                <td className="p-2 font-bold text-emerald-800">
+                                  ${tarifaVal} <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{unidadStr}</span>
                                 </td>
-                              )}
-                            </tr>
-                          ))}
+                                <td className="p-2 font-semibold text-amber-900 text-[11px]">
+                                  <span className="bg-amber-50 px-2 py-0.5 rounded border border-amber-200">{minStr}</span>
+                                </td>
+                                <td className="p-2 text-slate-500 text-[11px]">{a.fechaInicio || 'N/A'} al {a.fechaTermino || 'N/A'}</td>
+                                {canManageRecordsAccess && (
+                                  <td className="p-2 text-center">
+                                    <div className="flex items-center justify-center gap-1">
+                                      <button
+                                        onClick={() => handleEditArriendo(a)}
+                                        className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition cursor-pointer"
+                                        title="Editar arriendo de maquinaria"
+                                      >
+                                        <Edit className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteArriendo(a.id)}
+                                        className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition cursor-pointer"
+                                        title="Eliminar arriendo"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                )}
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
