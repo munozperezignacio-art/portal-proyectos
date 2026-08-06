@@ -4152,7 +4152,72 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 const minPartida = pAvanceRates.length > 0 ? [...pAvanceRates].sort((a, b) => a.pct - b.pct)[0] : null;
                 const avgPctPerDay = pAvanceRates.length > 0 ? (pAvanceRates.reduce((acc, p) => acc + p.pctPerDay, 0) / pAvanceRates.length).toFixed(2) : "0.00";
 
-                // 3. Últimos 5 Días Laborales para Gráfico de Barras de Avance
+                // 3. CÁLCULO DE PUNTOS PARA CURVA S DE AVANCE FÍSICO (REAL VS PROGRAMADO)
+                const timelineMilestones = [];
+                let sDate = new Date(fInicioObraDefault + 'T00:00:00');
+                const eDate = new Date(fCorteStr + 'T00:00:00');
+
+                if (!isNaN(sDate.getTime()) && !isNaN(eDate.getTime())) {
+                  const mCursor = new Date(sDate);
+                  while (mCursor <= eDate) {
+                    const mStr = mCursor.getFullYear() + '-' + String(mCursor.getMonth() + 1).padStart(2, '0') + '-' + String(mCursor.getDate()).padStart(2, '0');
+                    const monthLabel = mCursor.toLocaleDateString('es-CL', { month: 'short', year: '2-digit' });
+                    timelineMilestones.push({ dateStr: mStr, label: monthLabel });
+                    mCursor.setMonth(mCursor.getMonth() + 1);
+                  }
+                  if (timelineMilestones.length === 0 || timelineMilestones[timelineMilestones.length - 1].dateStr < fCorteStr) {
+                    timelineMilestones.push({ dateStr: fCorteStr, label: 'Corte' });
+                  }
+                }
+
+                const totalPresupuestoObra = totalVentaPresupuestada > 0 ? totalVentaPresupuestada : 1;
+                
+                const curvaSPoints = timelineMilestones.map((m, idx) => {
+                  const mStr = m.dateStr;
+                  const x = 40 + (idx / Math.max(1, timelineMilestones.length - 1)) * 440;
+
+                  // Real Acumulado a la fecha
+                  const revAtM = (reportesAvanceList || []).filter(r => {
+                    const fRep = r.fecha || r.fecha_avance || (r.created_at ? String(r.created_at).substring(0, 10) : '');
+                    return fRep <= mStr && (targetNames.length === 0 || targetPartidas.some(p => isMatchPartidaName(r.partida, p.partida)));
+                  });
+
+                  const valRealAtM = targetPartidas.reduce((sum, p) => {
+                    const pu = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (parseFloat(p.pu) || parseFloat(p.costo_por_dia) || 0);
+                    const pReps = revAtM.filter(r => isMatchPartidaName(r.partida, p.partida));
+                    const cantAv = pReps.reduce((rSum, r) => rSum + (parseFloat(r.cantidad) || 0), 0);
+                    return sum + Math.round(Math.min(parseFloat(p.cantidad) || 0, cantAv) * pu);
+                  }, 0);
+
+                  const evPct = Math.min(100, Math.round((valRealAtM / totalPresupuestoObra) * 100));
+
+                  // Programado Acumulado a la fecha (Gantt)
+                  const valProgAtM = targetPartidas.reduce((sum, p) => {
+                    const pu = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (parseFloat(p.pu) || parseFloat(p.costo_por_dia) || 0);
+                    const pCant = parseFloat(p.cantidad) || 0;
+                    const pStart = p.fecha_inicio || fInicioObraDefault;
+                    const pDur = Math.max(1, Math.round(pCant / (parseFloat(p.rendimiento) || 10)));
+                    const pEnd = addChileanBusinessDays(pStart, pDur);
+
+                    if (mStr >= pEnd) return sum + Math.round(pCant * pu);
+                    if (mStr <= pStart) return sum;
+                    const elapsed = countChileanBusinessDays(pStart, mStr);
+                    const frac = Math.min(1, elapsed / pDur);
+                    return sum + Math.round(pCant * pu * frac);
+                  }, 0);
+
+                  const pvPct = Math.min(100, Math.round((valProgAtM / totalPresupuestoObra) * 100));
+
+                  const yEV = 160 - (evPct / 100) * 140;
+                  const yPV = 160 - (pvPct / 100) * 140;
+
+                  return { x, yEV, yPV, evPct, pvPct, label: m.label, dateStr: mStr };
+                });
+
+                const pathEV = curvaSPoints.reduce((acc, p, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${p.x} ${p.yEV}`, '');
+                const pathPV = curvaSPoints.reduce((acc, p, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${p.x} ${p.yPV}`, '');
+
+                // 4. Últimos 5 Días Laborales para Gráfico de Barras de Avance
                 const last5BusinessDays = [];
                 let curDay = new Date(fCorteStr + 'T00:00:00');
                 if (!isNaN(curDay.getTime())) {
@@ -4173,7 +4238,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   });
                   const sumVal = repsDay.reduce((acc, r) => {
                     const pMatch = targetPartidas.find(p => isMatchPartidaName(r.partida, p.partida));
-                    const pu = pMatch ? (partidasCostos[pMatch.partida] !== undefined ? partidasCostos[pMatch.partida] : (parseFloat(pMatch.pu) || 0)) : 1;
+                    const pu = pMatch ? (parseFloat(pMatch.pu) || parseFloat(pMatch.costo_por_dia) || 1) : 1;
                     return acc + ((parseFloat(r.cantidad) || 0) * pu);
                   }, 0);
                   return { date: dStr, monto: sumVal, count: repsDay.length };
@@ -4311,6 +4376,66 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Menor Avance por Partida</span>
                             <p className="text-lg font-black text-amber-900 truncate" title={minPartida?.partida}>{minPartida ? minPartida.partida : 'N/A'}</p>
                             <p className="text-[10px] text-amber-800 font-bold">{minPartida ? `${minPartida.pct.toFixed(1)}% completado` : 'Sin datos'}</p>
+                          </div>
+                        </div>
+
+                        {/* GRÁFICO DE CURVA S DE AVANCE FÍSICO REAL VS PROGRAMADO */}
+                        <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs space-y-4">
+                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b pb-3">
+                            <div>
+                              <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-2">
+                                <TrendingUp className="w-4 h-4 text-blue-900" />
+                                <span>📉 Curva S de Avance Físico Acumulado (Avance Real vs Programado)</span>
+                              </h4>
+                              <p className="text-[11px] text-slate-500 font-medium">Evolución porcentual del avance físico real acumulado vs curva de programación contractual</p>
+                            </div>
+                            <div className="flex items-center gap-3 text-xs font-bold">
+                              <span className="flex items-center gap-1.5 text-blue-950 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
+                                <span className="w-3 h-3 bg-blue-900 rounded-full inline-block"></span>
+                                <span>Avance Real ({pctAvanceGlobal}%)</span>
+                              </span>
+                              <span className="flex items-center gap-1.5 text-emerald-950 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                                <span className="w-3 h-3 bg-emerald-600 rounded-full inline-block"></span>
+                                <span>Programado ({curvaSPoints.length > 0 ? curvaSPoints[curvaSPoints.length - 1].pvPct : "100"}%)</span>
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* SVG CURVA S */}
+                          <div className="w-full h-56 relative bg-slate-50 rounded-xl p-3 border border-slate-100 flex items-center justify-center">
+                            <svg className="w-full h-full overflow-visible" viewBox="0 0 500 180" preserveAspectRatio="none">
+                              {/* Guías Horizontales 0%, 25%, 50%, 75%, 100% */}
+                              <line x1="40" y1="20" x2="480" y2="20" stroke="#e2e8f0" strokeDasharray="3 3" />
+                              <text x="32" y="24" textAnchor="end" className="text-[9px] fill-slate-400 font-mono font-bold">100%</text>
+
+                              <line x1="40" y1="55" x2="480" y2="55" stroke="#e2e8f0" strokeDasharray="3 3" />
+                              <text x="32" y="59" textAnchor="end" className="text-[9px] fill-slate-400 font-mono font-bold">75%</text>
+
+                              <line x1="40" y1="90" x2="480" y2="90" stroke="#e2e8f0" strokeDasharray="3 3" />
+                              <text x="32" y="94" textAnchor="end" className="text-[9px] fill-slate-400 font-mono font-bold">50%</text>
+
+                              <line x1="40" y1="125" x2="480" y2="125" stroke="#e2e8f0" strokeDasharray="3 3" />
+                              <text x="32" y="129" textAnchor="end" className="text-[9px] fill-slate-400 font-mono font-bold">25%</text>
+
+                              <line x1="40" y1="160" x2="480" y2="160" stroke="#cbd5e1" strokeWidth="1.5" />
+                              <text x="32" y="164" textAnchor="end" className="text-[9px] fill-slate-400 font-mono font-bold">0%</text>
+
+                              {/* Trazo Línea Programada (Verde) */}
+                              <path d={pathPV} fill="none" stroke="#16a34a" strokeWidth="3" strokeDasharray="4 2" />
+
+                              {/* Trazo Línea Real (Azul) */}
+                              <path d={pathEV} fill="none" stroke="#1e3a8a" strokeWidth="3.5" />
+
+                              {/* Puntos y Nodos */}
+                              {curvaSPoints.map((pt, pIdx) => (
+                                <g key={pIdx}>
+                                  <circle cx={pt.x} cy={pt.yEV} r="5" fill="#1e3a8a" stroke="#ffffff" strokeWidth="2" />
+                                  <circle cx={pt.x} cy={pt.yPV} r="4" fill="#16a34a" stroke="#ffffff" strokeWidth="1.5" />
+                                  <text x={pt.x} y={Math.max(15, pt.yEV - 8)} textAnchor="middle" className="text-[9px] fill-blue-950 font-bold font-mono">{pt.evPct}%</text>
+                                  <text x={pt.x} y="176" textAnchor="middle" className="text-[9px] fill-slate-600 font-mono font-bold">{pt.label}</text>
+                                </g>
+                              ))}
+                            </svg>
                           </div>
                         </div>
 
