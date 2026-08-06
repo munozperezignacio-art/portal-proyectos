@@ -9,6 +9,7 @@ import {
 import ContextualEmailConfigModal from './ContextualEmailConfigModal';
 import { canConfigureEmails, canCreateObras, canModifyOrDeleteRecords } from '../utils/userLevel';
 import { sendSystemEmail } from '../utils/emailService';
+import { formatRut, formatNumberWithDots, parseNumberFromDots } from '../utils/rutUtils';
 
 const defaultCovers = [
   "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=600&q=80",
@@ -7069,7 +7070,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                     type="text"
                     required
                     value={newWorkerData.rut}
-                    onChange={(e) => setNewWorkerData({ ...newWorkerData, rut: e.target.value })}
+                    onChange={(e) => setNewWorkerData({ ...newWorkerData, rut: formatRut(e.target.value) })}
                     placeholder="Ej. 18.988.192-4"
                     className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 font-mono"
                   />
@@ -8827,11 +8828,11 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 <div>
                   <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Monto Total Costo ($) <span className="text-red-500">*</span></label>
                   <input
-                    type="number"
+                    type="text"
                     required
-                    value={costoFormData.monto}
-                    onChange={(e) => setCostoFormData({ ...costoFormData, monto: e.target.value })}
-                    placeholder="1250000"
+                    value={formatNumberWithDots(costoFormData.monto)}
+                    onChange={(e) => setCostoFormData({ ...costoFormData, monto: parseNumberFromDots(e.target.value) })}
+                    placeholder="1.250.000"
                     className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 font-mono font-bold"
                   />
                 </div>

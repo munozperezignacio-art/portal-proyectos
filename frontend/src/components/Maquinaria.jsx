@@ -7,6 +7,7 @@ import {
   ChevronRight, Wrench, ShieldCheck, MapPin, CalendarDays, RefreshCw, Send, Handshake, DollarSign,
   Filter, SlidersHorizontal, List, Grid, AlertTriangle
 } from 'lucide-react';
+import { formatRut, formatNumberWithDots, parseNumberFromDots } from '../utils/rutUtils';
 
 
 // Listado de feriados nacionales en Chile (MM-DD)
@@ -2333,9 +2334,9 @@ export default function Maquinaria({ user, onBack }) {
                   <input
                     type="text"
                     placeholder="ej: 76.543.210-K"
-                    value={arriendoForm.rut_empresa}
-                    onChange={(e) => setArriendoForm(prev => ({ ...prev, rut_empresa: e.target.value }))}
-                    className="w-full border border-slate-200 rounded-xl p-2.5 font-bold text-slate-800"
+                    value={formatRut(arriendoForm.rut_empresa)}
+                    onChange={(e) => setArriendoForm(prev => ({ ...prev, rut_empresa: formatRut(e.target.value) }))}
+                    className="w-full border border-slate-200 rounded-xl p-2.5 font-bold text-slate-800 font-mono"
                     required
                   />
                 </div>
@@ -2761,11 +2762,11 @@ export default function Maquinaria({ user, onBack }) {
                   <div>
                     <label className="block text-[9.5px] font-bold uppercase text-amber-900 mb-1">Tarifa Interna ($)</label>
                     <input
-                      type="number"
-                      placeholder="ej: 50000"
-                      value={formData.costo_interno}
-                      onChange={(e) => setFormData(prev => ({ ...prev, costo_interno: e.target.value }))}
-                      className="w-full border border-amber-300 rounded-xl p-2.5 font-bold text-slate-900 bg-white text-xs"
+                      type="text"
+                      placeholder="ej: 50.000"
+                      value={formatNumberWithDots(formData.costo_interno)}
+                      onChange={(e) => setFormData(prev => ({ ...prev, costo_interno: parseNumberFromDots(e.target.value) }))}
+                      className="w-full border border-amber-300 rounded-xl p-2.5 font-bold text-slate-900 bg-white text-xs font-mono"
                     />
                   </div>
                   <div>
