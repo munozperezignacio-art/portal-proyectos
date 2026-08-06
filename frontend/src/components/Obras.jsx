@@ -4152,7 +4152,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 const minPartida = pAvanceRates.length > 0 ? [...pAvanceRates].sort((a, b) => a.pct - b.pct)[0] : null;
                 const avgPctPerDay = pAvanceRates.length > 0 ? (pAvanceRates.reduce((acc, p) => acc + p.pctPerDay, 0) / pAvanceRates.length).toFixed(2) : "0.00";
 
-                // 3. CÁLCULO DE PUNTOS PARA CURVA S DE AVANCE FÍSICO (REAL VS PROGRAMADO)
+                // 3. CÁLCULO DE PUNTOS PARA CURVA S DE AVANCE FÍSICO (SEMANAL - REAL VS PROGRAMADO)
                 const fInicioObraDefault = fechaInicioReal || (selectedObra?.fecha_inicio ? String(selectedObra.fecha_inicio).split('T')[0] : '2026-04-06');
                 const timelineMilestones = [];
                 let sDate = new Date(fInicioObraDefault + 'T00:00:00');
@@ -4162,12 +4162,14 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   const mCursor = new Date(sDate);
                   while (mCursor <= eDate) {
                     const mStr = mCursor.getFullYear() + '-' + String(mCursor.getMonth() + 1).padStart(2, '0') + '-' + String(mCursor.getDate()).padStart(2, '0');
-                    const monthLabel = mCursor.toLocaleDateString('es-CL', { month: 'short', year: '2-digit' });
-                    timelineMilestones.push({ dateStr: mStr, label: monthLabel });
-                    mCursor.setMonth(mCursor.getMonth() + 1);
-                  }
-                  if (timelineMilestones.length === 0 || timelineMilestones[timelineMilestones.length - 1].dateStr < fCorteStr) {
-                    timelineMilestones.push({ dateStr: fCorteStr, label: 'Corte' });
+                    
+                    // Formato de fecha semanal (ej: 06-Abr, 13-Abr)
+                    const dayNum = String(mCursor.getDate()).padStart(2, '0');
+                    const monthShort = mCursor.toLocaleDateString('es-CL', { month: 'short' }).replace('.', '');
+                    const weekLabel = `${dayNum}-${monthShort.charAt(0).toUpperCase() + monthShort.slice(1)}`;
+                    
+                    timelineMilestones.push({ dateStr: mStr, label: weekLabel });
+                    mCursor.setDate(mCursor.getDate() + 7);
                   }
                 }
 
@@ -4175,7 +4177,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 
                 const curvaSPoints = timelineMilestones.map((m, idx) => {
                   const mStr = m.dateStr;
-                  const x = 40 + (idx / Math.max(1, timelineMilestones.length - 1)) * 440;
+                  const x = 45 + (idx / Math.max(1, timelineMilestones.length - 1)) * 430;
 
                   // Real Acumulado a la fecha
                   const revAtM = (reportesAvanceList || []).filter(r => {
@@ -4209,8 +4211,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
                   const pvPct = Math.min(100, Math.round((valProgAtM / totalPresupuestoObra) * 100));
 
-                  const yEV = 160 - (evPct / 100) * 140;
-                  const yPV = 160 - (pvPct / 100) * 140;
+                  const yEV = 170 - (evPct / 100) * 150;
+                  const yPV = 170 - (pvPct / 100) * 150;
 
                   return { x, yEV, yPV, evPct, pvPct, label: m.label, dateStr: mStr };
                 });
@@ -4430,15 +4432,23 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                 {/* Trazo Línea Real (Azul) */}
                                 <path d={pathEV} fill="none" stroke="#1e3a8a" strokeWidth="3.5" />
 
-                                {/* Puntos y Nodos */}
-                                {curvaSPoints.map((pt, pIdx) => (
-                                  <g key={pIdx}>
-                                    <circle cx={pt.x} cy={pt.yEV} r="5" fill="#1e3a8a" stroke="#ffffff" strokeWidth="2" />
-                                    <circle cx={pt.x} cy={pt.yPV} r="4" fill="#16a34a" stroke="#ffffff" strokeWidth="1.5" />
-                                    <text x={pt.x} y={Math.max(14, pt.yEV - 8)} textAnchor="middle" className="text-[10px] fill-blue-950 font-extrabold font-mono">{pt.evPct}%</text>
-                                    <text x={pt.x} y="188" textAnchor="middle" className="text-[10px] fill-slate-600 font-mono font-bold">{pt.label}</text>
-                                  </g>
-                                ))}
+                                {/* Puntos y Nodos Semanales */}
+                                {curvaSPoints.map((pt, pIdx) => {
+                                  const step = Math.max(1, Math.ceil(curvaSPoints.length / 8));
+                                  const showLabel = pIdx % step === 0 || pIdx === curvaSPoints.length - 1;
+                                  return (
+                                    <g key={pIdx}>
+                                      <circle cx={pt.x} cy={pt.yEV} r="4" fill="#1e3a8a" stroke="#ffffff" strokeWidth="2" />
+                                      <circle cx={pt.x} cy={pt.yPV} r="3" fill="#16a34a" stroke="#ffffff" strokeWidth="1.5" />
+                                      {showLabel && (
+                                        <text x={pt.x} y={Math.max(14, pt.yEV - 7)} textAnchor="middle" className="text-[9px] fill-blue-950 font-extrabold font-mono">{pt.evPct}%</text>
+                                      )}
+                                      {showLabel && (
+                                        <text x={pt.x} y="188" textAnchor="middle" className="text-[8.5px] fill-slate-600 font-mono font-bold">{pt.label}</text>
+                                      )}
+                                    </g>
+                                  );
+                                })}
                               </svg>
                             </div>
                           </div>
