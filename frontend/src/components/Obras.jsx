@@ -10,6 +10,7 @@ import ContextualEmailConfigModal from './ContextualEmailConfigModal';
 import { canConfigureEmails, canCreateObras, canModifyOrDeleteRecords } from '../utils/userLevel';
 import { sendSystemEmail } from '../utils/emailService';
 import { formatRut, formatNumberWithDots, parseNumberFromDots } from '../utils/rutUtils';
+import LastPlannerLookahead from './LastPlannerLookahead';
 
 const defaultCovers = [
   "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=600&q=80",
@@ -4064,6 +4065,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100">
                     {[
                       { id: 'resumen', label: '🎯 Control Ejecutivo' },
+                      { id: 'lastplanner', label: '📋 Lookahead / Last Planner' },
                       { id: 'avance', label: '📈 Avance Físico' },
                       { id: 'cuadrillas', label: '👷 Cuadrillas & RRHH' },
                       { id: 'maquinarias', label: '🚜 Maquinarias & Flota' },
@@ -4500,6 +4502,15 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           <div className="space-y-4"><div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs space-y-3"><h4 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5"><AlertTriangle className="w-4 h-4 text-amber-700" />Prioridades de intervención</h4>{criticalPartidas.length === 0 ? <p className="text-xs text-emerald-700 font-semibold bg-emerald-50 border border-emerald-200 rounded-xl p-3">No hay desviaciones relevantes en el alcance y fecha de corte actuales.</p> : <div className="space-y-2 max-h-64 overflow-y-auto pr-1">{criticalPartidas.slice(0, 6).map((partida, idx) => <div key={`alert-partida-${idx}`} className={`p-2.5 rounded-xl border ${partida.status === 'cost' ? 'bg-rose-50 border-rose-200' : 'bg-amber-50 border-amber-200'}`}><p className="text-[10px] font-black text-slate-800 truncate">{partida.partida}</p><p className="text-[10px] mt-0.5 font-semibold text-slate-600">{partida.status === 'cost' ? `Costo supera venta ganada por $${Math.abs(partida.costGap).toLocaleString('es-CL')}` : partida.status === 'no-progress' ? 'Tiene avance planificado, pero no registra producción' : `Atraso de ${Math.abs(partida.scheduleGap).toFixed(1)} pp frente al plan`}</p></div>)}</div>}</div><div className="bg-white p-5 border border-blue-200 rounded-2xl shadow-xs space-y-3"><div className="flex items-center justify-between"><h4 className="font-extrabold text-blue-950 text-xs uppercase tracking-wider flex items-center gap-1.5"><CalendarDays className="w-4 h-4 text-blue-800" />Partidas prontas a iniciar</h4><span className="text-[9px] font-black bg-blue-100 text-blue-900 px-2 py-0.5 rounded-full">Próx. 14 días</span></div>{upcomingPartidas.length === 0 ? <p className="text-xs text-slate-500 italic bg-slate-50 rounded-xl p-3">No hay partidas programadas para iniciar en los próximos 14 días.</p> : <div className="space-y-2 max-h-52 overflow-y-auto pr-1">{upcomingPartidas.slice(0, 6).map((partida, idx) => <div key={`upcoming-partida-${idx}`} className="p-2.5 rounded-xl border border-blue-100 bg-blue-50/60"><p className="text-[10px] font-black text-slate-800 truncate">{partida.partida}</p><div className="flex justify-between gap-2 mt-1 text-[10px] font-semibold"><span className="text-blue-800">Inicio: {partida.startDate}</span><span className="text-slate-600">{partida.daysUntil === 0 ? 'Hoy' : `en ${partida.daysUntil} día(s) hábiles`}</span></div></div>)}</div>}</div><div className="bg-slate-900 text-white p-5 rounded-2xl shadow-xs space-y-2"><span className="text-[10px] uppercase tracking-wider font-black text-slate-300">Próximo foco de gestión</span><p className="text-sm font-black">{criticalPartidas.length > 0 ? 'Revisar partidas críticas y acordar un plan de recuperación.' : upcomingPartidas.length > 0 ? 'Preparar recursos, cuadrillas y suministros para los próximos inicios.' : 'Mantener control de producción y calidad del registro diario.'}</p><p className="text-[10px] text-slate-300">{partidasSinAvance > 0 ? `${partidasSinAvance} partida(s) planificada(s) aún sin reporte de avance.` : daysToFinish !== null ? `${daysToFinish} día(s) hábiles estimados hasta el término configurado.` : 'Configura fecha de término para habilitar el horizonte de cierre.'}</p></div></div>
                         </div>
                       </div>
+                    )}
+
+                    {estadisticasTab === 'lastplanner' && (
+                      <LastPlannerLookahead
+                        obra={selectedObra}
+                        partidas={targetPartidas}
+                        fechaCorte={fCorteStr}
+                        getStartDate={(partida) => getPartidaScheduledStart(partida, fInicioObraDefault)}
+                      />
                     )}
 
                     {/* PESTAÑA 1: 📈 AVANCE FÍSICO Y EJECUCIÓN */}
@@ -8825,6 +8836,19 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                     createdObra = resFallback.data;
                   } else {
                     createdObra = data;
+                  }
+
+                  // Mantener la relación con el presupuesto para Lookahead / Last Planner y sus recursos APU.
+                  if (newObraForm.presupuesto_enlazado && createdObra) {
+                    try {
+                      await supabase.from('obra_presupuestos').upsert({
+                        empresa: user?.empresa || null,
+                        obra_nombre: createdObra.nombre,
+                        presupuesto_id: newObraForm.presupuesto_enlazado
+                      }, { onConflict: 'obra_nombre' });
+                    } catch (relationError) {
+                      console.warn('No fue posible guardar la relación obra-presupuesto:', relationError.message);
+                    }
                   }
 
                   // Si se seleccionó un presupuesto de origen, copiar sus ítems a partidas_obra
