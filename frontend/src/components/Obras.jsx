@@ -4459,13 +4459,24 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             </td>
                           </tr>
 
-                          {partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo)).map((p, pIdx) => {
-                            const cant = parseFloat(p.cantidad) || 0;
-                            const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
-                            const diasTotalesPartida = rend > 0 ? (cant / rend) : 1;
-                            const diasEfectivosCorte = Math.min(diasTranscurridosCorte, diasTotalesPartida);
-                            const puVal = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (p.pu || 0);
-                            const montoPres = cant * puVal;
+                          {(() => {
+                            const fInicioStr = fechaInicioReal || selectedObra?.fecha_inicio || (new Date().toISOString().substring(0, 8) + '01');
+                            const fCorteStr = fechaCorteProyeccion || new Date().toISOString().substring(0, 10);
+                            const dInicio = new Date(fInicioStr);
+                            const dCorte = new Date(fCorteStr);
+                            let diasTranscurridosCorte = 1;
+                            if (!isNaN(dInicio.getTime()) && !isNaN(dCorte.getTime())) {
+                              const diffDays = Math.floor((dCorte.getTime() - dInicio.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                              diasTranscurridosCorte = Math.max(1, diffDays);
+                            }
+
+                            return partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo)).map((p, pIdx) => {
+                              const cant = parseFloat(p.cantidad) || 0;
+                              const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
+                              const diasTotalesPartida = rend > 0 ? (cant / rend) : 1;
+                              const diasEfectivosCorte = Math.min(diasTranscurridosCorte, diasTotalesPartida);
+                              const puVal = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (p.pu || 0);
+                              const montoPres = cant * puVal;
 
                             const projItems = proyeccionesList.filter(x => x.partida === p.partida);
                             let costoProyectado = 0;
@@ -4666,12 +4677,13 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                           </div>
                                         )}
                                       </div>
-                                    </td>
-                                  </tr>
-                                )}
+                                     </td>
+                                   </tr>
+                                 )}
                               </React.Fragment>
                             );
-                          })}
+                          });
+                        })()}
                         </tbody>
                       </table>
                     </div>
