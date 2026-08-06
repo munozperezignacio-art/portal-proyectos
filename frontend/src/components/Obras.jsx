@@ -1216,7 +1216,18 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     // 1. Cargar personal
     try {
       const { data: allPers } = await supabase.from('maestro_personal').select('*');
-      const listPers = (allPers || []).filter(p => isMatchObra(p.obra_nombre, obraNombre));
+      const rawListPers = (allPers || []).filter(p => isMatchObra(p.obra_nombre, obraNombre));
+      
+      const uniqueWorkersMap = new window.Map();
+      rawListPers.forEach(p => {
+        const key = (p.rut && p.rut.toString().trim()) 
+          ? p.rut.toString().trim().toUpperCase() 
+          : (p.nombre ? p.nombre.toString().trim().toUpperCase() : '');
+        if (key && !uniqueWorkersMap.has(key)) {
+          uniqueWorkersMap.set(key, p);
+        }
+      });
+      const listPers = Array.from(uniqueWorkersMap.values());
       setPersonalCount(listPers.length);
       setPersonalAsignadoList(listPers);
       setPersonalList(listPers);
@@ -4354,7 +4365,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                               className="bg-amber-800 hover:bg-amber-900 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 cursor-pointer shadow-xs"
                             >
                               <Plus className="w-3.5 h-3.5" />
-                              <span>+ Registrar Mantención</span>
+                              <span>Registrar Mantención</span>
                             </button>
                             <button
                               onClick={() => {
@@ -4364,7 +4375,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                               className="bg-rose-800 hover:bg-rose-900 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 cursor-pointer shadow-xs"
                             >
                               <Plus className="w-3.5 h-3.5" />
-                              <span>+ Registrar Paralización</span>
+                              <span>Registrar Paralización</span>
                             </button>
                           </div>
                         </div>
@@ -4462,7 +4473,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             className="bg-emerald-800 hover:bg-emerald-900 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 cursor-pointer shadow-xs"
                           >
                             <Plus className="w-3.5 h-3.5" />
-                            <span>+ Registrar Incidente HSE</span>
+                            <span>Registrar Incidente HSE</span>
                           </button>
                         </div>
 
