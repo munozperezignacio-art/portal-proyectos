@@ -4382,10 +4382,29 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
                   {/* TABLA COMPARATIVA PROYECTADA POR PARTIDAS */}
                   <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
-                    <div className="p-3.5 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                    <div className="p-3.5 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                       <h4 className="font-extrabold text-slate-800 text-xs flex items-center gap-2">
                         <span>📊 Análisis Unitario y Proyección Teórica por Partida</span>
                       </h4>
+                      <button
+                        onClick={() => {
+                          const validPartidas = partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo));
+                          setProyeccionFormData({
+                            partida: validPartidas.length > 0 ? validPartidas[0].partida : '',
+                            tipo_proyeccion: 'TIEMPO',
+                            nombre_item: 'Costo Operativo Diario',
+                            tarifa_tiempo_dia: 20000,
+                            unidad_insumo: 'Saco',
+                            tasa_rendimiento_insumo: 1,
+                            precio_unitario_insumo: 5000
+                          });
+                          setShowProyeccionModal(true);
+                        }}
+                        className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 cursor-pointer shadow-xs"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>+ Configurar Gasto / Tarifa por Partida</span>
+                      </button>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-xs text-left border-collapse">
@@ -4399,12 +4418,13 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             <th className="p-3 text-right">Monto Presupuestado ($)</th>
                             <th className="p-3 text-right">Costo Proyectado ($)</th>
                             <th className="p-3 text-right">Desviación / Margen ($)</th>
+                            <th className="p-3 text-center">Acciones</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-150 text-[11px]">
                           {/* ENCABEZADO SECCIÓN PARTIDAS */}
                           <tr className="bg-slate-200/80 font-black text-slate-800 text-[10px] uppercase tracking-wider">
-                            <td colSpan="8" className="p-2.5 bg-slate-200/90 text-slate-900 border-y border-slate-300">
+                            <td colSpan="9" className="p-2.5 bg-slate-200/90 text-slate-900 border-y border-slate-300">
                               📦 PROYECCIÓN DE GASTOS POR PARTIDAS DE PRESUPUESTO
                             </td>
                           </tr>
@@ -4452,6 +4472,26 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                 <td className="p-3 font-mono font-black text-blue-950 text-right">${costoProyectado.toLocaleString('es-CL')}</td>
                                 <td className={`p-3 font-mono font-black text-right ${margen >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                                   ${margen.toLocaleString('es-CL')} (${pctMargen}%)
+                                </td>
+                                <td className="p-3 text-center">
+                                  <button
+                                    onClick={() => {
+                                      setProyeccionFormData({
+                                        partida: p.partida,
+                                        tipo_proyeccion: projAssoc?.tipo_proyeccion || 'TIEMPO',
+                                        nombre_item: projAssoc?.nombre_item || `Costo Partida: ${p.partida}`,
+                                        tarifa_tiempo_dia: projAssoc?.tarifa_tiempo_dia || 20000,
+                                        unidad_insumo: projAssoc?.unidad_insumo || 'Unidad',
+                                        tasa_rendimiento_insumo: projAssoc?.tasa_rendimiento_insumo || 1,
+                                        precio_unitario_insumo: projAssoc?.precio_unitario_insumo || 5000
+                                      });
+                                      setShowProyeccionModal(true);
+                                    }}
+                                    className="bg-blue-100 hover:bg-blue-900 hover:text-white text-blue-900 px-2.5 py-1 rounded-lg text-[10px] font-extrabold cursor-pointer transition shadow-2xs"
+                                    title="Editar proyección de esta partida"
+                                  >
+                                    ✏️ Configurar
+                                  </button>
                                 </td>
                               </tr>
                             );
