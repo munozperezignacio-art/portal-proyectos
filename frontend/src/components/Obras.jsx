@@ -1043,8 +1043,43 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     // 7. Arriendos de maquinaria
     try {
       const { data: aData } = await supabase.from('arriendos_maquinaria').select('*').eq('obra_nombre', obraNombre).order('created_at', { ascending: false });
-      setArriendosList(aData || []);
-    } catch (e) {}
+
+      const savedAStr = localStorage.getItem(`arriendos_${selectedObra?.id || selectedObra?.nombre}`) || localStorage.getItem(`arriendos_${obraNombre}`);
+      const savedA = savedAStr ? JSON.parse(savedAStr) : [];
+
+      const mergedMap = new Map();
+      (savedA || []).forEach(item => {
+        const key = String(item.id || `${item.equipo}_${item.patente}`);
+        mergedMap.set(key, item);
+      });
+
+      (aData || []).forEach(item => {
+        const normalizedItem = {
+          id: String(item.id),
+          equipo: item.equipo || item.nombre_equipo || 'Equipo',
+          patente: item.patente || '',
+          proveedor: item.proveedor || item.empresa_arrendadora || 'Proveedor',
+          costo: parseFloat(item.costo || item.costo_arriendo || item.tarifa) || 0,
+          unidad_costo: item.unidad_costo || item.unidad_tarifa || '$/mes',
+          tipo_condicion_minima: item.tipo_condicion_minima || 'sin_minimo',
+          cantidad_minima: parseFloat(item.cantidad_minima) || 0,
+          fechaInicio: item.fecha_inicio || item.fechaInicio || '',
+          fechaTermino: item.fecha_termino || item.fechaTermino || '',
+          observaciones: item.observaciones || ''
+        };
+        const key = String(normalizedItem.id || `${normalizedItem.equipo}_${normalizedItem.patente}`);
+        mergedMap.set(key, normalizedItem);
+      });
+
+      const finalArriendos = Array.from(mergedMap.values());
+      setArriendosList(finalArriendos);
+      if (selectedObra?.id) {
+        localStorage.setItem(`arriendos_${selectedObra.id}`, JSON.stringify(finalArriendos));
+      }
+    } catch (e) {
+      const savedAStr = localStorage.getItem(`arriendos_${selectedObra?.id || selectedObra?.nombre}`) || localStorage.getItem(`arriendos_${obraNombre}`);
+      if (savedAStr) setArriendosList(JSON.parse(savedAStr));
+    }
 
     // 8. Asistencias QR
     try {
@@ -1485,19 +1520,43 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   };
 
   const handleEditArriendo = (a) => {
-    if (!canManageRecordsAccess) return alert('No tienes permisos de Nivel 0, 1 o 2 para editar arriendos.');
+    if (!canManageRecordsAccess) return alert('No tienes permisos para editar arriendos.');
     setEditingRecordId(a.id);
     setArriendoData({
       id: a.id,
-      equipo: a.equipo,
+      equipo: a.equipo || '',
       patente: a.patente || '',
-      proveedor: a.proveedor,
+      proveedor: a.proveedor || '',
       costo: a.costo || '',
+      unidad_costo: a.unidad_costo || '$/mes',
+      tipo_condicion_minima: a.tipo_condicion_minima || 'sin_minimo',
+      cantidad_minima: a.cantidad_minima || '',
       fechaInicio: a.fechaInicio || '',
       fechaTermino: a.fechaTermino || '',
       observaciones: a.observaciones || ''
     });
     setShowArriendoModal(true);
+  };
+
+  const handleDeleteArriendo = async (arriendoId) => {
+    if (!canManageRecordsAccess) return alert('No tienes permisos para eliminar registros.');
+    if (!window.confirm('¿Estás seguro de eliminar este registro de arriendo?')) return;
+
+    const updated = arriendosList.filter(a => String(a.id) !== String(arriendoId));
+    setArriendosList(updated);
+
+    try {
+      localStorage.setItem(`arriendos_${selectedObra.id}`, JSON.stringify(updated));
+      if (selectedObra?.nombre) {
+        localStorage.setItem(`arriendos_${selectedObra.nombre}`, JSON.stringify(updated));
+      }
+    } catch (err) {}
+
+    try {
+      if (arriendoId && !isNaN(parseInt(arriendoId))) {
+        await supabase.from('arriendos_maquinaria').delete().eq('id', arriendoId);
+      }
+    } catch (err) {}
   };
 
   // 6. Generar / Descargar Documento Oficial del Libro Digital de Asistencia (con Firma Base64)
@@ -1622,14 +1681,17 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   };
 
   // Handlers para Arriendos de Maquinaria
-  const handleSaveArriendo = (e) => {
+  const handleSaveArriendo = async (e) => {
     e.preventDefault();
     if (!arriendoData.equipo.trim() || !arriendoData.proveedor.trim()) {
       alert('Debes ingresar el Nombre del Equipo y el Proveedor Arrendador (Empresa Arrendadora).');
       return;
     }
+
+    const targetId = editingRecordId || Date.now().toString();
+
     const newArriendo = {
-      id: Date.now().toString(),
+      id: targetId,
       equipo: arriendoData.equipo.trim(),
       patente: arriendoData.patente.trim(),
       proveedor: arriendoData.proveedor.trim(),
@@ -1637,16 +1699,57 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       unidad_costo: arriendoData.unidad_costo || '$/mes',
       tipo_condicion_minima: arriendoData.tipo_condicion_minima || 'sin_minimo',
       cantidad_minima: parseFloat(arriendoData.cantidad_minima) || 0,
-      fechaInicio: arriendoData.fechaInicio,
-      fechaTermino: arriendoData.fechaTermino,
-      observaciones: arriendoData.observaciones
+      fechaInicio: arriendoData.fechaInicio || '',
+      fechaTermino: arriendoData.fechaTermino || '',
+      observaciones: arriendoData.observaciones || ''
     };
-    const updated = [...arriendosList, newArriendo];
+
+    const exists = arriendosList.some(item => String(item.id) === String(targetId));
+    let updated = [];
+    if (exists) {
+      updated = arriendosList.map(item => String(item.id) === String(targetId) ? newArriendo : item);
+    } else {
+      updated = [newArriendo, ...arriendosList];
+    }
+
     setArriendosList(updated);
+
     try {
-      localStorage.setItem(`arriendos_${selectedObra.id}`, JSON.stringify(updated));
+      if (selectedObra?.id) {
+        localStorage.setItem(`arriendos_${selectedObra.id}`, JSON.stringify(updated));
+      }
+      if (selectedObra?.nombre) {
+        localStorage.setItem(`arriendos_${selectedObra.nombre}`, JSON.stringify(updated));
+      }
     } catch(e) {}
+
+    try {
+      const payloadSupabase = {
+        obra_nombre: selectedObra.nombre,
+        equipo: newArriendo.equipo,
+        patente: newArriendo.patente,
+        proveedor: newArriendo.proveedor,
+        costo: newArriendo.costo,
+        unidad_costo: newArriendo.unidad_costo,
+        tipo_condicion_minima: newArriendo.tipo_condicion_minima,
+        cantidad_minima: newArriendo.cantidad_minima,
+        fecha_inicio: newArriendo.fechaInicio || null,
+        fecha_termino: newArriendo.fechaTermino || null,
+        observaciones: newArriendo.observaciones || null,
+        empresa: user?.empresa || 'EMIN'
+      };
+
+      if (editingRecordId && !isNaN(parseInt(editingRecordId))) {
+        await supabase.from('arriendos_maquinaria').update(payloadSupabase).eq('id', editingRecordId);
+      } else {
+        await supabase.from('arriendos_maquinaria').insert([payloadSupabase]);
+      }
+    } catch(err) {
+      console.warn('Sync warning:', err);
+    }
+
     setShowArriendoModal(false);
+    setEditingRecordId(null);
     setArriendoData({ equipo: '', patente: '', proveedor: '', costo: '', unidad_costo: '$/mes', tipo_condicion_minima: 'sin_minimo', cantidad_minima: '', fechaInicio: '', fechaTermino: '', observaciones: '' });
   };
 
