@@ -687,8 +687,30 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       } else if (selectedObra?.nombre && partidaObj.partida) {
         await supabase.from('partidas_obra').update(payload).eq('obra_nombre', selectedObra.nombre).eq('partida', partidaObj.partida);
       }
-    } catch(err) {
+    } catch (err) {
       console.warn('Sync warning on partida dependency:', err);
+    }
+  };
+
+  const handleDeleteCostoReal = async (costoItem, index) => {
+    if (!window.confirm(`¿Estás seguro de eliminar el registro de costo "${costoItem.nombre}"?`)) return;
+
+    const updatedCostos = costosList.filter((_, i) => i !== index);
+    setCostosList(updatedCostos);
+
+    try {
+      const obraKey = selectedObra?.nombre || selectedObra?.id || 'default';
+      localStorage.setItem(`obraxis_costos_${obraKey}`, JSON.stringify(updatedCostos));
+      if (selectedObra?.id) localStorage.setItem(`obraxis_costos_${selectedObra.id}`, JSON.stringify(updatedCostos));
+      if (selectedObra?.nombre) localStorage.setItem(`obraxis_costos_${selectedObra.nombre}`, JSON.stringify(updatedCostos));
+    } catch (eErr) {}
+
+    try {
+      if (costoItem.id) {
+        await supabase.from('costos_reales_obra').delete().eq('id', costoItem.id);
+      }
+    } catch (err) {
+      console.warn('Sync warning on delete costos_reales_obra:', err);
     }
   };
 
@@ -1099,6 +1121,14 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         if (savedProjRrhh) setProyeccionesRrhhList(JSON.parse(savedProjRrhh));
         const savedLiq = localStorage.getItem(`obraxis_liquidaciones_${obraNombre}`);
         if (savedLiq) setLiquidacionesList(JSON.parse(savedLiq));
+        const savedCostosStr = localStorage.getItem(`obraxis_costos_${obraNombre}`) || localStorage.getItem(`obraxis_costos_${selectedObra?.id}`) || localStorage.getItem(`costos_reales_${obraNombre}`);
+        if (savedCostosStr) {
+          try { setCostosList(JSON.parse(savedCostosStr)); } catch (err) {}
+        }
+        try {
+          const { data: supaCostos } = await supabase.from('costos_reales_obra').select('*').eq('obra_nombre', obraNombre);
+          if (supaCostos && supaCostos.length > 0) setCostosList(supaCostos);
+        } catch (errC) {}
         const savedProjs = localStorage.getItem(`obraxis_proyecciones_obras_${obraNombre}`);
         if (savedProjs) {
           try { setProyeccionesList(JSON.parse(savedProjs)); } catch (err) {}
@@ -5072,7 +5102,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                       <Edit className="w-3.5 h-3.5" />
                                     </button>
                                     <button
-                                      onClick={() => setCostosList(prev => prev.filter((_, i) => i !== idx))}
+                                      onClick={() => handleDeleteCostoReal(c, idx)}
                                       className="p-1 text-slate-500 hover:text-red-700 cursor-pointer"
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
@@ -8659,7 +8689,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
             </div>
 
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
                 if (!costoFormData.nombre.trim() || !costoFormData.monto) return;
                 
@@ -8673,10 +8703,30 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   imputaciones: costoFormData.imputaciones || []
                 };
 
+                let updatedCostos = [];
                 if (editingCosto) {
-                  setCostosList(prev => prev.map(c => c.id === editingCosto.id ? newCosto : c));
+                  updatedCostos = costosList.map(c => c.id === editingCosto.id ? newCosto : c);
                 } else {
-                  setCostosList(prev => [...prev, newCosto]);
+                  updatedCostos = [...costosList, newCosto];
+                }
+
+                setCostosList(updatedCostos);
+
+                try {
+                  const obraKey = selectedObra?.nombre || selectedObra?.id || 'default';
+                  localStorage.setItem(`obraxis_costos_${obraKey}`, JSON.stringify(updatedCostos));
+                  if (selectedObra?.id) localStorage.setItem(`obraxis_costos_${selectedObra.id}`, JSON.stringify(updatedCostos));
+                  if (selectedObra?.nombre) localStorage.setItem(`obraxis_costos_${selectedObra.nombre}`, JSON.stringify(updatedCostos));
+                } catch (eErr) {}
+
+                try {
+                  const payload = {
+                    ...newCosto,
+                    obra_nombre: selectedObra?.nombre || ''
+                  };
+                  await supabase.from('costos_reales_obra').upsert(payload);
+                } catch (err) {
+                  console.warn('Sync warning on costos_reales_obra:', err);
                 }
 
                 setShowCostoModal(false);
