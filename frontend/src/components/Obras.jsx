@@ -567,7 +567,23 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   
   const canvasRef = React.useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [hasSignature, setHasSignature] = useState(false);
+  const getPartidaScheduledStart = (partidaObj, fInicioFallback) => {
+    if (!partidaObj) return fInicioFallback || new Date().toISOString().substring(0, 10);
+    if (partidaObj.fecha_inicio) return String(partidaObj.fecha_inicio).split('T')[0];
+    if (partidaObj.fecha_inicio_programada) return String(partidaObj.fecha_inicio_programada).split('T')[0];
+
+    if (planificacionList && planificacionList.length > 0) {
+      const pName = String(partidaObj.partida || partidaObj.nombre || '').toLowerCase().trim();
+      const match = planificacionList.find(act => {
+        const actName = String(act.nombre || act.actividad || act.partida || '').toLowerCase().trim();
+        return actName === pName || (actName && pName && (actName.includes(pName) || pName.includes(actName)));
+      });
+      if (match && match.fecha_inicio) {
+        return String(match.fecha_inicio).split('T')[0];
+      }
+    }
+    return fInicioFallback || fechaInicioReal || selectedObra?.fecha_inicio || (new Date().toISOString().substring(0, 8) + '01');
+  };
 
   const getHaversineDistance = (lat1, lon1, lat2, lon2) => {
     if (!lat1 || !lon1 || !lat2 || !lon2) return null;
@@ -4168,24 +4184,6 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 const fCorteStr = fechaCorteProyeccion || new Date().toISOString().substring(0, 10);
                 const dInicio = new Date(fInicioStr);
                 const dCorte = new Date(fCorteStr);
-
-                // Helper para determinar la fecha de inicio programada de cada partida según Carta Gantt / Planificación
-                const getPartidaScheduledStart = (partidaObj) => {
-                  if (partidaObj.fecha_inicio) return String(partidaObj.fecha_inicio).split('T')[0];
-                  if (partidaObj.fecha_inicio_programada) return String(partidaObj.fecha_inicio_programada).split('T')[0];
-
-                  if (planificacionList && planificacionList.length > 0) {
-                    const pName = String(partidaObj.partida || partidaObj.nombre || '').toLowerCase().trim();
-                    const match = planificacionList.find(act => {
-                      const actName = String(act.nombre || act.actividad || act.partida || '').toLowerCase().trim();
-                      return actName === pName || (actName && pName && (actName.includes(pName) || pName.includes(actName)));
-                    });
-                    if (match && match.fecha_inicio) {
-                      return String(match.fecha_inicio).split('T')[0];
-                    }
-                  }
-                  return fInicioStr;
-                };
 
                 const executableParts = partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo));
 
