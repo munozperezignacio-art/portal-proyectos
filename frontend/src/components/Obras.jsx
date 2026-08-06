@@ -4153,6 +4153,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 const avgPctPerDay = pAvanceRates.length > 0 ? (pAvanceRates.reduce((acc, p) => acc + p.pctPerDay, 0) / pAvanceRates.length).toFixed(2) : "0.00";
 
                 // 3. CÁLCULO DE PUNTOS PARA CURVA S DE AVANCE FÍSICO (REAL VS PROGRAMADO)
+                const fInicioObraDefault = fechaInicioReal || (selectedObra?.fecha_inicio ? String(selectedObra.fecha_inicio).split('T')[0] : '2026-04-06');
                 const timelineMilestones = [];
                 let sDate = new Date(fInicioObraDefault + 'T00:00:00');
                 const eDate = new Date(fCorteStr + 'T00:00:00');
