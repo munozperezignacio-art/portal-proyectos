@@ -2760,6 +2760,17 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 <div className="space-y-4">
                   {/* CALCULO DE AVANCE GLOBAL REAL */}
                   {(() => {
+                    const isMatchPartida = (rPart, pPart) => {
+                      if (!rPart || !pPart) return false;
+                      const a = String(rPart).trim().toLowerCase();
+                      const b = String(pPart).trim().toLowerCase();
+                      if (a === b) return true;
+                      const normA = a.replace(/[^a-z0-9]/g, '');
+                      const normB = b.replace(/[^a-z0-9]/g, '');
+                      if (!normA || !normB) return false;
+                      return normA === normB || normA.includes(normB) || normB.includes(normA);
+                    };
+
                     const totalMetaObra = partidasList.reduce((sum, p) => sum + (parseFloat(p.cantidad) || 0), 0);
                     const totalEjecutadoObra = reportesAvanceList.reduce((sum, r) => sum + (parseFloat(r.cantidad) || 0), 0);
                     
@@ -2769,7 +2780,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                     } else if (partidasList.length > 0) {
                       const sumPcts = partidasList.reduce((acc, p) => {
                         const ejec = reportesAvanceList
-                          .filter(r => r.partida && r.partida.toLowerCase().trim() === p.partida.toLowerCase().trim())
+                          .filter(r => isMatchPartida(r.partida, p.partida))
                           .reduce((sum, r) => sum + (parseFloat(r.cantidad) || 0), 0);
                         const meta = parseFloat(p.cantidad) || 0;
                         return acc + (meta > 0 ? (ejec / meta) * 100 : 0);
@@ -2830,7 +2841,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             <div className="space-y-3">
                               {partidasList.map((p, idx) => {
                                 const ejecPartida = reportesAvanceList
-                                  .filter(r => r.partida && r.partida.toLowerCase().trim() === p.partida.toLowerCase().trim())
+                                  .filter(r => isMatchPartida(r.partida, p.partida))
                                   .reduce((sum, r) => sum + (parseFloat(r.cantidad) || 0), 0);
 
                                 const metaPartida = parseFloat(p.cantidad) || 0;
@@ -4047,12 +4058,23 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                     targetPartidas = targetPartidas.filter(p => p.partida === partName);
                   }
 
+                const isMatchPartidaName = (a, b) => {
+                  if (!a || !b) return false;
+                  const strA = String(a).trim().toLowerCase();
+                  const strB = String(b).trim().toLowerCase();
+                  if (strA === strB) return true;
+                  const normA = strA.replace(/[^a-z0-9]/g, '');
+                  const normB = strB.replace(/[^a-z0-9]/g, '');
+                  if (!normA || !normB) return false;
+                  return normA === normB || normA.includes(normB) || normB.includes(normA);
+                };
+
                 const targetNames = targetPartidas.map(p => p.partida);
 
                 // 2. Reportes de Avance hasta la fecha de corte
                 const filteredAvances = (reportesAvanceList || []).filter(r => {
                   const fRep = r.fecha || r.fecha_avance || (r.created_at ? String(r.created_at).substring(0, 10) : '');
-                  return fRep <= fCorteStr && (targetNames.length === 0 || targetNames.includes(r.partida));
+                  return fRep <= fCorteStr && (targetNames.length === 0 || targetPartidas.some(p => isMatchPartidaName(r.partida, p.partida)));
                 });
 
                 // Presupuesto Venta Total de Partidas Filtradas
@@ -4065,7 +4087,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 // Avance Acumulado al corte
                 const avanceMontoAcumulado = targetPartidas.reduce((sum, p) => {
                   const pu = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (parseFloat(p.pu) || 0);
-                  const pReps = filteredAvances.filter(r => r.partida === p.partida);
+                  const pReps = filteredAvances.filter(r => isMatchPartidaName(r.partida, p.partida));
                   const cantAv = pReps.reduce((rSum, r) => rSum + (parseFloat(r.cantidad) || 0), 0);
                   return sum + Math.round(Math.min(parseFloat(p.cantidad) || 0, cantAv) * pu);
                 }, 0);
@@ -4075,7 +4097,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 // Promedio, Máximo y Mínimo de Avance por Partida
                 let pAvanceRates = targetPartidas.map(p => {
                   const cantTotal = parseFloat(p.cantidad) || 0;
-                  const pReps = filteredAvances.filter(r => r.partida === p.partida);
+                  const pReps = filteredAvances.filter(r => isMatchPartidaName(r.partida, p.partida));
                   const cantAv = pReps.reduce((rSum, r) => rSum + (parseFloat(r.cantidad) || 0), 0);
                   const pct = cantTotal > 0 ? Math.min(100, (cantAv / cantTotal) * 100) : 0;
                   
@@ -4107,10 +4129,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 const last5DaysData = last5BusinessDays.map(dStr => {
                   const repsDay = (reportesAvanceList || []).filter(r => {
                     const fRep = r.fecha || r.fecha_avance || (r.created_at ? String(r.created_at).substring(0, 10) : '');
-                    return fRep === dStr && (targetNames.length === 0 || targetNames.includes(r.partida));
+                    return fRep === dStr && (targetNames.length === 0 || targetPartidas.some(p => isMatchPartidaName(r.partida, p.partida)));
                   });
                   const sumVal = repsDay.reduce((acc, r) => {
-                    const pMatch = targetPartidas.find(p => p.partida === r.partida);
+                    const pMatch = targetPartidas.find(p => isMatchPartidaName(r.partida, p.partida));
                     const pu = pMatch ? (partidasCostos[pMatch.partida] !== undefined ? partidasCostos[pMatch.partida] : (parseFloat(pMatch.pu) || 0)) : 1;
                     return acc + ((parseFloat(r.cantidad) || 0) * pu);
                   }, 0);
