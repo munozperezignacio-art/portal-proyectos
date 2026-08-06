@@ -1,27 +1,38 @@
 import { obraxisLogoBase64 } from './obraxisLogoBase64';
 import React, { useState, useEffect } from 'react';
-import Login from './components/Login';
-import LandingPage from './components/LandingPage';
-import Obras from './components/Obras';
-import Personal from './components/Personal';
-import Maquinaria from './components/Maquinaria';
-import ConfigCorreos from './components/ConfigCorreos';
-import PresupuestosPlanif from './components/PresupuestosPlanif';
-import Prevencion from './components/Prevencion';
-import PublicFormFiller from './components/PublicFormFiller';
-import PublicTrainingFiller from './components/PublicTrainingFiller';
-import Facturacion from './components/Facturacion';
-import Acreditaciones from './components/Acreditaciones';
-import PublicSubcontractAcreditacion from './components/PublicSubcontractAcreditacion';
-import PublicSupplierAcreditacion from './components/PublicSupplierAcreditacion';
-import FormulariosCapacitaciones from './components/FormulariosCapacitaciones';
-import PublicReporteDiarioMaquinaria from './components/PublicReporteDiarioMaquinaria';
 import { 
   LogOut, LayoutDashboard, Building2, Users, Truck, ShieldAlert, Settings, Info, Menu, X, Loader2,
   Layers, Handshake, Receipt, Coins, ClipboardCheck, Boxes, BadgeCheck,
   FileSpreadsheet, Upload, CalendarDays, Hammer, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
+
+// Cada módulo operativo se descarga solo cuando el usuario lo abre. Esto acelera el ingreso al portal y al dashboard.
+const Login = React.lazy(() => import('./components/Login'));
+const LandingPage = React.lazy(() => import('./components/LandingPage'));
+const Obras = React.lazy(() => import('./components/Obras'));
+const Personal = React.lazy(() => import('./components/Personal'));
+const Maquinaria = React.lazy(() => import('./components/Maquinaria'));
+const ConfigCorreos = React.lazy(() => import('./components/ConfigCorreos'));
+const PresupuestosPlanif = React.lazy(() => import('./components/PresupuestosPlanif'));
+const Prevencion = React.lazy(() => import('./components/Prevencion'));
+const Facturacion = React.lazy(() => import('./components/Facturacion'));
+const Acreditaciones = React.lazy(() => import('./components/Acreditaciones'));
+const FormulariosCapacitaciones = React.lazy(() => import('./components/FormulariosCapacitaciones'));
+const PublicFormFiller = React.lazy(() => import('./components/PublicFormFiller'));
+const PublicTrainingFiller = React.lazy(() => import('./components/PublicTrainingFiller'));
+const PublicSubcontractAcreditacion = React.lazy(() => import('./components/PublicSubcontractAcreditacion'));
+const PublicSupplierAcreditacion = React.lazy(() => import('./components/PublicSupplierAcreditacion'));
+const PublicReporteDiarioMaquinaria = React.lazy(() => import('./components/PublicReporteDiarioMaquinaria'));
+
+function ModuleLoader() {
+  return (
+    <div className="min-h-72 flex flex-col items-center justify-center gap-3 text-slate-500">
+      <Loader2 className="w-7 h-7 text-primary animate-spin" />
+      <span className="text-xs font-bold">Cargando módulo…</span>
+    </div>
+  );
+}
 
 const defaultCovers = [
   "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=600&q=80", // construction site
@@ -257,16 +268,16 @@ function App() {
   const urlParams = new URLSearchParams(window.location.search);
   const publicEquipoArriendo = urlParams.get('arriendo_qr') || urlParams.get('reporte_diario_equipo');
   if (publicEquipoArriendo) {
-    return <PublicReporteDiarioMaquinaria equipoId={publicEquipoArriendo} patente={urlParams.get('patente')} />;
+    return <React.Suspense fallback={<ModuleLoader />}><PublicReporteDiarioMaquinaria equipoId={publicEquipoArriendo} patente={urlParams.get('patente')} /></React.Suspense>;
   }
 
   const publicFormToken = urlParams.get('prevencion_form');
   if (publicFormToken) {
-    return <PublicFormFiller formToken={publicFormToken} />;
+    return <React.Suspense fallback={<ModuleLoader />}><PublicFormFiller formToken={publicFormToken} /></React.Suspense>;
   }
   const publicTrainingToken = urlParams.get('prevencion_capacitacion');
   if (publicTrainingToken) {
-    return <PublicTrainingFiller trainingToken={publicTrainingToken} />;
+    return <React.Suspense fallback={<ModuleLoader />}><PublicTrainingFiller trainingToken={publicTrainingToken} /></React.Suspense>;
   }
 
   const publicSubcontractToken = urlParams.get('acreditacion_token') || (urlParams.get('acreditacion_subcontrato') ? urlParams.get('token') : null);
@@ -274,10 +285,10 @@ function App() {
   const publicSupplierEmpresa = urlParams.get('acreditacion_proveedor');
 
   if (publicSupplierEmpresa || (publicSubcontractToken && urlParams.get('type') === 'proveedor')) {
-    return <PublicSupplierAcreditacion token={publicSubcontractToken} companyNameParam={publicSupplierEmpresa} />;
+    return <React.Suspense fallback={<ModuleLoader />}><PublicSupplierAcreditacion token={publicSubcontractToken} companyNameParam={publicSupplierEmpresa} /></React.Suspense>;
   }
   if (publicSubcontractToken || publicSubcontractEmpresa) {
-    return <PublicSubcontractAcreditacion token={publicSubcontractToken} companyNameParam={publicSubcontractEmpresa} />;
+    return <React.Suspense fallback={<ModuleLoader />}><PublicSubcontractAcreditacion token={publicSubcontractToken} companyNameParam={publicSubcontractEmpresa} /></React.Suspense>;
   }
 
   // --- CONTROL DE RUTAS OFICIAL OBRAXIS ---
@@ -287,28 +298,28 @@ function App() {
   // 1. Ruta /login -> Inicio de Sesión y Marcación QR
   if (normalizedPath === '/login') {
     return (
-      <Login
+      <React.Suspense fallback={<ModuleLoader />}><Login
         onLoginSuccess={handleLoginSuccess}
         onBackHome={() => navigateTo('/')}
-      />
+      /></React.Suspense>
     );
   }
 
   // 2. Ruta / (Raíz), /home o /landing -> Home & Landing Page Oficial Obraxis
   if (normalizedPath === '/' || normalizedPath === '' || normalizedPath === '/home' || normalizedPath === '/landing' || normalizedPath.endsWith('/index.html')) {
     return (
-      <LandingPage
+      <React.Suspense fallback={<ModuleLoader />}><LandingPage
         user={user}
         onGoToLogin={() => navigateTo('/login')}
         onGoToDashboard={() => navigateTo('/dashboard')}
-      />
+      /></React.Suspense>
     );
   }
 
   // 3. Ruta /dashboard o submódulos (Entorno de Trabajo de Proyectos)
   // Si el usuario intenta acceder al dashboard sin iniciar sesión, ir a /login
   if (!user) {
-    return <Login onLoginSuccess={handleLoginSuccess} onBackHome={() => navigateTo('/')} />;
+    return <React.Suspense fallback={<ModuleLoader />}><Login onLoginSuccess={handleLoginSuccess} onBackHome={() => navigateTo('/')} /></React.Suspense>;
   }
 
   // Parsear módulos permitidos del usuario
@@ -739,7 +750,7 @@ function App() {
 
         {/* MAIN PANEL CONTENT (Desktop & Mobile) */}
         <main className="p-6 md:p-8 flex-1 max-w-7xl w-full mx-auto space-y-6">
-          
+          <React.Suspense fallback={<ModuleLoader />}>
           {currentModule === 'dashboard' ? (
             <div className="space-y-6">
                   {/* Dashboard Banner/Header */}
@@ -869,6 +880,7 @@ function App() {
               </div>
             </div>
           )}
+          </React.Suspense>
 
         </main>
       </div>

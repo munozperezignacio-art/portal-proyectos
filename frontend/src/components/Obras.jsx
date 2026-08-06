@@ -21,6 +21,26 @@ const defaultCovers = [
 ];
 
 
+const toDateKey = (value) => {
+  if (!value) return '';
+  const raw = String(value);
+  return /^\d{4}-\d{2}-\d{2}/.test(raw) ? raw.substring(0, 10) : '';
+};
+
+const addCalendarDays = (dateKey, days) => {
+  const base = new Date(`${dateKey}T12:00:00`);
+  if (isNaN(base.getTime())) return dateKey;
+  base.setDate(base.getDate() + days);
+  return base.toISOString().substring(0, 10);
+};
+
+const getObraDateRange = (obra) => {
+  const today = new Date().toISOString().substring(0, 10);
+  const start = toDateKey(obra?.fecha_inicio_real) || toDateKey(obra?.fecha_inicio) || toDateKey(obra?.created_at) || today;
+  const end = toDateKey(obra?.fecha_termino) || addCalendarDays(start, 90);
+  return { start, end };
+};
+
 // Componente de Mapa Interactivo Leaflet con Pin Arrastrable y Círculo de Cobertura GPS
 function ObraGpsMapPicker({ lat, lng, radius, onChange, canEdit }) {
   const mapRef = React.useRef(null);
@@ -231,10 +251,9 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   // Sincronización automática y persistente de fechas de la obra seleccionada
   useEffect(() => {
     if (selectedObra?.nombre) {
-      const defaultStart = selectedObra.nombre?.includes('Parque Central') ? '2026-04-06' : '2026-08-01';
-      const defaultEnd = selectedObra.nombre?.includes('Parque Central') ? '2026-10-06' : '2026-12-31';
-      const savedStart = localStorage.getItem('obraxis_fecha_inicio_real_' + selectedObra.nombre) || selectedObra.fecha_inicio_real || selectedObra.fecha_inicio || defaultStart;
-      const savedEnd = localStorage.getItem('obraxis_fecha_termino_est_' + selectedObra.nombre) || selectedObra.fecha_termino || defaultEnd;
+      const defaults = getObraDateRange(selectedObra);
+      const savedStart = localStorage.getItem('obraxis_fecha_inicio_real_' + selectedObra.nombre) || defaults.start;
+      const savedEnd = localStorage.getItem('obraxis_fecha_termino_est_' + selectedObra.nombre) || defaults.end;
       setFechaInicioReal(savedStart);
       setFechaTerminoEstimada(savedEnd);
 
@@ -386,7 +405,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [editingWorkerData, setEditingWorkerData] = useState(null);
 
   // Estados del Sub-módulo de Estadísticas Ejecutivas de Obra
-  const [estadisticasTab, setEstadisticasTab] = useState('avance'); // 'avance' | 'cuadrillas' | 'maquinarias' | 'prevencion' | 'costos' | 'bodega'
+  const [estadisticasTab, setEstadisticasTab] = useState('resumen'); // 'resumen' | 'avance' | 'cuadrillas' | 'maquinarias' | 'prevencion' | 'costos' | 'bodega'
   const [fCorteEstadisticas, setFCorteEstadisticas] = useState(() => new Date().toISOString().substring(0, 10));
   const [filtroPartidaEstadisticas, setFiltroPartidaEstadisticas] = useState('GLOBAL');
   
@@ -412,11 +431,11 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   });
 
   const [fechaInicioReal, setFechaInicioReal] = useState(() => {
-    return localStorage.getItem('obraxis_fecha_inicio_real_' + (selectedObra?.nombre || '')) || (selectedObra?.fecha_inicio || new Date().toISOString().slice(0, 10));
+    return localStorage.getItem('obraxis_fecha_inicio_real_' + (selectedObra?.nombre || '')) || getObraDateRange(selectedObra).start;
   });
 
   const [fechaTerminoEstimada, setFechaTerminoEstimada] = useState(() => {
-    return localStorage.getItem('obraxis_fecha_termino_est_' + (selectedObra?.nombre || '')) || (selectedObra?.fecha_termino || '2026-12-31');
+    return localStorage.getItem('obraxis_fecha_termino_est_' + (selectedObra?.nombre || '')) || getObraDateRange(selectedObra).end;
   });
 
   const [customSalariesMap, setCustomSalariesMap] = useState(() => {
@@ -1363,16 +1382,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         if (savedLocalPartidasStr) savedLocalPartidas = JSON.parse(savedLocalPartidasStr);
       } catch(e) {}
 
-      let normalizedListPart = (listPart || []).map((p, pIdx) => {
+      const projectStartDate = getObraDateRange(selectedObra).start;
+      let normalizedListPart = (listPart || []).map((p) => {
         const localMatch = savedLocalPartidas.find(lp => lp.partida === p.partida || (lp.id && String(lp.id) === String(p.id)));
         const isTit = p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo || (p.partida && /^[0-9]\./.test(p.partida.trim()));
-
-        // Fechas automáticas distribuidas desde abril 2026 si no tienen fecha
-        let autoDate = '2026-04-06';
-        if (pIdx > 12) autoDate = '2026-07-27';
-        else if (pIdx > 8) autoDate = '2026-07-01';
-        else if (pIdx > 4) autoDate = '2026-06-01';
-        else if (pIdx > 2) autoDate = '2026-04-27';
 
         return {
           ...p,
@@ -1380,7 +1393,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           cantidad: isTit ? 0 : (parseFloat(p.cantidad_presupuestada !== undefined && p.cantidad_presupuestada !== null && p.cantidad_presupuestada !== 0 ? p.cantidad_presupuestada : p.cantidad) || 0),
           pu: isTit ? 0 : (parseFloat(p.costo_por_dia !== undefined && p.costo_por_dia !== null && p.costo_por_dia !== 0 ? p.costo_por_dia : p.pu) || 0),
           rendimiento: p.rendimiento_meta || p.rendimiento || '10',
-          fecha_inicio: localMatch?.fecha_inicio || p.fecha_inicio || p.fecha_inicio_programada || autoDate,
+          // Si aún no existe programación por partida, usar inicio real de la obra; nunca fechas de una obra de prueba.
+          fecha_inicio: localMatch?.fecha_inicio || p.fecha_inicio || p.fecha_inicio_programada || projectStartDate,
           predecesora: localMatch?.predecesora !== undefined ? localMatch.predecesora : (p.predecesora || null),
           tipo_relacion: localMatch?.tipo_relacion || p.tipo_relacion || 'FS',
           desfase_dias: localMatch?.desfase_dias !== undefined ? localMatch.desfase_dias : (p.desfase_dias || 0)
@@ -2784,22 +2798,28 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                       return normA === normB || normA.includes(normB) || normB.includes(normA);
                     };
 
-                    const totalMetaObra = partidasList.reduce((sum, p) => sum + (parseFloat(p.cantidad) || 0), 0);
-                    const totalEjecutadoObra = reportesAvanceList.reduce((sum, r) => sum + (parseFloat(r.cantidad) || 0), 0);
-                    
-                    let avanceGlobalCalculado = '0.0';
-                    if (totalMetaObra > 0) {
-                      avanceGlobalCalculado = (Math.min(100, (totalEjecutadoObra / totalMetaObra) * 100)).toFixed(1);
-                    } else if (partidasList.length > 0) {
-                      const sumPcts = partidasList.reduce((acc, p) => {
-                        const ejec = reportesAvanceList
-                          .filter(r => isMatchPartida(r.partida, p.partida))
-                          .reduce((sum, r) => sum + (parseFloat(r.cantidad) || 0), 0);
-                        const meta = parseFloat(p.cantidad) || 0;
-                        return acc + (meta > 0 ? (ejec / meta) * 100 : 0);
-                      }, 0);
-                      avanceGlobalCalculado = (Math.min(100, sumPcts / partidasList.length)).toFixed(1);
-                    }
+                    const isTitleRow = (partida) => partida.unidad === 'TITULO' || partida.unidad === 'GRUPO' || partida.es_titulo;
+                    const getExecutedQty = (partida) => reportesAvanceList
+                      .filter(r => isMatchPartida(r.partida, partida.partida))
+                      .reduce((sum, r) => sum + (parseFloat(r.cantidad) || 0), 0);
+                    const getUnitPrice = (partida) => parseFloat(partidasCostos[partida.partida] !== undefined ? partidasCostos[partida.partida] : partida.pu) || 0;
+                    const avanceRows = partidasList.map((partida, index) => {
+                      if (!isTitleRow(partida)) {
+                        const meta = parseFloat(partida.cantidad) || 0;
+                        const executed = getExecutedQty(partida);
+                        const pct = meta > 0 ? Math.min(100, Math.round((executed / meta) * 1000) / 10) : null;
+                        return { partida, isTitle: false, executed, meta, pct };
+                      }
+                      const children = [];
+                      for (let childIndex = index + 1; childIndex < partidasList.length && !isTitleRow(partidasList[childIndex]); childIndex++) children.push(partidasList[childIndex]);
+                      const weightedBudget = children.reduce((sum, child) => sum + ((parseFloat(child.cantidad) || 0) * getUnitPrice(child)), 0);
+                      const weightedEarned = children.reduce((sum, child) => sum + (Math.min(parseFloat(child.cantidad) || 0, getExecutedQty(child)) * getUnitPrice(child)), 0);
+                      return { partida, isTitle: true, childrenCount: children.length, executed: weightedEarned, meta: weightedBudget, pct: weightedBudget > 0 ? Math.min(100, Math.round((weightedEarned / weightedBudget) * 1000) / 10) : null };
+                    });
+                    const executableRows = avanceRows.filter(row => !row.isTitle);
+                    const totalBudgetObra = executableRows.reduce((sum, row) => sum + (row.meta * getUnitPrice(row.partida)), 0);
+                    const totalEarnedObra = executableRows.reduce((sum, row) => sum + (Math.min(row.meta, row.executed) * getUnitPrice(row.partida)), 0);
+                    const avanceGlobalCalculado = totalBudgetObra > 0 ? ((totalEarnedObra / totalBudgetObra) * 100).toFixed(1) : '0.0';
 
                     return (
                       <>
@@ -2852,32 +2872,20 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             </div>
                           ) : (
                             <div className="space-y-3">
-                              {partidasList.map((p, idx) => {
-                                const ejecPartida = reportesAvanceList
-                                  .filter(r => isMatchPartida(r.partida, p.partida))
-                                  .reduce((sum, r) => sum + (parseFloat(r.cantidad) || 0), 0);
-
-                                const metaPartida = parseFloat(p.cantidad) || 0;
-                                const pctVal = metaPartida > 0
-                                  ? Math.min(100, Math.round((ejecPartida / metaPartida) * 1000) / 10)
-                                  : (ejecPartida > 0 ? 100 : 0);
+                              {avanceRows.map((row, idx) => {
+                                const { partida: p, isTitle, childrenCount, executed: ejecPartida, meta: metaPartida, pct: pctVal } = row;
 
                                 return (
-                                  <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+                                  <div key={idx} className={`p-3 border rounded-xl space-y-1.5 ${isTitle ? 'bg-slate-100 border-slate-300' : 'bg-slate-50 border-slate-200'}`}>
                                     <div className="flex justify-between items-center text-xs font-bold">
-                                      <span className="text-slate-800">{p.partida}</span>
-                                      <span className="text-blue-950 font-black">{pctVal}%</span>
+                                      <span className={isTitle ? 'text-slate-900 uppercase tracking-wide' : 'text-slate-800'}>{isTitle ? '📁 ' : ''}{p.partida}</span>
+                                      {pctVal !== null ? <span className={isTitle ? 'text-emerald-800 font-black' : 'text-blue-950 font-black'}>{pctVal}%</span> : <span className="text-slate-400 font-semibold">Sin ponderación</span>}
                                     </div>
-                                    <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
-                                      <div
-                                        className={`h-3 rounded-full transition-all duration-500 ${pctVal >= 80 ? 'bg-emerald-600' : pctVal >= 40 ? 'bg-blue-900' : 'bg-amber-500'}`}
-                                        style={{ width: `${pctVal}%` }}
-                                      />
-                                    </div>
+                                    {pctVal !== null && <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden"><div className={`h-3 rounded-full transition-all duration-500 ${isTitle ? 'bg-emerald-600' : pctVal >= 80 ? 'bg-emerald-600' : pctVal >= 40 ? 'bg-blue-900' : 'bg-amber-500'}`} style={{ width: `${pctVal}%` }} /></div>}
                                     <div className="flex justify-between items-center text-[10px] text-slate-500 font-semibold pt-0.5">
-                                      <span>Unidad: {p.unidad || 'UND'}</span>
+                                      <span>{isTitle ? `${childrenCount} partida(s) ponderada(s)` : `Unidad: ${p.unidad || 'UND'}`}</span>
                                       <span className="font-mono font-bold text-slate-700">
-                                        Avance: {ejecPartida.toLocaleString('es-CL')} de {metaPartida > 0 ? metaPartida.toLocaleString('es-CL') : 'N/A'} {p.unidad || 'UND'}
+                                        {isTitle ? (pctVal !== null ? `Venta ganada: $${ejecPartida.toLocaleString('es-CL')} de $${metaPartida.toLocaleString('es-CL')}` : 'No hay partidas presupuestadas bajo este título') : `Avance: ${ejecPartida.toLocaleString('es-CL')} de ${metaPartida > 0 ? metaPartida.toLocaleString('es-CL') : 'N/A'} ${p.unidad || 'UND'}`}
                                       </span>
                                     </div>
                                   </div>
@@ -3836,7 +3844,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
                     (bitacoraNotasList || []).forEach(n => {
                       if (bitacoraFilters.includes('todos') || bitacoraFilters.includes('notas')) {
-                        const rawDt = n.fecha || (n.created_at ? String(n.created_at).substring(0, 10) : '2026-04-06');
+                        const rawDt = n.fecha || (n.created_at ? String(n.created_at).substring(0, 10) : fechaInicioReal);
                         unifiedBitacoraEvents.push({
                           type: 'nota',
                           dateStr: rawDt,
@@ -3852,7 +3860,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
                     (reportesAvanceList || []).forEach(av => {
                       if (bitacoraFilters.includes('todos') || bitacoraFilters.includes('avances')) {
-                        const rawDt = av.fecha || av.fecha_avance || (av.created_at ? String(av.created_at).substring(0, 10) : '2026-04-06');
+                        const rawDt = av.fecha || av.fecha_avance || (av.created_at ? String(av.created_at).substring(0, 10) : fechaInicioReal);
                         unifiedBitacoraEvents.push({
                           type: 'avance',
                           dateStr: rawDt,
@@ -3868,7 +3876,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
                     (asistenciaList || []).forEach(as => {
                       if (bitacoraFilters.includes('todos') || bitacoraFilters.includes('asistencia')) {
-                        const rawDt = as.fecha || (as.created_at ? String(as.created_at).substring(0, 10) : '2026-04-06');
+                        const rawDt = as.fecha || (as.created_at ? String(as.created_at).substring(0, 10) : fechaInicioReal);
                         unifiedBitacoraEvents.push({
                           type: 'asistencia',
                           dateStr: rawDt,
@@ -4055,6 +4063,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   {/* BARRA DE NAVEGACIÓN POR SUB-PESTAÑAS DE ESTADÍSTICAS */}
                   <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100">
                     {[
+                      { id: 'resumen', label: '🎯 Control Ejecutivo' },
                       { id: 'avance', label: '📈 Avance Físico' },
                       { id: 'cuadrillas', label: '👷 Cuadrillas & RRHH' },
                       { id: 'maquinarias', label: '🚜 Maquinarias & Flota' },
@@ -4159,7 +4168,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   return (!min || f < min) ? f : min;
                 }, null);
 
-                const fInicioObraDefault = minPartidaStart || (selectedObra?.nombre?.includes('Parque Central') ? '2026-04-06' : (fechaInicioReal || '2026-04-06'));
+                const fInicioObraDefault = minPartidaStart || fechaInicioReal || getObraDateRange(selectedObra).start;
                 const timelineMilestones = [];
                 let sDate = new Date(fInicioObraDefault + 'T00:00:00');
                 const eDate = new Date(fCorteStr + 'T00:00:00');
@@ -4305,10 +4314,24 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   return sum + Math.round(cantProg * pu);
                 }, 0);
 
-                // AC (Actual Cost): Costos reales acumulados al corte (Facturas + Personal + Maquinaria)
-                const AC_facturas = (costosList || []).reduce((acc, c) => acc + (parseFloat(c.monto) || 0), 0);
-                const AC_personal = (liquidacionesList || []).reduce((acc, l) => acc + (parseFloat(l.monto_real) || 0), 0);
-                const AC_maquinaria = totalCostoMantencion;
+                // AC (Actual Cost): solo costos disponibles al corte y atribuibles al alcance seleccionado.
+                // Los gastos generales se conservan en la vista global, pero no se cargan artificialmente a una partida.
+                const isGlobalStats = filtroPartidaEstadisticas === 'GLOBAL';
+                const getCostDate = (cost) => cost.fecha || (cost.created_at ? String(cost.created_at).substring(0, 10) : '');
+                const getCostoImputadoPartida = (partidaName) => (costosList || []).reduce((sum, cost) => {
+                  if (getCostDate(cost) > fCorteStr || !Array.isArray(cost.imputaciones)) return sum;
+                  const imputacion = cost.imputaciones.find(i => isMatchPartidaName(i.partida, partidaName));
+                  return imputacion
+                    ? sum + Math.round(((parseFloat(cost.monto) || 0) * (parseFloat(imputacion.porcentaje) || 0)) / 100)
+                    : sum;
+                }, 0);
+                const AC_facturas = isGlobalStats
+                  ? (costosList || []).filter(c => getCostDate(c) <= fCorteStr).reduce((acc, c) => acc + (parseFloat(c.monto) || 0), 0)
+                  : targetPartidas.reduce((sum, p) => sum + getCostoImputadoPartida(p.partida), 0);
+                const AC_personal = isGlobalStats
+                  ? (liquidacionesList || []).filter(l => (l.fecha || (l.created_at ? String(l.created_at).substring(0, 10) : '')) <= fCorteStr).reduce((acc, l) => acc + (parseFloat(l.monto_real) || 0), 0)
+                  : 0;
+                const AC_maquinaria = isGlobalStats ? totalCostoMantencion : 0;
                 const AC = AC_facturas + AC_personal + AC_maquinaria; // Costo Real Actual Total
 
                 const BAC = totalVentaPresupuestada; // Presupuesto Total Venta
@@ -4324,19 +4347,12 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   const puVenta = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (parseFloat(p.pu) || 0);
                   const ventaTotal = Math.round(cantTotal * puVenta);
 
-                  const pReps = filteredAvances.filter(r => r.partida === p.partida);
+                  const pReps = filteredAvances.filter(r => isMatchPartidaName(r.partida, p.partida));
                   const cantAv = pReps.reduce((rSum, r) => rSum + (parseFloat(r.cantidad) || 0), 0);
                   const ventaAvance = Math.round(Math.min(cantTotal, cantAv) * puVenta);
 
                   // Imputaciones reales a esta partida
-                  const costoImputadoReal = (costosList || []).reduce((cSum, c) => {
-                    if (!c.imputaciones) return cSum;
-                    const impMatch = c.imputaciones.find(i => i.partida === p.partida);
-                    if (impMatch) {
-                      return cSum + Math.round(((parseFloat(c.monto) || 0) * (parseFloat(impMatch.porcentaje) || 0)) / 100);
-                    }
-                    return cSum;
-                  }, 0);
+                  const costoImputadoReal = getCostoImputadoPartida(p.partida);
 
                   const esSobrecosto = costoImputadoReal > 0 && costoImputadoReal > ventaAvance;
                   const variacionMonto = costoImputadoReal - ventaAvance;
@@ -4356,8 +4372,123 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   };
                 }).filter(p => p.costoImputadoReal > 0 || p.esSobrecosto);
 
+                // Lectura ejecutiva: rendimiento, plazo y costo por partida, ordenada por prioridad de gestión.
+                const partidaExecutiveStats = targetPartidas.map(p => {
+                  const cantTotal = parseFloat(p.cantidad) || 0;
+                  const pu = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (parseFloat(p.pu) || 0);
+                  const pReps = filteredAvances.filter(r => isMatchPartidaName(r.partida, p.partida));
+                  const cantAv = pReps.reduce((sum, r) => sum + (parseFloat(r.cantidad) || 0), 0);
+                  const actualPct = cantTotal > 0 ? Math.min(100, (cantAv / cantTotal) * 100) : 0;
+                  const startP = getPartidaScheduledStart(p);
+                  const rendimiento = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
+                  const duracion = Math.max(1, Math.ceil(cantTotal / rendimiento));
+                  const plannedPct = startP && startP <= fCorteStr
+                    ? Math.min(100, (countChileanBusinessDays(startP, fCorteStr) / duracion) * 100)
+                    : 0;
+                  const scheduleGap = actualPct - plannedPct;
+                  const costo = getCostoImputadoPartida(p.partida);
+                  const ventaAvance = Math.round(Math.min(cantTotal, cantAv) * pu);
+                  const costGap = costo - ventaAvance;
+                  const hasProgress = pReps.length > 0;
+                  const status = costGap > 0 ? 'cost' : scheduleGap <= -10 ? 'schedule' : !hasProgress && plannedPct > 0 ? 'no-progress' : 'healthy';
+                  return { partida: p.partida, actualPct, plannedPct, scheduleGap, costo, ventaAvance, costGap, hasProgress, status };
+                });
+                const criticalPartidas = partidaExecutiveStats
+                  .filter(p => p.status !== 'healthy')
+                  .sort((a, b) => (b.costGap - a.costGap) || (a.scheduleGap - b.scheduleGap));
+                const partidasAtrasadas = partidaExecutiveStats.filter(p => p.scheduleGap <= -10).length;
+                const partidasSinAvance = partidaExecutiveStats.filter(p => !p.hasProgress && p.plannedPct > 0).length;
+                const plannedGlobalPct = totalVentaPresupuestada > 0 ? (PV / totalVentaPresupuestada) * 100 : 0;
+                const scheduleGapGlobal = Number(pctAvanceGlobal) - plannedGlobalPct;
+                const daysToFinish = fechaTerminoEstimada
+                  ? Math.max(0, countChileanBusinessDays(fCorteStr, String(fechaTerminoEstimada).substring(0, 10)))
+                  : null;
+
+                // Productividad por especialidad: refleja uso de dotación y no atribuye producción ficticia a una persona.
+                const workforceByRole = Object.values((personalList || []).reduce((groups, worker) => {
+                  const role = worker.cargo || 'Sin especialidad definida';
+                  if (!groups[role]) groups[role] = { role, workers: 0, attendance: 0, hht: 0, dailyCost: 0 };
+                  const group = groups[role];
+                  const custom = customSalariesMap[worker.nombre];
+                  const baseSalary = custom?.sueldo_base || parseFloat(worker.sueldo_base) || 1200000;
+                  const attendance = filteredAsistencia.filter(a => a.trabajador === worker.nombre || (worker.rut && a.rut === worker.rut)).length;
+                  group.workers += 1;
+                  group.attendance += attendance;
+                  group.hht += attendance * 9;
+                  group.dailyCost += Math.round((baseSalary * 1.25) / 30);
+                  return groups;
+                }, {})).sort((a, b) => b.hht - a.hht);
+                const valuePerHHT = totalHHT > 0 ? avanceMontoAcumulado / totalHHT : 0;
+
+                // Disponibilidad por equipo, calculada en horas potenciales desde el inicio del alcance hasta el corte.
+                const elapsedBusinessDays = Math.max(1, countChileanBusinessDays(fInicioObraDefault, fCorteStr));
+                const equipmentAvailability = [...(maquinariaList || []), ...(arriendosList || [])].map((equipment, idx) => {
+                  const name = equipment.nombre || equipment.equipo || equipment.patente || `Equipo ${idx + 1}`;
+                  const stops = filteredParalizaciones.filter(p => String(p.equipo_nombre || '').trim().toLowerCase() === String(name).trim().toLowerCase());
+                  const maintenance = filteredMantenciones.filter(m => String(m.equipo_nombre || '').trim().toLowerCase() === String(name).trim().toLowerCase());
+                  const downtime = stops.reduce((sum, stop) => sum + (parseFloat(stop.horas_parada) || 0), 0);
+                  const availablePct = Math.max(0, 100 - ((downtime / (elapsedBusinessDays * 9)) * 100));
+                  return { name, downtime, stops: stops.length, maintenance: maintenance.length, availablePct };
+                }).sort((a, b) => a.availablePct - b.availablePct);
+
+                // Tendencia HSE semanal para detectar acumulación de incidentes, no solo el total histórico.
+                const hseWeeklyTrend = Array.from({ length: 8 }, (_, index) => {
+                  const start = new Date(fCorteStr + 'T00:00:00');
+                  start.setDate(start.getDate() - ((7 - index) * 7 + 6));
+                  const end = new Date(start);
+                  end.setDate(end.getDate() + 6);
+                  const startStr = start.toISOString().substring(0, 10);
+                  const endStr = end.toISOString().substring(0, 10);
+                  const weeklyAttendance = filteredAsistencia.filter(a => {
+                    const date = a.fecha || (a.created_at ? String(a.created_at).substring(0, 10) : '');
+                    return date >= startStr && date <= endStr;
+                  });
+                  const weeklyEvents = filteredAccidentes.filter(a => a.fecha >= startStr && a.fecha <= endStr);
+                  return { label: `${String(start.getDate()).padStart(2, '0')}/${String(start.getMonth() + 1).padStart(2, '0')}`, hht: weeklyAttendance.length * 9, events: weeklyEvents.length, lostDays: weeklyEvents.reduce((sum, a) => sum + (parseInt(a.dias_perdidos, 10) || 0), 0) };
+                });
+                const maxWeeklyHHT = Math.max(1, ...hseWeeklyTrend.map(week => week.hht));
+
                 return (
                   <div className="space-y-6">
+
+                    {/* PESTAÑA 0: CONTROL EJECUTIVO — lectura rápida para jefatura de obra */}
+                    {estadisticasTab === 'resumen' && (
+                      <div className="space-y-5">
+                        <div className="bg-gradient-to-r from-slate-950 via-blue-950 to-indigo-900 text-white p-5 rounded-2xl shadow-sm">
+                          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                            <div>
+                              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-200">Control ejecutivo al {fCorteStr}</p>
+                              <h4 className="text-lg font-black mt-1">{filtroPartidaEstadisticas === 'GLOBAL' ? 'Pulso general de la obra' : 'Pulso del alcance seleccionado'}</h4>
+                              <p className="text-xs text-blue-100 mt-1">Producción, plazo, costo, recursos y seguridad para decidir dónde actuar primero.</p>
+                            </div>
+                            <div className="flex flex-wrap gap-2 text-xs font-bold">
+                              <span className={`px-3 py-1.5 rounded-xl border ${SPI >= 1 ? 'bg-emerald-500/20 border-emerald-300/40 text-emerald-100' : 'bg-amber-500/20 border-amber-300/40 text-amber-100'}`}>Plazo: {SPI >= 1 ? 'En línea / adelantado' : 'Requiere recuperación'}</span>
+                              <span className={`px-3 py-1.5 rounded-xl border ${CPI >= 1 ? 'bg-emerald-500/20 border-emerald-300/40 text-emerald-100' : 'bg-rose-500/20 border-rose-300/40 text-rose-100'}`}>Costo: {CPI >= 1 ? 'Controlado' : 'En desviación'}</span>
+                              <span className="px-3 py-1.5 rounded-xl border border-blue-300/40 bg-blue-500/20 text-blue-100">{activeWorkerCount} personas | {totalEquiposFlota} equipos</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Avance real vs. plan</span><p className="text-2xl font-black text-blue-950">{pctAvanceGlobal}% <span className="text-xs text-slate-400 font-bold">/ {plannedGlobalPct.toFixed(1)}%</span></p><p className={`text-[10px] font-bold ${scheduleGapGlobal >= 0 ? 'text-emerald-700' : 'text-amber-700'}`}>{scheduleGapGlobal >= 0 ? '+' : ''}{scheduleGapGlobal.toFixed(1)} pp contra programación</p></div>
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Índice de plazo (SPI)</span><p className={`text-2xl font-black ${SPI >= 1 ? 'text-emerald-700' : 'text-amber-700'}`}>{SPI.toFixed(2)}</p><p className="text-[10px] text-slate-500 font-semibold">{partidasAtrasadas} partida(s) con atraso relevante</p></div>
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Índice de costo (CPI)</span><p className={`text-2xl font-black ${CPI >= 1 ? 'text-emerald-700' : 'text-rose-700'}`}>{CPI.toFixed(2)}</p><p className="text-[10px] text-slate-500 font-semibold">EAC: ${EAC.toLocaleString('es-CL')}</p></div>
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Capacidad y seguridad</span><p className="text-2xl font-black text-slate-800">{avgDailyWorkers} <span className="text-xs text-slate-400 font-bold">pers./día</span></p><p className={`text-[10px] font-semibold ${countCTP > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{countCTP > 0 ? `${countCTP} accidente(s) CTP` : 'Sin accidentes con tiempo perdido'}</p></div>
+                        </div>
+
+                        <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+                          <div className="xl:col-span-2 bg-white p-5 border border-slate-200 rounded-2xl shadow-xs space-y-4">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-3"><div><h4 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5"><BarChart3 className="w-4 h-4 text-blue-900" />Mapa de cumplimiento por partida</h4><p className="text-[10px] text-slate-500 mt-1">Azul: avance real. Verde: avance planificado al corte.</p></div><span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded-lg">{targetPartidas.length} partidas en alcance</span></div>
+                            {partidaExecutiveStats.length === 0 ? <p className="text-xs text-slate-500 italic text-center p-6 bg-slate-50 rounded-xl">No hay partidas ejecutables para el filtro seleccionado.</p> : <div className="space-y-3 max-h-[430px] overflow-y-auto pr-1">{partidaExecutiveStats.slice().sort((a, b) => a.scheduleGap - b.scheduleGap).map((partida, idx) => {
+                              const statusStyle = partida.status === 'cost' ? 'bg-rose-100 text-rose-800 border-rose-200' : partida.status === 'schedule' || partida.status === 'no-progress' ? 'bg-amber-100 text-amber-800 border-amber-200' : 'bg-emerald-100 text-emerald-800 border-emerald-200';
+                              const statusLabel = partida.status === 'cost' ? 'Costo en alerta' : partida.status === 'schedule' ? 'Atraso de plazo' : partida.status === 'no-progress' ? 'Sin avance' : 'Controlada';
+                              return <div key={`exec-partida-${idx}`} className="border border-slate-200 rounded-xl p-3 bg-slate-50/70 space-y-2"><div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5"><span className="font-bold text-xs text-slate-800 truncate" title={partida.partida}>{partida.partida}</span><span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border ${statusStyle}`}>{statusLabel}</span></div><div className="space-y-1"><div className="h-2.5 bg-slate-200 rounded-full overflow-hidden relative"><div className="h-full bg-emerald-500/80 rounded-full absolute left-0 top-0" style={{ width: `${Math.min(100, partida.plannedPct)}%` }}></div><div className="h-full bg-blue-900 rounded-full absolute left-0 top-0 opacity-90" style={{ width: `${Math.min(100, partida.actualPct)}%` }}></div></div><div className="flex justify-between text-[10px] font-semibold"><span className="text-blue-950">Real {partida.actualPct.toFixed(1)}%</span><span className="text-emerald-700">Plan {partida.plannedPct.toFixed(1)}%</span><span className={partida.scheduleGap >= 0 ? 'text-emerald-700' : 'text-amber-700'}>{partida.scheduleGap >= 0 ? '+' : ''}{partida.scheduleGap.toFixed(1)} pp</span></div></div><div className="flex flex-wrap gap-x-3 gap-y-1 text-[9.5px] text-slate-500 font-medium"><span>Venta ganada: <b className="text-slate-700">${partida.ventaAvance.toLocaleString('es-CL')}</b></span><span>Costo imputado: <b className={partida.costGap > 0 ? 'text-rose-700' : 'text-slate-700'}>${partida.costo.toLocaleString('es-CL')}</b></span></div></div>;
+                            })}</div>}
+                          </div>
+                          <div className="space-y-4"><div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs space-y-3"><h4 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5"><AlertTriangle className="w-4 h-4 text-amber-700" />Prioridades de intervención</h4>{criticalPartidas.length === 0 ? <p className="text-xs text-emerald-700 font-semibold bg-emerald-50 border border-emerald-200 rounded-xl p-3">No hay desviaciones relevantes en el alcance y fecha de corte actuales.</p> : <div className="space-y-2 max-h-64 overflow-y-auto pr-1">{criticalPartidas.slice(0, 6).map((partida, idx) => <div key={`alert-partida-${idx}`} className={`p-2.5 rounded-xl border ${partida.status === 'cost' ? 'bg-rose-50 border-rose-200' : 'bg-amber-50 border-amber-200'}`}><p className="text-[10px] font-black text-slate-800 truncate">{partida.partida}</p><p className="text-[10px] mt-0.5 font-semibold text-slate-600">{partida.status === 'cost' ? `Costo supera venta ganada por $${Math.abs(partida.costGap).toLocaleString('es-CL')}` : partida.status === 'no-progress' ? 'Tiene avance planificado, pero no registra producción' : `Atraso de ${Math.abs(partida.scheduleGap).toFixed(1)} pp frente al plan`}</p></div>)}</div>}</div><div className="bg-slate-900 text-white p-5 rounded-2xl shadow-xs space-y-2"><span className="text-[10px] uppercase tracking-wider font-black text-slate-300">Próximo foco de gestión</span><p className="text-sm font-black">{criticalPartidas.length > 0 ? 'Revisar partidas críticas y acordar un plan de recuperación.' : 'Mantener control de producción y calidad del registro diario.'}</p><p className="text-[10px] text-slate-300">{partidasSinAvance > 0 ? `${partidasSinAvance} partida(s) planificada(s) aún sin reporte de avance.` : daysToFinish !== null ? `${daysToFinish} día(s) hábiles estimados hasta el término configurado.` : 'Configura fecha de término para habilitar el horizonte de cierre.'}</p></div></div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* PESTAÑA 1: 📈 AVANCE FÍSICO Y EJECUCIÓN */}
                     {estadisticasTab === 'avance' && (
@@ -4565,6 +4696,17 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           </div>
                         </div>
 
+                        <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-3">
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                            <div><h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Productividad y carga por especialidad</h4><p className="text-[10px] text-slate-500 mt-0.5">Distribución de HHT y costo diario estimado; el rendimiento global actual es ${valuePerHHT.toLocaleString('es-CL', { maximumFractionDigits: 0 })}/HHT.</p></div>
+                            <span className="text-[10px] font-bold bg-indigo-100 text-indigo-900 px-2 py-1 rounded-lg">{workforceByRole.length} especialidades</span>
+                          </div>
+                          {workforceByRole.length === 0 ? <p className="text-xs text-slate-500 italic p-3 text-center bg-slate-50 rounded-xl">No hay dotación disponible para medir productividad por especialidad.</p> : <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{workforceByRole.map((role, idx) => {
+                            const share = totalHHT > 0 ? (role.hht / totalHHT) * 100 : 0;
+                            return <div key={`role-productivity-${idx}`} className="border border-slate-200 bg-slate-50 rounded-xl p-3 space-y-1.5"><div className="flex justify-between gap-2"><span className="text-xs font-bold text-slate-800 truncate">{role.role}</span><span className="text-[10px] font-black text-indigo-900">{role.workers} pers.</span></div><div className="h-2 bg-slate-200 rounded-full overflow-hidden"><div className="h-full bg-indigo-700 rounded-full" style={{ width: `${Math.min(100, share)}%` }}></div></div><div className="flex justify-between text-[10px] text-slate-600 font-semibold"><span>{role.hht.toLocaleString('es-CL')} HHT · {role.attendance} asist.</span><span>${role.dailyCost.toLocaleString('es-CL')}/día</span></div></div>;
+                          })}</div>}
+                        </div>
+
                         {/* TABLA DE DOTACIÓN Y CUADRILLAS */}
                         <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-3">
                           <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">👷 Personal Asignado y Control Operativo por Cuadrilla</h4>
@@ -4667,6 +4809,11 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           </div>
                         </div>
 
+                        <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-3">
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-2"><div><h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Disponibilidad por equipo</h4><p className="text-[10px] text-slate-500 mt-0.5">Horas de parada sobre horas potenciales desde el inicio hasta la fecha de corte.</p></div><span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-2 py-1 rounded-lg">{elapsedBusinessDays} días hábiles</span></div>
+                          {equipmentAvailability.length === 0 ? <p className="text-xs text-slate-500 italic p-3 text-center bg-slate-50 rounded-xl">No hay equipos asignados al alcance seleccionado.</p> : <div className="space-y-2">{equipmentAvailability.map((equipment, idx) => <div key={`equipment-availability-${idx}`} className="border border-slate-200 bg-slate-50 rounded-xl p-3"><div className="flex justify-between gap-2 text-xs"><span className="font-bold text-slate-800 truncate">{equipment.name}</span><span className={`font-black ${equipment.availablePct >= 95 ? 'text-emerald-700' : equipment.availablePct >= 85 ? 'text-amber-700' : 'text-rose-700'}`}>{equipment.availablePct.toFixed(1)}%</span></div><div className="h-2 mt-2 bg-slate-200 rounded-full overflow-hidden"><div className={`h-full rounded-full ${equipment.availablePct >= 95 ? 'bg-emerald-500' : equipment.availablePct >= 85 ? 'bg-amber-500' : 'bg-rose-600'}`} style={{ width: `${equipment.availablePct}%` }}></div></div><p className="text-[10px] text-slate-500 font-semibold mt-1.5">{equipment.downtime} h detenida · {equipment.stops} falla(s) · {equipment.maintenance} mantención(es)</p></div>)}</div>}
+                        </div>
+
                         {/* HISTORIAL DE MANTENCIONES Y PARALIZACIONES */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-3">
@@ -4760,6 +4907,11 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             <p className="text-2xl font-black text-slate-800">{tasaGravidez}</p>
                             <p className="text-[10px] text-slate-500 font-semibold">(Días Perdidos × 1M) / HHT</p>
                           </div>
+                        </div>
+
+                        <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-3">
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-2"><div><h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Tendencia HSE — últimas 8 semanas</h4><p className="text-[10px] text-slate-500 mt-0.5">Barras: HHT semanal. Indicadores rojos: incidentes; número: días perdidos.</p></div><span className="text-[10px] font-bold bg-emerald-100 text-emerald-900 px-2 py-1 rounded-lg">Seguimiento preventivo</span></div>
+                          <div className="h-44 flex items-end justify-between gap-2 pt-5 px-2 bg-slate-50 rounded-xl border border-slate-100">{hseWeeklyTrend.map((week, idx) => { const height = Math.max(8, (week.hht / maxWeeklyHHT) * 100); return <div key={`hse-week-${idx}`} className="flex-1 h-full flex flex-col items-center justify-end gap-1 group"><span className="text-[9px] font-black text-rose-700 h-4">{week.events > 0 ? `⚠ ${week.events}` : ''}</span><div className="w-full max-w-9 flex flex-col justify-end h-24"><div className="bg-emerald-600 rounded-t-md min-h-1 transition-all" style={{ height: `${height}%` }}></div></div><span className="text-[9px] font-mono font-bold text-slate-600">{week.label}</span><span className="text-[8.5px] text-slate-500">{week.hht} HHT</span>{week.lostDays > 0 && <span className="text-[8.5px] font-bold text-rose-700">{week.lostDays} DP</span>}</div>; })}</div>
                         </div>
 
                         {/* TACÓMETRO / HISTORIAL DE INCIDENTES HSE */}
@@ -4899,7 +5051,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
                             {/* Contenedor SVG Curva S */}
                             {(() => {
-                              const fStart = minPartidaStart || (selectedObra?.nombre?.includes('Parque Central') ? '2026-04-06' : (fechaInicioReal || '2026-04-06'));
+                              const fStart = minPartidaStart || fechaInicioReal || getObraDateRange(selectedObra).start;
                               const dStart = new Date(fStart + 'T00:00:00').getTime();
                               const dEnd = new Date(fCorteStr + 'T00:00:00').getTime();
                               const validEnd = isNaN(dEnd) || dEnd <= dStart ? dStart + 30 * 86400000 : dEnd;
@@ -5502,8 +5654,14 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           {obraActiveSubmodule === 'planificacion' && (
             <div className="space-y-6 animate-in fade-in duration-200">
               {(() => {
-                const fInicioObraDefault = selectedObra?.fecha_inicio ? String(selectedObra.fecha_inicio).split('T')[0] : new Date().toISOString().substring(0, 10);
+                const fInicioObraDefault = fechaInicioReal || getObraDateRange(selectedObra).start;
                 const fCorteStr = fechaCorteProyeccion || new Date().toISOString().substring(0, 10);
+
+                const isSamePartidaForSchedule = (reportPartida, partidaName) => {
+                  if (!reportPartida || !partidaName) return false;
+                  const normalize = (value) => String(value).trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+                  return normalize(reportPartida) === normalize(partidaName);
+                };
 
                 // 1. Helper para procesar partidas ejecutables
                 const processPartidaItem = (p) => {
@@ -5514,7 +5672,11 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
                   const fechaInicio = p.fecha_inicio ? String(p.fecha_inicio).split('T')[0] : fInicioObraDefault;
                   const fechaTermino = isGroup ? '' : addChileanBusinessDays(fechaInicio, duracionDias);
-                  const avancePct = cant > 0 ? Math.min(100, Math.round(((p.avanceAcumulado || 0) / cant) * 100)) : 0;
+                  // La planificación se alimenta directamente desde los reportes reales de avance.
+                  const avanceAcumulado = isGroup ? 0 : (reportesAvanceList || [])
+                    .filter(report => isSamePartidaForSchedule(report.partida, p.partida))
+                    .reduce((sum, report) => sum + (parseFloat(report.cantidad) || 0), 0);
+                  const avancePct = cant > 0 ? Math.min(100, Math.round((avanceAcumulado / cant) * 100)) : 0;
 
                   return {
                     ...p,
@@ -5524,6 +5686,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                     duracionDias,
                     fechaInicio,
                     fechaTermino,
+                    avanceAcumulado,
                     avancePct
                   };
                 };
