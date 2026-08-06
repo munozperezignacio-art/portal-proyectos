@@ -4609,6 +4609,177 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             <span className="text-[10px] bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded font-extrabold">100% Bajo Control</span>
                           </div>
                         )}
+                        {/* GRÁFICO DE CURVA S Y ANÁLISIS COMPARATIVO DE COSTOS */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+                          {/* 1. GRÁFICO SVG DE CURVA S DE VALOR GANADO (EVM) */}
+                          <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs space-y-3">
+                            <div className="flex justify-between items-center border-b pb-2">
+                              <h4 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                                <BarChart3 className="w-4 h-4 text-blue-900" />
+                                <span>📉 Curva S de Avance y Costos (EVM)</span>
+                              </h4>
+                              <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-extrabold">Histórico al Corte</span>
+                            </div>
+
+                            {/* Leyenda de Líneas */}
+                            <div className="flex flex-wrap items-center justify-center gap-4 text-[10.5px] font-bold py-1">
+                              <span className="flex items-center gap-1 text-blue-900">
+                                <span className="w-3 h-1 bg-blue-900 rounded-full"></span> EV (Venta Real)
+                              </span>
+                              <span className="flex items-center gap-1 text-emerald-800">
+                                <span className="w-3 h-1 bg-emerald-600 rounded-full"></span> PV (Venta Planificada)
+                              </span>
+                              <span className="flex items-center gap-1 text-rose-700">
+                                <span className="w-3 h-1 bg-rose-600 rounded-full"></span> AC (Costo Real)
+                              </span>
+                            </div>
+
+                            {/* Contenedor SVG Curva S */}
+                            {(() => {
+                              const fStart = selectedObra?.fecha_inicio || '2026-06-01';
+                              const dStart = new Date(fStart + 'T00:00:00').getTime();
+                              const dEnd = new Date(fCorteStr + 'T00:00:00').getTime();
+                              const validEnd = isNaN(dEnd) || dEnd <= dStart ? dStart + 30 * 86400000 : dEnd;
+
+                              const timePoints = [0, 0.25, 0.5, 0.75, 1.0].map(pct => {
+                                const ptTime = dStart + (validEnd - dStart) * pct;
+                                const ptDate = new Date(ptTime).toISOString().substring(0, 10);
+                                
+                                const ptPV = targetPartidas.reduce((sum, p) => {
+                                  const pu = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (parseFloat(p.pu) || 0);
+                                  const startP = getPartidaScheduledStart(p);
+                                  let dEf = 0;
+                                  if (startP && startP <= ptDate) {
+                                    const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
+                                    const cantTotal = parseFloat(p.cantidad) || 0;
+                                    const dBus = countChileanBusinessDays(startP, ptDate);
+                                    dEf = Math.min(dBus, rend > 0 ? (cantTotal / rend) : 1);
+                                  }
+                                  const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
+                                  const cantProg = Math.min(parseFloat(p.cantidad) || 0, Math.round(dEf * rend));
+                                  return sum + Math.round(cantProg * pu);
+                                }, 0);
+
+                                const ptEV = targetPartidas.reduce((sum, p) => {
+                                  const pu = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (parseFloat(p.pu) || 0);
+                                  const pReps = (reportesAvanceList || []).filter(r => {
+                                    const fRep = r.fecha || r.fecha_avance || (r.created_at ? String(r.created_at).substring(0, 10) : '');
+                                    return fRep <= ptDate && r.partida === p.partida;
+                                  });
+                                  const cantAv = pReps.reduce((rSum, r) => rSum + (parseFloat(r.cantidad) || 0), 0);
+                                  return sum + Math.round(Math.min(parseFloat(p.cantidad) || 0, cantAv) * pu);
+                                }, 0);
+
+                                const ptAC_fact = (costosList || []).filter(c => (c.fecha || c.created_at?.substring(0, 10)) <= ptDate).reduce((acc, c) => acc + (parseFloat(c.monto) || 0), 0);
+                                const ptAC_pers = Math.round(AC_personal * pct);
+                                const ptAC_maq = Math.round(AC_maquinaria * pct);
+                                const ptAC = ptAC_fact + ptAC_pers + ptAC_maq;
+
+                                return { dateStr: ptDate.substring(5), ev: ptEV, pv: ptPV, ac: ptAC };
+                              });
+
+                              const maxY = Math.max(1, BAC, ...timePoints.map(p => Math.max(p.ev, p.pv, p.ac))) * 1.1;
+
+                              const w = 450;
+                              const h = 180;
+                              const padL = 40;
+                              const padB = 25;
+                              const padT = 15;
+                              const padR = 15;
+
+                              const getX = (idx) => padL + (idx / (timePoints.length - 1)) * (w - padL - padR);
+                              const getY = (val) => h - padB - (val / maxY) * (h - padT - padB);
+
+                              const pathEV = timePoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(p.ev)}`).join(' ');
+                              const pathPV = timePoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(p.pv)}`).join(' ');
+                              const pathAC = timePoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(p.ac)}`).join(' ');
+
+                              return (
+                                <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 flex flex-col items-center">
+                                  <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-44 overflow-visible">
+                                    {[0, 0.33, 0.66, 1].map((pct, gIdx) => {
+                                      const yVal = (h - padB) - pct * (h - padT - padB);
+                                      return (
+                                        <g key={`g-${gIdx}`}>
+                                          <line x1={padL} y1={yVal} x2={w - padR} y2={yVal} stroke="#e2e8f0" strokeDasharray="3 3" />
+                                          <text x={padL - 5} y={yVal + 3} textAnchor="end" className="text-[8px] fill-slate-400 font-mono">
+                                            ${Math.round((maxY * pct) / 1000000)}M
+                                          </text>
+                                        </g>
+                                      );
+                                    })}
+
+                                    <path d={pathPV} fill="none" stroke="#059669" strokeWidth="2.5" strokeDasharray="4 2" />
+                                    <path d={pathAC} fill="none" stroke="#e11d48" strokeWidth="2.5" />
+                                    <path d={pathEV} fill="none" stroke="#1e3a8a" strokeWidth="3.5" />
+
+                                    {timePoints.map((p, i) => (
+                                      <g key={`pt-${i}`}>
+                                        <circle cx={getX(i)} cy={getY(p.pv)} r="3.5" fill="#059669" />
+                                        <circle cx={getX(i)} cy={getY(p.ac)} r="3.5" fill="#e11d48" />
+                                        <circle cx={getX(i)} cy={getY(p.ev)} r="4.5" fill="#1e3a8a" stroke="#ffffff" strokeWidth="1.5" />
+                                        <text x={getX(i)} y={h - 6} textAnchor="middle" className="text-[9px] font-bold fill-slate-600 font-mono">
+                                          {p.dateStr}
+                                        </text>
+                                      </g>
+                                    ))}
+                                  </svg>
+                                </div>
+                              );
+                            })()}
+                          </div>
+
+                          {/* 2. GRÁFICO BARRAS COMPARATIVO VENTA VS COSTO POR PARTIDA */}
+                          <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs space-y-3">
+                            <div className="flex justify-between items-center border-b pb-2">
+                              <h4 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                                <DollarSign className="w-4 h-4 text-emerald-700" />
+                                <span>📊 Venta de Avance vs Costo Real por Partida</span>
+                              </h4>
+                              <span className="text-[10px] bg-blue-100 text-blue-900 px-2 py-0.5 rounded font-extrabold">Top Partidas</span>
+                            </div>
+
+                            <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
+                              {partidasConDesviacion.slice(0, 5).map((p, idx) => {
+                                const maxVal = Math.max(1, p.ventaAvance, p.costoImputadoReal);
+                                const pctVenta = Math.round((p.ventaAvance / maxVal) * 100);
+                                const pctCosto = Math.round((p.costoImputadoReal / maxVal) * 100);
+
+                                return (
+                                  <div key={idx} className="bg-slate-50 p-2 rounded-xl border border-slate-200 space-y-1">
+                                    <div className="flex justify-between text-[11px] font-bold">
+                                      <span className="truncate max-w-[200px] text-slate-800">{p.partida}</span>
+                                      <span className={p.esSobrecosto ? 'text-rose-700 font-black' : 'text-emerald-700 font-black'}>
+                                        {p.esSobrecosto ? `🚨 Sobrecosto: +$${p.variacionMonto.toLocaleString('es-CL')}` : '✓ Margen Ok'}
+                                      </span>
+                                    </div>
+
+                                    <div className="space-y-0.5">
+                                      <div className="flex justify-between text-[9px] text-slate-500 font-semibold">
+                                        <span>Venta Avance</span>
+                                        <span className="font-mono font-bold text-blue-900">${p.ventaAvance.toLocaleString('es-CL')}</span>
+                                      </div>
+                                      <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                                        <div className="bg-blue-900 h-full rounded-full transition-all duration-500" style={{ width: `${pctVenta}%` }}></div>
+                                      </div>
+                                    </div>
+
+                                    <div className="space-y-0.5">
+                                      <div className="flex justify-between text-[9px] text-slate-500 font-semibold">
+                                        <span>Costo Real</span>
+                                        <span className="font-mono font-bold text-rose-700">${p.costoImputadoReal.toLocaleString('es-CL')}</span>
+                                      </div>
+                                      <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                                        <div className={`h-full rounded-full transition-all duration-500 ${p.esSobrecosto ? 'bg-rose-600' : 'bg-slate-600'}`} style={{ width: `${pctCosto}%` }}></div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
 
                         {/* KPIS DE VALOR GANADO (EVM - EARNED VALUE MANAGEMENT) */}
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
