@@ -4168,18 +4168,75 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 const fCorteStr = fechaCorteProyeccion || new Date().toISOString().substring(0, 10);
                 const dInicio = new Date(fInicioStr);
                 const dCorte = new Date(fCorteStr);
-                let diasTranscurridosCorte = 1;
-                if (!isNaN(dInicio.getTime()) && !isNaN(dCorte.getTime())) {
-                  const diffDays = Math.floor((dCorte.getTime() - dInicio.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                  diasTranscurridosCorte = Math.max(1, diffDays);
-                }
+
+                // Helper para determinar la fecha de inicio programada de cada partida según Carta Gantt / Planificación
+                const getPartidaScheduledStart = (partidaObj) => {
+                  if (partidaObj.fecha_inicio) return String(partidaObj.fecha_inicio).split('T')[0];
+                  if (partidaObj.fecha_inicio_programada) return String(partidaObj.fecha_inicio_programada).split('T')[0];
+
+                  if (planificacionList && planificacionList.length > 0) {
+                    const pName = String(partidaObj.partida || partidaObj.nombre || '').toLowerCase().trim();
+                    const match = planificacionList.find(act => {
+                      const actName = String(act.nombre || act.actividad || act.partida || '').toLowerCase().trim();
+                      return actName === pName || (actName && pName && (actName.includes(pName) || pName.includes(actName)));
+                    });
+                    if (match && match.fecha_inicio) {
+                      return String(match.fecha_inicio).split('T')[0];
+                    }
+                  }
+                  return fInicioStr;
+                };
 
                 const executableParts = partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo));
-                const totalProyectadoPartidas = executableParts.reduce((acc, p) => {
-                  const cant = parseFloat(p.cantidad) || 0;
+
+                // 1. PRESUPUESTO DE VENTA PROYECTADO (AVANCE TEÓRICO AL CORTE SEGÚN PLANIFICACIÓN)
+                const totalVentaProyectadaObra = executableParts.reduce((acc, p) => {
+                  const cantTotal = parseFloat(p.cantidad) || 0;
                   const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
-                  const diasTotalesPartida = rend > 0 ? (cant / rend) : 1;
-                  const diasEfectivosCorte = Math.min(diasTranscurridosCorte, diasTotalesPartida);
+                  const puVal = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (p.pu || 0);
+
+                  const startDatePartida = getPartidaScheduledStart(p);
+                  let diasEfectivosCorte = 0;
+
+                  if (startDatePartida && fCorteStr && startDatePartida > fCorteStr) {
+                    diasEfectivosCorte = 0;
+                  } else {
+                    const dStart = new Date(startDatePartida);
+                    let diasTranscurridosPartida = 1;
+                    if (!isNaN(dStart.getTime()) && !isNaN(dCorte.getTime())) {
+                      const diffDays = Math.floor((dCorte.getTime() - dStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                      diasTranscurridosPartida = Math.max(1, diffDays);
+                    }
+                    const diasTotalesPartida = rend > 0 ? (cantTotal / rend) : 1;
+                    diasEfectivosCorte = Math.min(diasTranscurridosPartida, diasTotalesPartida);
+                  }
+
+                  const cantAvanceAlCorte = diasEfectivosCorte === 0 ? 0 : Math.min(cantTotal, Math.round(diasEfectivosCorte * rend));
+                  return acc + Math.round(cantAvanceAlCorte * puVal);
+                }, 0);
+
+                // 2. COSTO PROYECTADO DE PARTIDAS AL CORTE
+                const totalProyectadoPartidas = executableParts.reduce((acc, p) => {
+                  const cantTotal = parseFloat(p.cantidad) || 0;
+                  const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
+
+                  const startDatePartida = getPartidaScheduledStart(p);
+                  let diasEfectivosCorte = 0;
+
+                  if (startDatePartida && fCorteStr && startDatePartida > fCorteStr) {
+                    diasEfectivosCorte = 0;
+                  } else {
+                    const dStart = new Date(startDatePartida);
+                    let diasTranscurridosPartida = 1;
+                    if (!isNaN(dStart.getTime()) && !isNaN(dCorte.getTime())) {
+                      const diffDays = Math.floor((dCorte.getTime() - dStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                      diasTranscurridosPartida = Math.max(1, diffDays);
+                    }
+                    const diasTotalesPartida = rend > 0 ? (cantTotal / rend) : 1;
+                    diasEfectivosCorte = Math.min(diasTranscurridosPartida, diasTotalesPartida);
+                  }
+
+                  if (diasEfectivosCorte === 0) return acc;
 
                   const projItems = proyeccionesList.filter(x => x.partida === p.partida);
                   if (projItems.length > 0) {
@@ -4278,7 +4335,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 }, 0);
 
                 const totalCostoProyectado = totalProyectadoPartidas + totalPersonalProyectado + totalMaquinariaProyectado;
-                const saldoProyectado = totalPres - totalCostoProyectado;
+                const margenProyectado = totalVentaProyectadaObra - totalCostoProyectado;
+                const pctMargen = totalVentaProyectadaObra > 0 ? ((margenProyectado / totalVentaProyectadaObra) * 100).toFixed(1) : '0';
 
                 if (costosSubTab === 'reales') {
                   return (
@@ -4306,20 +4364,22 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 return (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="bg-white p-4 border border-slate-200 rounded-2xl space-y-1 shadow-2xs">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">Presupuesto Directo Obra</span>
-                      <p className="text-lg font-black text-slate-800">${totalPres.toLocaleString('es-CL')}</p>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Presupuesto Venta Proyectado (al Corte)</span>
+                      <p className="text-lg font-black text-slate-800">${totalVentaProyectadaObra.toLocaleString('es-CL')}</p>
+                      <p className="text-[10px] text-slate-500 font-semibold">Avance Teórico Programado al Corte ({fechaCorteProyeccion})</p>
                     </div>
                     <div className="bg-white p-4 border border-slate-200 rounded-2xl space-y-1 shadow-2xs">
                       <div className="flex justify-between items-center">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase">Proyección Total de Gastos</span>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Proyección Total de Gastos (al Corte)</span>
                         <span className="text-[9px] font-bold text-blue-800 bg-blue-100 px-1.5 py-0.5 rounded">Proyectado</span>
                       </div>
                       <p className="text-lg font-black text-blue-950">${totalCostoProyectado.toLocaleString('es-CL')}</p>
-                      <p className="text-[10px] text-slate-500 font-semibold">Partidas: ${totalProyectadoPartidas.toLocaleString('es-CL')} | Personal: ${totalPersonalProyectado.toLocaleString('es-CL')}</p>
+                      <p className="text-[10px] text-slate-500 font-semibold">Partidas: ${totalProyectadoPartidas.toLocaleString('es-CL')} | Personal: ${totalPersonalProyectado.toLocaleString('es-CL')} | Maquinaria: ${totalMaquinariaProyectado.toLocaleString('es-CL')}</p>
                     </div>
                     <div className="bg-white p-4 border border-slate-200 rounded-2xl space-y-1 shadow-2xs">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">Margen Proyectado Estimado</span>
-                      <p className={`text-lg font-black ${saldoProyectado >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>${saldoProyectado.toLocaleString('es-CL')}</p>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Margen Proyectado Estimado (al Corte)</span>
+                      <p className={`text-lg font-black ${margenProyectado >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>${margenProyectado.toLocaleString('es-CL')}</p>
+                      <p className="text-[10px] text-slate-500 font-semibold">{pctMargen}% Margen sobre Venta Teórica (${totalVentaProyectadaObra.toLocaleString('es-CL')})</p>
                     </div>
                   </div>
                 );
@@ -4649,11 +4709,27 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                               const cantTotal = parseFloat(p.cantidad) || 0;
                               const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
                               const diasTotalesPartida = rend > 0 ? (cantTotal / rend) : 1;
-                              const diasEfectivosCorte = Math.min(diasTranscurridosCorte, diasTotalesPartida);
                               const puVal = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (p.pu || 0);
 
+                              const startDatePartida = getPartidaScheduledStart(p);
+                              let diasEfectivosCorte = 0;
+                              let isPendientePorGantt = false;
+
+                              if (startDatePartida && fCorteStr && startDatePartida > fCorteStr) {
+                                diasEfectivosCorte = 0;
+                                isPendientePorGantt = true;
+                              } else {
+                                const dStart = new Date(startDatePartida);
+                                let diasTranscurridosPartida = 1;
+                                if (!isNaN(dStart.getTime()) && !isNaN(dCorte.getTime())) {
+                                  const diffDays = Math.floor((dCorte.getTime() - dStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                                  diasTranscurridosPartida = Math.max(1, diffDays);
+                                }
+                                diasEfectivosCorte = Math.min(diasTranscurridosPartida, diasTotalesPartida);
+                              }
+
                               // AVANCE TEÓRICO AL CORTE & PRESUPUESTO PROPORCIONAL AL CORTE
-                              const cantAvanceAlCorte = Math.min(cantTotal, Math.round(diasEfectivosCorte * rend));
+                              const cantAvanceAlCorte = diasEfectivosCorte === 0 ? 0 : Math.min(cantTotal, Math.round(diasEfectivosCorte * rend));
                               const montoPresAlCorte = Math.round(cantAvanceAlCorte * puVal);
                               const montoPresTotal = Math.round(cantTotal * puVal);
 
@@ -4661,7 +4737,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                               let costoProyectado = 0;
                               let modoText = '';
 
-                              if (projItems.length > 0) {
+                              if (diasEfectivosCorte === 0) {
+                                costoProyectado = 0;
+                                modoText = `No iniciada al corte (Inicio prog.: ${startDatePartida})`;
+                              } else if (projItems.length > 0) {
                                 costoProyectado = projItems.reduce((sum, item) => {
                                   if (item.tipo_proyeccion === 'TIEMPO') {
                                     const tarifaDia = parseFloat(item.tarifa_tiempo_dia) || 20000;
@@ -4699,8 +4778,16 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                     <td className="p-3 font-mono font-bold text-slate-700">{cantTotal.toLocaleString('es-CL')} {p.unidad}</td>
                                     <td className="p-3 font-mono text-slate-600">{rend} {p.unidad}/Día</td>
                                     <td className="p-3 font-mono text-slate-700">
-                                      <span className="font-bold text-blue-900">{diasEfectivosCorte.toFixed(1)} / {diasTotalesPartida.toFixed(1)} Días</span>
-                                      <span className="text-[9px] text-slate-400 block font-normal">al corte {fechaCorteProyeccion}</span>
+                                      {isPendientePorGantt ? (
+                                        <span className="font-bold text-amber-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-[10px] block text-center">
+                                          ⏳ Prog.: {startDatePartida}
+                                        </span>
+                                      ) : (
+                                        <>
+                                          <span className="font-bold text-blue-900">{diasEfectivosCorte.toFixed(1)} / {diasTotalesPartida.toFixed(1)} Días</span>
+                                          <span className="text-[9px] text-slate-400 block font-normal">al corte {fechaCorteProyeccion}</span>
+                                        </>
+                                      )}
                                     </td>
                                     <td className="p-3 font-mono text-[10px]">
                                       <button
