@@ -10,6 +10,7 @@ const matchesPartida = (a, b) => {
   return left && right && (left === right || left.includes(right) || right.includes(left));
 };
 const money = (value) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(Number(value || 0));
+const percent = (value) => `${Number(value || 0).toFixed(2)}%`;
 const initialForm = () => ({ fecha_corte: new Date().toISOString().slice(0, 10), retencion_pct: '5', observaciones: '' });
 const token = () => `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
 
@@ -70,14 +71,19 @@ export default function EstadosPagoObra({ user, obraNombre }) {
     const accumulatedAmount = Math.round(executed * unitPrice);
     const alreadyValuated = Math.max(0, ...estados.filter(item => item.estado !== 'Rechazado').map(item => (item.items || []).filter(row => matchesPartida(row.partida, partida.partida)).reduce((max, row) => Math.max(max, Number(row.monto_acumulado ?? row.amount ?? 0)), 0)));
     const amount = Math.max(0, accumulatedAmount - alreadyValuated);
-    return { partida: partida.partida, unidad: partida.unidad, quantity, unitPrice, executed, amount, monto_acumulado: accumulatedAmount, approvedRdi, requiresReview: approvedRdi > 0 && approvedRdi < executed };
-  }).filter(line => line.amount > 0), [partidas, avances, rdis, estados, form.fecha_corte]);
+    return { partida: partida.partida, unidad: partida.unidad, quantity, unitPrice, executed, amount, monto_anterior: alreadyValuated, monto_acumulado: accumulatedAmount, avance_pct: quantity > 0 ? (executed / quantity) * 100 : 0, approvedRdi, requiresReview: approvedRdi > 0 && approvedRdi < executed };
+  }).filter(line => line.executed > 0 || line.monto_anterior > 0), [partidas, avances, rdis, estados, form.fecha_corte]);
 
-  const gross = valuation.reduce((sum, line) => sum + line.amount, 0);
+  const periodValuation = valuation.filter(line => line.amount > 0);
+  const gross = periodValuation.reduce((sum, line) => sum + line.amount, 0);
   const contractAmount = partidas.reduce((sum, partida) => sum + (Number(partida.cantidad_presupuestada ?? partida.cantidad ?? 0) * (Number(partida.costo_por_dia) || Number(partida.pu) || 0)), 0);
   const advanceRate = Math.max(0, Math.min(100, Number(condiciones?.anticipo_pct || 0)));
   const contractAdvance = Math.round(contractAmount * advanceRate / 100);
-  const recoveredAdvance = estados.filter(item => item.estado !== 'Rechazado').reduce((sum, item) => sum + Number(item.anticipo_descontado || 0), 0);
+  const priorStates = estados.filter(item => item.estado !== 'Rechazado');
+  const priorGross = priorStates.reduce((sum, item) => sum + Number(item.monto_bruto || 0), 0);
+  const priorRetention = priorStates.reduce((sum, item) => sum + Number(item.retencion_monto || 0), 0);
+  const recoveredAdvance = priorStates.reduce((sum, item) => sum + Number(item.anticipo_descontado || 0), 0);
+  const priorNet = priorStates.reduce((sum, item) => sum + Number(item.monto_neto || 0), 0);
   const advanceAvailable = Math.max(0, contractAdvance - recoveredAdvance);
   const retention = Math.round(gross * (Number(form.retencion_pct) || 0) / 100);
   // Se recupera del anticipo el mismo porcentaje que representa el avance neto de este EP dentro del contrato.
@@ -86,7 +92,19 @@ export default function EstadosPagoObra({ user, obraNombre }) {
   const automaticAdvanceDeduction = Math.min(advanceAvailable, Math.round(contractAdvance * paymentProgressPct / 100));
   const advanceDeduction = automaticAdvanceDeduction;
   const net = Math.max(0, gross - retention - advanceDeduction);
-  const reviewCount = valuation.filter(line => line.requiresReview).length;
+  const accumulatedGross = priorGross + gross;
+  const accumulatedRetention = priorRetention + retention;
+  const accumulatedAdvance = recoveredAdvance + advanceDeduction;
+  const accumulatedNet = priorNet + net;
+  const reviewCount = periodValuation.filter(line => line.requiresReview).length;
+  const paymentSummary = {
+    monto_contrato: contractAmount, bruto_anterior: priorGross, bruto_periodo: gross, bruto_acumulado: accumulatedGross,
+    retencion_anterior: priorRetention, retencion_periodo: retention, retencion_acumulada: accumulatedRetention,
+    anticipo_contrato: contractAdvance, anticipo_anterior: recoveredAdvance, anticipo_periodo: advanceDeduction, anticipo_acumulado: accumulatedAdvance,
+    neto_anterior: priorNet, neto_periodo: net, neto_acumulado: accumulatedNet,
+    avance_periodo_pct: contractAmount > 0 ? (gross / contractAmount) * 100 : 0,
+    avance_acumulado_pct: contractAmount > 0 ? (accumulatedGross / contractAmount) * 100 : 0,
+  };
 
   const createPayment = async () => {
     if (!canPreparePayment) { setMessage('Tu perfil no está autorizado para preparar estados de pago.'); return; }
@@ -97,7 +115,7 @@ export default function EstadosPagoObra({ user, obraNombre }) {
         empresa, obra_nombre: obraNombre, numero: number, fecha_corte: form.fecha_corte,
         monto_bruto: gross, retencion_pct: Number(form.retencion_pct) || 0, retencion_monto: retention,
         anticipo_descontado: advanceDeduction, monto_neto: net, observaciones: form.observaciones || null,
-        estado: 'Borrador', items: valuation, preparado_por: user?.nombre || user?.email || 'Usuario autorizado',
+        estado: 'Borrador', items: periodValuation, preparado_por: user?.nombre || user?.email || 'Usuario autorizado',
         revisor_nombre: contactos.revisor_nombre || null, revisor_email: contactos.revisor_email || null, aprobador_nombre: contactos.aprobador_nombre || null, aprobador_email: contactos.aprobador_email || null,
         token_revision: token(), token_aprobacion: token(),
       };
@@ -153,12 +171,12 @@ export default function EstadosPagoObra({ user, obraNombre }) {
         <div className="grid grid-cols-2 gap-2"><label className="text-[11px] font-bold text-slate-600">Retención (%)<input type="number" min="0" max="100" step="0.1" value={form.retencion_pct} onChange={event => setForm({ ...form, retencion_pct: event.target.value })} className={`${input} mt-1`} /></label><div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2"><p className="text-[10px] font-bold text-emerald-800">Descuento anticipo</p><p className="mt-1 text-xs font-black text-emerald-800">{money(advanceDeduction)}</p></div></div>
         <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 space-y-2"><div className="flex items-end gap-2"><label className="min-w-0 flex-1 text-[11px] font-bold text-blue-900">Anticipo de contrato (%)<input type="number" min="0" max="100" step="0.1" value={anticipoPct} onChange={event => setAnticipoPct(event.target.value)} className={`${input} mt-1`} /></label><button onClick={saveConditions} type="button" className="rounded-lg bg-blue-800 px-3 py-2 text-[11px] font-black text-white">Guardar</button></div><div className="grid grid-cols-2 gap-2"><input placeholder="Nombre revisor externo" value={contactos.revisor_nombre} onChange={e => setContactos({...contactos,revisor_nombre:e.target.value})} className={input}/><input type="email" placeholder="Correo revisor" value={contactos.revisor_email} onChange={e => setContactos({...contactos,revisor_email:e.target.value})} className={input}/><input placeholder="Nombre aprobador externo" value={contactos.aprobador_nombre} onChange={e => setContactos({...contactos,aprobador_nombre:e.target.value})} className={input}/><input type="email" placeholder="Correo aprobador" value={contactos.aprobador_email} onChange={e => setContactos({...contactos,aprobador_email:e.target.value})} className={input}/></div><p className="text-[10px] text-blue-800">Anticipo contractual: {money(contractAdvance)} · Pendiente: {money(advanceAvailable)}. Este EP representa {paymentProgressPct.toFixed(2)}% de avance neto; se recupera esa misma proporción del anticipo.</p></div>
         <textarea rows={3} placeholder="Observaciones del estado de pago" value={form.observaciones} onChange={event => setForm({ ...form, observaciones: event.target.value })} className={input} />
-        <div className="space-y-2 rounded-xl bg-emerald-50 p-3 text-xs"><div className="flex justify-between"><span>Avance valorizado</span><b>{money(gross)}</b></div><div className="flex justify-between"><span>Retención</span><b>- {money(retention)}</b></div><div className="flex justify-between"><span>Anticipo</span><b>- {money(advanceDeduction)}</b></div><div className="flex justify-between border-t border-emerald-200 pt-2 text-sm"><span>Neto a cobrar</span><b>{money(net)}</b></div></div>
+        <div className="space-y-2 rounded-xl bg-emerald-50 p-3 text-xs"><div className="mb-2 grid grid-cols-[1fr_auto_auto] gap-2 border-b border-emerald-200 pb-2 text-[10px] font-black uppercase text-emerald-800"><span>Liquidación</span><span>Este EP</span><span>Acumulado</span></div><div className="grid grid-cols-[1fr_auto_auto] gap-2"><span>Avance de obra</span><b>{money(gross)}<small className="block text-right font-medium">{percent(paymentSummary.avance_periodo_pct)}</small></b><b>{money(accumulatedGross)}<small className="block text-right font-medium">{percent(paymentSummary.avance_acumulado_pct)}</small></b></div><div className="grid grid-cols-[1fr_auto_auto] gap-2"><span>Retención ({form.retencion_pct}%)</span><b>- {money(retention)}</b><b>- {money(accumulatedRetention)}</b></div><div className="grid grid-cols-[1fr_auto_auto] gap-2"><span>Amortización anticipo</span><b>- {money(advanceDeduction)}</b><b>- {money(accumulatedAdvance)}</b></div><div className="grid grid-cols-[1fr_auto_auto] gap-2 border-t border-emerald-200 pt-2 text-sm"><span>Neto a cobrar</span><b>{money(net)}</b><b>{money(accumulatedNet)}</b></div><p className="pt-1 text-[10px] text-emerald-800">Anterior: avance {money(priorGross)} · retención {money(priorRetention)} · anticipo recuperado {money(recoveredAdvance)}.</p></div>
         {reviewCount > 0 && <p className="rounded-lg bg-amber-50 p-2 text-[11px] font-semibold text-amber-800">{reviewCount} partida(s) tienen avance superior al volumen con RDI aprobado. Revísalas antes de enviar.</p>}
         <button onClick={createPayment} disabled={loading || !canPreparePayment} className="w-full rounded-xl bg-emerald-700 py-2.5 text-xs font-black text-white disabled:opacity-50">Crear borrador de estado de pago</button>{!canPreparePayment && <p className="text-[10px] font-semibold text-amber-700">Solo un perfil autorizado puede preparar y enviar estados de pago.</p>}
       </section>
       <section className="space-y-3">
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white"><div className="border-b border-slate-200 px-4 py-3"><h3 className="text-sm font-black text-slate-800">Valorización al corte</h3><p className="text-[11px] text-slate-500">Solo se incluyen partidas con avance registrado.</p></div>{loading ? <div className="p-10 text-center text-sm text-slate-500">Calculando valorización…</div> : valuation.length ? <div className="overflow-x-auto"><table className="min-w-full text-left text-xs"><thead className="bg-slate-50 text-[10px] uppercase text-slate-500"><tr><th className="p-3">Partida</th><th className="p-3 text-right">Avance</th><th className="p-3 text-right">Monto</th><th className="p-3">Calidad</th></tr></thead><tbody>{valuation.map(line => <tr key={line.partida} className="border-t border-slate-100"><td className="p-3 font-bold text-slate-700">{line.partida}</td><td className="p-3 text-right">{line.executed} / {line.quantity} {line.unidad}</td><td className="p-3 text-right font-black text-emerald-700">{money(line.amount)}</td><td className="p-3">{line.requiresReview ? <span className="rounded bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-800">Revisar RDI</span> : <span className="rounded bg-emerald-100 px-2 py-1 text-[10px] font-bold text-emerald-800">Conforme</span>}</td></tr>)}</tbody></table></div> : <div className="p-10 text-center text-sm text-slate-500">No hay avance valorizable para la fecha seleccionada.</div>}</div>
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white"><div className="border-b border-slate-200 px-4 py-3"><h3 className="text-sm font-black text-slate-800">Valorización al corte</h3><p className="text-[11px] text-slate-500">Detalle tipo estado de pago: anterior, período y acumulado por partida.</p></div>{loading ? <div className="p-10 text-center text-sm text-slate-500">Calculando valorización…</div> : valuation.length ? <div className="overflow-x-auto"><table className="min-w-full text-left text-xs"><thead className="bg-slate-50 text-[10px] uppercase text-slate-500"><tr><th className="p-3">Partida</th><th className="p-3 text-right">Avance acum.</th><th className="p-3 text-right">Anterior</th><th className="p-3 text-right">Este EP</th><th className="p-3 text-right">Acumulado</th><th className="p-3">Calidad</th></tr></thead><tbody>{valuation.map(line => <tr key={line.partida} className="border-t border-slate-100"><td className="p-3 font-bold text-slate-700">{line.partida}</td><td className="p-3 text-right">{line.executed} / {line.quantity} {line.unidad}<small className="block text-slate-500">{percent(line.avance_pct)}</small></td><td className="p-3 text-right text-slate-500">{money(line.monto_anterior)}</td><td className="p-3 text-right font-black text-emerald-700">{money(line.amount)}</td><td className="p-3 text-right font-bold">{money(line.monto_acumulado)}</td><td className="p-3">{line.requiresReview ? <span className="rounded bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-800">Revisar RDI</span> : <span className="rounded bg-emerald-100 px-2 py-1 text-[10px] font-bold text-emerald-800">Conforme</span>}</td></tr>)}</tbody></table></div> : <div className="p-10 text-center text-sm text-slate-500">No hay avance valorizable para la fecha seleccionada.</div>}</div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4"><h3 className="mb-3 text-sm font-black text-slate-800">Historial contractual</h3>{estados.length ? <div className="space-y-2">{estados.map(item => <div key={item.id} className="rounded-xl bg-slate-50 p-3"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-black text-slate-800">Estado de Pago N° {item.numero}</p><p className="text-[11px] text-slate-500">Corte {item.fecha_corte} · Neto {money(item.monto_neto)}</p></div><span className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-slate-600">{item.estado}</span></div>{item.estado !== 'Aprobado' && item.estado !== 'Pagado' && <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold">{['revision','aprobacion'].map(type => <React.Fragment key={type}><button onClick={() => sendExternal(item,type)} className="flex items-center gap-1 text-blue-700"><Send className="h-3 w-3" />Enviar a {type === 'revision' ? 'revisión' : 'aprobación'}</button><button onClick={() => copyLink(item,type)} className="flex items-center gap-1 text-slate-600"><Copy className="h-3 w-3" />Copiar enlace</button></React.Fragment>)}</div>}</div>)}</div> : <p className="text-xs text-slate-500">Aún no existen estados de pago para esta obra.</p>}</div>
       </section>
     </div>
