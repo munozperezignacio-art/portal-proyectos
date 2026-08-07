@@ -45,7 +45,7 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
       if (!obraNombre && target) setObraNombre(target);
       if (!target) { setPacs([]); setRdis([]); setNcs([]); setPartidas([]); return; }
       const [partidasRes, pacRes, rdiRes, ncRes] = await Promise.all([
-        supabase.from('partidas_obra').select('partida, unidad, es_titulo').eq('obra_nombre', target),
+        supabase.from('partidas_obra').select('partida, unidad').eq('obra_nombre', target),
         supabase.from('calidad_pac').select('*').eq('obra_nombre', target).order('created_at', { ascending: false }),
         supabase.from('calidad_rdi').select('*').eq('obra_nombre', target).order('created_at', { ascending: false }),
         supabase.from('calidad_no_conformidades').select('*').eq('obra_nombre', target).order('created_at', { ascending: false }),
