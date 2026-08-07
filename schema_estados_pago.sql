@@ -40,3 +40,19 @@ DROP POLICY IF EXISTS "Allow_All_Operations_Anon_Authenticated" ON condiciones_p
 CREATE POLICY "Allow_All_Operations_Anon_Authenticated" ON condiciones_pago_obra FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 GRANT ALL ON condiciones_pago_obra TO anon, authenticated;
 GRANT ALL ON SEQUENCE condiciones_pago_obra_id_seq TO anon, authenticated;
+
+ALTER TABLE condiciones_pago_obra ADD COLUMN IF NOT EXISTS revisor_nombre TEXT;
+ALTER TABLE condiciones_pago_obra ADD COLUMN IF NOT EXISTS revisor_email TEXT;
+ALTER TABLE condiciones_pago_obra ADD COLUMN IF NOT EXISTS aprobador_nombre TEXT;
+ALTER TABLE condiciones_pago_obra ADD COLUMN IF NOT EXISTS aprobador_email TEXT;
+ALTER TABLE estados_pago_obra ADD COLUMN IF NOT EXISTS preparado_por TEXT;
+ALTER TABLE estados_pago_obra ADD COLUMN IF NOT EXISTS revisor_nombre TEXT;
+ALTER TABLE estados_pago_obra ADD COLUMN IF NOT EXISTS revisor_email TEXT;
+ALTER TABLE estados_pago_obra ADD COLUMN IF NOT EXISTS aprobador_nombre TEXT;
+ALTER TABLE estados_pago_obra ADD COLUMN IF NOT EXISTS aprobador_email TEXT;
+ALTER TABLE estados_pago_obra ADD COLUMN IF NOT EXISTS token_revision TEXT UNIQUE;
+ALTER TABLE estados_pago_obra ADD COLUMN IF NOT EXISTS token_aprobacion TEXT UNIQUE;
+ALTER TABLE estados_pago_obra ADD COLUMN IF NOT EXISTS observacion_revision TEXT;
+ALTER TABLE estados_pago_obra ADD COLUMN IF NOT EXISTS observacion_aprobacion TEXT;
+ALTER TABLE estados_pago_obra DROP CONSTRAINT IF EXISTS estados_pago_obra_estado_check;
+ALTER TABLE estados_pago_obra ADD CONSTRAINT estados_pago_obra_estado_check CHECK (estado IN ('Borrador', 'En revisión', 'Observado', 'En aprobación', 'Aprobado', 'Enviado', 'Pagado', 'Rechazado'));

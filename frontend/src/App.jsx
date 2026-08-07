@@ -43,6 +43,7 @@ const PublicTrainingFiller = lazyWithRetry(() => import('./components/PublicTrai
 const PublicSubcontractAcreditacion = lazyWithRetry(() => import('./components/PublicSubcontractAcreditacion'), 'subcontrato-publico');
 const PublicSupplierAcreditacion = lazyWithRetry(() => import('./components/PublicSupplierAcreditacion'), 'proveedor-publico');
 const PublicReporteDiarioMaquinaria = lazyWithRetry(() => import('./components/PublicReporteDiarioMaquinaria'), 'maquinaria-publica');
+const PublicEstadoPago = lazyWithRetry(() => import('./components/PublicEstadoPago'), 'estado-pago-publico');
 
 function ModuleLoader() {
   return (
@@ -286,6 +287,10 @@ function App() {
   // Detectar si se está accediendo a un formulario o capacitación pública de prevención a través de la URL
   const urlParams = new URLSearchParams(window.location.search);
   const publicEquipoArriendo = urlParams.get('arriendo_qr') || urlParams.get('reporte_diario_equipo');
+  const publicEstadoPagoToken = urlParams.get('estado_pago');
+  if (publicEstadoPagoToken) {
+    return <React.Suspense fallback={<ModuleLoader />}><PublicEstadoPago token={publicEstadoPagoToken} role={urlParams.get('rol_ep') === 'aprobacion' ? 'aprobacion' : 'revision'} /></React.Suspense>;
+  }
   if (publicEquipoArriendo) {
     return <React.Suspense fallback={<ModuleLoader />}><PublicReporteDiarioMaquinaria equipoId={publicEquipoArriendo} patente={urlParams.get('patente')} /></React.Suspense>;
   }
