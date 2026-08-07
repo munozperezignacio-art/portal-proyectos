@@ -4,7 +4,7 @@ import {
   Building2, ArrowLeft, Users, Truck, Wrench, FileSpreadsheet, 
   ExternalLink, Calendar, Plus, Info, Check, UserCheck, Play, ArrowRightLeft, FileText, AlertCircle, AlertTriangle, Camera,
   QrCode, MapPin, Printer, Navigation, RotateCcw, CheckCircle2, MapIcon as Map, ShieldAlert, Settings, Edit, Trash2, Download,
-  History, BarChart3, ShieldCheck, Clock, DollarSign, CalendarRange, CalendarDays, FileUp, Loader2, FolderPlus, Send, Filter, TrendingUp, BookOpenCheck
+  History, BarChart3, ShieldCheck, Clock, DollarSign, CalendarRange, CalendarDays, FileUp, Loader2, FolderPlus, Send, Filter, TrendingUp, BookOpenCheck, ReceiptText
 } from 'lucide-react';
 import ContextualEmailConfigModal from './ContextualEmailConfigModal';
 import { canConfigureEmails, canCreateObras, canModifyOrDeleteRecords } from '../utils/userLevel';
@@ -13,6 +13,7 @@ import { formatRut, formatNumberWithDots, parseNumberFromDots } from '../utils/r
 import LastPlannerLookahead from './LastPlannerLookahead';
 import CalidadObras from './CalidadObras';
 import LibroObrasDigital from './LibroObrasDigital';
+import EstadosPagoObra from './EstadosPagoObra';
 
 const defaultCovers = [
   "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=600&q=80",
@@ -344,7 +345,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [errorMsg, setErrorMsg] = useState('');
 
   // Submódulo activo de la Obra (null = Vista Principal de Tarjetas / Rectángulos)
-  const [obraActiveSubmodule, setObraActiveSubmodule] = useState(null); // null | 'avance' | 'asistencia' | 'rrhh' | 'cuadrillas' | 'maquinaria' | 'materiales' | 'bitacora' | 'libro_obra' | 'estadisticas' | 'calidad' | 'prevencion' | 'presupuesto' | 'planificacion'
+  const [obraActiveSubmodule, setObraActiveSubmodule] = useState(null); // null | 'avance' | 'asistencia' | 'rrhh' | 'cuadrillas' | 'maquinaria' | 'materiales' | 'bitacora' | 'libro_obra' | 'estados_pago' | 'estadisticas' | 'calidad' | 'prevencion' | 'presupuesto' | 'planificacion'
 
   // Sub-pestañas para Avance, Asistencia, Maquinaria, Bitácora y Prevención
   const [avanceSubTab, setAvanceSubTab] = useState('visor'); // 'visor' | 'registro'
@@ -2659,6 +2660,22 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   </div>
                 </button>
 
+                <button
+                  onClick={() => setObraActiveSubmodule('estados_pago')}
+                  className="p-5 bg-white border border-slate-200 hover:border-emerald-700 rounded-2xl shadow-xs hover:shadow-md transition text-left cursor-pointer group flex flex-col justify-between space-y-3"
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="p-3 bg-emerald-50 text-emerald-800 rounded-xl group-hover:bg-emerald-700 group-hover:text-white transition">
+                      <ReceiptText className="w-6 h-6" />
+                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200">Contractual</span>
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-slate-800 text-sm group-hover:text-emerald-800">Estados de Pago</h4>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">Valorización del avance, retenciones, anticipo e historial de aprobación.</p>
+                  </div>
+                </button>
+
                 {/* 9. Estadísticas */}
                 <button
                   onClick={() => setObraActiveSubmodule('estadisticas')}
@@ -4008,6 +4025,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           {/* VISTA DEDICADA 8: LIBRO DE OBRAS DIGITAL */}
           {obraActiveSubmodule === 'libro_obra' && (
             <LibroObrasDigital user={user} obraNombre={selectedObra?.nombre || ''} />
+          )}
+
+          {obraActiveSubmodule === 'estados_pago' && (
+            <EstadosPagoObra user={user} obraNombre={selectedObra?.nombre || ''} />
           )}
 
           {/* VISTA DEDICADA 9: PANEL DE ESTADÍSTICAS EJECUTIVAS DE OBRA */}
