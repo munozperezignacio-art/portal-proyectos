@@ -13,7 +13,7 @@ const statusClass = (status) => ({
   Borrador: 'bg-slate-100 text-slate-700', 'En corrección': 'bg-amber-100 text-amber-800',
 }[status] || 'bg-slate-100 text-slate-700');
 
-export default function CalidadObras({ user, onBack }) {
+export default function CalidadObras({ user, onBack, obraInicial = '', embedded = false }) {
   const [tab, setTab] = useState('resumen');
   const [obras, setObras] = useState([]);
   const [partidas, setPartidas] = useState([]);
@@ -41,7 +41,7 @@ export default function CalidadObras({ user, onBack }) {
       if (obrasError) throw obrasError;
       const nextObras = obrasData || [];
       setObras(nextObras);
-      const target = obraNombre || nextObras[0]?.nombre || '';
+      const target = obraInicial || obraNombre || nextObras[0]?.nombre || '';
       if (!obraNombre && target) setObraNombre(target);
       if (!target) { setPacs([]); setRdis([]); setNcs([]); setPartidas([]); return; }
       const [partidasRes, pacRes, rdiRes, ncRes] = await Promise.all([
@@ -58,8 +58,9 @@ export default function CalidadObras({ user, onBack }) {
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, [empresa]);
+  useEffect(() => { load(); }, [empresa, obraInicial]);
   useEffect(() => { if (obraNombre) load(); }, [obraNombre]);
+  useEffect(() => { if (obraInicial && obraInicial !== obraNombre) setObraNombre(obraInicial); }, [obraInicial, obraNombre]);
 
   const savePac = async (e) => {
     e.preventDefault();
@@ -99,8 +100,8 @@ export default function CalidadObras({ user, onBack }) {
 
   return <div className="space-y-5">
     <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 lg:flex-row lg:items-center lg:justify-between">
-      <div><div className="flex items-center gap-2"><ShieldCheck className="h-6 w-6 text-emerald-700" /><h1 className="text-xl font-black text-slate-900">Calidad de Obras</h1></div><p className="mt-1 text-xs text-slate-500">PAC, solicitudes RDI, recepción de partidas y no conformidades con trazabilidad.</p></div>
-      <div className="flex flex-wrap gap-2"><select value={obraNombre} onChange={e => setObraNombre(e.target.value)} className="min-w-52 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold"><option value="">Selecciona una obra</option>{obras.map(o => <option key={o.nombre} value={o.nombre}>{o.nombre}</option>)}</select><button onClick={load} className="flex items-center gap-1 rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"><RefreshCw className="h-3.5 w-3.5" />Actualizar</button><button onClick={onBack} className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700">Volver</button></div>
+      <div><div className="flex items-center gap-2"><ShieldCheck className="h-6 w-6 text-emerald-700" /><h1 className="text-xl font-black text-slate-900">{embedded ? `Calidad · ${obraInicial}` : 'Control Corporativo de Calidad'}</h1></div><p className="mt-1 text-xs text-slate-500">PAC, solicitudes RDI, recepción de partidas y no conformidades con trazabilidad.</p></div>
+      <div className="flex flex-wrap gap-2">{!embedded && <select value={obraNombre} onChange={e => setObraNombre(e.target.value)} className="min-w-52 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold"><option value="">Selecciona una obra</option>{obras.map(o => <option key={o.nombre} value={o.nombre}>{o.nombre}</option>)}</select>}<button onClick={load} className="flex items-center gap-1 rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"><RefreshCw className="h-3.5 w-3.5" />Actualizar</button>{!embedded && <button onClick={onBack} className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700">Volver</button>}</div>
     </div>
     {message && <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-900">{message}</div>}
     <div className="flex flex-wrap gap-2 rounded-xl bg-slate-100 p-1.5">{[['resumen','Resumen'],['pac','PAC por partida'],['rdi','Solicitudes RDI'],['nc','No conformidades']].map(([id,label]) => <button key={id} onClick={() => setTab(id)} className={`rounded-lg px-3 py-2 text-xs font-bold ${tab === id ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-600'}`}>{label}</button>)}</div>

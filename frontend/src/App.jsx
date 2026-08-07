@@ -403,8 +403,8 @@ function App() {
     },
     {
       id: 'calidad',
-      title: 'Calidad de Obras',
-      description: 'Aseguramiento de calidad, no conformidades y auditorías en terreno.',
+      title: 'Calidad Global',
+      description: 'Vista corporativa de PAC, RDI y no conformidades entre todas las obras.',
       icon: <ClipboardCheck className="w-5 h-5" />,
       sidebarIcon: <ClipboardCheck className="w-4 h-4" />,
       action: () => { setSelectedObraName(null); setCurrentModule('calidad'); }

@@ -11,6 +11,7 @@ import { canConfigureEmails, canCreateObras, canModifyOrDeleteRecords } from '..
 import { sendSystemEmail } from '../utils/emailService';
 import { formatRut, formatNumberWithDots, parseNumberFromDots } from '../utils/rutUtils';
 import LastPlannerLookahead from './LastPlannerLookahead';
+import CalidadObras from './CalidadObras';
 
 const defaultCovers = [
   "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=600&q=80",
@@ -342,7 +343,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [errorMsg, setErrorMsg] = useState('');
 
   // Submódulo activo de la Obra (null = Vista Principal de Tarjetas / Rectángulos)
-  const [obraActiveSubmodule, setObraActiveSubmodule] = useState(null); // null | 'avance' | 'asistencia' | 'rrhh' | 'cuadrillas' | 'maquinaria' | 'materiales' | 'bitacora' | 'estadisticas' | 'prevencion' | 'presupuesto' | 'planificacion'
+  const [obraActiveSubmodule, setObraActiveSubmodule] = useState(null); // null | 'avance' | 'asistencia' | 'rrhh' | 'cuadrillas' | 'maquinaria' | 'materiales' | 'bitacora' | 'estadisticas' | 'calidad' | 'prevencion' | 'presupuesto' | 'planificacion'
 
   // Sub-pestañas para Avance, Asistencia, Maquinaria, Bitácora y Prevención
   const [avanceSubTab, setAvanceSubTab] = useState('visor'); // 'visor' | 'registro'
@@ -2657,7 +2658,24 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   </div>
                 </button>
 
-                {/* 9. Prevención de Riesgos */}
+                {/* 9. Calidad de Obra */}
+                <button
+                  onClick={() => setObraActiveSubmodule('calidad')}
+                  className="p-5 bg-white border border-slate-200 hover:border-teal-600 rounded-2xl shadow-xs hover:shadow-md transition text-left cursor-pointer group flex flex-col justify-between space-y-3"
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="p-3 bg-teal-50 text-teal-900 rounded-xl group-hover:bg-teal-800 group-hover:text-white transition">
+                      <ShieldCheck className="w-6 h-6" />
+                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-teal-900 bg-teal-50 px-2 py-1 rounded-md border border-teal-200">PAC · RDI · NC</span>
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-slate-800 text-sm group-hover:text-teal-950">Calidad de Obra</h4>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">PAC por partida, solicitudes RDI, recepciones y no conformidades de esta obra.</p>
+                  </div>
+                </button>
+
+                {/* 10. Prevención de Riesgos */}
                 <button
                   onClick={() => setObraActiveSubmodule('prevencion')}
                   className="p-5 bg-white border border-slate-200 hover:border-rose-600 rounded-2xl shadow-xs hover:shadow-md transition text-left cursor-pointer group flex flex-col justify-between space-y-3"
@@ -2674,7 +2692,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   </div>
                 </button>
 
-                {/* 10. Presupuesto */}
+                {/* 11. Presupuesto */}
                 <button
                   onClick={() => setObraActiveSubmodule('presupuesto')}
                   className="p-5 bg-white border border-slate-200 hover:border-emerald-600 rounded-2xl shadow-xs hover:shadow-md transition text-left cursor-pointer group flex flex-col justify-between space-y-3"
@@ -2691,7 +2709,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   </div>
                 </button>
 
-                {/* 11. Planificación */}
+                {/* 12. Planificación */}
                 <button
                   onClick={() => setObraActiveSubmodule('planificacion')}
                   className="p-5 bg-white border border-slate-200 hover:border-indigo-600 rounded-2xl shadow-xs hover:shadow-md transition text-left cursor-pointer group flex flex-col justify-between space-y-3"
@@ -2708,7 +2726,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   </div>
                 </button>
 
-                {/* 12. Control de Costos */}
+                {/* 13. Control de Costos */}
                 <button
                   onClick={() => setObraActiveSubmodule('costos')}
                   className="p-5 bg-white border border-slate-200 hover:border-emerald-700 rounded-2xl shadow-xs hover:shadow-md transition text-left cursor-pointer group flex flex-col justify-between space-y-3"
@@ -5294,7 +5312,18 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           );
         })()}
 
-          {/* VISTA DEDICADA 9: PREVENCIÓN DE RIESGOS DE OBRA */}
+          {/* VISTA DEDICADA 9: CALIDAD DE LA OBRA */}
+          {obraActiveSubmodule === 'calidad' && (
+            <div className="animate-in fade-in duration-200">
+              <CalidadObras
+                user={user}
+                obraInicial={selectedObra?.nombre || ''}
+                embedded
+              />
+            </div>
+          )}
+
+          {/* VISTA DEDICADA 10: PREVENCIÓN DE RIESGOS DE OBRA */}
           {obraActiveSubmodule === 'prevencion' && (
             <div className="space-y-6 animate-in fade-in duration-200">
               <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-3">
@@ -5375,7 +5404,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
             </div>
           )}
 
-          {/* VISTA DEDICADA 10: PRESUPUESTO DE OBRA */}
+          {/* VISTA DEDICADA 11: PRESUPUESTO DE OBRA */}
           {obraActiveSubmodule === 'presupuesto' && (
             <div className="space-y-6 animate-in fade-in duration-200">
 
@@ -5673,7 +5702,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
             </div>
           )}
 
-          {/* VISTA DEDICADA 11: PLANIFICACIÓN Y CARTA GANTT DE OBRA (CONECTADO A PRESUPUESTO Y ENLACES) */}
+          {/* VISTA DEDICADA 12: PLANIFICACIÓN Y CARTA GANTT DE OBRA (CONECTADO A PRESUPUESTO Y ENLACES) */}
           {obraActiveSubmodule === 'planificacion' && (
             <div className="space-y-6 animate-in fade-in duration-200">
               {(() => {
@@ -6168,7 +6197,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
             </div>
           )}
 
-          {/* VISTA DEDICADA 12: CONTROL DE COSTOS DE OBRA */}
+          {/* VISTA DEDICADA 13: CONTROL DE COSTOS DE OBRA */}
           {obraActiveSubmodule === 'costos' && (
             <div className="space-y-6 animate-in fade-in duration-200">
               <div className="space-y-4">
