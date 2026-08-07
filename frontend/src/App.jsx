@@ -8,22 +8,40 @@ import {
 import { supabase } from './supabaseClient';
 
 // Cada módulo operativo se descarga solo cuando el usuario lo abre. Esto acelera el ingreso al portal y al dashboard.
-const Login = React.lazy(() => import('./components/Login'));
-const LandingPage = React.lazy(() => import('./components/LandingPage'));
-const Obras = React.lazy(() => import('./components/Obras'));
-const Personal = React.lazy(() => import('./components/Personal'));
-const Maquinaria = React.lazy(() => import('./components/Maquinaria'));
-const ConfigCorreos = React.lazy(() => import('./components/ConfigCorreos'));
-const PresupuestosPlanif = React.lazy(() => import('./components/PresupuestosPlanif'));
-const Prevencion = React.lazy(() => import('./components/Prevencion'));
-const Facturacion = React.lazy(() => import('./components/Facturacion'));
-const Acreditaciones = React.lazy(() => import('./components/Acreditaciones'));
-const FormulariosCapacitaciones = React.lazy(() => import('./components/FormulariosCapacitaciones'));
-const PublicFormFiller = React.lazy(() => import('./components/PublicFormFiller'));
-const PublicTrainingFiller = React.lazy(() => import('./components/PublicTrainingFiller'));
-const PublicSubcontractAcreditacion = React.lazy(() => import('./components/PublicSubcontractAcreditacion'));
-const PublicSupplierAcreditacion = React.lazy(() => import('./components/PublicSupplierAcreditacion'));
-const PublicReporteDiarioMaquinaria = React.lazy(() => import('./components/PublicReporteDiarioMaquinaria'));
+// Si Vercel publica una versión nueva mientras el portal está abierto, los archivos con hash de la versión anterior pueden dejar de existir.
+// Ante ese caso se recarga una sola vez para obtener los módulos vigentes.
+const lazyWithRetry = (importModule, moduleName) => React.lazy(async () => {
+  const retryKey = `obraxis_module_reload_${moduleName}`;
+  try {
+    const module = await importModule();
+    sessionStorage.removeItem(retryKey);
+    return module;
+  } catch (error) {
+    if (!sessionStorage.getItem(retryKey)) {
+      sessionStorage.setItem(retryKey, 'true');
+      window.location.reload();
+      return new Promise(() => {});
+    }
+    throw error;
+  }
+});
+
+const Login = lazyWithRetry(() => import('./components/Login'), 'login');
+const LandingPage = lazyWithRetry(() => import('./components/LandingPage'), 'landing');
+const Obras = lazyWithRetry(() => import('./components/Obras'), 'obras');
+const Personal = lazyWithRetry(() => import('./components/Personal'), 'personal');
+const Maquinaria = lazyWithRetry(() => import('./components/Maquinaria'), 'maquinaria');
+const ConfigCorreos = lazyWithRetry(() => import('./components/ConfigCorreos'), 'config-correos');
+const PresupuestosPlanif = lazyWithRetry(() => import('./components/PresupuestosPlanif'), 'presupuestos');
+const Prevencion = lazyWithRetry(() => import('./components/Prevencion'), 'prevencion');
+const Facturacion = lazyWithRetry(() => import('./components/Facturacion'), 'facturacion');
+const Acreditaciones = lazyWithRetry(() => import('./components/Acreditaciones'), 'acreditaciones');
+const FormulariosCapacitaciones = lazyWithRetry(() => import('./components/FormulariosCapacitaciones'), 'formularios');
+const PublicFormFiller = lazyWithRetry(() => import('./components/PublicFormFiller'), 'formulario-publico');
+const PublicTrainingFiller = lazyWithRetry(() => import('./components/PublicTrainingFiller'), 'capacitacion-publica');
+const PublicSubcontractAcreditacion = lazyWithRetry(() => import('./components/PublicSubcontractAcreditacion'), 'subcontrato-publico');
+const PublicSupplierAcreditacion = lazyWithRetry(() => import('./components/PublicSupplierAcreditacion'), 'proveedor-publico');
+const PublicReporteDiarioMaquinaria = lazyWithRetry(() => import('./components/PublicReporteDiarioMaquinaria'), 'maquinaria-publica');
 
 function ModuleLoader() {
   return (
