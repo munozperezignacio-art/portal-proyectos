@@ -4030,7 +4030,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                       <span className="text-[10px] text-slate-500 italic">Cálculos al corte</span>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center">
                       <span className="text-xs font-bold text-slate-700 whitespace-nowrap flex items-center gap-1">
                         <Filter className="w-3.5 h-3.5 text-blue-900" />
                         <span>Filtro de Alcance:</span>
@@ -4038,7 +4038,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                       <select
                         value={filtroPartidaEstadisticas}
                         onChange={(e) => setFiltroPartidaEstadisticas(e.target.value)}
-                        className="border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 bg-white shadow-2xs flex-1"
+                        className="w-full min-w-0 flex-1 border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 bg-white shadow-2xs"
                       >
                         <option value="GLOBAL">🌐 Global (Toda la Obra Consolidada)</option>
                         <optgroup label="📂 Filtrar por Grupos / Títulos">
