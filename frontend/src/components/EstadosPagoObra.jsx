@@ -8,7 +8,7 @@ const matchesPartida = (a, b) => {
   return left && right && (left === right || left.includes(right) || right.includes(left));
 };
 const money = (value) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(Number(value || 0));
-const initialForm = () => ({ fecha_corte: new Date().toISOString().slice(0, 10), retencion_pct: '5', anticipo_descontado: '0', observaciones: '' });
+const initialForm = () => ({ fecha_corte: new Date().toISOString().slice(0, 10), retencion_pct: '5', observaciones: '' });
 
 export default function EstadosPagoObra({ user, obraNombre }) {
   const empresa = user?.empresa || null;
@@ -16,6 +16,8 @@ export default function EstadosPagoObra({ user, obraNombre }) {
   const [avances, setAvances] = useState([]);
   const [rdis, setRdis] = useState([]);
   const [estados, setEstados] = useState([]);
+  const [condiciones, setCondiciones] = useState(null);
+  const [anticipoPct, setAnticipoPct] = useState('0');
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
@@ -24,21 +26,25 @@ export default function EstadosPagoObra({ user, obraNombre }) {
     if (!obraNombre) return;
     setLoading(true); setMessage('');
     try {
-      const [partidasResult, avancesResult, rdiResult, estadosResult] = await Promise.all([
+      const [partidasResult, avancesResult, rdiResult, estadosResult, condicionesResult] = await Promise.all([
         supabase.from('partidas_obra').select('*').eq('obra_nombre', obraNombre),
         // La tabla vigente de reportes por partida; `reportes_avance` fue una tabla heredada.
         supabase.from('avances_produccion_partidas').select('*'),
         supabase.from('calidad_rdi').select('partida, cantidad, estado').eq('obra_nombre', obraNombre),
         supabase.from('estados_pago_obra').select('*').eq('empresa', empresa).eq('obra_nombre', obraNombre).order('numero', { ascending: false }),
+        supabase.from('condiciones_pago_obra').select('*').eq('empresa', empresa).eq('obra_nombre', obraNombre).maybeSingle(),
       ]);
       if (partidasResult.error) throw partidasResult.error;
       if (avancesResult.error) throw avancesResult.error;
       if (rdiResult.error && !rdiResult.error.message?.includes('calidad_rdi')) throw rdiResult.error;
       if (estadosResult.error) throw estadosResult.error;
+      if (condicionesResult.error) throw condicionesResult.error;
       setPartidas((partidasResult.data || []).filter(p => !['TITULO', 'GRUPO'].includes(p.unidad) && !p.es_titulo));
       setAvances((avancesResult.data || []).filter(r => String(r.obra_nombre || r.obra || '').trim() === obraNombre));
       setRdis(rdiResult.data || []);
       setEstados(estadosResult.data || []);
+      setCondiciones(condicionesResult.data || null);
+      setAnticipoPct(String(condicionesResult.data?.anticipo_pct || 0));
     } catch (error) {
       setMessage(error.message?.includes('estados_pago_obra') ? 'Falta habilitar Estados de Pago en Supabase. Ejecuta schema_estados_pago.sql y actualiza.' : `No fue posible cargar Estados de Pago: ${error.message}`);
     } finally { setLoading(false); }
@@ -60,8 +66,15 @@ export default function EstadosPagoObra({ user, obraNombre }) {
   }).filter(line => line.amount > 0), [partidas, avances, rdis, form.fecha_corte]);
 
   const gross = valuation.reduce((sum, line) => sum + line.amount, 0);
+  const contractAmount = partidas.reduce((sum, partida) => sum + (Number(partida.cantidad_presupuestada ?? partida.cantidad ?? 0) * (Number(partida.costo_por_dia) || Number(partida.pu) || 0)), 0);
+  const advanceRate = Math.max(0, Math.min(100, Number(condiciones?.anticipo_pct || 0)));
+  const contractAdvance = Math.round(contractAmount * advanceRate / 100);
+  const recoveredAdvance = estados.filter(item => item.estado !== 'Rechazado').reduce((sum, item) => sum + Number(item.anticipo_descontado || 0), 0);
+  const advanceAvailable = Math.max(0, contractAdvance - recoveredAdvance);
+  // La amortización se aplica en cada EP al mismo porcentaje del anticipo y nunca supera el saldo pendiente.
+  const automaticAdvanceDeduction = Math.min(advanceAvailable, Math.round(gross * advanceRate / 100));
   const retention = Math.round(gross * (Number(form.retencion_pct) || 0) / 100);
-  const advanceDeduction = Number(form.anticipo_descontado) || 0;
+  const advanceDeduction = automaticAdvanceDeduction;
   const net = Math.max(0, gross - retention - advanceDeduction);
   const reviewCount = valuation.filter(line => line.requiresReview).length;
 
@@ -83,6 +96,16 @@ export default function EstadosPagoObra({ user, obraNombre }) {
     } catch (error) { setMessage(`No se pudo crear el estado de pago: ${error.message}`); }
   };
 
+  const saveConditions = async () => {
+    try {
+      const payload = { empresa, obra_nombre: obraNombre, anticipo_pct: Math.max(0, Math.min(100, Number(anticipoPct) || 0)) };
+      const { error } = await supabase.from('condiciones_pago_obra').upsert(payload, { onConflict: 'empresa,obra_nombre' });
+      if (error) throw error;
+      setMessage('Condiciones de anticipo guardadas. La amortización se calculará automáticamente en cada estado de pago.');
+      await load();
+    } catch (error) { setMessage(`No se pudieron guardar las condiciones: ${error.message}`); }
+  };
+
   const changeStatus = async (id, estado) => {
     const { error } = await supabase.from('estados_pago_obra').update({ estado }).eq('id', id);
     if (error) { setMessage(`No se pudo actualizar el estado: ${error.message}`); return; }
@@ -100,7 +123,8 @@ export default function EstadosPagoObra({ user, obraNombre }) {
       <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5">
         <h3 className="flex items-center gap-2 text-sm font-black text-slate-800"><FileText className="h-4 w-4 text-emerald-700" />Nuevo estado de pago</h3>
         <label className="block text-[11px] font-bold text-slate-600">Fecha de corte<input type="date" value={form.fecha_corte} onChange={event => setForm({ ...form, fecha_corte: event.target.value })} className={`${input} mt-1`} /></label>
-        <div className="grid grid-cols-2 gap-2"><label className="text-[11px] font-bold text-slate-600">Retención (%)<input type="number" min="0" max="100" step="0.1" value={form.retencion_pct} onChange={event => setForm({ ...form, retencion_pct: event.target.value })} className={`${input} mt-1`} /></label><label className="text-[11px] font-bold text-slate-600">Descuento anticipo<input type="number" min="0" value={form.anticipo_descontado} onChange={event => setForm({ ...form, anticipo_descontado: event.target.value })} className={`${input} mt-1`} /></label></div>
+        <div className="grid grid-cols-2 gap-2"><label className="text-[11px] font-bold text-slate-600">Retención (%)<input type="number" min="0" max="100" step="0.1" value={form.retencion_pct} onChange={event => setForm({ ...form, retencion_pct: event.target.value })} className={`${input} mt-1`} /></label><div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2"><p className="text-[10px] font-bold text-emerald-800">Descuento anticipo</p><p className="mt-1 text-xs font-black text-emerald-800">{money(advanceDeduction)}</p></div></div>
+        <div className="rounded-xl border border-blue-100 bg-blue-50 p-3"><div className="flex items-end gap-2"><label className="min-w-0 flex-1 text-[11px] font-bold text-blue-900">Anticipo de contrato (%)<input type="number" min="0" max="100" step="0.1" value={anticipoPct} onChange={event => setAnticipoPct(event.target.value)} className={`${input} mt-1`} /></label><button onClick={saveConditions} type="button" className="rounded-lg bg-blue-800 px-3 py-2 text-[11px] font-black text-white">Guardar</button></div><p className="mt-2 text-[10px] text-blue-800">Anticipo contractual: {money(contractAdvance)} · Pendiente de amortizar: {money(advanceAvailable)}. Se descuenta automáticamente {advanceRate}% de cada valorización hasta recuperar el anticipo.</p></div>
         <textarea rows={3} placeholder="Observaciones del estado de pago" value={form.observaciones} onChange={event => setForm({ ...form, observaciones: event.target.value })} className={input} />
         <div className="space-y-2 rounded-xl bg-emerald-50 p-3 text-xs"><div className="flex justify-between"><span>Avance valorizado</span><b>{money(gross)}</b></div><div className="flex justify-between"><span>Retención</span><b>- {money(retention)}</b></div><div className="flex justify-between"><span>Anticipo</span><b>- {money(advanceDeduction)}</b></div><div className="flex justify-between border-t border-emerald-200 pt-2 text-sm"><span>Neto a cobrar</span><b>{money(net)}</b></div></div>
         {reviewCount > 0 && <p className="rounded-lg bg-amber-50 p-2 text-[11px] font-semibold text-amber-800">{reviewCount} partida(s) tienen avance superior al volumen con RDI aprobado. Revísalas antes de enviar.</p>}
