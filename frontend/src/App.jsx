@@ -34,6 +34,7 @@ const Maquinaria = lazyWithRetry(() => import('./components/Maquinaria'), 'maqui
 const ConfigCorreos = lazyWithRetry(() => import('./components/ConfigCorreos'), 'config-correos');
 const PresupuestosPlanif = lazyWithRetry(() => import('./components/PresupuestosPlanif'), 'presupuestos');
 const Prevencion = lazyWithRetry(() => import('./components/Prevencion'), 'prevencion');
+const CalidadObras = lazyWithRetry(() => import('./components/CalidadObras'), 'calidad');
 const Facturacion = lazyWithRetry(() => import('./components/Facturacion'), 'facturacion');
 const Acreditaciones = lazyWithRetry(() => import('./components/Acreditaciones'), 'acreditaciones');
 const FormulariosCapacitaciones = lazyWithRetry(() => import('./components/FormulariosCapacitaciones'), 'formularios');
@@ -859,6 +860,11 @@ function App() {
                 setCurrentModule('dashboard');
               }} 
             />
+          ) : currentModule === 'calidad' ? (
+            <CalidadObras user={activeUserContext} onBack={() => {
+              setSelectedObraName(null);
+              setCurrentModule('dashboard');
+            }} />
           ) : currentModule === 'acreditaciones' ? (
             <Acreditaciones 
               user={activeUserContext} 
