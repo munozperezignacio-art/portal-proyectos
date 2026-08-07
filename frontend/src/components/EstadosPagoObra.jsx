@@ -26,7 +26,8 @@ export default function EstadosPagoObra({ user, obraNombre }) {
     try {
       const [partidasResult, avancesResult, rdiResult, estadosResult] = await Promise.all([
         supabase.from('partidas_obra').select('*').eq('obra_nombre', obraNombre),
-        supabase.from('reportes_avance').select('*'),
+        // La tabla vigente de reportes por partida; `reportes_avance` fue una tabla heredada.
+        supabase.from('avances_produccion_partidas').select('*'),
         supabase.from('calidad_rdi').select('partida, cantidad, estado').eq('obra_nombre', obraNombre),
         supabase.from('estados_pago_obra').select('*').eq('empresa', empresa).eq('obra_nombre', obraNombre).order('numero', { ascending: false }),
       ]);
