@@ -379,7 +379,9 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [errorMsg, setErrorMsg] = useState('');
 
   // Submódulo activo de la Obra (null = Vista Principal de Tarjetas / Rectángulos)
-  const [obraActiveSubmodule, setObraActiveSubmodule] = useState(null); // null | 'avance' | 'asistencia' | 'rrhh' | 'cuadrillas' | 'maquinaria' | 'materiales' | 'bitacora' | 'libro_obra' | 'estados_pago' | 'estadisticas' | 'calidad' | 'prevencion' | 'presupuesto' | 'planificacion'
+  const [obraActiveSubmodule, setObraActiveSubmodule] = useState(null); // null | 'avance' | 'equipo' | 'maquinaria' | 'materiales' | 'bitacora' | 'libro_obra' | 'estados_pago' | 'estadisticas' | 'calidad' | 'prevencion' | 'gestion_obra'
+  const [equipoTab, setEquipoTab] = useState('asistencia'); // asistencia | personal | cuadrillas
+  const [gestionObraTab, setGestionObraTab] = useState('presupuesto'); // presupuesto | planificacion | costos
 
   // Sub-pestañas para Avance, Asistencia, Maquinaria, Bitácora y Prevención
   const [avanceSubTab, setAvanceSubTab] = useState('visor'); // 'visor' | 'registro'
@@ -2573,7 +2575,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
             </button>
           </div>
 
-          {obraActiveSubmodule === null && <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4"><div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><p className="text-xs font-black uppercase tracking-wider text-blue-900">Acciones de hoy</p><p className="mt-1 text-xs text-slate-600">Accesos directos para registrar, controlar y resolver lo prioritario en faena.</p></div><div className="flex flex-wrap gap-2"><button onClick={() => setObraActiveSubmodule('avance')} className="rounded-lg bg-blue-900 px-3 py-2 text-xs font-bold text-white">Registrar avance</button><button onClick={() => setObraActiveSubmodule('asistencia')} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-900">Asistencia</button><button onClick={() => setObraActiveSubmodule('calidad')} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-900">Calidad</button><button onClick={() => setObraActiveSubmodule('estados_pago')} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-900">Estados de pago</button></div></div></div>}
+          {obraActiveSubmodule === null && <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4"><div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><p className="text-xs font-black uppercase tracking-wider text-blue-900">Acciones de hoy</p><p className="mt-1 text-xs text-slate-600">Accesos directos para registrar, controlar y resolver lo prioritario en faena.</p></div><div className="flex flex-wrap gap-2"><button onClick={() => setObraActiveSubmodule('avance')} className="rounded-lg bg-blue-900 px-3 py-2 text-xs font-bold text-white">Registrar avance</button><button onClick={() => { setEquipoTab('asistencia'); setObraActiveSubmodule('equipo'); }} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-900">Asistencia</button><button onClick={() => setObraActiveSubmodule('calidad')} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-900">Calidad</button><button onClick={() => setObraActiveSubmodule('estados_pago')} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-900">Estados de pago</button></div></div></div>}
 
           {/* NAVEGACIÓN PRINCIPAL: VISTA DE TARJETAS / RECTÁNGULOS OPERATIVOS */}
           {obraActiveSubmodule === null && (
@@ -2601,25 +2603,25 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
                 {/* 2. Asistencia & Horas Extras */}
                 <button
-                  onClick={() => setObraActiveSubmodule('asistencia')}
+                  onClick={() => { setEquipoTab('asistencia'); setObraActiveSubmodule('equipo'); }}
                   className="p-5 bg-white border border-slate-200 hover:border-emerald-600 rounded-2xl shadow-xs hover:shadow-md transition text-left cursor-pointer group flex flex-col justify-between space-y-3"
                 >
                   <div className="flex justify-between items-start">
                     <div className="p-3 bg-emerald-50 text-emerald-900 rounded-xl group-hover:bg-emerald-800 group-hover:text-white transition">
                       <UserCheck className="w-6 h-6" />
                     </div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-900 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200">Asistencia & Libro</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-900 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200">Personas & Turnos</span>
                   </div>
                   <div>
-                    <h4 className="font-extrabold text-slate-800 text-sm group-hover:text-emerald-950">Asistencia & Libro Asistencia Digital</h4>
+                    <h4 className="font-extrabold text-slate-800 text-sm group-hover:text-emerald-950">Equipo de Obra</h4>
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed">Marcaje QR/GPS, cálculo de horas extras y Libro Asistencia Digital.</p>
                   </div>
                 </button>
 
                 {/* 3. Personal Asignado (RRHH) */}
                 <button
-                  onClick={() => setObraActiveSubmodule('rrhh')}
-                  className="p-5 bg-white border border-slate-200 hover:border-purple-600 rounded-2xl shadow-xs hover:shadow-md transition text-left cursor-pointer group flex flex-col justify-between space-y-3"
+                  onClick={() => { setEquipoTab('personal'); setObraActiveSubmodule('equipo'); }}
+                  className="hidden p-5 bg-white border border-slate-200 hover:border-purple-600 rounded-2xl shadow-xs hover:shadow-md transition text-left cursor-pointer group flex flex-col justify-between space-y-3"
                 >
                   <div className="flex justify-between items-start">
                     <div className="p-3 bg-purple-50 text-purple-900 rounded-xl group-hover:bg-purple-900 group-hover:text-white transition">
@@ -2635,8 +2637,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
                 {/* 4. Cuadrillas de Trabajo */}
                 <button
-                  onClick={() => setObraActiveSubmodule('cuadrillas')}
-                  className="p-5 bg-white border border-slate-200 hover:border-amber-600 rounded-2xl shadow-xs hover:shadow-md transition text-left cursor-pointer group flex flex-col justify-between space-y-3"
+                  onClick={() => { setEquipoTab('cuadrillas'); setObraActiveSubmodule('equipo'); }}
+                  className="hidden p-5 bg-white border border-slate-200 hover:border-amber-600 rounded-2xl shadow-xs hover:shadow-md transition text-left cursor-pointer group flex flex-col justify-between space-y-3"
                 >
                   <div className="flex justify-between items-start">
                     <div className="p-3 bg-amber-50 text-amber-900 rounded-xl group-hover:bg-amber-800 group-hover:text-white transition">
@@ -2787,7 +2789,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
                 {/* 11. Presupuesto */}
                 <button
-                  onClick={() => setObraActiveSubmodule('presupuesto')}
+                  onClick={() => { setGestionObraTab('presupuesto'); setObraActiveSubmodule('gestion_obra'); }}
                   className="p-5 bg-white border border-slate-200 hover:border-emerald-600 rounded-2xl shadow-xs hover:shadow-md transition text-left cursor-pointer group flex flex-col justify-between space-y-3"
                 >
                   <div className="flex justify-between items-start">
@@ -2797,15 +2799,15 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                     <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-900 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200">Costos & Partidas</span>
                   </div>
                   <div>
-                    <h4 className="font-extrabold text-slate-800 text-sm group-hover:text-emerald-950">Presupuesto de Obra</h4>
+                    <h4 className="font-extrabold text-slate-800 text-sm group-hover:text-emerald-950">Plan y Control de Obra</h4>
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed">Enlace con módulo de presupuestos o asignación de costos unitarios (P.U.) por partida.</p>
                   </div>
                 </button>
 
                 {/* 12. Planificación */}
                 <button
-                  onClick={() => setObraActiveSubmodule('planificacion')}
-                  className="p-5 bg-white border border-slate-200 hover:border-indigo-600 rounded-2xl shadow-xs hover:shadow-md transition text-left cursor-pointer group flex flex-col justify-between space-y-3"
+                  onClick={() => { setGestionObraTab('planificacion'); setObraActiveSubmodule('gestion_obra'); }}
+                  className="hidden p-5 bg-white border border-slate-200 hover:border-indigo-600 rounded-2xl shadow-xs hover:shadow-md transition text-left cursor-pointer group flex flex-col justify-between space-y-3"
                 >
                   <div className="flex justify-between items-start">
                     <div className="p-3 bg-indigo-50 text-indigo-900 rounded-xl group-hover:bg-indigo-900 group-hover:text-white transition">
@@ -2821,8 +2823,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
                 {/* 13. Control de Costos */}
                 <button
-                  onClick={() => setObraActiveSubmodule('costos')}
-                  className="p-5 bg-white border border-slate-200 hover:border-emerald-700 rounded-2xl shadow-xs hover:shadow-md transition text-left cursor-pointer group flex flex-col justify-between space-y-3"
+                  onClick={() => { setGestionObraTab('costos'); setObraActiveSubmodule('gestion_obra'); }}
+                  className="hidden p-5 bg-white border border-slate-200 hover:border-emerald-700 rounded-2xl shadow-xs hover:shadow-md transition text-left cursor-pointer group flex flex-col justify-between space-y-3"
                 >
                   <div className="flex justify-between items-start">
                     <div className="p-3 bg-emerald-50 text-emerald-950 rounded-xl group-hover:bg-emerald-950 group-hover:text-white transition">
@@ -3198,7 +3200,9 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           )}
 
           {/* VISTA DEDICADA 2: ASISTENCIA Y LIBRO DIGITAL CON FILTROS AVANZADOS */}
-          {obraActiveSubmodule === 'asistencia' && (
+          {obraActiveSubmodule === 'equipo' && <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4"><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div><p className="text-sm font-black text-emerald-950">Equipo de Obra</p><p className="mt-1 text-xs text-emerald-900">Gestiona asistencia, nómina y cuadrillas desde la misma vista.</p></div><div className="flex flex-wrap gap-2">{[['asistencia', 'Asistencia y libro'], ['personal', 'Personal asignado'], ['cuadrillas', 'Cuadrillas']].map(([id, label]) => <button key={id} onClick={() => setEquipoTab(id)} className={`rounded-xl px-3 py-2 text-xs font-black ${equipoTab === id ? 'bg-emerald-800 text-white' : 'border border-emerald-200 bg-white text-emerald-900'}`}>{label}</button>)}</div></div></div>}
+
+          {obraActiveSubmodule === 'equipo' && equipoTab === 'asistencia' && (
             <div className="space-y-4 animate-in fade-in duration-200">
               <div className="bg-white p-4 border border-slate-200 rounded-2xl space-y-3">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -3469,7 +3473,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           )}
 
           {/* VISTA DEDICADA 3: PERSONAL ASIGNADO (RRHH) */}
-          {obraActiveSubmodule === 'rrhh' && (
+          {obraActiveSubmodule === 'equipo' && equipoTab === 'personal' && (
             <div className="space-y-4 animate-in fade-in duration-200">
               <div className="flex justify-between items-center bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
                 <div>
@@ -3562,7 +3566,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           )}
 
           {/* VISTA DEDICADA 4: CUADRILLAS DE TRABAJO */}
-          {obraActiveSubmodule === 'cuadrillas' && (
+          {obraActiveSubmodule === 'equipo' && equipoTab === 'cuadrillas' && (
             <div className="space-y-4 animate-in fade-in duration-200">
               <div className="flex justify-between items-center bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
                 <div>
@@ -5508,7 +5512,9 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           )}
 
           {/* VISTA DEDICADA 11: PRESUPUESTO DE OBRA */}
-          {obraActiveSubmodule === 'presupuesto' && (
+          {obraActiveSubmodule === 'gestion_obra' && <div className="mb-5 rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4"><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div><p className="text-sm font-black text-indigo-950">Plan y Control de Obra</p><p className="mt-1 text-xs text-indigo-900">Conecta el presupuesto, la carta Gantt y los costos reales para decidir con una sola fuente de información.</p></div><div className="flex flex-wrap gap-2">{[['presupuesto', 'Presupuesto'], ['planificacion', 'Programación'], ['costos', 'Costos reales']].map(([id, label]) => <button key={id} onClick={() => setGestionObraTab(id)} className={`rounded-xl px-3 py-2 text-xs font-black ${gestionObraTab === id ? 'bg-indigo-800 text-white' : 'border border-indigo-200 bg-white text-indigo-900'}`}>{label}</button>)}</div></div></div>}
+
+          {obraActiveSubmodule === 'gestion_obra' && gestionObraTab === 'presupuesto' && (
             <div className="space-y-6 animate-in fade-in duration-200">
 
 
@@ -5806,7 +5812,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           )}
 
           {/* VISTA DEDICADA 12: PLANIFICACIÓN Y CARTA GANTT DE OBRA (CONECTADO A PRESUPUESTO Y ENLACES) */}
-          {obraActiveSubmodule === 'planificacion' && (
+          {obraActiveSubmodule === 'gestion_obra' && gestionObraTab === 'planificacion' && (
             <div className="space-y-6 animate-in fade-in duration-200">
               {(() => {
                 const fInicioObraDefault = fechaInicioReal || getObraDateRange(selectedObra).start;
@@ -6301,7 +6307,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           )}
 
           {/* VISTA DEDICADA 13: CONTROL DE COSTOS DE OBRA */}
-          {obraActiveSubmodule === 'costos' && (
+          {obraActiveSubmodule === 'gestion_obra' && gestionObraTab === 'costos' && (
             <div className="space-y-6 animate-in fade-in duration-200">
               <div className="space-y-4">
                 <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
