@@ -1,5 +1,12 @@
 -- Ciclo de vida y cierre trazable de obras.
 -- No elimina obras: las terminadas quedan disponibles mediante el filtro de historial.
+ALTER TABLE public.obras ADD COLUMN IF NOT EXISTS cliente TEXT;
+ALTER TABLE public.obras ADD COLUMN IF NOT EXISTS cliente_email TEXT;
+ALTER TABLE public.obras ADD COLUMN IF NOT EXISTS cliente_telefono TEXT;
+ALTER TABLE public.obras ADD COLUMN IF NOT EXISTS ubicacion TEXT;
+ALTER TABLE public.obras ADD COLUMN IF NOT EXISTS admin_contrato TEXT;
+ALTER TABLE public.obras ADD COLUMN IF NOT EXISTS oficina_tecnica TEXT;
+ALTER TABLE public.obras ADD COLUMN IF NOT EXISTS prevencionista TEXT;
 ALTER TABLE public.obras ADD COLUMN IF NOT EXISTS estado TEXT;
 ALTER TABLE public.obras ADD COLUMN IF NOT EXISTS fecha_termino_real DATE;
 ALTER TABLE public.obras ADD COLUMN IF NOT EXISTS motivo_cierre TEXT;
