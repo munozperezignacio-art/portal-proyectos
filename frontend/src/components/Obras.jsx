@@ -4082,11 +4082,11 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
           {/* VISTA DEDICADA 8: LIBRO DE OBRAS DIGITAL */}
           {obraActiveSubmodule === 'libro_obra' && (
-            <LibroObrasDigital user={user} obraNombre={selectedObra?.nombre || ''} />
+            <LibroObrasDigital user={user} obraNombre={selectedObra?.nombre || ''} obra={selectedObra} />
           )}
 
           {obraActiveSubmodule === 'estados_pago' && (
-            <EstadosPagoObra user={user} obraNombre={selectedObra?.nombre || ''} />
+            <EstadosPagoObra user={user} obraNombre={selectedObra?.nombre || ''} obra={selectedObra} />
           )}
 
           {/* VISTA DEDICADA 9: PANEL DE ESTADÍSTICAS EJECUTIVAS DE OBRA */}
@@ -5420,6 +5420,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
               <CalidadObras
                 user={user}
                 obraInicial={selectedObra?.nombre || ''}
+                obraPerfil={selectedObra}
                 embedded
               />
             </div>

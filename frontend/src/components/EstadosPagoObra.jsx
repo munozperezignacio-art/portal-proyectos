@@ -14,7 +14,7 @@ const percent = (value) => `${Number(value || 0).toFixed(2)}%`;
 const initialForm = () => ({ fecha_corte: new Date().toISOString().slice(0, 10), retencion_pct: '5', observaciones: '' });
 const token = () => `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
 
-export default function EstadosPagoObra({ user, obraNombre }) {
+export default function EstadosPagoObra({ user, obraNombre, obra }) {
   const empresa = user?.empresa || null;
   const [partidas, setPartidas] = useState([]);
   const [avances, setAvances] = useState([]);
@@ -27,6 +27,16 @@ export default function EstadosPagoObra({ user, obraNombre }) {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const canPreparePayment = canModifyOrDeleteRecords(user);
+  const clientName = obra?.cliente || '';
+  const clientEmail = obra?.cliente_email || '';
+  const clientPhone = obra?.cliente_telefono || '';
+  const applyClientContacts = () => setContactos(current => ({
+    ...current,
+    revisor_nombre: current.revisor_nombre || obra?.admin_contrato || clientName,
+    revisor_email: current.revisor_email || clientEmail,
+    aprobador_nombre: current.aprobador_nombre || clientName,
+    aprobador_email: current.aprobador_email || clientEmail,
+  }));
 
   const load = async () => {
     if (!obraNombre) return;
@@ -164,6 +174,7 @@ export default function EstadosPagoObra({ user, obraNombre }) {
       <button onClick={load} className="flex w-fit items-center gap-1 rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"><RefreshCw className="h-3.5 w-3.5" />Actualizar</button>
     </header>
     {message && <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-900">{message}</div>}
+    {(clientName || clientEmail || clientPhone) && <div className="flex flex-col gap-3 rounded-2xl border border-blue-200 bg-blue-50/70 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-black text-blue-950">Contacto contractual de la obra</p><p className="mt-1 text-xs text-blue-900">{clientName || 'Mandante'}{clientEmail ? ` · ${clientEmail}` : ''}{clientPhone ? ` · ${clientPhone}` : ''}</p></div><button type="button" onClick={applyClientContacts} className="w-fit rounded-lg border border-blue-200 bg-white px-3 py-2 text-[11px] font-black text-blue-900">Usar en revisión y aprobación</button></div>}
     <div className="grid gap-4 xl:grid-cols-[360px_1fr]">
       <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5">
         <h3 className="flex items-center gap-2 text-sm font-black text-slate-800"><FileText className="h-4 w-4 text-emerald-700" />Nuevo estado de pago</h3>

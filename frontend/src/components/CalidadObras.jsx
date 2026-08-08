@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, ClipboardCheck, FileCheck2, Plus, RefreshCw, ShieldCheck, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ClipboardCheck, FileCheck2, Mail, Plus, RefreshCw, ShieldCheck, XCircle } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
 const initialPac = { partida: '', procedimiento: '', criterios: '', puntos_inspeccion: '', puntos_espera: '', responsable: '' };
-const initialRdi = { partida: '', pac_id: '', sector: '', cantidad: '', unidad: '', solicitado_por: '', observaciones: '' };
+const initialRdi = { partida: '', pac_id: '', sector: '', cantidad: '', unidad: '', solicitado_por: '', inspector: '', observaciones: '' };
 const initialNc = { partida: '', rdi_id: '', descripcion: '', clasificacion: 'Menor', responsable: '', fecha_compromiso: '', causa_raiz: '', accion_correctiva: '' };
 
 const statusClass = (status) => ({
@@ -13,7 +13,7 @@ const statusClass = (status) => ({
   Borrador: 'bg-slate-100 text-slate-700', 'En corrección': 'bg-amber-100 text-amber-800',
 }[status] || 'bg-slate-100 text-slate-700');
 
-export default function CalidadObras({ user, onBack, obraInicial = '', embedded = false }) {
+export default function CalidadObras({ user, onBack, obraInicial = '', embedded = false, obraPerfil = null }) {
   const [tab, setTab] = useState('resumen');
   const [obras, setObras] = useState([]);
   const [partidas, setPartidas] = useState([]);
@@ -32,12 +32,16 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
   const pacPorPartida = useMemo(() => new Map(pacs.map(p => [p.partida, p])), [pacs]);
   const rdisPendientes = rdis.filter(r => ['Borrador', 'Enviada', 'Observada'].includes(r.estado));
   const ncsAbiertas = ncs.filter(n => !['Cerrada', 'Verificada'].includes(n.estado));
+  const obraActiva = useMemo(() => obraPerfil?.nombre === obraNombre ? obraPerfil : obras.find(obra => obra.nombre === obraNombre) || null, [obraPerfil, obras, obraNombre]);
+  const clientName = obraActiva?.cliente || '';
+  const clientEmail = obraActiva?.cliente_email || '';
+  const clientPhone = obraActiva?.cliente_telefono || '';
 
   const load = async () => {
     setLoading(true);
     setMessage('');
     try {
-      const { data: obrasData, error: obrasError } = await supabase.from('obras').select('nombre').eq('empresa', empresa).order('nombre');
+      const { data: obrasData, error: obrasError } = await supabase.from('obras').select('nombre, cliente, cliente_email, cliente_telefono, admin_contrato').eq('empresa', empresa).order('nombre');
       if (obrasError) throw obrasError;
       const nextObras = obrasData || [];
       setObras(nextObras);
@@ -61,6 +65,9 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
   useEffect(() => { load(); }, [empresa, obraInicial]);
   useEffect(() => { if (obraNombre) load(); }, [obraNombre]);
   useEffect(() => { if (obraInicial && obraInicial !== obraNombre) setObraNombre(obraInicial); }, [obraInicial, obraNombre]);
+  useEffect(() => {
+    if (obraActiva && !rdiForm.inspector) setRdiForm(current => ({ ...current, inspector: obraActiva.admin_contrato || obraActiva.cliente || '' }));
+  }, [obraActiva]);
 
   const savePac = async (e) => {
     e.preventDefault();
@@ -104,6 +111,7 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
       <div className="flex flex-wrap gap-2">{!embedded && <select value={obraNombre} onChange={e => setObraNombre(e.target.value)} className="min-w-52 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold"><option value="">Selecciona una obra</option>{obras.map(o => <option key={o.nombre} value={o.nombre}>{o.nombre}</option>)}</select>}<button onClick={load} className="flex items-center gap-1 rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"><RefreshCw className="h-3.5 w-3.5" />Actualizar</button>{!embedded && <button onClick={onBack} className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700">Volver</button>}</div>
     </div>
     {message && <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-900">{message}</div>}
+    {(clientName || clientEmail || clientPhone) && <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-950"><Mail className="h-3.5 w-3.5" /><span className="font-black">Mandante / inspección:</span><span>{clientName || 'Sin nombre'}{clientEmail ? ` · ${clientEmail}` : ''}{clientPhone ? ` · ${clientPhone}` : ''}</span></div>}
     <div className="flex flex-wrap gap-2 rounded-xl bg-slate-100 p-1.5">{[['resumen','Resumen'],['pac','PAC por partida'],['rdi','Solicitudes RDI'],['nc','No conformidades']].map(([id,label]) => <button key={id} onClick={() => setTab(id)} className={`rounded-lg px-3 py-2 text-xs font-bold ${tab === id ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-600'}`}>{label}</button>)}</div>
     {!obraNombre ? <div className="rounded-2xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500">Selecciona una obra para comenzar su control de calidad.</div> : loading ? <div className="p-10 text-center text-sm text-slate-500">Cargando calidad de obra…</div> : <>
       {tab === 'resumen' && <div className="space-y-4"><div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
