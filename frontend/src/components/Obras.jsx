@@ -4,7 +4,7 @@ import {
   Building2, ArrowLeft, Users, Truck, Wrench, FileSpreadsheet, 
   ExternalLink, Calendar, Plus, Info, Check, UserCheck, Play, ArrowRightLeft, FileText, AlertCircle, AlertTriangle, Camera,
   QrCode, MapPin, Printer, Navigation, RotateCcw, CheckCircle2, MapIcon as Map, ShieldAlert, Settings, Edit, Trash2, Download,
-  History, BarChart3, ShieldCheck, Clock, DollarSign, CalendarRange, CalendarDays, FileUp, Loader2, FolderPlus, Send, Filter, TrendingUp, BookOpenCheck, ReceiptText, Search
+  History, BarChart3, ShieldCheck, ClipboardCheck, Clock, DollarSign, CalendarRange, CalendarDays, FileUp, Loader2, FolderPlus, Send, Filter, TrendingUp, BookOpenCheck, ReceiptText, Search
 } from 'lucide-react';
 import ContextualEmailConfigModal from './ContextualEmailConfigModal';
 import { canConfigureEmails, canCreateObras, canModifyOrDeleteRecords } from '../utils/userLevel';
@@ -2780,9 +2780,9 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 >
                   <div className="flex justify-between items-start">
                     <div className="p-3 bg-teal-50 text-teal-900 rounded-xl group-hover:bg-teal-800 group-hover:text-white transition">
-                      <ShieldCheck className="w-6 h-6" />
+                      <ClipboardCheck className="w-6 h-6" />
                     </div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-teal-900 bg-teal-50 px-2 py-1 rounded-md border border-teal-200">PAC · RDI · NC</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-teal-900 bg-teal-50 px-2 py-1 rounded-md border border-teal-200">PAC · RDI · RECEPCIÓN</span>
                   </div>
                   <div>
                     <h4 className="font-extrabold text-slate-800 text-sm group-hover:text-teal-950">Calidad de Obra</h4>
