@@ -5633,8 +5633,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     className="bg-slate-900 hover:bg-slate-800 border-l-4 border-indigo-500 border-y border-slate-800 text-white transition cursor-grab active:cursor-grabbing shadow-xs"
   >
                                 <td colSpan="7" className="p-3">
-                                  <div className="flex flex-wrap items-center justify-between gap-3 w-full">
-                                    <div className="flex items-center gap-2">
+                                  <div className="grid w-full grid-cols-[112px_minmax(220px,1fr)_110px_minmax(180px,auto)] items-center gap-3">
+                                    <div className="contents">
                                       <span className="bg-indigo-600 text-white font-black text-[10px] px-2 py-0.5 rounded uppercase tracking-wider border border-indigo-400">
                                         📁 GRUPO
                                       </span>
@@ -5644,7 +5644,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                       <span className="text-[10px] font-semibold text-slate-300">({countBelow} partida{countBelow === 1 ? '' : 's'})</span>
                                     </div>
 
-                                    <div className="flex items-center gap-4">
+                                    <div className="flex items-center justify-end gap-4">
                                       <div className="flex items-center gap-1.5 bg-slate-800 px-3 py-1 rounded-lg border border-slate-700 shadow-2xs">
                                         <span className="text-[10px] font-bold text-slate-300 uppercase">Subtotal Grupo:</span>
                                         <span className="font-mono font-black text-emerald-800 text-xs">
@@ -5720,7 +5720,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             <React.Fragment key={idx}>
                               {isGeneralChild && idx === 0 && <tr className="bg-slate-900 text-white border-l-4 border-indigo-500"><td colSpan="7" className="p-3"><div className="flex items-center gap-3"><span className="rounded bg-indigo-600 px-2 py-1 text-[10px] font-black uppercase">Grupo</span><span className="text-xs font-black uppercase tracking-wide">Partidas generales de obra</span><span className="text-[10px] text-slate-300">({partidasList.findIndex(item => item.unidad === 'TITULO' || item.unidad === 'GRUPO' || item.es_titulo) > 0 ? partidasList.findIndex(item => item.unidad === 'TITULO' || item.unidad === 'GRUPO' || item.es_titulo) : partidasList.length} partidas)</span></div></td></tr>}
                             <tr className="hover:bg-slate-50">
-                              <td className="p-2.5 font-bold text-slate-800 pl-6 flex items-center gap-1.5">
+                              <td className="p-2.5 font-bold text-slate-800 pl-6 flex items-center gap-2">
+                                <span className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-900">Partida</span>
                                 <span className="text-slate-400 text-xs">└─</span>
                                 <span>{p.partida}</span>
                               </td>
