@@ -3,6 +3,35 @@ import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App.jsx';
 
+// Vite da a cada despliegue nombres nuevos a los archivos JS. Si una pestaña
+// abierta conserva la versión anterior, el import dinámico puede pedir un
+// archivo que ya no existe. Recargamos una sola vez para obtener el index
+// vigente, evitando dejar la obra bloqueada en una pantalla de error.
+const RECENT_CHUNK_RELOAD_KEY = 'obraxis:last-stale-chunk-reload';
+const STALE_CHUNK_PATTERN = /failed to fetch dynamically imported module|importing a module script failed/i;
+
+const recoverFromStaleChunk = (reason) => {
+  const message = reason instanceof Error
+    ? reason.message
+    : String(reason?.message || reason || '');
+
+  if (!STALE_CHUNK_PATTERN.test(message)) return;
+
+  try {
+    const lastReload = Number(window.sessionStorage.getItem(RECENT_CHUNK_RELOAD_KEY) || 0);
+    // Evita un ciclo de recargas si el problema no es una versión desactualizada.
+    if (Date.now() - lastReload < 15_000) return;
+    window.sessionStorage.setItem(RECENT_CHUNK_RELOAD_KEY, String(Date.now()));
+  } catch {
+    // Si el almacenamiento no está disponible, igualmente intentamos recuperar la página.
+  }
+
+  window.location.reload();
+};
+
+window.addEventListener('unhandledrejection', (event) => recoverFromStaleChunk(event.reason));
+window.addEventListener('error', (event) => recoverFromStaleChunk(event.error || event.message));
+
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
