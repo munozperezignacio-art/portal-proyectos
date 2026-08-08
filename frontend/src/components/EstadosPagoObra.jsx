@@ -35,6 +35,7 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [visibleAccessCodes, setVisibleAccessCodes] = useState({});
   const canPreparePayment = canModifyOrDeleteRecords(user);
   const clientName = obra?.cliente || '';
   const clientEmail = obra?.cliente_email || '';
@@ -158,6 +159,7 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
 
   const publicUrl = (item, type) => `${window.location.origin}/?estado_pago=${type === 'revision' ? item.token_revision : item.token_aprobacion}&rol_ep=${type}`;
   const copyLink = async (item, type) => { await navigator.clipboard.writeText(publicUrl(item, type)); setMessage(`Enlace de ${type} copiado.`); };
+  const copyAccessCode = async (code) => { await navigator.clipboard.writeText(code); setMessage('Clave de acceso copiada.'); };
   const sendExternal = async (item, type) => {
     if (!canPreparePayment) { setMessage('Tu perfil no está autorizado para enviar estados de pago.'); return; }
     const email = type === 'revision' ? item.revisor_email : item.aprobador_email;
@@ -170,6 +172,7 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
     if (codeError) { setMessage(`No se pudo generar la clave de acceso: ${codeError.message}`); return; }
     const result = await sendSystemEmail({ to: email, subject: `Estado de Pago N° ${item.numero} · ${obraNombre}`, htmlContent: `<p>Hola ${name || ''},</p><p>Se solicita ${type === 'revision' ? 'revisión técnica' : 'aprobación contractual'} del Estado de Pago N° ${item.numero} de <b>${obraNombre}</b>.</p><p><a href="${link}">Abrir Estado de Pago</a></p><p><b>Clave de acceso: ${code}</b></p><p>Por seguridad, necesitarás esta clave de 8 caracteres para ingresar al enlace.</p>` });
     if (!result.success) { setMessage(`No se pudo enviar el correo: ${result.error}`); return; }
+    setVisibleAccessCodes(current => ({ ...current, [`${item.id}-${type}`]: code }));
     await changeStatus(item.id, type === 'revision' ? 'En revisión' : 'En aprobación');
     setMessage(`Enlace enviado a ${email}.`);
   };
@@ -217,7 +220,8 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
               <div className="flex items-center gap-2"><span className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-slate-600">{item.estado}</span>{canPreparePayment && <button type="button" onClick={() => deletePayment(item)} title="Eliminar Estado de Pago" className="rounded-lg border border-rose-200 bg-white p-1.5 text-rose-700 hover:bg-rose-50"><Trash2 className="h-3.5 w-3.5" /></button>}</div>
             </div>
             {item.estado === 'Observado' && (item.items || []).some(line => line.comentario_externo || Number(line.cantidad_propuesta) !== Number(line.executed)) && <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-900"><b>Propuesta externa por partidas</b>{(item.items || []).filter(line => line.comentario_externo || Number(line.cantidad_propuesta) !== Number(line.executed)).map((line, index) => <p key={index} className="mt-1">{line.partida}: propone {line.cantidad_propuesta} {line.unidad} (emitido: {line.executed} {line.unidad}){line.comentario_externo ? ` · ${line.comentario_externo}` : ''}</p>)}</div>}
-            {item.estado !== 'Aprobado' && item.estado !== 'Pagado' && <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold">{['revision', 'aprobacion'].map(type => <React.Fragment key={type}><button onClick={() => sendExternal(item, type)} className="flex items-center gap-1 text-blue-700"><Send className="h-3 w-3" />Enviar a {type === 'revision' ? 'revisión' : 'aprobación'}</button><button onClick={() => copyLink(item, type)} className="flex items-center gap-1 text-slate-600"><Copy className="h-3 w-3" />Copiar enlace</button></React.Fragment>)}</div>}
+            {Object.entries(visibleAccessCodes).filter(([key]) => key.startsWith(`${item.id}-`)).map(([key, code]) => <div key={key} className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-950"><span className="font-black">Clave de {key.endsWith('-revision') ? 'revisión' : 'aprobación'}:</span><code className="rounded bg-white px-2 py-1 font-black tracking-[0.18em]">{code}</code><button type="button" onClick={() => copyAccessCode(code)} className="flex items-center gap-1 font-black text-emerald-800"><Copy className="h-3 w-3" />Copiar clave</button><span className="text-[10px] text-emerald-800">Visible solo mientras mantengas abierta esta sesión.</span></div>)}
+            {item.estado !== 'Aprobado' && item.estado !== 'Pagado' && <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold">{(item.estado === 'En aprobación' ? ['aprobacion'] : ['revision']).map(type => <React.Fragment key={type}><button onClick={() => sendExternal(item, type)} className="flex items-center gap-1 text-blue-700"><Send className="h-3 w-3" />Enviar a {type === 'revision' ? 'revisión' : 'aprobación'}</button><button onClick={() => copyLink(item, type)} className="flex items-center gap-1 text-slate-600"><Copy className="h-3 w-3" />Copiar enlace</button></React.Fragment>)}</div>}
           </div>)}</div> : <p className="text-xs text-slate-500">Aún no existen estados de pago para esta obra.</p>}
         </div>
       </section>
