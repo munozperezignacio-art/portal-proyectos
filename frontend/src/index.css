@@ -5,6 +5,40 @@
   --color-primary-hover: var(--primary-color-hover, #1d4ed8);
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-width: 320px;
+  background: #f8fafc;
+}
+
+button, a, input, select, textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--primary-color, #1e3a8a) 30%, transparent);
+  outline-offset: 2px;
+}
+
+input, select, textarea {
+  font-size: max(16px, 0.875rem);
+}
+
+@media (min-width: 640px) {
+  input, select, textarea {
+    font-size: inherit;
+  }
+}
+
+@media (max-width: 639px) {
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 @media print {
   @page {
     size: A4 portrait;

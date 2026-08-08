@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   LogOut, LayoutDashboard, Building2, Users, Truck, ShieldAlert, Settings, Info, Menu, X, Loader2,
   Layers, Handshake, Receipt, Coins, ClipboardCheck, Boxes, BadgeCheck,
-  FileSpreadsheet, Upload, CalendarDays, Hammer, ChevronLeft, ChevronRight
+  FileSpreadsheet, Upload, CalendarDays, Hammer, ChevronLeft, ChevronRight, Search, Star
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 
@@ -52,6 +52,24 @@ function ModuleLoader() {
       <span className="text-xs font-bold">Cargando módulo…</span>
     </div>
   );
+}
+
+const moduleGroups = [
+  { label: 'Proyectos', ids: ['obras', 'presupuestos'] },
+  { label: 'Operación', ids: ['rrhh', 'maquinaria', 'bodega'] },
+  { label: 'Control y cumplimiento', ids: ['prevencion', 'formularios_capacitaciones', 'acreditaciones', 'calidad'] },
+  { label: 'Administración', ids: ['clientes', 'facturacion', 'gastos'] },
+];
+
+function GroupedModuleLinks({ modules, currentModule, onSelect }) {
+  return moduleGroups.map(group => {
+    const entries = modules.filter(module => group.ids.includes(module.id));
+    if (!entries.length) return null;
+    return <div key={group.label} className="space-y-1.5">
+      <p className="px-3 pt-3 text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">{group.label}</p>
+      {entries.map(module => <button key={module.id} onClick={() => onSelect(module)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer text-left ${currentModule === module.id ? 'bg-primary text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}><span className="shrink-0">{module.sidebarIcon}</span><span className="leading-snug flex-1 min-w-0">{module.sidebarTitle || module.title}</span></button>)}
+    </div>;
+  });
 }
 
 const defaultCovers = [
@@ -114,6 +132,7 @@ function App() {
     const saved = localStorage.getItem('obraxis_favorites');
     return saved ? JSON.parse(saved) : [];
   });
+  const [moduleSearch, setModuleSearch] = useState('');
 
   // Cargar sesión del usuario desde localStorage al iniciar
   useEffect(() => {
@@ -471,6 +490,9 @@ function App() {
     }
     return true;
   });
+  const dashboardModules = visibleModules
+    .filter(module => `${module.title} ${module.description}`.toLowerCase().includes(moduleSearch.trim().toLowerCase()))
+    .sort((left, right) => Number(favorites.includes(right.id)) - Number(favorites.includes(left.id)) || left.title.localeCompare(right.title));
 
   return (
     <div className="min-h-screen flex bg-slate-50 text-slate-800 font-sans">
@@ -559,20 +581,7 @@ function App() {
           <div className="border-t border-slate-150 my-2" />
 
           {/* Listado plano de módulos dinámicos */}
-          {visibleModules.filter(m => m.id !== 'admin').map((m) => (
-            <button
-              key={m.id}
-              onClick={m.action}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer text-left ${
-                currentModule === m.id
-                  ? 'bg-primary text-white shadow-sm'
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-              }`}
-            >
-              <span className="shrink-0">{m.sidebarIcon}</span>
-              <span className="text-left leading-snug flex-1 min-w-0">{m.sidebarTitle || m.title}</span>
-            </button>
-          ))}
+          <GroupedModuleLinks modules={visibleModules.filter(m => m.id !== 'admin')} currentModule={currentModule} onSelect={module => module.action()} />
 
           {/* Panel de Administración en la base si corresponde */}
           {(modulosPermitidos.includes('admin') || (user.rol_base || user.rol || 'Inspector').toLowerCase() === 'superusuario') && (
@@ -722,20 +731,7 @@ function App() {
                 <div className="border-t border-slate-150 my-2" />
 
                 {/* Módulos en formato plano */}
-                {visibleModules.filter(m => m.id !== 'admin').map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() => { m.action(); setSidebarOpen(false); }}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer text-left ${
-                      currentModule === m.id
-                        ? 'bg-primary text-white shadow-sm'
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                    }`}
-                  >
-                    <span className="shrink-0">{m.sidebarIcon}</span>
-                    <span className="text-left leading-snug flex-1 min-w-0">{m.sidebarTitle || m.title}</span>
-                  </button>
-                ))}
+                <GroupedModuleLinks modules={visibleModules.filter(m => m.id !== 'admin')} currentModule={currentModule} onSelect={module => { module.action(); setSidebarOpen(false); }} />
 
                 {(modulosPermitidos.includes('admin') || (user.rol_base || user.rol || 'Inspector').toLowerCase() === 'superusuario') && (
                   <>
@@ -773,17 +769,17 @@ function App() {
         )}
 
         {/* MAIN PANEL CONTENT (Desktop & Mobile) */}
-        <main className="p-6 md:p-8 flex-1 max-w-7xl w-full mx-auto space-y-6">
+        <main className="p-3 sm:p-5 lg:p-8 flex-1 max-w-7xl w-full mx-auto space-y-5 sm:space-y-6">
           <React.Suspense fallback={<ModuleLoader />}>
           {currentModule === 'dashboard' ? (
             <div className="space-y-6">
                   {/* Dashboard Banner/Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 border border-slate-200 rounded-3xl shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 sm:p-6 border border-slate-200 rounded-3xl shadow-xs">
                 <div>
                   <h2 className="text-xl font-bold text-slate-800">Módulos de Gestión</h2>
                   <p className="text-xs text-slate-500 mt-0.5">Selecciona un módulo para comenzar a trabajar.</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <span className="text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 px-3 py-1.5 rounded-xl uppercase tracking-wide">
                     Empresa: {activeUserContext?.empresa || 'Obraxis'}
                   </span>
@@ -794,15 +790,17 @@ function App() {
               </div>
 
               {/* Grid de Módulos (Forma rectangular, sin imágenes) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {visibleModules.map((m) => (
+              <div className="relative max-w-xl"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input value={moduleSearch} onChange={event => setModuleSearch(event.target.value)} placeholder="Buscar un módulo o una tarea…" className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-800 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15" /></div>
+              <p className="text-xs text-slate-500">{favorites.length ? 'Los módulos marcados con estrella aparecen primero.' : 'Marca con estrella los módulos que utilizas a diario.'}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                {dashboardModules.map((m) => (
                   <div
                     key={m.id}
                     onClick={m.action}
                     className="group bg-white border border-slate-250 rounded-2xl p-5 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer relative overflow-hidden flex items-start gap-4 min-h-[110px]"
                   >
                     {/* Dot Indicador (Azul) */}
-                    <div className="absolute top-3 left-3 w-2.5 h-2.5 bg-blue-600 rounded-full border border-white shadow-sm" />
+                    <button onClick={event => toggleFavorite(event, m.id)} title={favorites.includes(m.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'} className={`absolute right-3 top-3 rounded-lg p-1.5 transition ${favorites.includes(m.id) ? 'bg-amber-100 text-amber-600' : 'text-slate-300 hover:bg-slate-100 hover:text-amber-500'}`}><Star className={`h-4 w-4 ${favorites.includes(m.id) ? 'fill-current' : ''}`} /></button>
                     
                     {/* Icono del Módulo */}
                     <div className="p-3.5 bg-primary/10 text-primary rounded-xl group-hover:bg-primary group-hover:text-white transition-all duration-300 mt-1">
@@ -821,6 +819,7 @@ function App() {
                   </div>
                 ))}
               </div>
+              {!dashboardModules.length && <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">No encontramos un módulo con ese nombre. Prueba con “obras”, “seguridad” o “personal”.</div>}
             </div>
           ) : currentModule === 'obras' ? (
             <Obras 
