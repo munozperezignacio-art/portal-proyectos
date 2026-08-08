@@ -5630,23 +5630,23 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     onDragStart={(e) => e.dataTransfer.setData('text/plain', idx)}
     onDragOver={(e) => e.preventDefault()}
     onDrop={(e) => { e.preventDefault(); const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10); if (!isNaN(fromIdx)) handleReorderPartidaObra(fromIdx, idx); }}
-    className="bg-slate-900 hover:bg-slate-800 border-l-4 border-indigo-500 border-y border-slate-800 text-white transition cursor-grab active:cursor-grabbing shadow-xs"
+    className="bg-slate-100 hover:bg-slate-200 border-y border-slate-200 text-slate-800 transition cursor-grab active:cursor-grabbing"
   >
                                 <td colSpan="7" className="p-3">
                                   <div className="grid w-full grid-cols-[112px_minmax(220px,1fr)_110px_minmax(180px,auto)] items-center gap-3">
                                     <div className="contents">
-                                      <span className="bg-indigo-600 text-white font-black text-[10px] px-2 py-0.5 rounded uppercase tracking-wider border border-indigo-400">
+                                      <span className="hidden bg-indigo-600 text-white font-black text-[10px] px-2 py-0.5 rounded uppercase tracking-wider border border-indigo-400">
                                         📁 GRUPO
                                       </span>
-                                      <span className="text-white font-extrabold text-xs uppercase tracking-wide">
+                                      <span className="text-slate-900 font-extrabold text-xs uppercase tracking-wide">
                                         {p.partida}
                                       </span>
-                                      <span className="text-[10px] font-semibold text-slate-300">({countBelow} partida{countBelow === 1 ? '' : 's'})</span>
+                                      <span className="text-[10px] font-semibold text-slate-500">({countBelow} partida{countBelow === 1 ? '' : 's'})</span>
                                     </div>
 
                                     <div className="flex items-center justify-end gap-4">
-                                      <div className="flex items-center gap-1.5 bg-slate-800 px-3 py-1 rounded-lg border border-slate-700 shadow-2xs">
-                                        <span className="text-[10px] font-bold text-slate-300 uppercase">Subtotal Grupo:</span>
+                                      <div className="flex items-center gap-1.5 bg-white px-3 py-1 rounded-lg border border-slate-300 shadow-2xs">
+                                        <span className="text-[10px] font-bold text-slate-500 uppercase">Subtotal Grupo:</span>
                                         <span className="font-mono font-black text-emerald-800 text-xs">
                                           ${groupSum.toLocaleString('es-CL')}
                                         </span>
@@ -5718,10 +5718,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
                           return (
                             <React.Fragment key={idx}>
-                              {isGeneralChild && idx === 0 && <tr className="bg-slate-900 text-white border-l-4 border-indigo-500"><td colSpan="7" className="p-3"><div className="flex items-center gap-3"><span className="rounded bg-indigo-600 px-2 py-1 text-[10px] font-black uppercase">Grupo</span><span className="text-xs font-black uppercase tracking-wide">Partidas generales de obra</span><span className="text-[10px] text-slate-300">({partidasList.findIndex(item => item.unidad === 'TITULO' || item.unidad === 'GRUPO' || item.es_titulo) > 0 ? partidasList.findIndex(item => item.unidad === 'TITULO' || item.unidad === 'GRUPO' || item.es_titulo) : partidasList.length} partidas)</span></div></td></tr>}
+                              {isGeneralChild && idx === 0 && <tr className="bg-slate-100 text-slate-800 border-y border-slate-200"><td colSpan="7" className="p-3"><div className="flex items-center gap-3"><span className="text-xs font-black uppercase tracking-wide">Partidas generales de obra</span><span className="text-[10px] text-slate-500">({partidasList.findIndex(item => item.unidad === 'TITULO' || item.unidad === 'GRUPO' || item.es_titulo) > 0 ? partidasList.findIndex(item => item.unidad === 'TITULO' || item.unidad === 'GRUPO' || item.es_titulo) : partidasList.length} partidas)</span></div></td></tr>}
                             <tr className="hover:bg-slate-50">
                               <td className="p-2.5 font-bold text-slate-800 pl-6 flex items-center gap-2">
-                                <span className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-900">Partida</span>
+                                <span className="hidden rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-900">Partida</span>
                                 <span className="text-slate-400 text-xs">└─</span>
                                 <span>{p.partida}</span>
                               </td>
@@ -6107,39 +6107,39 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                               {finalGanttGroups.map((g, gIdx) => (
                                 <React.Fragment key={`group-${gIdx}`}>
                                   {/* FILA DE ENCABEZADO DE GRUPO */}
-                                  <tr className="bg-slate-900 text-white font-extrabold text-[10.5px]">
+                                  <tr className="bg-slate-100 text-slate-800 font-extrabold text-[10.5px]">
                                     <td className="p-3">
                                       <div className="flex items-center gap-2">
-                                        <span className="bg-indigo-600 text-white px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider font-mono">
+                                        <span className="hidden bg-indigo-600 text-white px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider font-mono">
                                           📂 GRUPO
                                         </span>
                                         <span>{g.partida}</span>
-                                        <span className="text-[9.5px] text-slate-300 font-normal">({g.children.length} Partidas)</span>
+                                        <span className="text-[9.5px] text-slate-500 font-normal">({g.children.length} Partidas)</span>
                                       </div>
                                     </td>
-                                    <td className="p-3 text-slate-300 font-mono text-[10px]">
+                                    <td className="p-3 text-slate-500 font-mono text-[10px]">
                                       Consolidado del Grupo
                                     </td>
-                                    <td className="p-3 text-center whitespace-nowrap font-mono font-bold text-amber-300 text-[10.5px]">
-                                      <span className="whitespace-nowrap inline-flex items-center justify-center gap-1 bg-slate-800 text-amber-300 px-2 py-0.5 rounded border border-slate-700">
+                                    <td className="p-3 text-center whitespace-nowrap font-mono font-bold text-slate-700 text-[10.5px]">
+                                      <span className="whitespace-nowrap inline-flex items-center justify-center gap-1 bg-white text-slate-700 px-2 py-0.5 rounded border border-slate-300">
                                         ⏱️ {g.duracionDias} Días Hábiles
                                       </span>
                                     </td>
-                                    <td className="p-3 text-slate-400 font-mono text-[9.5px] italic whitespace-nowrap">
+                                    <td className="p-3 text-slate-500 font-mono text-[9.5px] italic whitespace-nowrap">
                                       Min / Max Hijos
                                     </td>
-                                    <td className="p-3 font-mono font-bold text-indigo-200 whitespace-nowrap">
+                                    <td className="p-3 font-mono font-bold text-slate-700 whitespace-nowrap">
                                       {g.fechaInicio} <span className="text-[9px] text-slate-400 font-normal">(Pronta)</span>
                                     </td>
-                                    <td className="p-3 font-mono font-bold text-emerald-300 whitespace-nowrap">
+                                    <td className="p-3 font-mono font-bold text-slate-700 whitespace-nowrap">
                                       {g.fechaTermino} <span className="text-[9px] text-slate-400 font-normal">(Tardía)</span>
                                     </td>
                                     <td className="p-3 text-center">
                                       <div className="flex items-center gap-2">
-                                        <div className="w-24 bg-slate-800 h-2.5 rounded-full overflow-hidden border border-slate-700">
-                                          <div className="bg-emerald-400 h-full rounded-full transition-all duration-500" style={{ width: `${g.avancePct}%` }}></div>
+                                        <div className="w-24 bg-slate-200 h-2.5 rounded-full overflow-hidden border border-slate-300">
+                                          <div className="bg-slate-600 h-full rounded-full transition-all duration-500" style={{ width: `${g.avancePct}%` }}></div>
                                         </div>
-                                        <span className="font-mono text-[10px] font-bold text-emerald-300">{g.avancePct}%</span>
+                                        <span className="font-mono text-[10px] font-bold text-slate-700">{g.avancePct}%</span>
                                       </div>
                                     </td>
                                   </tr>
@@ -6154,7 +6154,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                       <tr key={`child-${p.id || pIdx}`} className="hover:bg-slate-50 border-b border-slate-200 bg-white">
                                         <td className="p-3 pl-7 font-bold text-slate-800">
                                           <div className="flex items-center gap-2">
-                                            <span className="text-[9px] font-bold bg-blue-50 text-blue-900 border border-blue-200 px-1.5 py-0.5 rounded">
+                                            <span className="hidden text-[9px] font-bold bg-blue-50 text-blue-900 border border-blue-200 px-1.5 py-0.5 rounded">
                                               📦 Partida
                                             </span>
                                             <span>{p.partida}</span>
