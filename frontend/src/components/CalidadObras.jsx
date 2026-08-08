@@ -6,12 +6,31 @@ import { registrarEventoBitacora } from '../utils/bitacoraService';
 const initialPac = { partida: '', procedimiento: '', criterios: '', puntos_inspeccion: '', puntos_espera: '', responsable: '' };
 const initialRdi = { partida: '', pac_id: '', sector: '', cantidad: '', unidad: '', solicitado_por: '', inspector: '', observaciones: '' };
 const initialNc = { partida: '', rdi_id: '', descripcion: '', clasificacion: 'Menor', responsable: '', fecha_compromiso: '', causa_raiz: '', accion_correctiva: '' };
-const initialReception = { partida: '', rdi_id: '', fecha_entrega: new Date().toISOString().slice(0, 10), cantidad: '', unidad: '', sector: '', entrega_por: '', recibe_por: '', observaciones: '' };
+const initialReception = { partida: '', rdi_id: '', fecha_entrega: new Date().toISOString().slice(0, 10), cantidad: '', unidad: '', sector: '', entrega_por: '', recibe_por: '', observaciones: '', controles_manual: '' };
+
+const splitControlPoints = (value) => String(value || '').split(/\r?\n|;+/).map(item => item.replace(/^[\s•\-\d.)]+/, '').trim()).filter(Boolean);
+const protocolFromPac = (pac, manualControls = '') => {
+  const controls = [];
+  if (pac?.criterios?.trim()) controls.push({ tipo: 'Criterio de aceptación', punto: pac.criterios.trim() });
+  splitControlPoints(pac?.puntos_inspeccion).forEach(punto => controls.push({ tipo: 'Punto de inspección', punto }));
+  splitControlPoints(pac?.puntos_espera).forEach(punto => controls.push({ tipo: 'Punto de espera / liberación', punto }));
+  splitControlPoints(manualControls).forEach(punto => controls.push({ tipo: 'Control manual', punto }));
+  return controls.filter((item, index, list) => list.findIndex(other => other.tipo === item.tipo && other.punto === item.punto) === index);
+};
+
+const receptionStatusFromControls = (controls) => {
+  if (!controls.length || controls.some(control => control.resultado === 'Pendiente')) return 'Pendiente de recepción';
+  if (controls.some(control => control.resultado === 'Rechazado')) return 'Rechazada';
+  if (controls.some(control => control.resultado === 'Observado')) return 'Recibida con observaciones';
+  return 'Recibida conforme';
+};
 
 const statusClass = (status) => ({
   Aprobada: 'bg-emerald-100 text-emerald-800', Cerrada: 'bg-emerald-100 text-emerald-800',
+  Conforme: 'bg-emerald-100 text-emerald-800', 'Recibida conforme': 'bg-emerald-100 text-emerald-800',
   Rechazada: 'bg-rose-100 text-rose-800', Abierta: 'bg-rose-100 text-rose-800',
-  Observada: 'bg-amber-100 text-amber-800', Enviada: 'bg-blue-100 text-blue-800',
+  Observada: 'bg-amber-100 text-amber-800', 'Recibida con observaciones': 'bg-amber-100 text-amber-800',
+  Pendiente: 'bg-slate-100 text-slate-700', 'Pendiente de recepción': 'bg-slate-100 text-slate-700', 'No aplica': 'bg-slate-100 text-slate-700', Enviada: 'bg-blue-100 text-blue-800',
   Borrador: 'bg-slate-100 text-slate-700', 'En corrección': 'bg-amber-100 text-amber-800',
 }[status] || 'bg-slate-100 text-slate-700');
 
@@ -24,6 +43,8 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
   const [rdis, setRdis] = useState([]);
   const [ncs, setNcs] = useState([]);
   const [recepciones, setRecepciones] = useState([]);
+  const [receptionControls, setReceptionControls] = useState([]);
+  const [expandedReceptionId, setExpandedReceptionId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [pacForm, setPacForm] = useState(initialPac);
@@ -34,6 +55,11 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
   const empresa = user?.empresa || null;
   const partidasEjecutables = useMemo(() => partidas.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo)), [partidas]);
   const pacPorPartida = useMemo(() => new Map(pacs.map(p => [p.partida, p])), [pacs]);
+  const controlsByReception = useMemo(() => receptionControls.reduce((result, control) => {
+    result[control.recepcion_id] = [...(result[control.recepcion_id] || []), control];
+    return result;
+  }, {}), [receptionControls]);
+  const receptionPac = pacPorPartida.get(receptionForm.partida);
   const rdisPendientes = rdis.filter(r => ['Borrador', 'Enviada', 'Observada'].includes(r.estado));
   const ncsAbiertas = ncs.filter(n => !['Cerrada', 'Verificada'].includes(n.estado));
   const obraActiva = useMemo(() => obraPerfil?.nombre === obraNombre ? obraPerfil : obras.find(obra => obra.nombre === obraNombre) || null, [obraPerfil, obras, obraNombre]);
@@ -51,17 +77,20 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
       setObras(nextObras);
       const target = obraInicial || obraNombre || nextObras[0]?.nombre || '';
       if (!obraNombre && target) setObraNombre(target);
-      if (!target) { setPacs([]); setRdis([]); setNcs([]); setRecepciones([]); setPartidas([]); return; }
-      const [partidasRes, pacRes, rdiRes, ncRes, receptionRes] = await Promise.all([
+      if (!target) { setPacs([]); setRdis([]); setNcs([]); setRecepciones([]); setReceptionControls([]); setPartidas([]); return; }
+      const [partidasRes, pacRes, rdiRes, ncRes, receptionRes, controlsRes] = await Promise.all([
         supabase.from('partidas_obra').select('partida, unidad').eq('obra_nombre', target),
         supabase.from('calidad_pac').select('*').eq('obra_nombre', target).order('created_at', { ascending: false }),
         supabase.from('calidad_rdi').select('*').eq('obra_nombre', target).order('created_at', { ascending: false }),
         supabase.from('calidad_no_conformidades').select('*').eq('obra_nombre', target).order('created_at', { ascending: false }),
         supabase.from('calidad_recepciones_partidas').select('*').eq('obra_nombre', target).order('created_at', { ascending: false }),
+        supabase.from('calidad_recepcion_controles').select('*').order('created_at'),
       ]);
       if (partidasRes.error) throw partidasRes.error;
-      if (pacRes.error || rdiRes.error || ncRes.error || receptionRes.error) throw (pacRes.error || rdiRes.error || ncRes.error || receptionRes.error);
-      setPartidas(partidasRes.data || []); setPacs(pacRes.data || []); setRdis(rdiRes.data || []); setNcs(ncRes.data || []); setRecepciones(receptionRes.data || []);
+      if (pacRes.error || rdiRes.error || ncRes.error || receptionRes.error || controlsRes.error) throw (pacRes.error || rdiRes.error || ncRes.error || receptionRes.error || controlsRes.error);
+      const nextReceptions = receptionRes.data || [];
+      const receptionIds = new Set(nextReceptions.map(item => item.id));
+      setPartidas(partidasRes.data || []); setPacs(pacRes.data || []); setRdis(rdiRes.data || []); setNcs(ncRes.data || []); setRecepciones(nextReceptions); setReceptionControls((controlsRes.data || []).filter(control => receptionIds.has(control.recepcion_id)));
     } catch (error) {
       setMessage(error.message?.includes('calidad_') ? 'Falta habilitar Calidad en Supabase. Ejecuta schema_calidad_obras.sql y actualiza.' : `No fue posible cargar Calidad: ${error.message}`);
     } finally { setLoading(false); }
@@ -107,10 +136,18 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
     e.preventDefault();
     try {
       const codigo = `REC-${new Date().getFullYear()}-${String(recepciones.length + 1).padStart(3, '0')}`;
-      const { error } = await supabase.from('calidad_recepciones_partidas').insert({ empresa, obra_nombre: obraNombre, ...receptionForm, codigo, estado: 'Pendiente de recepción' });
+      const { controles_manual, ...receptionPayload } = receptionForm;
+      const rdi = rdis.find(item => String(item.id) === String(receptionPayload.rdi_id));
+      const pac = pacPorPartida.get(receptionPayload.partida) || pacs.find(item => String(item.id) === String(rdi?.pac_id));
+      const protocol = protocolFromPac(pac, controles_manual);
+      const { data: createdReception, error } = await supabase.from('calidad_recepciones_partidas').insert({ empresa, obra_nombre: obraNombre, ...receptionPayload, pac_id: pac?.id || null, codigo, estado: 'Pendiente de recepción' }).select().single();
       if (error) throw error;
+      if (protocol.length) {
+        const { error: protocolError } = await supabase.from('calidad_recepcion_controles').insert(protocol.map(control => ({ ...control, recepcion_id: createdReception.id, pac_id: pac?.id || null })));
+        if (protocolError) throw protocolError;
+      }
       await registrarEventoBitacora({ empresa, obraNombre, categoria: 'Calidad', accion: `${codigo} entregada para recepción`, detalle: `${receptionForm.partida} · ${receptionForm.cantidad || 0} ${receptionForm.unidad || ''} · ${receptionForm.sector || 'Sin sector'}`, actor: receptionForm.entrega_por || user?.nombre || user?.email, fecha: receptionForm.fecha_entrega });
-      setReceptionForm(initialReception); setMessage(`${codigo} registrada para recepción.`); await load();
+      setReceptionForm(initialReception); setExpandedReceptionId(createdReception.id); setMessage(`${codigo} registrada con ${protocol.length} control${protocol.length === 1 ? '' : 'es'} de protocolo.`); await load();
     } catch (error) { setMessage(`No se pudo registrar la recepción: ${error.message}`); }
   };
   const updateStatus = async (table, id, estado) => {
@@ -123,14 +160,20 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
       await load();
     } catch (error) { setMessage(`No se pudo actualizar: ${error.message}`); }
   };
-  const updateReceptionStatus = async (id, estado) => {
+  const updateReceptionControl = async (control, changes) => {
     try {
-      const reception = recepciones.find(item => item.id === id);
-      const { error } = await supabase.from('calidad_recepciones_partidas').update({ estado }).eq('id', id);
+      const reviewer = user?.nombre || user?.email || 'Usuario autorizado';
+      const nextControl = { ...control, ...changes };
+      const { error } = await supabase.from('calidad_recepcion_controles').update({ ...changes, revisado_por: reviewer, fecha_revision: new Date().toISOString() }).eq('id', control.id);
       if (error) throw error;
-      await registrarEventoBitacora({ empresa, obraNombre, categoria: 'Calidad', accion: `${reception?.codigo || 'Recepción'} ${estado.toLowerCase()}`, detalle: reception?.partida || '', actor: user?.nombre || user?.email || 'Usuario autorizado' });
+      const reception = recepciones.find(item => item.id === control.recepcion_id);
+      const nextControls = (controlsByReception[control.recepcion_id] || []).map(item => item.id === control.id ? nextControl : item);
+      const estado = receptionStatusFromControls(nextControls);
+      const { error: receptionError } = await supabase.from('calidad_recepciones_partidas').update({ estado, recibe_por: reviewer }).eq('id', control.recepcion_id);
+      if (receptionError) throw receptionError;
+      await registrarEventoBitacora({ empresa, obraNombre, categoria: 'Calidad', accion: `${reception?.codigo || 'Recepción'} · ${nextControl.resultado}`, detalle: `${nextControl.tipo}: ${nextControl.punto}${nextControl.observacion ? ` · ${nextControl.observacion}` : ''}`, actor: reviewer });
       await load();
-    } catch (error) { setMessage(`No se pudo actualizar la recepción: ${error.message}`); }
+    } catch (error) { setMessage(`No se pudo actualizar el control de recepción: ${error.message}`); }
   };
   const input = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 focus:border-blue-600 focus:outline-none';
 
@@ -152,7 +195,25 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
       {tab === 'pac' && <div className="grid gap-4 xl:grid-cols-[390px_1fr]"><form onSubmit={savePac} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5"><h3 className="flex items-center gap-2 text-sm font-black text-slate-800"><Plus className="h-4 w-4 text-emerald-700" />Crear PAC / ITP</h3><SelectPartida value={pacForm.partida} onChange={v => setPacForm({...pacForm,partida:v})} partidas={partidasEjecutables} /><input required placeholder="Procedimiento aplicable" value={pacForm.procedimiento} onChange={e=>setPacForm({...pacForm,procedimiento:e.target.value})} className={input}/><textarea required placeholder="Criterios de aceptación" value={pacForm.criterios} onChange={e=>setPacForm({...pacForm,criterios:e.target.value})} className={input}/><textarea placeholder="Puntos de inspección (separados por línea)" value={pacForm.puntos_inspeccion} onChange={e=>setPacForm({...pacForm,puntos_inspeccion:e.target.value})} className={input}/><textarea placeholder="Puntos de espera / liberación" value={pacForm.puntos_espera} onChange={e=>setPacForm({...pacForm,puntos_espera:e.target.value})} className={input}/><input placeholder="Responsable de calidad" value={pacForm.responsable} onChange={e=>setPacForm({...pacForm,responsable:e.target.value})} className={input}/><button className="w-full rounded-xl bg-emerald-700 py-2.5 text-xs font-black text-white">Guardar PAC</button></form><section className="space-y-3">{pacs.length ? pacs.map(p => <div key={p.id} className="rounded-2xl border border-slate-200 bg-white p-5"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-sm font-black text-slate-800">{p.partida}</p><p className="mt-1 text-xs font-semibold text-emerald-800">{p.procedimiento}</p></div><span className={`rounded-full px-2 py-1 text-[10px] font-black ${statusClass(p.estado)}`}>{p.estado}</span></div><div className="mt-3 grid gap-3 text-xs text-slate-600 md:grid-cols-3"><Info label="Criterios" value={p.criterios} /><Info label="Inspección" value={p.puntos_inspeccion || 'Sin definir'} /><Info label="Puntos de espera" value={p.puntos_espera || 'Sin definir'} /></div></div>) : <Empty text="Aún no hay PAC creados. Crea uno por cada partida o actividad crítica." />}</section></div>}
       {tab === 'rdi' && <div className="grid gap-4 xl:grid-cols-[390px_1fr]"><form onSubmit={saveRdi} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5"><h3 className="flex items-center gap-2 text-sm font-black text-slate-800"><Plus className="h-4 w-4 text-blue-700" />Nueva Solicitud RDI</h3><SelectPartida value={rdiForm.partida} onChange={v => setRdiForm({...rdiForm,partida:v,pac_id:pacPorPartida.get(v)?.id || ''})} partidas={partidasEjecutables}/><select required value={rdiForm.pac_id} onChange={e=>setRdiForm({...rdiForm,pac_id:e.target.value})} className={input}><option value="">PAC asociado</option>{pacs.filter(p=>!rdiForm.partida || p.partida===rdiForm.partida).map(p=><option key={p.id} value={p.id}>{p.procedimiento}</option>)}</select><input required placeholder="Sector / ubicación" value={rdiForm.sector} onChange={e=>setRdiForm({...rdiForm,sector:e.target.value})} className={input}/><div className="grid grid-cols-2 gap-2"><input type="number" min="0" step="any" placeholder="Cantidad" value={rdiForm.cantidad} onChange={e=>setRdiForm({...rdiForm,cantidad:e.target.value})} className={input}/><input placeholder="Unidad" value={rdiForm.unidad} onChange={e=>setRdiForm({...rdiForm,unidad:e.target.value})} className={input}/></div><input required placeholder="Solicitado por" value={rdiForm.solicitado_por} onChange={e=>setRdiForm({...rdiForm,solicitado_por:e.target.value})} className={input}/><textarea placeholder="Observaciones y evidencias disponibles" value={rdiForm.observaciones} onChange={e=>setRdiForm({...rdiForm,observaciones:e.target.value})} className={input}/><button className="w-full rounded-xl bg-blue-800 py-2.5 text-xs font-black text-white">Enviar RDI a inspección</button></form><section className="space-y-2">{rdis.length ? rdis.map(r => <RdiRow key={r.id} rdi={r} onStatus={updateStatus} full />) : <Empty text="No hay solicitudes RDI registradas." />}</section></div>}
       {tab === 'nc' && <div className="grid gap-4 xl:grid-cols-[390px_1fr]"><form onSubmit={saveNc} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5"><h3 className="flex items-center gap-2 text-sm font-black text-slate-800"><Plus className="h-4 w-4 text-rose-700" />Registrar no conformidad</h3><SelectPartida value={ncForm.partida} onChange={v => setNcForm({...ncForm,partida:v})} partidas={partidasEjecutables}/><select value={ncForm.rdi_id} onChange={e=>setNcForm({...ncForm,rdi_id:e.target.value})} className={input}><option value="">RDI relacionada (opcional)</option>{rdis.map(r=><option key={r.id} value={r.id}>{r.codigo} · {r.partida}</option>)}</select><textarea required placeholder="Descripción de la desviación" value={ncForm.descripcion} onChange={e=>setNcForm({...ncForm,descripcion:e.target.value})} className={input}/><select value={ncForm.clasificacion} onChange={e=>setNcForm({...ncForm,clasificacion:e.target.value})} className={input}><option>Menor</option><option>Mayor</option><option>Crítica</option></select><input required placeholder="Responsable de corrección" value={ncForm.responsable} onChange={e=>setNcForm({...ncForm,responsable:e.target.value})} className={input}/><input type="date" value={ncForm.fecha_compromiso} onChange={e=>setNcForm({...ncForm,fecha_compromiso:e.target.value})} className={input}/><textarea placeholder="Causa raíz" value={ncForm.causa_raiz} onChange={e=>setNcForm({...ncForm,causa_raiz:e.target.value})} className={input}/><textarea placeholder="Acción correctiva" value={ncForm.accion_correctiva} onChange={e=>setNcForm({...ncForm,accion_correctiva:e.target.value})} className={input}/><button className="w-full rounded-xl bg-rose-700 py-2.5 text-xs font-black text-white">Abrir no conformidad</button></form><section className="space-y-2">{ncs.length ? ncs.map(n => <NcRow key={n.id} nc={n} onStatus={updateStatus} full />) : <Empty text="No hay no conformidades registradas." />}</section></div>}
-      {tab === 'recepciones' && <div className="grid gap-4 xl:grid-cols-[390px_1fr]"><form onSubmit={saveReception} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5"><h3 className="flex items-center gap-2 text-sm font-black text-slate-800"><ClipboardCheck className="h-4 w-4 text-emerald-700" />Entrega de partida para recepción</h3><SelectPartida value={receptionForm.partida} onChange={v => setReceptionForm({...receptionForm,partida:v})} partidas={partidasEjecutables}/><select value={receptionForm.rdi_id} onChange={e=>setReceptionForm({...receptionForm,rdi_id:e.target.value})} className={input}><option value="">RDI aprobada relacionada (opcional)</option>{rdis.filter(r=>r.estado==='Aprobada').map(r=><option key={r.id} value={r.id}>{r.codigo} · {r.partida}</option>)}</select><div className="grid grid-cols-2 gap-2"><input type="date" required value={receptionForm.fecha_entrega} onChange={e=>setReceptionForm({...receptionForm,fecha_entrega:e.target.value})} className={input}/><input placeholder="Sector / ubicación" value={receptionForm.sector} onChange={e=>setReceptionForm({...receptionForm,sector:e.target.value})} className={input}/></div><div className="grid grid-cols-2 gap-2"><input type="number" min="0" step="any" placeholder="Cantidad entregada" value={receptionForm.cantidad} onChange={e=>setReceptionForm({...receptionForm,cantidad:e.target.value})} className={input}/><input placeholder="Unidad" value={receptionForm.unidad} onChange={e=>setReceptionForm({...receptionForm,unidad:e.target.value})} className={input}/></div><input required placeholder="Entregado por" value={receptionForm.entrega_por} onChange={e=>setReceptionForm({...receptionForm,entrega_por:e.target.value})} className={input}/><input placeholder="Recibe / inspecciona" value={receptionForm.recibe_por} onChange={e=>setReceptionForm({...receptionForm,recibe_por:e.target.value})} className={input}/><textarea placeholder="Observaciones, tolerancias o pendientes" value={receptionForm.observaciones} onChange={e=>setReceptionForm({...receptionForm,observaciones:e.target.value})} className={input}/><button className="w-full rounded-xl bg-emerald-700 py-2.5 text-xs font-black text-white">Registrar entrega para recepción</button></form><section className="space-y-2">{recepciones.length ? recepciones.map(item => <div key={item.id} className="rounded-xl border border-slate-200 bg-white p-3"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-xs font-black text-slate-800">{item.codigo} · {item.partida}</p><p className="mt-1 text-[11px] text-slate-500">{item.fecha_entrega} · {item.sector || 'Sin sector'} · {item.cantidad || 0} {item.unidad || ''}</p><p className="mt-1 text-[11px] text-slate-600">Entregó: {item.entrega_por}{item.recibe_por ? ` · Recibe: ${item.recibe_por}` : ''}</p>{item.observaciones && <p className="mt-2 text-[11px] text-slate-600">{item.observaciones}</p>}</div><span className={`rounded-full px-2 py-1 text-[10px] font-black ${statusClass(item.estado)}`}>{item.estado}</span></div></div>) : <Empty text="Aún no hay partidas entregadas para recepción." />}</section></div>}
+      {tab === 'recepciones' && <div className="grid gap-4 xl:grid-cols-[390px_1fr]">
+        <form onSubmit={saveReception} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5">
+          <h3 className="flex items-center gap-2 text-sm font-black text-slate-800"><ClipboardCheck className="h-4 w-4 text-emerald-700" />Entrega y protocolo de recepción</h3>
+          <SelectPartida value={receptionForm.partida} onChange={v => setReceptionForm({ ...receptionForm, partida: v })} partidas={partidasEjecutables}/>
+          {receptionForm.partida && <div className={`rounded-xl border p-3 text-[11px] ${receptionPac ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
+            <p className="font-black">{receptionPac ? `Protocolo desde PAC: ${receptionPac.procedimiento}` : 'Sin PAC asociado'}</p>
+            <p className="mt-1">{receptionPac ? `${protocolFromPac(receptionPac).length} controles se crearán automáticamente.` : 'Agrega controles manuales para elaborar el protocolo.'}</p>
+          </div>}
+          <select value={receptionForm.rdi_id} onChange={e=>setReceptionForm({...receptionForm,rdi_id:e.target.value})} className={input}><option value="">RDI aprobada relacionada (opcional)</option>{rdis.filter(r=>r.estado==='Aprobada').map(r=><option key={r.id} value={r.id}>{r.codigo} · {r.partida}</option>)}</select>
+          <div className="grid grid-cols-2 gap-2"><input type="date" required value={receptionForm.fecha_entrega} onChange={e=>setReceptionForm({...receptionForm,fecha_entrega:e.target.value})} className={input}/><input placeholder="Sector / ubicación" value={receptionForm.sector} onChange={e=>setReceptionForm({...receptionForm,sector:e.target.value})} className={input}/></div>
+          <div className="grid grid-cols-2 gap-2"><input type="number" min="0" step="any" placeholder="Cantidad entregada" value={receptionForm.cantidad} onChange={e=>setReceptionForm({...receptionForm,cantidad:e.target.value})} className={input}/><input placeholder="Unidad" value={receptionForm.unidad} onChange={e=>setReceptionForm({...receptionForm,unidad:e.target.value})} className={input}/></div>
+          <input required placeholder="Entregado por" value={receptionForm.entrega_por} onChange={e=>setReceptionForm({...receptionForm,entrega_por:e.target.value})} className={input}/>
+          <input placeholder="Recibe / inspecciona" value={receptionForm.recibe_por} onChange={e=>setReceptionForm({...receptionForm,recibe_por:e.target.value})} className={input}/>
+          <textarea placeholder="Controles adicionales (uno por línea)" value={receptionForm.controles_manual} onChange={e=>setReceptionForm({...receptionForm,controles_manual:e.target.value})} className={input}/>
+          <textarea placeholder="Observaciones generales de entrega" value={receptionForm.observaciones} onChange={e=>setReceptionForm({...receptionForm,observaciones:e.target.value})} className={input}/>
+          <button className="w-full rounded-xl bg-emerald-700 py-3 text-xs font-black text-white">Crear protocolo de recepción</button>
+        </form>
+        <section className="space-y-3">{recepciones.length ? recepciones.map(item => <ReceptionProtocol key={item.id} item={item} controls={controlsByReception[item.id] || []} expanded={expandedReceptionId === item.id} onToggle={() => setExpandedReceptionId(expandedReceptionId === item.id ? null : item.id)} onUpdate={updateReceptionControl} />) : <Empty text="Aún no hay partidas entregadas para recepción." />}</section>
+      </div>}
     </>}
   </div>;
 }
@@ -160,6 +221,30 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
 function Metric({ icon, label, value, detail, color }) { return <div className={`rounded-2xl border bg-white p-4 ${color === 'rose' ? 'border-rose-200' : 'border-slate-200'}`}><div className="flex items-center gap-2 text-slate-500">{React.cloneElement(icon,{className:`h-4 w-4 text-${color}-700`})}<span className="text-[10px] font-black uppercase tracking-wide">{label}</span></div><p className="mt-2 text-2xl font-black text-slate-900">{value}</p><p className="text-[10px] font-semibold text-slate-500">{detail}</p></div>; }
 function Empty({ text }) { return <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-xs text-slate-500">{text}</div>; }
 function Info({ label, value }) { return <div><p className="text-[10px] font-black uppercase text-slate-400">{label}</p><p className="mt-1 whitespace-pre-line text-xs">{value}</p></div>; }
+function ReceptionProtocol({ item, controls, expanded, onToggle, onUpdate }) {
+  const resolved = controls.filter(control => control.resultado !== 'Pendiente').length;
+  return <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+    <button type="button" onClick={onToggle} className="flex w-full items-start justify-between gap-3 p-4 text-left active:bg-slate-50">
+      <div><p className="text-xs font-black text-slate-800">{item.codigo} · {item.partida}</p><p className="mt-1 text-[11px] text-slate-500">{item.fecha_entrega} · {item.sector || 'Sin sector'} · {item.cantidad || 0} {item.unidad || ''}</p><p className="mt-1 text-[11px] text-slate-600">{controls.length ? `${resolved} de ${controls.length} controles revisados` : 'Sin controles definidos'}</p></div>
+      <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-black ${statusClass(item.estado)}`}>{item.estado}</span>
+    </button>
+    {expanded && <div className="border-t border-slate-200 bg-slate-50 p-3 sm:p-4">
+      <div className="mb-3 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-600"><span>Entregó: <b>{item.entrega_por}</b></span>{item.recibe_por && <span>Inspecciona: <b>{item.recibe_por}</b></span>}</div>
+      {item.observaciones && <p className="mb-3 rounded-lg bg-white p-2 text-[11px] text-slate-600">{item.observaciones}</p>}
+      {controls.length ? <div className="space-y-3">{controls.map(control => <ProtocolControl key={control.id} control={control} onUpdate={onUpdate} />)}</div> : <Empty text="Esta recepción no tiene controles. Crea un PAC o agrega controles manuales en la siguiente entrega." />}
+    </div>}
+  </article>;
+}
+function ProtocolControl({ control, onUpdate }) {
+  const [note, setNote] = useState(control.observacion || '');
+  const commit = (resultado = control.resultado) => onUpdate(control, { resultado, observacion: note || null });
+  return <div className="rounded-xl border border-slate-200 bg-white p-3">
+    <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-[10px] font-black uppercase tracking-wide text-slate-400">{control.tipo}</p><p className="mt-1 whitespace-pre-line text-xs font-bold text-slate-800">{control.punto}</p></div><span className={`rounded-full px-2 py-1 text-[10px] font-black ${statusClass(control.resultado)}`}>{control.resultado}</span></div>
+    <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">{['Conforme', 'Observado', 'Rechazado', 'No aplica'].map(result => <button type="button" key={result} onClick={() => commit(result)} className={`min-h-10 rounded-lg border px-3 py-2 text-[11px] font-black ${control.resultado === result ? statusClass(result) : 'border-slate-200 text-slate-600 active:bg-slate-100'}`}>{result}</button>)}</div>
+    <div className="mt-3 flex gap-2"><textarea value={note} onChange={event => setNote(event.target.value)} placeholder="Observación del chequeo (obligatoria para observar o rechazar)" className="min-h-16 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-emerald-600 focus:outline-none"/><button type="button" onClick={() => commit()} className="rounded-lg bg-slate-800 px-3 py-2 text-[11px] font-black text-white">Guardar</button></div>
+    {control.revisado_por && <p className="mt-2 text-[10px] text-slate-400">Última revisión: {control.revisado_por}</p>}
+  </div>;
+}
 function SelectPartida({ value, onChange, partidas }) { return <select required value={value} onChange={e=>onChange(e.target.value)} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800"><option value="">Selecciona partida</option>{partidas.map(p=><option key={p.id || p.partida} value={p.partida}>{p.partida}</option>)}</select>; }
 function RdiRow({ rdi, onStatus, full }) { return <div className="rounded-xl border border-slate-200 bg-white p-3"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-xs font-black text-slate-800">{rdi.codigo} · {rdi.partida}</p><p className="mt-1 text-[11px] text-slate-500">{rdi.sector} {rdi.cantidad ? `· ${rdi.cantidad} ${rdi.unidad || ''}` : ''} · Solicitó: {rdi.solicitado_por}</p>{full && rdi.observaciones && <p className="mt-2 text-[11px] text-slate-600">{rdi.observaciones}</p>}</div><div className="flex items-center gap-2"><span className={`rounded-full px-2 py-1 text-[10px] font-black ${statusClass(rdi.estado)}`}>{rdi.estado}</span>{['Enviada','Observada'].includes(rdi.estado) && <><button onClick={()=>onStatus('calidad_rdi',rdi.id,'Aprobada')} className="text-[10px] font-black text-emerald-700">Aprobar</button><button onClick={()=>onStatus('calidad_rdi',rdi.id,'Observada')} className="text-[10px] font-black text-amber-700">Observar</button></>}</div></div></div>; }
 function NcRow({ nc, onStatus, full }) { return <div className="rounded-xl border border-slate-200 bg-white p-3"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-xs font-black text-slate-800">{nc.codigo} · {nc.partida}</p><p className="mt-1 text-[11px] text-slate-500">{nc.clasificacion} · Responsable: {nc.responsable} {nc.fecha_compromiso ? `· Compromiso: ${nc.fecha_compromiso}` : ''}</p>{full && <p className="mt-2 text-[11px] text-slate-700">{nc.descripcion}</p>}</div><div className="flex items-center gap-2"><span className={`rounded-full px-2 py-1 text-[10px] font-black ${statusClass(nc.estado)}`}>{nc.estado}</span>{nc.estado !== 'Cerrada' && <button onClick={()=>onStatus('calidad_no_conformidades',nc.id,'Cerrada')} className="text-[10px] font-black text-emerald-700">Cerrar</button>}</div></div></div>; }
