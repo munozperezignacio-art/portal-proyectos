@@ -385,6 +385,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
   // Sub-pestañas para Avance, Asistencia, Maquinaria, Bitácora y Prevención
   const [avanceSubTab, setAvanceSubTab] = useState('visor'); // 'visor' | 'registro'
+  const [avanceExpandedGroups, setAvanceExpandedGroups] = useState({});
   const [asistenciaSubTab, setAsistenciaSubTab] = useState('registro'); // 'registro' | 'libro'
   const [maqSubTab, setMaqSubTab] = useState('asignaciones');
   const [showAssignModalObra, setShowAssignModalObra] = useState(false);
@@ -3001,11 +3002,15 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                 const { partida: p, isTitle, childrenCount, executed: ejecPartida, meta: metaPartida, pct: pctVal, plannedPct } = row;
                                 const variancePct = pctVal !== null && plannedPct !== null ? Math.round((pctVal - plannedPct) * 10) / 10 : null;
                                 const isGeneralChild = !isTitle && !avanceRows.slice(0, idx).some(item => item.isTitle);
+                                const parentTitleIndex = isTitle ? idx : avanceRows.slice(0, idx).map((item, itemIndex) => item.isTitle ? itemIndex : -1).filter(itemIndex => itemIndex >= 0).pop();
+                                const groupKey = isTitle ? `title-${idx}` : (parentTitleIndex === undefined ? 'general' : `title-${parentTitleIndex}`);
+                                const groupExpanded = Boolean(avanceExpandedGroups[groupKey]);
 
                                 return (
                                   <React.Fragment key={idx}>
-                                  {isGeneralChild && idx === 0 && <div className="flex items-center gap-3 rounded-xl border-l-4 border-indigo-500 bg-slate-900 p-3 text-white"><span className="rounded bg-indigo-600 px-2 py-1 text-[10px] font-black uppercase">Grupo</span><span className="text-xs font-black uppercase tracking-wide">Partidas generales de obra</span><span className="text-[10px] text-slate-300">({avanceRows.findIndex(item => item.isTitle) > 0 ? avanceRows.findIndex(item => item.isTitle) : avanceRows.length} partidas)</span></div>}
-                                  <div className={`p-3 border rounded-xl space-y-2 ${isTitle ? 'bg-slate-100 border-slate-300' : 'bg-white border-slate-200 ml-4'}`}>
+                                  {isGeneralChild && idx === 0 && <button type="button" onClick={() => setAvanceExpandedGroups(current => ({ ...current, general: !current.general }))} className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-300 bg-slate-100 p-3 text-left text-slate-800"><span className="text-xs font-black uppercase tracking-wide">Partidas generales de obra <span className="ml-2 text-[10px] font-semibold text-slate-500">({avanceRows.findIndex(item => item.isTitle) > 0 ? avanceRows.findIndex(item => item.isTitle) : avanceRows.length} partidas)</span></span><span className="text-xs font-black">{groupExpanded ? '− Ocultar' : '+ Ver partidas'}</span></button>}
+                                  {(isTitle || groupExpanded) && <>
+                                  <div onClick={isTitle ? () => setAvanceExpandedGroups(current => ({ ...current, [groupKey]: !current[groupKey] })) : undefined} className={`p-3 border rounded-xl space-y-2 ${isTitle ? 'bg-slate-100 border-slate-300 cursor-pointer' : 'bg-white border-slate-200 ml-4'}`}>
                                     <div className="flex justify-between items-center text-xs font-bold">
                                       <span className={isTitle ? 'text-slate-900 uppercase tracking-wide' : 'text-slate-800'}>{isTitle ? '📁 ' : ''}{p.partida}</span>
                                       {pctVal !== null ? <span className={isTitle ? 'text-emerald-800 font-black' : 'text-blue-950 font-black'}>{pctVal}%</span> : <span className="text-slate-400 font-semibold">Sin ponderación</span>}
@@ -3013,12 +3018,14 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                     {pctVal !== null && <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden"><div className={`h-3 rounded-full transition-all duration-500 ${isTitle ? 'bg-emerald-600' : pctVal >= 80 ? 'bg-emerald-600' : pctVal >= 40 ? 'bg-blue-900' : 'bg-amber-500'}`} style={{ width: `${pctVal}%` }} /></div>}
                                     <div className={`grid grid-cols-2 gap-2 text-[10px] font-bold ${isTitle ? 'text-slate-300' : 'text-slate-500'}`}><span>Programado: {plannedPct === null ? 'Sin programación' : `${plannedPct}%`}</span><span className={variancePct === null ? '' : variancePct < 0 ? 'text-rose-500' : 'text-emerald-500'}>{variancePct === null ? 'Desfase: N/D' : `Desfase: ${variancePct > 0 ? '+' : ''}${variancePct}%`}</span></div>
                                     <div className="flex justify-between items-center text-[10px] text-slate-500 font-semibold pt-0.5">
+                                      {isTitle && <span className="font-black text-slate-700">{groupExpanded ? '− Ocultar partidas' : '+ Ver partidas'}</span>}
                                       <span>{isTitle ? `${childrenCount} partida(s) ponderada(s)` : `Unidad: ${p.unidad || 'UND'}`}</span>
                                       <span className="font-mono font-bold text-slate-700">
                                         {isTitle ? (pctVal !== null ? `Venta ganada: $${ejecPartida.toLocaleString('es-CL')} de $${metaPartida.toLocaleString('es-CL')}` : 'No hay partidas presupuestadas bajo este título') : `Avance: ${ejecPartida.toLocaleString('es-CL')} de ${metaPartida > 0 ? metaPartida.toLocaleString('es-CL') : 'N/A'} ${p.unidad || 'UND'}`}
                                       </span>
                                     </div>
                                   </div>
+                                  </>}
                                   </React.Fragment>
                                 );
                               })}
