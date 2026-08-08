@@ -86,6 +86,8 @@ export default function Maquinaria({ user, onBack }) {
     marca: '',
     obra_nombre: '',
     horometro_inicial: '0',
+    mantenimiento_intervalo: '', mantenimiento_unidad: 'horas', mantenimiento_ultima_lectura: '', mantenimiento_ultima_fecha: '', mantenimiento_descripcion: '',
+    cuota_mensual: '', cuotas_totales: '', cuotas_pagadas: '0', fecha_inicio_cuota: '',
     tipo_activo: 'Propio',
     estado_equipo: 'Operativo',
     foto_frontal: '',
@@ -311,6 +313,8 @@ export default function Maquinaria({ user, onBack }) {
       marca: '',
       obra_nombre: obras.length > 0 ? obras[0].nombre : 'Bodega Central / Libre',
       horometro_inicial: '0',
+      mantenimiento_intervalo: '', mantenimiento_unidad: 'horas', mantenimiento_ultima_lectura: '', mantenimiento_ultima_fecha: '', mantenimiento_descripcion: '',
+      cuota_mensual: '', cuotas_totales: '', cuotas_pagadas: '0', fecha_inicio_cuota: '',
       costo_interno: '',
       unidad_costo_interno: '$/día',
       tipo_condicion_minima: 'sin_minimo',
@@ -336,6 +340,8 @@ export default function Maquinaria({ user, onBack }) {
       marca: equip.marca || '',
       obra_nombre: equip.obra_nombre || 'Bodega Central / Libre',
       horometro_inicial: equip.horometro_inicial ? equip.horometro_inicial.toString() : '0',
+      mantenimiento_intervalo: equip.mantenimiento_intervalo?.toString() || '', mantenimiento_unidad: equip.mantenimiento_unidad || 'horas', mantenimiento_ultima_lectura: equip.mantenimiento_ultima_lectura?.toString() || '', mantenimiento_ultima_fecha: equip.mantenimiento_ultima_fecha || '', mantenimiento_descripcion: equip.mantenimiento_descripcion || '',
+      cuota_mensual: equip.cuota_mensual?.toString() || '', cuotas_totales: equip.cuotas_totales?.toString() || '', cuotas_pagadas: equip.cuotas_pagadas?.toString() || '0', fecha_inicio_cuota: equip.fecha_inicio_cuota || '',
       costo_interno: (equip.costo_interno !== undefined && equip.costo_interno !== null && equip.costo_interno !== 0) ? equip.costo_interno.toString() : '',
       unidad_costo_interno: equip.unidad_costo_interno || '$/día',
       tipo_condicion_minima: equip.tipo_condicion_minima || 'sin_minimo',
@@ -381,6 +387,15 @@ export default function Maquinaria({ user, onBack }) {
       marca: formData.marca.trim(),
       obra_nombre: validObraNombre,
       horometro_inicial: parseFloat(formData.horometro_inicial) || 0,
+      mantenimiento_intervalo: parseFloat(formData.mantenimiento_intervalo) || null,
+      mantenimiento_unidad: formData.mantenimiento_unidad || 'horas',
+      mantenimiento_ultima_lectura: parseFloat(formData.mantenimiento_ultima_lectura) || null,
+      mantenimiento_ultima_fecha: formData.mantenimiento_ultima_fecha || null,
+      mantenimiento_descripcion: formData.mantenimiento_descripcion?.trim() || null,
+      cuota_mensual: parseFloat(formData.cuota_mensual) || null,
+      cuotas_totales: parseInt(formData.cuotas_totales, 10) || null,
+      cuotas_pagadas: parseInt(formData.cuotas_pagadas, 10) || 0,
+      fecha_inicio_cuota: formData.fecha_inicio_cuota || null,
       costo_interno: parseFloat(formData.costo_interno) || 0,
       unidad_costo_interno: formData.unidad_costo_interno || '$/día',
       tipo_condicion_minima: formData.tipo_condicion_minima || 'sin_minimo',
@@ -2508,6 +2523,14 @@ export default function Maquinaria({ user, onBack }) {
                   className="w-full border border-slate-200 rounded-xl p-2 font-medium text-slate-800"
                 ></textarea>
               </div>
+
+              <details className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-3.5">
+                <summary className="cursor-pointer text-[10.5px] font-extrabold uppercase tracking-wider text-indigo-950">⚙️ Configuración avanzada: mantención y cuotas</summary>
+                <div className="mt-3 space-y-3">
+                  <div className="rounded-xl bg-white/80 p-3"><p className="mb-2 text-[10px] font-black uppercase text-indigo-900">Plan preventivo de mantención</p><div className="grid grid-cols-2 gap-2"><input type="number" min="0" placeholder="Cada X" value={formData.mantenimiento_intervalo} onChange={e=>setFormData(prev=>({...prev,mantenimiento_intervalo:e.target.value}))} className="rounded-lg border border-indigo-200 p-2 text-xs"/><select value={formData.mantenimiento_unidad} onChange={e=>setFormData(prev=>({...prev,mantenimiento_unidad:e.target.value}))} className="rounded-lg border border-indigo-200 p-2 text-xs"><option value="horas">Horómetro (hrs)</option><option value="dias">Días</option><option value="kilometros">Kilómetros</option><option value="ciclos">Ciclos</option><option value="otro">Otra unidad</option></select><input type="number" min="0" placeholder="Última lectura" value={formData.mantenimiento_ultima_lectura} onChange={e=>setFormData(prev=>({...prev,mantenimiento_ultima_lectura:e.target.value}))} className="rounded-lg border border-indigo-200 p-2 text-xs"/><input type="date" value={formData.mantenimiento_ultima_fecha} onChange={e=>setFormData(prev=>({...prev,mantenimiento_ultima_fecha:e.target.value}))} className="rounded-lg border border-indigo-200 p-2 text-xs"/></div><input placeholder="Ej. cambio aceite, filtros y engrase" value={formData.mantenimiento_descripcion} onChange={e=>setFormData(prev=>({...prev,mantenimiento_descripcion:e.target.value}))} className="mt-2 w-full rounded-lg border border-indigo-200 p-2 text-xs"/></div>
+                  {formData.tipo_activo === 'Propio' && <div className="rounded-xl bg-white/80 p-3"><p className="mb-2 text-[10px] font-black uppercase text-indigo-900">Financiamiento / cuotas del equipo propio</p><div className="grid grid-cols-2 gap-2"><input type="number" min="0" placeholder="Cuota mensual ($)" value={formData.cuota_mensual} onChange={e=>setFormData(prev=>({...prev,cuota_mensual:e.target.value}))} className="rounded-lg border border-indigo-200 p-2 text-xs"/><input type="number" min="0" placeholder="Cuotas totales" value={formData.cuotas_totales} onChange={e=>setFormData(prev=>({...prev,cuotas_totales:e.target.value}))} className="rounded-lg border border-indigo-200 p-2 text-xs"/><input type="number" min="0" placeholder="Cuotas pagadas" value={formData.cuotas_pagadas} onChange={e=>setFormData(prev=>({...prev,cuotas_pagadas:e.target.value}))} className="rounded-lg border border-indigo-200 p-2 text-xs"/><input type="date" value={formData.fecha_inicio_cuota} onChange={e=>setFormData(prev=>({...prev,fecha_inicio_cuota:e.target.value}))} className="rounded-lg border border-indigo-200 p-2 text-xs"/></div><p className="mt-2 text-[10px] text-indigo-800">Estos datos alimentarán la proyección de costo propio y cuotas pendientes en Estadísticas.</p></div>}
+                </div>
+              </details>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
                 <button type="button" onClick={() => setArriendoModalOpen(false)} className="px-4 py-2.5 rounded-xl bg-slate-100 font-bold">Cancelar</button>
