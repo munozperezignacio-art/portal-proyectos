@@ -2917,18 +2917,29 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                       .filter(r => isMatchPartida(r.partida, partida.partida))
                       .reduce((sum, r) => sum + (parseFloat(r.cantidad) || 0), 0);
                     const getUnitPrice = (partida) => parseFloat(partidasCostos[partida.partida] !== undefined ? partidasCostos[partida.partida] : partida.pu) || 0;
+                    const getPlannedPct = (partida) => {
+                      const start = partida.fecha_inicio || partida.fechaInicio || partida.inicio_programado;
+                      const end = partida.fecha_termino || partida.fecha_fin || partida.fechaTermino || partida.termino_programado;
+                      if (!start || !end) return null;
+                      const startDate = new Date(`${start}T00:00:00`);
+                      const endDate = new Date(`${end}T23:59:59`);
+                      const today = new Date();
+                      if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()) || endDate <= startDate) return null;
+                      return Math.max(0, Math.min(100, Math.round(((today - startDate) / (endDate - startDate)) * 1000) / 10));
+                    };
                     const avanceRows = partidasList.map((partida, index) => {
                       if (!isTitleRow(partida)) {
                         const meta = parseFloat(partida.cantidad) || 0;
                         const executed = getExecutedQty(partida);
                         const pct = meta > 0 ? Math.min(100, Math.round((executed / meta) * 1000) / 10) : null;
-                        return { partida, isTitle: false, executed, meta, pct };
+                        return { partida, isTitle: false, executed, meta, pct, plannedPct: getPlannedPct(partida) };
                       }
                       const children = [];
                       for (let childIndex = index + 1; childIndex < partidasList.length && !isTitleRow(partidasList[childIndex]); childIndex++) children.push(partidasList[childIndex]);
                       const weightedBudget = children.reduce((sum, child) => sum + ((parseFloat(child.cantidad) || 0) * getUnitPrice(child)), 0);
                       const weightedEarned = children.reduce((sum, child) => sum + (Math.min(parseFloat(child.cantidad) || 0, getExecutedQty(child)) * getUnitPrice(child)), 0);
-                      return { partida, isTitle: true, childrenCount: children.length, executed: weightedEarned, meta: weightedBudget, pct: weightedBudget > 0 ? Math.min(100, Math.round((weightedEarned / weightedBudget) * 1000) / 10) : null };
+                      const plannedWeight = children.reduce((sum, child) => sum + (((parseFloat(child.cantidad) || 0) * getUnitPrice(child)) * ((getPlannedPct(child) ?? 0) / 100)), 0);
+                      return { partida, isTitle: true, childrenCount: children.length, executed: weightedEarned, meta: weightedBudget, pct: weightedBudget > 0 ? Math.min(100, Math.round((weightedEarned / weightedBudget) * 1000) / 10) : null, plannedPct: weightedBudget > 0 && children.some(child => getPlannedPct(child) !== null) ? Math.round((plannedWeight / weightedBudget) * 1000) / 10 : null };
                     });
                     const executableRows = avanceRows.filter(row => !row.isTitle);
                     const totalBudgetObra = executableRows.reduce((sum, row) => sum + (row.meta * getUnitPrice(row.partida)), 0);
@@ -2987,15 +2998,17 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           ) : (
                             <div className="space-y-3">
                               {avanceRows.map((row, idx) => {
-                                const { partida: p, isTitle, childrenCount, executed: ejecPartida, meta: metaPartida, pct: pctVal } = row;
+                                const { partida: p, isTitle, childrenCount, executed: ejecPartida, meta: metaPartida, pct: pctVal, plannedPct } = row;
+                                const variancePct = pctVal !== null && plannedPct !== null ? Math.round((pctVal - plannedPct) * 10) / 10 : null;
 
                                 return (
-                                  <div key={idx} className={`p-3 border rounded-xl space-y-1.5 ${isTitle ? 'bg-slate-100 border-slate-300' : 'bg-slate-50 border-slate-200'}`}>
+                                  <div key={idx} className={`p-3 border rounded-xl space-y-2 ${isTitle ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 ml-4'}`}>
                                     <div className="flex justify-between items-center text-xs font-bold">
                                       <span className={isTitle ? 'text-slate-900 uppercase tracking-wide' : 'text-slate-800'}>{isTitle ? '📁 ' : ''}{p.partida}</span>
                                       {pctVal !== null ? <span className={isTitle ? 'text-emerald-800 font-black' : 'text-blue-950 font-black'}>{pctVal}%</span> : <span className="text-slate-400 font-semibold">Sin ponderación</span>}
                                     </div>
                                     {pctVal !== null && <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden"><div className={`h-3 rounded-full transition-all duration-500 ${isTitle ? 'bg-emerald-600' : pctVal >= 80 ? 'bg-emerald-600' : pctVal >= 40 ? 'bg-blue-900' : 'bg-amber-500'}`} style={{ width: `${pctVal}%` }} /></div>}
+                                    <div className={`grid grid-cols-2 gap-2 text-[10px] font-bold ${isTitle ? 'text-slate-300' : 'text-slate-500'}`}><span>Programado: {plannedPct === null ? 'Sin programación' : `${plannedPct}%`}</span><span className={variancePct === null ? '' : variancePct < 0 ? 'text-rose-500' : 'text-emerald-500'}>{variancePct === null ? 'Desfase: N/D' : `Desfase: ${variancePct > 0 ? '+' : ''}${variancePct}%`}</span></div>
                                     <div className="flex justify-between items-center text-[10px] text-slate-500 font-semibold pt-0.5">
                                       <span>{isTitle ? `${childrenCount} partida(s) ponderada(s)` : `Unidad: ${p.unidad || 'UND'}`}</span>
                                       <span className="font-mono font-bold text-slate-700">
@@ -5620,22 +5633,22 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     onDragStart={(e) => e.dataTransfer.setData('text/plain', idx)}
     onDragOver={(e) => e.preventDefault()}
     onDrop={(e) => { e.preventDefault(); const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10); if (!isNaN(fromIdx)) handleReorderPartidaObra(fromIdx, idx); }}
-    className="bg-amber-50/80 hover:bg-amber-100/70 border-l-4 border-amber-500 border-y border-amber-200/80 transition cursor-grab active:cursor-grabbing shadow-xs"
+    className="bg-slate-900 hover:bg-slate-800 border-l-4 border-indigo-500 border-y border-slate-800 text-white transition cursor-grab active:cursor-grabbing shadow-xs"
   >
                                 <td colSpan="7" className="p-3">
                                   <div className="flex flex-wrap items-center justify-between gap-3 w-full">
                                     <div className="flex items-center gap-2">
-                                      <span className="bg-amber-200/80 text-amber-950 font-black text-[10px] px-2 py-0.5 rounded uppercase tracking-wider border border-amber-300">
+                                      <span className="bg-indigo-600 text-white font-black text-[10px] px-2 py-0.5 rounded uppercase tracking-wider border border-indigo-400">
                                         📁 GRUPO
                                       </span>
-                                      <span className="text-slate-900 font-extrabold text-xs uppercase tracking-wide">
+                                      <span className="text-white font-extrabold text-xs uppercase tracking-wide">
                                         {p.partida}
                                       </span>
                                     </div>
 
                                     <div className="flex items-center gap-4">
-                                      <div className="flex items-center gap-1.5 bg-white px-3 py-1 rounded-lg border border-amber-300 shadow-2xs">
-                                        <span className="text-[10px] font-bold text-slate-500 uppercase">Subtotal Grupo:</span>
+                                      <div className="flex items-center gap-1.5 bg-slate-800 px-3 py-1 rounded-lg border border-slate-700 shadow-2xs">
+                                        <span className="text-[10px] font-bold text-slate-300 uppercase">Subtotal Grupo:</span>
                                         <span className="font-mono font-black text-emerald-800 text-xs">
                                           ${groupSum.toLocaleString('es-CL')}
                                         </span>
@@ -6666,7 +6679,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           </thead>
                           <tbody className="divide-y divide-slate-150 text-[11px]">
                             {costosList.map((c, idx) => (
-                              <tr key={idx} className="hover:bg-slate-50">
+                              <tr key={idx} className="hover:bg-slate-50 border-l-4 border-transparent">
                                 <td className="p-2.5 font-bold text-slate-800">{c.nombre}</td>
                                 <td className="p-2.5">
                                   <span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-700 px-2 py-0.5 rounded border">
