@@ -36,6 +36,8 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [visibleAccessCodes, setVisibleAccessCodes] = useState({});
+  const [reviewingPayment, setReviewingPayment] = useState(null);
+  const [reviewItems, setReviewItems] = useState([]);
   const canPreparePayment = canModifyOrDeleteRecords(user);
   const clientName = obra?.cliente || '';
   const clientEmail = obra?.cliente_email || '';
@@ -190,6 +192,27 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
     setMessage(`Estado de Pago N° ${item.numero} eliminado.`);
     await load();
   };
+  const startReview = (item) => {
+    setReviewingPayment(item);
+    setReviewItems((item.items || []).map(line => ({ ...line, cantidad_final: line.cantidad_propuesta ?? line.executed ?? 0 })));
+  };
+  const prepareForApproval = async () => {
+    if (!reviewingPayment) return;
+    const finalItems = reviewItems.map(line => {
+      const quantity = Math.max(0, Math.min(Number(line.quantity || 0), Number(line.cantidad_final || 0)));
+      const accumulated = Math.round(quantity * Number(line.unitPrice || 0));
+      return { ...line, executed: quantity, monto_acumulado: accumulated, amount: Math.max(0, accumulated - Number(line.monto_anterior || 0)) };
+    });
+    const grossFinal = finalItems.reduce((sum, line) => sum + Number(line.amount || 0), 0);
+    const retentionFinal = Math.round(grossFinal * Number(reviewingPayment.retencion_pct || 0) / 100);
+    const previousRecovery = estados.filter(row => row.id !== reviewingPayment.id && row.estado !== 'Rechazado').reduce((sum, row) => sum + Number(row.anticipo_descontado || 0), 0);
+    const advanceTotal = Math.round(contractAmount * Math.max(0, Number(condiciones?.anticipo_pct || 0)) / 100);
+    const netBeforeAdvance = Math.max(0, grossFinal - retentionFinal);
+    const advanceFinal = Math.min(Math.max(0, advanceTotal - previousRecovery), Math.round(advanceTotal * (contractAmount > 0 ? netBeforeAdvance / contractAmount : 0)));
+    const { error } = await supabase.from('estados_pago_obra').update({ items: finalItems, monto_bruto: grossFinal, retencion_monto: retentionFinal, anticipo_descontado: advanceFinal, monto_neto: Math.max(0, grossFinal - retentionFinal - advanceFinal), estado: 'En aprobación' }).eq('id', reviewingPayment.id);
+    if (error) { setMessage(`No se pudo preparar el Estado de Pago: ${error.message}`); return; }
+    setReviewingPayment(null); setReviewItems([]); setMessage('Propuesta revisada y valorización actualizada. Ya puedes enviarla a aprobación.'); await load();
+  };
 
   const input = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 focus:border-emerald-600 focus:outline-none';
   return <div className="space-y-5 animate-in fade-in duration-200">
@@ -219,7 +242,8 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
               <div><p className="text-xs font-black text-slate-800">Estado de Pago N° {item.numero}</p><p className="text-[11px] text-slate-500">Corte {item.fecha_corte} · Neto {money(item.monto_neto)}</p></div>
               <div className="flex items-center gap-2"><span className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-slate-600">{item.estado}</span>{canPreparePayment && <button type="button" onClick={() => deletePayment(item)} title="Eliminar Estado de Pago" className="rounded-lg border border-rose-200 bg-white p-1.5 text-rose-700 hover:bg-rose-50"><Trash2 className="h-3.5 w-3.5" /></button>}</div>
             </div>
-            {item.estado === 'Observado' && (item.items || []).some(line => line.comentario_externo || Number(line.cantidad_propuesta) !== Number(line.executed)) && <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-900"><b>Propuesta externa por partidas</b>{(item.items || []).filter(line => line.comentario_externo || Number(line.cantidad_propuesta) !== Number(line.executed)).map((line, index) => <p key={index} className="mt-1">{line.partida}: propone {line.cantidad_propuesta} {line.unidad} (emitido: {line.executed} {line.unidad}){line.comentario_externo ? ` · ${line.comentario_externo}` : ''}</p>)}</div>}
+            {item.estado === 'Observado' && (item.items || []).some(line => line.comentario_externo || Number(line.cantidad_propuesta) !== Number(line.executed)) && <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-900"><b>Propuesta externa por partidas</b>{(item.items || []).filter(line => line.comentario_externo || Number(line.cantidad_propuesta) !== Number(line.executed)).map((line, index) => <p key={index} className="mt-1">{line.partida}: propone {line.cantidad_propuesta} {line.unidad} (emitido: {line.executed} {line.unidad}){line.comentario_externo ? ` · ${line.comentario_externo}` : ''}</p>)}{canPreparePayment && <button type="button" onClick={() => startReview(item)} className="mt-3 rounded-lg bg-amber-700 px-3 py-2 text-[11px] font-black text-white">Revisar propuesta y preparar aprobación</button>}</div>}
+            {reviewingPayment?.id === item.id && <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs"><p className="font-black text-blue-950">Revisión interna de la propuesta</p><p className="mt-1 text-[11px] text-blue-900">Ajusta la cantidad final que aceptas para cada partida. Se recalculará el monto de este Estado de Pago antes de enviarlo a aprobación.</p><div className="mt-3 space-y-2">{reviewItems.map((line, index) => <div key={`${line.partida}-${index}`} className="grid gap-2 rounded-lg bg-white p-2 sm:grid-cols-[1fr_120px_auto]"><span className="font-bold text-slate-700">{line.partida}<small className="mt-1 block font-normal text-slate-500">Propuesta externa: {line.cantidad_propuesta} {line.unidad}</small></span><label className="text-[10px] font-bold text-slate-500">Cantidad final<input type="number" min="0" max={line.quantity} value={line.cantidad_final} onChange={event => setReviewItems(rows => rows.map((row, rowIndex) => rowIndex === index ? { ...row, cantidad_final: event.target.value } : row))} className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-right text-xs" /></label><span className="self-end pb-1 text-right font-bold text-slate-700">{money(Math.max(0, Number(line.cantidad_final || 0) * Number(line.unitPrice || 0) - Number(line.monto_anterior || 0)))}</span></div>)}</div><div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={prepareForApproval} className="rounded-lg bg-emerald-700 px-3 py-2 text-[11px] font-black text-white">Guardar corrección y preparar aprobación</button><button type="button" onClick={() => { setReviewingPayment(null); setReviewItems([]); }} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-[11px] font-black text-slate-700">Cancelar</button></div></div>}
             {Object.entries(visibleAccessCodes).filter(([key]) => key.startsWith(`${item.id}-`)).map(([key, code]) => <div key={key} className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-950"><span className="font-black">Clave de {key.endsWith('-revision') ? 'revisión' : 'aprobación'}:</span><code className="rounded bg-white px-2 py-1 font-black tracking-[0.18em]">{code}</code><button type="button" onClick={() => copyAccessCode(code)} className="flex items-center gap-1 font-black text-emerald-800"><Copy className="h-3 w-3" />Copiar clave</button><span className="text-[10px] text-emerald-800">Visible solo mientras mantengas abierta esta sesión.</span></div>)}
             {item.estado !== 'Aprobado' && item.estado !== 'Pagado' && <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold">{(item.estado === 'En aprobación' ? ['aprobacion'] : ['revision']).map(type => <React.Fragment key={type}><button onClick={() => sendExternal(item, type)} className="flex items-center gap-1 text-blue-700"><Send className="h-3 w-3" />Enviar a {type === 'revision' ? 'revisión' : 'aprobación'}</button><button onClick={() => copyLink(item, type)} className="flex items-center gap-1 text-slate-600"><Copy className="h-3 w-3" />Copiar enlace</button></React.Fragment>)}</div>}
           </div>)}</div> : <p className="text-xs text-slate-500">Aún no existen estados de pago para esta obra.</p>}
