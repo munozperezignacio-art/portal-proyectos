@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, ClipboardCheck, FileCheck2, Mail, Plus, RefreshCw, ShieldCheck, XCircle } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+import { registrarEventoBitacora } from '../utils/bitacoraService';
 
 const initialPac = { partida: '', procedimiento: '', criterios: '', puntos_inspeccion: '', puntos_espera: '', responsable: '' };
 const initialRdi = { partida: '', pac_id: '', sector: '', cantidad: '', unidad: '', solicitado_por: '', inspector: '', observaciones: '' };
@@ -74,6 +75,7 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
     try {
       const { error } = await supabase.from('calidad_pac').insert({ empresa, obra_nombre: obraNombre, ...pacForm, estado: 'Activo' });
       if (error) throw error;
+      await registrarEventoBitacora({ empresa, obraNombre, categoria: 'Calidad', accion: 'PAC creado', detalle: `${pacForm.procedimiento} · ${pacForm.partida}`, actor: pacForm.responsable || user?.nombre || user?.email });
       setPacForm(initialPac); setMessage('PAC creado y disponible para solicitudes RDI.'); await load();
     } catch (error) { setMessage(`No se pudo guardar el PAC: ${error.message}`); }
   };
@@ -83,6 +85,7 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
       const codigo = `RDI-${new Date().getFullYear()}-${String(rdis.length + 1).padStart(3, '0')}`;
       const { error } = await supabase.from('calidad_rdi').insert({ empresa, obra_nombre: obraNombre, ...rdiForm, codigo, estado: 'Enviada', fecha_solicitud: new Date().toISOString().slice(0, 10) });
       if (error) throw error;
+      await registrarEventoBitacora({ empresa, obraNombre, categoria: 'Calidad', accion: `${codigo} enviada a inspección`, detalle: `${rdiForm.partida} · ${rdiForm.cantidad || 0} ${rdiForm.unidad || ''} · ${rdiForm.sector}`, actor: rdiForm.solicitado_por || user?.nombre || user?.email });
       setRdiForm(initialRdi); setMessage(`${codigo} enviada a inspección.`); await load();
     } catch (error) { setMessage(`No se pudo registrar la RDI: ${error.message}`); }
   };
@@ -92,6 +95,7 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
       const codigo = `NC-${new Date().getFullYear()}-${String(ncs.length + 1).padStart(3, '0')}`;
       const { error } = await supabase.from('calidad_no_conformidades').insert({ empresa, obra_nombre: obraNombre, ...ncForm, codigo, estado: 'Abierta' });
       if (error) throw error;
+      await registrarEventoBitacora({ empresa, obraNombre, categoria: 'Calidad', accion: `${codigo} abierta`, detalle: `${ncForm.partida || 'Sin partida'} · ${ncForm.descripcion}`, actor: ncForm.responsable || user?.nombre || user?.email });
       setNcForm(initialNc); setMessage(`${codigo} registrada para seguimiento.`); await load();
     } catch (error) { setMessage(`No se pudo registrar la no conformidad: ${error.message}`); }
   };
@@ -100,6 +104,8 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
       const extra = table === 'calidad_no_conformidades' && estado === 'Cerrada' ? { fecha_cierre: new Date().toISOString().slice(0, 10) } : {};
       const { error } = await supabase.from(table).update({ estado, ...extra }).eq('id', id);
       if (error) throw error;
+      const record = table === 'calidad_rdi' ? rdis.find(item => item.id === id) : ncs.find(item => item.id === id);
+      await registrarEventoBitacora({ empresa, obraNombre, categoria: 'Calidad', accion: `${record?.codigo || 'Registro de calidad'} actualizado a ${estado}`, detalle: record?.partida || record?.descripcion || '', actor: user?.nombre || user?.email || 'Usuario autorizado' });
       await load();
     } catch (error) { setMessage(`No se pudo actualizar: ${error.message}`); }
   };

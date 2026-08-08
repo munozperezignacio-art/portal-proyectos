@@ -3,6 +3,7 @@ import { BadgeDollarSign, CheckCircle2, Copy, FileText, RefreshCw, Send, Trash2 
 import { supabase } from '../supabaseClient';
 import { sendSystemEmail } from '../utils/emailService';
 import { canModifyOrDeleteRecords } from '../utils/userLevel';
+import { registrarEventoBitacora } from '../utils/bitacoraService';
 
 const normalise = (value) => String(value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 const matchesPartida = (a, b) => {
@@ -143,6 +144,7 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
       };
       const { error } = await supabase.from('estados_pago_obra').insert(payload);
       if (error) throw error;
+      await registrarEventoBitacora({ empresa, obraNombre, categoria: 'Estados de Pago', accion: `EP N° ${number} creado`, detalle: `Borrador emitido por ${money(net)} netos.`, actor: payload.preparado_por, fecha: form.fecha_corte });
       setMessage(`Estado de Pago N° ${number} creado como borrador.`);
       setForm(initialForm());
       await load();
@@ -176,6 +178,7 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
     if (!result.success) { setMessage(`No se pudo enviar el correo: ${result.error}`); return; }
     setVisibleAccessCodes(current => ({ ...current, [`${item.id}-${type}`]: code }));
     await changeStatus(item.id, type === 'revision' ? 'En revisión' : 'En aprobación');
+    await registrarEventoBitacora({ empresa, obraNombre, categoria: 'Estados de Pago', accion: `EP N° ${item.numero} enviado a ${type === 'revision' ? 'revisión' : 'aprobación'}`, detalle: `Enviado a ${name || email}.`, actor: user?.nombre || user?.email || 'Preparador' });
     setMessage(`Enlace enviado a ${email}.`);
   };
 
@@ -190,6 +193,7 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
     const { error } = await supabase.from('estados_pago_obra').delete().eq('id', item.id);
     if (error) { setMessage(`No se pudo eliminar el Estado de Pago: ${error.message}`); return; }
     setMessage(`Estado de Pago N° ${item.numero} eliminado.`);
+    await registrarEventoBitacora({ empresa, obraNombre, categoria: 'Estados de Pago', accion: `EP N° ${item.numero} eliminado`, detalle: 'El Estado de Pago fue eliminado por un usuario autorizado.', actor: user?.nombre || user?.email || 'Usuario autorizado' });
     await load();
   };
   const startReview = (item) => {
@@ -211,6 +215,7 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
     const advanceFinal = Math.min(Math.max(0, advanceTotal - previousRecovery), Math.round(advanceTotal * (contractAmount > 0 ? netBeforeAdvance / contractAmount : 0)));
     const { error } = await supabase.from('estados_pago_obra').update({ items: finalItems, monto_bruto: grossFinal, retencion_monto: retentionFinal, anticipo_descontado: advanceFinal, monto_neto: Math.max(0, grossFinal - retentionFinal - advanceFinal), estado: 'En aprobación' }).eq('id', reviewingPayment.id);
     if (error) { setMessage(`No se pudo preparar el Estado de Pago: ${error.message}`); return; }
+    await registrarEventoBitacora({ empresa, obraNombre, categoria: 'Estados de Pago', accion: `EP N° ${reviewingPayment.numero} corregido y preparado`, detalle: `Valorización ajustada a ${money(grossFinal)} bruto y enviada a etapa de aprobación.`, actor: user?.nombre || user?.email || 'Preparador' });
     setReviewingPayment(null); setReviewItems([]); setMessage('Propuesta revisada y valorización actualizada. Ya puedes enviarla a aprobación.'); await load();
   };
 

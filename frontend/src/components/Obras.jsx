@@ -14,6 +14,7 @@ import LastPlannerLookahead from './LastPlannerLookahead';
 import CalidadObras from './CalidadObras';
 import LibroObrasDigital from './LibroObrasDigital';
 import EstadosPagoObra from './EstadosPagoObra';
+import { registrarEventoBitacora } from '../utils/bitacoraService';
 
 const defaultCovers = [
   "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=600&q=80",
@@ -598,6 +599,9 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [asistenciaList, setAsistenciaList] = useState([]);
   const [personalAsignadoList, setPersonalAsignadoList] = useState([]);
   const [reportesAvanceList, setReportesAvanceList] = useState([]);
+  const [rdisBitacoraList, setRdisBitacoraList] = useState([]);
+  const [estadosPagoBitacoraList, setEstadosPagoBitacoraList] = useState([]);
+  const [eventosBitacoraList, setEventosBitacoraList] = useState([]);
 
   // Filtros avanzados para Libro de Asistencia Digital (Toda la Obra / Persona Individual / Grupo de Cuadrilla)
   const [libroFiltroTipo, setLibroFiltroTipo] = useState('toda_obra'); // 'toda_obra' | 'persona' | 'cuadrilla'
@@ -864,6 +868,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     try {
       await supabase.from('accidentes_prevencion_obra').insert([newAcc]);
     } catch(err) {}
+    await registrarEventoBitacora({ empresa: user?.empresa, obraNombre: newAcc.obra_nombre, categoria: 'Prevención', accion: `${newAcc.tipo} registrado`, detalle: `${newAcc.trabajador || 'Sin trabajador informado'} · ${newAcc.dias_perdidos} día(s) perdidos. ${newAcc.descripcion || ''}`, actor: user?.nombre || user?.email || 'Prevención de riesgos', fecha: newAcc.fecha });
     setShowAccidenteModal(false);
     alert('Incidente / Accidente registrado con éxito.');
   };
@@ -1493,7 +1498,21 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       setBitacoraNotasList(fullNotas || []);
     } catch (e) {}
 
-    // 7. Arriendos de maquinaria
+    // 7. Hitos integrados para la Bitácora: calidad y estados de pago.
+    try {
+      const [rdisResult, estadosPagoResult, eventosResult] = await Promise.all([
+        supabase.from('calidad_rdi').select('*').eq('obra_nombre', obraNombre).order('created_at', { ascending: true }),
+        supabase.from('estados_pago_obra').select('*').eq('obra_nombre', obraNombre).order('created_at', { ascending: true }),
+        supabase.from('bitacora_eventos_obra').select('*').eq('obra_nombre', obraNombre).order('fecha', { ascending: true }).order('created_at', { ascending: true }),
+      ]);
+      setRdisBitacoraList(rdisResult.data || []);
+      setEstadosPagoBitacoraList((estadosPagoResult.data || []).filter(item => !user?.empresa || item.empresa === user.empresa));
+      setEventosBitacoraList((eventosResult.data || []).filter(item => !user?.empresa || item.empresa === user.empresa));
+    } catch (e) {
+      setRdisBitacoraList([]); setEstadosPagoBitacoraList([]); setEventosBitacoraList([]);
+    }
+
+    // 8. Arriendos de maquinaria
     try {
       const { data: aData } = await supabase.from('arriendos_maquinaria').select('*').eq('obra_nombre', obraNombre).order('created_at', { ascending: false });
 
@@ -3902,7 +3921,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                         { id: 'todos', label: 'Todos' },
                         { id: 'notas', label: '📝 Notas & Comentarios' },
                         { id: 'avances', label: '📊 Avances' },
-                        { id: 'asistencia', label: '⏱️ Asistencia' }
+                        { id: 'asistencia', label: '⏱️ Asistencia' },
+                        { id: 'calidad', label: '🧪 Calidad' },
+                        { id: 'prevencion', label: '🛡️ Prevención' },
+                        { id: 'estados_pago', label: '💰 Estados de Pago' }
                       ].map(f => {
                         const isSelected = bitacoraFilters.includes(f.id);
                         return (
@@ -4014,19 +4036,27 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                       }
                     });
 
-                    (asistenciaList || []).forEach(as => {
-                      if (bitacoraFilters.includes('todos') || bitacoraFilters.includes('asistencia')) {
+                    if (bitacoraFilters.includes('todos') || bitacoraFilters.includes('asistencia')) {
+                      const attendanceByDay = new Map();
+                      (asistenciaList || []).forEach(as => {
                         const rawDt = as.fecha || (as.created_at ? String(as.created_at).substring(0, 10) : fechaInicioReal);
-                        unifiedBitacoraEvents.push({
-                          type: 'asistencia',
-                          dateStr: rawDt,
-                          dateObj: new Date(rawDt + 'T12:00:00'),
-                          title: `⏱️ Registro Asistencia: ${as.trabajador}`,
-                          description: `Estado: ${as.asistencia} | RUT: ${as.rut || 'N/A'} | Ingreso: ${as.ingreso || '08:00'} - Salida: ${as.salida || '18:00'}`,
-                          author: 'Control Asistencia',
-                          badge: 'Control Asistencia',
-                          color: 'emerald'
-                        });
+                        const rows = attendanceByDay.get(rawDt) || [];
+                        rows.push(as); attendanceByDay.set(rawDt, rows);
+                      });
+                      attendanceByDay.forEach((rows, rawDt) => {
+                        const unique = Array.from(new Map(rows.map(row => [row.rut || row.trabajador, row])).values());
+                        const present = unique.filter(row => String(row.asistencia || '').toUpperCase() === 'PRESENTE').length;
+                        const absent = unique.length - present;
+                        unifiedBitacoraEvents.push({ type: 'asistencia', dateStr: rawDt, dateObj: new Date(rawDt + 'T12:00:00'), title: `⏱️ Asistencia diaria: ${present} de ${unique.length} asistentes`, description: absent ? `${present} presentes y ${absent} ausente(s) registrados.` : 'Asistencia completa registrada para la jornada.', author: 'Control Asistencia', badge: 'Resumen de asistencia', color: 'emerald' });
+                      });
+                    }
+
+                    (eventosBitacoraList || []).forEach(evento => {
+                      const filterId = evento.categoria === 'Estados de Pago' ? 'estados_pago' : evento.categoria === 'Prevención' ? 'prevencion' : 'calidad';
+                      if (bitacoraFilters.includes('todos') || bitacoraFilters.includes(filterId)) {
+                        const rawDt = evento.fecha || (evento.created_at ? String(evento.created_at).substring(0, 10) : fechaInicioReal);
+                        const color = evento.categoria === 'Estados de Pago' ? 'blue' : evento.categoria === 'Prevención' ? 'rose' : 'amber';
+                        unifiedBitacoraEvents.push({ type: filterId, dateStr: rawDt, dateObj: new Date(rawDt + 'T12:00:00'), title: `${evento.categoria} · ${evento.accion}`, description: evento.detalle || 'Evento registrado en el módulo de obra.', author: evento.actor || 'Sistema', badge: evento.categoria, color });
                       }
                     });
 
@@ -4036,13 +4066,14 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                       const isAmber = item.color === 'amber';
                       const isBlue = item.color === 'blue';
                       const isEmerald = item.color === 'emerald';
+                      const isRose = item.color === 'rose';
 
                       return (
                         <div key={`ev-${idx}`} className="relative group">
-                          <div className={`absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 border-white ${isAmber ? 'bg-amber-500 ring-2 ring-amber-100' : isBlue ? 'bg-blue-600 ring-2 ring-blue-100' : 'bg-emerald-600 ring-2 ring-emerald-100'}`}></div>
-                          <div className={`p-3.5 rounded-xl space-y-1.5 shadow-2xs border ${isAmber ? 'bg-amber-50/80 border-amber-200' : isBlue ? 'bg-blue-50/70 border-blue-200' : 'bg-emerald-50/70 border-emerald-200'}`}>
+                          <div className={`absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 border-white ${isAmber ? 'bg-amber-500 ring-2 ring-amber-100' : isBlue ? 'bg-blue-600 ring-2 ring-blue-100' : isRose ? 'bg-rose-600 ring-2 ring-rose-100' : 'bg-emerald-600 ring-2 ring-emerald-100'}`}></div>
+                          <div className={`p-3.5 rounded-xl space-y-1.5 shadow-2xs border ${isAmber ? 'bg-amber-50/80 border-amber-200' : isBlue ? 'bg-blue-50/70 border-blue-200' : isRose ? 'bg-rose-50/70 border-rose-200' : 'bg-emerald-50/70 border-emerald-200'}`}>
                             <div className="flex justify-between items-center text-xs font-bold">
-                              <span className={isAmber ? 'text-amber-950 font-extrabold' : isBlue ? 'text-blue-950 font-extrabold' : 'text-emerald-950 font-extrabold'}>
+                              <span className={isAmber ? 'text-amber-950 font-extrabold' : isBlue ? 'text-blue-950 font-extrabold' : isRose ? 'text-rose-950 font-extrabold' : 'text-emerald-950 font-extrabold'}>
                                 {item.title}
                               </span>
                               <span className="text-[10px] text-slate-700 font-mono bg-white px-2 py-0.5 rounded border border-slate-200 font-bold">
@@ -4054,7 +4085,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             </p>
                             <div className="flex justify-between items-center text-[10px] text-slate-500 pt-1 border-t border-slate-200/60 font-semibold">
                               <span>Registrado por: <strong>{item.author}</strong></span>
-                              <span className={`inline-block px-2 py-0.5 rounded font-bold ${isAmber ? 'bg-amber-100 text-amber-900' : isBlue ? 'bg-blue-100 text-blue-900' : 'bg-emerald-100 text-emerald-900'}`}>
+                              <span className={`inline-block px-2 py-0.5 rounded font-bold ${isAmber ? 'bg-amber-100 text-amber-900' : isBlue ? 'bg-blue-100 text-blue-900' : isRose ? 'bg-rose-100 text-rose-900' : 'bg-emerald-100 text-emerald-900'}`}>
                                 {item.badge}
                               </span>
                             </div>

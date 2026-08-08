@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { CheckCircle2, FileText, LockKeyhole, Send, XCircle } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+import { registrarEventoBitacora } from '../utils/bitacoraService';
 
 const money = value => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(Number(value || 0));
 const percent = value => `${Number(value || 0).toFixed(2)}%`;
@@ -73,14 +74,14 @@ export default function PublicEstadoPago({ token, role }) {
     const field = role === 'aprobacion' ? 'observacion_aprobacion' : 'observacion_revision';
     const { error } = await supabase.from('estados_pago_obra').update({ estado, [field]: note || null }).eq('id', item.id);
     if (error) setMessage(`No fue posible registrar la decisión: ${error.message}`);
-    else { setMessage(approved ? 'Decisión registrada correctamente.' : 'El Estado de Pago fue devuelto con observaciones.'); await reload(); }
+    else { await registrarEventoBitacora({ empresa: item.empresa, obraNombre: item.obra_nombre, categoria: 'Estados de Pago', accion: `EP N° ${item.numero} ${approved ? (role === 'aprobacion' ? 'aprobado' : 'revisado conforme') : 'observado'}`, detalle: note || null, actor: role === 'aprobacion' ? item.aprobador_nombre || 'Aprobador externo' : item.revisor_nombre || 'Revisor externo' }); setMessage(approved ? 'Decisión registrada correctamente.' : 'El Estado de Pago fue devuelto con observaciones.'); await reload(); }
   };
   const submitProposal = async () => {
     const hasProposal = proposal.some(line => Number(line.cantidad_propuesta) !== Number(line.executed) || line.comentario_externo.trim());
     if (!hasProposal) { setMessage('Indica una cantidad distinta o un comentario en al menos una partida.'); return; }
     const { error } = await supabase.from('estados_pago_obra').update({ estado: 'Observado', items: proposal, observacion_revision: note || 'Se recibió una propuesta de ajuste por partidas.' }).eq('id', item.id);
     if (error) setMessage(`No fue posible enviar la propuesta: ${error.message}`);
-    else { setMessage('Propuesta enviada al preparador para su revisión.'); await reload(); }
+    else { await registrarEventoBitacora({ empresa: item.empresa, obraNombre: item.obra_nombre, categoria: 'Estados de Pago', accion: `EP N° ${item.numero} observado con propuesta`, detalle: note || 'El revisor propuso ajustes por partidas.', actor: item.revisor_nombre || 'Revisor externo' }); setMessage('Propuesta enviada al preparador para su revisión.'); await reload(); }
   };
 
   if (!authorised) return <main className="min-h-screen bg-slate-100 p-4 sm:p-8"><section className="mx-auto mt-12 max-w-md rounded-2xl bg-white p-6 shadow-sm"><div className="flex items-center gap-3"><div className="rounded-xl bg-emerald-100 p-2 text-emerald-800"><LockKeyhole className="h-5 w-5" /></div><div><h1 className="font-black text-slate-900">Acceso protegido</h1><p className="text-xs text-slate-500">Estado de Pago · {typeLabel}</p></div></div><p className="mt-5 text-sm text-slate-600">Ingresa la clave de 8 caracteres enviada al correo junto con este enlace.</p><form onSubmit={verifyAccess} className="mt-4 space-y-3"><input autoFocus value={accessCode} onChange={event => setAccessCode(event.target.value.toUpperCase())} maxLength={8} placeholder="Ej.: 7K4M9P2R" className="w-full rounded-xl border border-slate-300 px-4 py-3 text-center font-mono text-lg font-black tracking-[0.25em] uppercase focus:border-emerald-600 focus:outline-none" /><button disabled={loading} className="w-full rounded-xl bg-emerald-700 py-3 text-sm font-black text-white disabled:opacity-60">{loading ? 'Validando…' : 'Ingresar al Estado de Pago'}</button></form>{message && <p className="mt-4 text-xs font-semibold text-rose-700">{message}</p>}</section></main>;
