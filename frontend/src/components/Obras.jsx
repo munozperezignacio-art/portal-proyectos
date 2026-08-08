@@ -3000,9 +3000,12 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                               {avanceRows.map((row, idx) => {
                                 const { partida: p, isTitle, childrenCount, executed: ejecPartida, meta: metaPartida, pct: pctVal, plannedPct } = row;
                                 const variancePct = pctVal !== null && plannedPct !== null ? Math.round((pctVal - plannedPct) * 10) / 10 : null;
+                                const isGeneralChild = !isTitle && !avanceRows.slice(0, idx).some(item => item.isTitle);
 
                                 return (
-                                  <div key={idx} className={`p-3 border rounded-xl space-y-2 ${isTitle ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 ml-4'}`}>
+                                  <React.Fragment key={idx}>
+                                  {isGeneralChild && idx === 0 && <div className="flex items-center gap-3 rounded-xl border-l-4 border-indigo-500 bg-slate-900 p-3 text-white"><span className="rounded bg-indigo-600 px-2 py-1 text-[10px] font-black uppercase">Grupo</span><span className="text-xs font-black uppercase tracking-wide">Partidas generales de obra</span><span className="text-[10px] text-slate-300">({avanceRows.findIndex(item => item.isTitle) > 0 ? avanceRows.findIndex(item => item.isTitle) : avanceRows.length} partidas)</span></div>}
+                                  <div className={`p-3 border rounded-xl space-y-2 ${isTitle ? 'bg-slate-100 border-slate-300' : 'bg-white border-slate-200 ml-4'}`}>
                                     <div className="flex justify-between items-center text-xs font-bold">
                                       <span className={isTitle ? 'text-slate-900 uppercase tracking-wide' : 'text-slate-800'}>{isTitle ? '📁 ' : ''}{p.partida}</span>
                                       {pctVal !== null ? <span className={isTitle ? 'text-emerald-800 font-black' : 'text-blue-950 font-black'}>{pctVal}%</span> : <span className="text-slate-400 font-semibold">Sin ponderación</span>}
@@ -3016,6 +3019,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                       </span>
                                     </div>
                                   </div>
+                                  </React.Fragment>
                                 );
                               })}
                             </div>
@@ -5600,6 +5604,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                       <tbody className="divide-y divide-slate-150 text-[11px]">
                         {partidasList.map((p, idx) => {
                           const isTitleRow = p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo;
+                          const isGeneralChild = !isTitleRow && !partidasList.slice(0, idx).some(item => item.unidad === 'TITULO' || item.unidad === 'GRUPO' || item.es_titulo);
                           const puVal = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (p.pu !== undefined ? p.pu : 0);
                           const totalItem = (p.cantidad || 0) * puVal;
 
@@ -5719,7 +5724,9 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           }
 
                           return (
-                            <tr key={idx} className="hover:bg-slate-50">
+                            <React.Fragment key={idx}>
+                              {isGeneralChild && idx === 0 && <tr className="bg-slate-900 text-white border-l-4 border-indigo-500"><td colSpan="7" className="p-3"><div className="flex items-center gap-3"><span className="rounded bg-indigo-600 px-2 py-1 text-[10px] font-black uppercase">Grupo</span><span className="text-xs font-black uppercase tracking-wide">Partidas generales de obra</span><span className="text-[10px] text-slate-300">({partidasList.findIndex(item => item.unidad === 'TITULO' || item.unidad === 'GRUPO' || item.es_titulo) > 0 ? partidasList.findIndex(item => item.unidad === 'TITULO' || item.unidad === 'GRUPO' || item.es_titulo) : partidasList.length} partidas)</span></div></td></tr>}
+                            <tr className="hover:bg-slate-50">
                               <td className="p-2.5 font-bold text-slate-800 pl-6 flex items-center gap-1.5">
                                 <span className="text-slate-400 text-xs">└─</span>
                                 <span>{p.partida}</span>
@@ -5804,6 +5811,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                 </div>
                               </td>
                             </tr>
+                            </React.Fragment>
                           );
                         })}
                       </tbody>
@@ -6679,7 +6687,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           </thead>
                           <tbody className="divide-y divide-slate-150 text-[11px]">
                             {costosList.map((c, idx) => (
-                              <tr key={idx} className="hover:bg-slate-50 border-l-4 border-transparent">
+                              <tr key={idx} className="hover:bg-slate-50">
                                 <td className="p-2.5 font-bold text-slate-800">{c.nombre}</td>
                                 <td className="p-2.5">
                                   <span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-700 px-2 py-0.5 rounded border">
