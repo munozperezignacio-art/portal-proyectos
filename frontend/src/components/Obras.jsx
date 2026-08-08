@@ -5609,27 +5609,19 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           const totalItem = (p.cantidad || 0) * puVal;
 
                           if (isTitleRow) {
-                            // 1. Intentar sumar partidas hacia abajo
-                            let groupSum = 0;
-                            let countBelow = 0;
+                            // Un título agrupa todas las partidas consecutivas hasta el siguiente título,
+                            // igual que en Planificación. No se excluyen partidas con costo todavía en cero.
+                            const groupChildren = [];
                             for (let i = idx + 1; i < partidasList.length; i++) {
                               const child = partidasList[i];
-                              if (child.unidad === 'TITULO' || child.unidad === 'GRUPO' || child.es_titulo || (parseFloat(child.cantidad || 0) === 0 && parseFloat(child.pu || 0) === 0)) break;
+                              if (child.unidad === 'TITULO' || child.unidad === 'GRUPO' || child.es_titulo) break;
+                              groupChildren.push(child);
+                            }
+                            const countBelow = groupChildren.length;
+                            const groupSum = groupChildren.reduce((sum, child) => {
                               const childPu = partidasCostos[child.partida] !== undefined ? partidasCostos[child.partida] : (child.pu || 0);
-                              const sub = (child.cantidad || 0) * childPu;
-                              groupSum += sub;
-                              if (sub > 0) countBelow++;
-                            }
-
-                            // 2. Si no hay partidas abajo, sumar partidas hacia arriba
-                            if (countBelow === 0) {
-                              for (let i = idx - 1; i >= 0; i--) {
-                                const child = partidasList[i];
-                                if (child.unidad === 'TITULO' || child.unidad === 'GRUPO' || child.es_titulo) break;
-                                const childPu = partidasCostos[child.partida] !== undefined ? partidasCostos[child.partida] : (child.pu || 0);
-                                groupSum += (child.cantidad || 0) * childPu;
-                              }
-                            }
+                              return sum + ((parseFloat(child.cantidad) || 0) * childPu);
+                            }, 0);
 
                             return (
                               <tr 
@@ -5649,6 +5641,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                       <span className="text-white font-extrabold text-xs uppercase tracking-wide">
                                         {p.partida}
                                       </span>
+                                      <span className="text-[10px] font-semibold text-slate-300">({countBelow} partida{countBelow === 1 ? '' : 's'})</span>
                                     </div>
 
                                     <div className="flex items-center gap-4">
