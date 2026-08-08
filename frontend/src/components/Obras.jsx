@@ -4,7 +4,7 @@ import {
   Building2, ArrowLeft, Users, Truck, Wrench, FileSpreadsheet, 
   ExternalLink, Calendar, Plus, Info, Check, UserCheck, Play, ArrowRightLeft, FileText, AlertCircle, AlertTriangle, Camera,
   QrCode, MapPin, Printer, Navigation, RotateCcw, CheckCircle2, MapIcon as Map, ShieldAlert, Settings, Edit, Trash2, Download,
-  History, BarChart3, ShieldCheck, Clock, DollarSign, CalendarRange, CalendarDays, FileUp, Loader2, FolderPlus, Send, Filter, TrendingUp, BookOpenCheck, ReceiptText
+  History, BarChart3, ShieldCheck, Clock, DollarSign, CalendarRange, CalendarDays, FileUp, Loader2, FolderPlus, Send, Filter, TrendingUp, BookOpenCheck, ReceiptText, Search
 } from 'lucide-react';
 import ContextualEmailConfigModal from './ContextualEmailConfigModal';
 import { canConfigureEmails, canCreateObras, canModifyOrDeleteRecords } from '../utils/userLevel';
@@ -319,6 +319,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     const saved = localStorage.getItem('obraxis_favorites');
     return saved ? JSON.parse(saved) : [];
   });
+  const [obraSearch, setObraSearch] = useState('');
+  const [obraTypeFilter, setObraTypeFilter] = useState('todas');
+  const [onlyFavorites, setOnlyFavorites] = useState(false);
+  const [showObraTools, setShowObraTools] = useState(false);
 
   const toggleFavorite = (e, name) => {
     e.stopPropagation();
@@ -331,6 +335,12 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     setFavorites(updated);
     localStorage.setItem('obraxis_favorites', JSON.stringify(updated));
   };
+  const obraTypes = [...new Set(obras.map(obra => obra.tipo).filter(Boolean))].sort();
+  const filteredObras = obras.filter(obra => {
+    const search = obraSearch.trim().toLowerCase();
+    const matchSearch = !search || `${obra.nombre || ''} ${obra.tipo || ''} ${obra.cliente || ''}`.toLowerCase().includes(search);
+    return matchSearch && (obraTypeFilter === 'todas' || obra.tipo === obraTypeFilter) && (!onlyFavorites || favorites.includes(obra.nombre));
+  }).sort((left, right) => Number(favorites.includes(right.nombre)) - Number(favorites.includes(left.nombre)) || String(left.nombre).localeCompare(String(right.nombre)));
   
   // Estados para métricas de la obra seleccionada
   const [personalCount, setPersonalCount] = useState(0);
@@ -2320,7 +2330,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       {!selectedObra ? (
         // ================= VISTA DE LISTADO DE OBRAS =================
         <div>
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
             <div className="flex items-center gap-3">
               <button onClick={onBack} className="p-1.5 hover:bg-slate-200 rounded-lg transition cursor-pointer">
                 <ArrowLeft className="w-5 h-5 text-slate-600" />
@@ -2339,6 +2349,12 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
             )}
           </div>
 
+          <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 sm:flex-row sm:items-center">
+            <div className="relative min-w-0 flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input value={obraSearch} onChange={event => setObraSearch(event.target.value)} placeholder="Buscar por obra, cliente o especialidad…" className="w-full rounded-xl border border-slate-300 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15" /></div>
+            <select value={obraTypeFilter} onChange={event => setObraTypeFilter(event.target.value)} className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-700"><option value="todas">Todas las especialidades</option>{obraTypes.map(type => <option key={type} value={type}>{type}</option>)}</select>
+            <button onClick={() => setOnlyFavorites(value => !value)} className={`rounded-xl border px-3 py-2.5 text-xs font-bold transition ${onlyFavorites ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'}`}>{onlyFavorites ? '★ Favoritas' : '☆ Favoritas'}</button>
+          </div>
+
           {loading ? (
             <p className="text-sm text-slate-500 p-2">⏳ Cargando tus proyectos autorizados...</p>
           ) : obras.length === 0 ? (
@@ -2347,8 +2363,9 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
               <span>No se encontraron obras asignadas a tu cuenta. Contacta al administrador.</span>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {obras.map((o, idx) => {
+            <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+              {filteredObras.map((o, idx) => {
                 const cover = o.imagen_base64 || defaultCovers[idx % defaultCovers.length];
                 const isFav = favorites.includes(o.nombre);
                 return (
@@ -2364,8 +2381,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                         className="w-full h-full object-cover group-hover:scale-105 transition duration-500" 
                         alt={o.nombre} 
                       />
-                      {/* Dot Indicador (Azul) */}
-                      <div className="absolute top-3 left-3 w-3 h-3 bg-blue-600 rounded-full border-2 border-white shadow-sm" />
+                      <span className="absolute top-3 left-3 rounded-full border border-white/70 bg-emerald-600 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-white shadow-sm">{o.estado || 'Activa'}</span>
                       
                       {/* Estrella Favorito */}
                       <button
@@ -2398,6 +2414,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 );
               })}
             </div>
+            {!filteredObras.length && <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">No hay obras que coincidan con los filtros seleccionados.</div>}
+            </>
           )}
         </div>
       ) : (
@@ -2419,6 +2437,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
             </div>
             
             <div className="flex flex-wrap gap-2">
+              <button onClick={() => setShowObraTools(value => !value)} className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-[11px] text-slate-700 font-bold px-3 py-2 border border-slate-300 rounded-lg transition"><Settings className="w-3.5 h-3.5" /><span>{showObraTools ? 'Ocultar herramientas' : 'Herramientas'}</span></button>
+              {showObraTools && <>
               {/* Configuración de Correos de la Obra (Engranaje ⚙️) */}
               {canConfigureEmails(user) && (
                 <button
@@ -2491,11 +2511,12 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   <span>Planos y Carpetas</span>
                 </a>
               )}
+              </>}
             </div>
           </div>
 
           {/* Tarjetas de Métricas Rápidas */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <div className="bg-white p-4 border border-slate-200 rounded-xl shadow-sm flex items-center gap-3">
               <div className="p-2.5 bg-blue-50 text-blue-950 rounded-lg">
                 <Users className="w-5 h-5" />
@@ -2515,12 +2536,22 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 <p className="text-xl font-black text-slate-800">{getEquiposParaObraActual().length} <span className="text-xs font-normal text-slate-400">unidades</span></p>
               </div>
             </div>
+            <div className="bg-white p-4 border border-slate-200 rounded-xl shadow-sm flex items-center gap-3">
+              <div className="p-2.5 bg-emerald-50 text-emerald-800 rounded-lg"><FileSpreadsheet className="w-5 h-5" /></div>
+              <div><p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Reportes de avance</p><p className="text-xl font-black text-slate-800">{reportesAvanceList.length} <span className="text-xs font-normal text-slate-400">ingresados</span></p></div>
+            </div>
+            <button onClick={() => setObraActiveSubmodule('estadisticas')} className="bg-blue-950 p-4 border border-blue-900 rounded-xl shadow-sm flex items-center gap-3 text-left transition hover:bg-blue-900">
+              <div className="p-2.5 bg-white/10 text-white rounded-lg"><BarChart3 className="w-5 h-5" /></div>
+              <div><p className="text-[10px] text-blue-200 font-bold uppercase tracking-wider">Estatus de la Obra</p><p className="text-xs font-black text-white">Ver indicadores y alertas →</p></div>
+            </button>
           </div>
+
+          {obraActiveSubmodule === null && <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4"><div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><p className="text-xs font-black uppercase tracking-wider text-blue-900">Acciones de hoy</p><p className="mt-1 text-xs text-slate-600">Accesos directos para registrar, controlar y resolver lo prioritario en faena.</p></div><div className="flex flex-wrap gap-2"><button onClick={() => setObraActiveSubmodule('avance')} className="rounded-lg bg-blue-900 px-3 py-2 text-xs font-bold text-white">Registrar avance</button><button onClick={() => setObraActiveSubmodule('asistencia')} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-900">Asistencia</button><button onClick={() => setObraActiveSubmodule('calidad')} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-900">Calidad</button><button onClick={() => setObraActiveSubmodule('estados_pago')} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-900">Estados de pago</button></div></div></div>}
 
           {/* NAVEGACIÓN PRINCIPAL: VISTA DE TARJETAS / RECTÁNGULOS OPERATIVOS */}
           {obraActiveSubmodule === null && (
             <div className="space-y-4">
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Módulos de Operación de Faena</h3>
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Todas las herramientas de la obra</h3>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 
