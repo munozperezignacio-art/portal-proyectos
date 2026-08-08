@@ -4037,14 +4037,14 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                     });
 
                     if (bitacoraFilters.includes('todos') || bitacoraFilters.includes('asistencia')) {
-                      const attendanceByDay = new Map();
+                      const attendanceByDay = new globalThis.Map();
                       (asistenciaList || []).forEach(as => {
                         const rawDt = as.fecha || (as.created_at ? String(as.created_at).substring(0, 10) : fechaInicioReal);
                         const rows = attendanceByDay.get(rawDt) || [];
                         rows.push(as); attendanceByDay.set(rawDt, rows);
                       });
                       attendanceByDay.forEach((rows, rawDt) => {
-                        const unique = Array.from(new Map(rows.map(row => [row.rut || row.trabajador, row])).values());
+                        const unique = Array.from(new globalThis.Map(rows.map(row => [row.rut || row.trabajador, row])).values());
                         const present = unique.filter(row => String(row.asistencia || '').toUpperCase() === 'PRESENTE').length;
                         const absent = unique.length - present;
                         unifiedBitacoraEvents.push({ type: 'asistencia', dateStr: rawDt, dateObj: new Date(rawDt + 'T12:00:00'), title: `⏱️ Asistencia diaria: ${present} de ${unique.length} asistentes`, description: absent ? `${present} presentes y ${absent} ausente(s) registrados.` : 'Asistencia completa registrada para la jornada.', author: 'Control Asistencia', badge: 'Resumen de asistencia', color: 'emerald' });
