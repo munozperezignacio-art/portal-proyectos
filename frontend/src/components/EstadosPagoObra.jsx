@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BadgeDollarSign, CheckCircle2, Copy, FileText, RefreshCw, Send } from 'lucide-react';
+import { BadgeDollarSign, CheckCircle2, Copy, FileText, RefreshCw, Send, Trash2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { sendSystemEmail } from '../utils/emailService';
 import { canModifyOrDeleteRecords } from '../utils/userLevel';
@@ -13,6 +13,15 @@ const money = (value) => new Intl.NumberFormat('es-CL', { style: 'currency', cur
 const percent = (value) => `${Number(value || 0).toFixed(2)}%`;
 const initialForm = () => ({ fecha_corte: new Date().toISOString().slice(0, 10), retencion_pct: '5', observaciones: '' });
 const token = () => `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+const accessCode = () => {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return Array.from({ length: 8 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
+};
+const hashAccessCode = async (value) => {
+  const bytes = new TextEncoder().encode(String(value || '').trim().toUpperCase());
+  const hash = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(hash)).map(byte => byte.toString(16).padStart(2, '0')).join('');
+};
 
 export default function EstadosPagoObra({ user, obraNombre, obra }) {
   const empresa = user?.empresa || null;
@@ -155,7 +164,11 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
     const name = type === 'revision' ? item.revisor_nombre : item.aprobador_nombre;
     if (!email) { setMessage(`Configura el correo del ${type === 'revision' ? 'revisor' : 'aprobador'} contractual.`); return; }
     const link = publicUrl(item, type);
-    const result = await sendSystemEmail({ to: email, subject: `Estado de Pago N° ${item.numero} · ${obraNombre}`, htmlContent: `<p>Hola ${name || ''},</p><p>Se solicita ${type === 'revision' ? 'revisión técnica' : 'aprobación contractual'} del Estado de Pago N° ${item.numero} de <b>${obraNombre}</b>.</p><p><a href="${link}">Abrir Estado de Pago</a></p>` });
+    const code = accessCode();
+    const codeColumn = type === 'revision' ? 'clave_revision_hash' : 'clave_aprobacion_hash';
+    const { error: codeError } = await supabase.from('estados_pago_obra').update({ [codeColumn]: await hashAccessCode(code) }).eq('id', item.id);
+    if (codeError) { setMessage(`No se pudo generar la clave de acceso: ${codeError.message}`); return; }
+    const result = await sendSystemEmail({ to: email, subject: `Estado de Pago N° ${item.numero} · ${obraNombre}`, htmlContent: `<p>Hola ${name || ''},</p><p>Se solicita ${type === 'revision' ? 'revisión técnica' : 'aprobación contractual'} del Estado de Pago N° ${item.numero} de <b>${obraNombre}</b>.</p><p><a href="${link}">Abrir Estado de Pago</a></p><p><b>Clave de acceso: ${code}</b></p><p>Por seguridad, necesitarás esta clave de 8 caracteres para ingresar al enlace.</p>` });
     if (!result.success) { setMessage(`No se pudo enviar el correo: ${result.error}`); return; }
     await changeStatus(item.id, type === 'revision' ? 'En revisión' : 'En aprobación');
     setMessage(`Enlace enviado a ${email}.`);
@@ -164,6 +177,14 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
   const changeStatus = async (id, estado) => {
     const { error } = await supabase.from('estados_pago_obra').update({ estado }).eq('id', id);
     if (error) { setMessage(`No se pudo actualizar el estado: ${error.message}`); return; }
+    await load();
+  };
+  const deletePayment = async (item) => {
+    if (!canPreparePayment) { setMessage('Tu perfil no está autorizado para eliminar estados de pago.'); return; }
+    if (!window.confirm(`¿Eliminar definitivamente el Estado de Pago N° ${item.numero}? Esta acción no se puede deshacer.`)) return;
+    const { error } = await supabase.from('estados_pago_obra').delete().eq('id', item.id);
+    if (error) { setMessage(`No se pudo eliminar el Estado de Pago: ${error.message}`); return; }
+    setMessage(`Estado de Pago N° ${item.numero} eliminado.`);
     await load();
   };
 
@@ -188,7 +209,17 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
       <section className="space-y-3">
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white"><div className="border-b border-slate-200 px-4 py-3"><h3 className="text-sm font-black text-slate-800">Valorización al corte</h3><p className="text-[11px] text-slate-500">Detalle tipo estado de pago: anterior, período y acumulado por partida.</p></div>{loading ? <div className="p-10 text-center text-sm text-slate-500">Calculando valorización…</div> : valuation.length ? <div className="overflow-x-auto"><table className="min-w-full text-left text-xs"><thead className="bg-slate-50 text-[10px] uppercase text-slate-500"><tr><th className="p-3">Partida</th><th className="p-3 text-right">Cantidad contratada</th><th className="p-3 text-right">P.U. contratado</th><th className="p-3 text-right">Avance acum.</th><th className="p-3 text-right">Anterior</th><th className="p-3 text-right">Este EP</th><th className="p-3 text-right">Acumulado</th><th className="p-3">Calidad</th></tr></thead><tbody>{valuation.map(line => <tr key={line.partida} className="border-t border-slate-100"><td className="p-3 font-bold text-slate-700">{line.partida}</td><td className="p-3 text-right">{line.quantity} {line.unidad}</td><td className="p-3 text-right">{money(line.unitPrice)}</td><td className="p-3 text-right">{line.executed} {line.unidad}<small className="block text-slate-500">{percent(line.avance_pct)}</small></td><td className="p-3 text-right text-slate-500">{money(line.monto_anterior)}</td><td className="p-3 text-right font-black text-emerald-700">{money(line.amount)}</td><td className="p-3 text-right font-bold">{money(line.monto_acumulado)}</td><td className="p-3">{line.requiresReview ? <span className="rounded bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-800">Revisar RDI</span> : <span className="rounded bg-emerald-100 px-2 py-1 text-[10px] font-bold text-emerald-800">Conforme</span>}</td></tr>)}</tbody></table></div> : <div className="p-10 text-center text-sm text-slate-500">No hay avance valorizable para la fecha seleccionada.</div>}</div>
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs"><h3 className="mb-3 text-sm font-black text-emerald-950">Liquidación del Estado de Pago</h3><div className="grid grid-cols-[1fr_auto] gap-x-5 gap-y-2"><span>Avance acumulado a la fecha ({percent(paymentSummary.avance_acumulado_pct)})</span><b>{money(accumulatedGross)}</b><span>(-) Avance liquidado en EP anteriores</span><b>- {money(priorGross)}</b><span className="border-t border-emerald-200 pt-2 font-black">(=) Avance de este período ({percent(paymentSummary.avance_periodo_pct)})</span><b className="border-t border-emerald-200 pt-2">{money(gross)}</b><span>(-) Retención del período ({form.retencion_pct}%)</span><b>- {money(retention)}</b><span>(-) Amortización de anticipo del período</span><b>- {money(advanceDeduction)}</b><span className="border-t border-emerald-300 pt-2 text-sm font-black">Neto a cobrar en este EP</span><b className="border-t border-emerald-300 pt-2 text-sm font-black">{money(net)}</b></div><p className="mt-3 text-[10px] text-emerald-900">Acumulado contractual: retención {money(accumulatedRetention)} · anticipo amortizado {money(accumulatedAdvance)} · neto pagado {money(accumulatedNet)}.</p></div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4"><h3 className="mb-3 text-sm font-black text-slate-800">Historial contractual</h3>{estados.length ? <div className="space-y-2">{estados.map(item => <div key={item.id} className="rounded-xl bg-slate-50 p-3"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-black text-slate-800">Estado de Pago N° {item.numero}</p><p className="text-[11px] text-slate-500">Corte {item.fecha_corte} · Neto {money(item.monto_neto)}</p></div><span className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-slate-600">{item.estado}</span></div>{item.estado === 'Observado' && (item.items || []).some(line => line.comentario_externo || Number(line.cantidad_propuesta) !== Number(line.executed)) && <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-900"><b>Propuesta externa por partidas</b>{(item.items || []).filter(line => line.comentario_externo || Number(line.cantidad_propuesta) !== Number(line.executed)).map((line, index) => <p key={index} className="mt-1">{line.partida}: propone {line.cantidad_propuesta} {line.unidad} (emitido: {line.executed} {line.unidad}){line.comentario_externo ? ` · ${line.comentario_externo}` : ''}</p>)}</div>}{item.estado !== 'Aprobado' && item.estado !== 'Pagado' && <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold">{['revision','aprobacion'].map(type => <React.Fragment key={type}><button onClick={() => sendExternal(item,type)} className="flex items-center gap-1 text-blue-700"><Send className="h-3 w-3" />Enviar a {type === 'revision' ? 'revisión' : 'aprobación'}</button><button onClick={() => copyLink(item,type)} className="flex items-center gap-1 text-slate-600"><Copy className="h-3 w-3" />Copiar enlace</button></React.Fragment>)}</div>}</div>)}</div> : <p className="text-xs text-slate-500">Aún no existen estados de pago para esta obra.</p>}</div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <h3 className="mb-3 text-sm font-black text-slate-800">Historial contractual</h3>
+          {estados.length ? <div className="space-y-2">{estados.map(item => <div key={item.id} className="rounded-xl bg-slate-50 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div><p className="text-xs font-black text-slate-800">Estado de Pago N° {item.numero}</p><p className="text-[11px] text-slate-500">Corte {item.fecha_corte} · Neto {money(item.monto_neto)}</p></div>
+              <div className="flex items-center gap-2"><span className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-slate-600">{item.estado}</span>{canPreparePayment && <button type="button" onClick={() => deletePayment(item)} title="Eliminar Estado de Pago" className="rounded-lg border border-rose-200 bg-white p-1.5 text-rose-700 hover:bg-rose-50"><Trash2 className="h-3.5 w-3.5" /></button>}</div>
+            </div>
+            {item.estado === 'Observado' && (item.items || []).some(line => line.comentario_externo || Number(line.cantidad_propuesta) !== Number(line.executed)) && <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-900"><b>Propuesta externa por partidas</b>{(item.items || []).filter(line => line.comentario_externo || Number(line.cantidad_propuesta) !== Number(line.executed)).map((line, index) => <p key={index} className="mt-1">{line.partida}: propone {line.cantidad_propuesta} {line.unidad} (emitido: {line.executed} {line.unidad}){line.comentario_externo ? ` · ${line.comentario_externo}` : ''}</p>)}</div>}
+            {item.estado !== 'Aprobado' && item.estado !== 'Pagado' && <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold">{['revision', 'aprobacion'].map(type => <React.Fragment key={type}><button onClick={() => sendExternal(item, type)} className="flex items-center gap-1 text-blue-700"><Send className="h-3 w-3" />Enviar a {type === 'revision' ? 'revisión' : 'aprobación'}</button><button onClick={() => copyLink(item, type)} className="flex items-center gap-1 text-slate-600"><Copy className="h-3 w-3" />Copiar enlace</button></React.Fragment>)}</div>}
+          </div>)}</div> : <p className="text-xs text-slate-500">Aún no existen estados de pago para esta obra.</p>}
+        </div>
       </section>
     </div>
   </div>;

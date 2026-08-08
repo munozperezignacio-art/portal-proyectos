@@ -54,5 +54,8 @@ ALTER TABLE estados_pago_obra ADD COLUMN IF NOT EXISTS token_revision TEXT UNIQU
 ALTER TABLE estados_pago_obra ADD COLUMN IF NOT EXISTS token_aprobacion TEXT UNIQUE;
 ALTER TABLE estados_pago_obra ADD COLUMN IF NOT EXISTS observacion_revision TEXT;
 ALTER TABLE estados_pago_obra ADD COLUMN IF NOT EXISTS observacion_aprobacion TEXT;
+-- Solo se almacena el hash de la clave temporal enviada al revisor/aprobador.
+ALTER TABLE estados_pago_obra ADD COLUMN IF NOT EXISTS clave_revision_hash TEXT;
+ALTER TABLE estados_pago_obra ADD COLUMN IF NOT EXISTS clave_aprobacion_hash TEXT;
 ALTER TABLE estados_pago_obra DROP CONSTRAINT IF EXISTS estados_pago_obra_estado_check;
 ALTER TABLE estados_pago_obra ADD CONSTRAINT estados_pago_obra_estado_check CHECK (estado IN ('Borrador', 'En revisión', 'Observado', 'En aprobación', 'Aprobado', 'Enviado', 'Pagado', 'Rechazado'));
