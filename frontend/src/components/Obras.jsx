@@ -322,7 +322,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [obraSearch, setObraSearch] = useState('');
   const [obraTypeFilter, setObraTypeFilter] = useState('todas');
   const [onlyFavorites, setOnlyFavorites] = useState(false);
+  const [obraStatusFilter, setObraStatusFilter] = useState('activas');
   const [showObraTools, setShowObraTools] = useState(false);
+  const [showObraDetails, setShowObraDetails] = useState(false);
+  const [obraDetailsForm, setObraDetailsForm] = useState({ especialidad: '', estado: 'Activa', fecha_termino_real: '', motivo_cierre: '' });
 
   const toggleFavorite = (e, name) => {
     e.stopPropagation();
@@ -339,8 +342,29 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const filteredObras = obras.filter(obra => {
     const search = obraSearch.trim().toLowerCase();
     const matchSearch = !search || `${obra.nombre || ''} ${obra.tipo || ''} ${obra.cliente || ''}`.toLowerCase().includes(search);
-    return matchSearch && (obraTypeFilter === 'todas' || obra.tipo === obraTypeFilter) && (!onlyFavorites || favorites.includes(obra.nombre));
+    const status = String(obra.estado || 'Activa').toLowerCase();
+    const matchStatus = obraStatusFilter === 'todas' || (obraStatusFilter === 'activas' && ['activa', 'en pausa'].includes(status)) || (obraStatusFilter === 'cierre' && status === 'en cierre') || (obraStatusFilter === 'terminadas' && ['terminada', 'archivada'].includes(status));
+    return matchSearch && matchStatus && (obraTypeFilter === 'todas' || obra.tipo === obraTypeFilter) && (!onlyFavorites || favorites.includes(obra.nombre));
   }).sort((left, right) => Number(favorites.includes(right.nombre)) - Number(favorites.includes(left.nombre)) || String(left.nombre).localeCompare(String(right.nombre)));
+
+  const openObraDetails = () => {
+    setObraDetailsForm({ especialidad: selectedObra?.tipo || '', estado: selectedObra?.estado || 'Activa', fecha_termino_real: toDateKey(selectedObra?.fecha_termino_real), motivo_cierre: selectedObra?.motivo_cierre || '' });
+    setShowObraDetails(true);
+  };
+  const saveObraDetails = async (event) => {
+    event.preventDefault();
+    const isClosed = ['Terminada', 'Archivada'].includes(obraDetailsForm.estado);
+    if (isClosed && (!obraDetailsForm.fecha_termino_real || !obraDetailsForm.motivo_cierre.trim())) { setErrorMsg('Para cerrar una obra registra la fecha real de término y el motivo de cierre.'); return; }
+    setModalLoading(true); setErrorMsg('');
+    try {
+      const payload = { tipo: obraDetailsForm.especialidad.trim() || 'Construcción General', estado: obraDetailsForm.estado, fecha_termino_real: obraDetailsForm.fecha_termino_real || null, motivo_cierre: obraDetailsForm.motivo_cierre.trim() || null };
+      const { error } = await supabase.from('obras').update(payload).eq('id', selectedObra.id);
+      if (error) throw error;
+      const updated = { ...selectedObra, ...payload };
+      setSelectedObra(updated); setObras(current => current.map(obra => obra.id === updated.id ? updated : obra)); setShowObraDetails(false); setSuccessMsg(isClosed ? 'Obra cerrada y enviada al historial.' : 'Ficha de obra actualizada.');
+    } catch (error) { setErrorMsg(error.message?.includes('column') ? 'Falta habilitar el ciclo de vida de obras en Supabase. Ejecuta schema_obras_lifecycle.sql y vuelve a intentar.' : `No se pudo actualizar la ficha de obra: ${error.message}`); }
+    finally { setModalLoading(false); }
+  };
   
   // Estados para métricas de la obra seleccionada
   const [personalCount, setPersonalCount] = useState(0);
@@ -2351,6 +2375,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
           <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 sm:flex-row sm:items-center">
             <div className="relative min-w-0 flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input value={obraSearch} onChange={event => setObraSearch(event.target.value)} placeholder="Buscar por obra, cliente o especialidad…" className="w-full rounded-xl border border-slate-300 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15" /></div>
+            <select value={obraStatusFilter} onChange={event => setObraStatusFilter(event.target.value)} className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-700"><option value="activas">Activas y en pausa</option><option value="cierre">En cierre</option><option value="terminadas">Terminadas / archivadas</option><option value="todas">Todos los estados</option></select>
             <select value={obraTypeFilter} onChange={event => setObraTypeFilter(event.target.value)} className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-700"><option value="todas">Todas las especialidades</option>{obraTypes.map(type => <option key={type} value={type}>{type}</option>)}</select>
             <button onClick={() => setOnlyFavorites(value => !value)} className={`rounded-xl border px-3 py-2.5 text-xs font-bold transition ${onlyFavorites ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'}`}>{onlyFavorites ? '★ Favoritas' : '☆ Favoritas'}</button>
           </div>
@@ -2439,6 +2464,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
             <div className="flex flex-wrap gap-2">
               <button onClick={() => setShowObraTools(value => !value)} className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-[11px] text-slate-700 font-bold px-3 py-2 border border-slate-300 rounded-lg transition"><Settings className="w-3.5 h-3.5" /><span>{showObraTools ? 'Ocultar herramientas' : 'Herramientas'}</span></button>
               {showObraTools && <>
+              <button onClick={openObraDetails} className="flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-[11px] text-amber-900 font-bold px-3 py-2 border border-amber-200 rounded-lg transition"><Edit className="w-3.5 h-3.5" /><span>Ficha y cierre</span></button>
               {/* Configuración de Correos de la Obra (Engranaje ⚙️) */}
               {canConfigureEmails(user) && (
                 <button
@@ -8891,6 +8917,15 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 Guardar Arriendo de Equipo
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showObraDetails && selectedObra && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto bg-slate-900/60 p-3 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between border-b border-slate-200 pb-3"><div><h3 className="text-base font-black text-slate-900">Ficha y cierre de obra</h3><p className="mt-1 text-xs text-slate-500">Actualiza la especialidad y administra el ciclo de vida sin eliminar su historial.</p></div><button onClick={() => setShowObraDetails(false)} className="rounded-lg p-1 text-slate-500 hover:bg-slate-100">✕</button></div>
+            <form onSubmit={saveObraDetails} className="space-y-4"><label className="block text-xs font-bold text-slate-700">Especialidad<input value={obraDetailsForm.especialidad} onChange={event => setObraDetailsForm({ ...obraDetailsForm, especialidad: event.target.value })} placeholder="Ej. Edificación, vialidad, montaje" className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /></label><label className="block text-xs font-bold text-slate-700">Estatus de la obra<select value={obraDetailsForm.estado} onChange={event => setObraDetailsForm({ ...obraDetailsForm, estado: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm"><option>Activa</option><option>En pausa</option><option>En cierre</option><option>Terminada</option><option>Archivada</option></select></label>{['Terminada', 'Archivada'].includes(obraDetailsForm.estado) && <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-3"><p className="text-xs font-bold text-amber-900">Al cerrar, la obra saldrá de la vista operativa y quedará disponible en el historial.</p><label className="block text-xs font-bold text-slate-700">Fecha real de término<input type="date" required value={obraDetailsForm.fecha_termino_real} onChange={event => setObraDetailsForm({ ...obraDetailsForm, fecha_termino_real: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /></label><label className="block text-xs font-bold text-slate-700">Motivo de cierre<textarea required rows={3} value={obraDetailsForm.motivo_cierre} onChange={event => setObraDetailsForm({ ...obraDetailsForm, motivo_cierre: event.target.value })} placeholder="Ej. Recepción conforme, término anticipado, cierre administrativo" className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /></label></div>}{errorMsg && <p className="rounded-lg bg-rose-50 p-2 text-xs font-semibold text-rose-700">{errorMsg}</p>}<div className="flex justify-end gap-2 pt-2"><button type="button" onClick={() => setShowObraDetails(false)} className="rounded-xl bg-slate-100 px-4 py-2.5 text-xs font-bold text-slate-700">Cancelar</button><button disabled={modalLoading} type="submit" className="rounded-xl bg-blue-900 px-4 py-2.5 text-xs font-black text-white disabled:opacity-50">{modalLoading ? 'Guardando…' : 'Guardar ficha'}</button></div></form>
           </div>
         </div>
       )}
