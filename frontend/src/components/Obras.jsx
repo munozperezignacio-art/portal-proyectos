@@ -4534,7 +4534,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                             <div>
                               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-200">Control ejecutivo al {fCorteStr}</p>
-                              <h4 className="text-lg font-black mt-1">{filtroPartidaEstadisticas === 'GLOBAL' ? 'Pulso general de la obra' : 'Pulso del alcance seleccionado'}</h4>
+                              <h4 className="text-lg font-black mt-1">{filtroPartidaEstadisticas === 'GLOBAL' ? 'Estatus de la Obra' : 'Estatus del alcance seleccionado'}</h4>
                               <p className="text-xs text-blue-100 mt-1">Producción, plazo, costo, recursos y seguridad para decidir dónde actuar primero.</p>
                             </div>
                             <div className="flex flex-wrap gap-2 text-xs font-bold">
