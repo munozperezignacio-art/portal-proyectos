@@ -45,6 +45,7 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
   const [recepciones, setRecepciones] = useState([]);
   const [receptionControls, setReceptionControls] = useState([]);
   const [expandedReceptionId, setExpandedReceptionId] = useState(null);
+  const [protocolAvailable, setProtocolAvailable] = useState(true);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [pacForm, setPacForm] = useState(initialPac);
@@ -87,7 +88,10 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
         supabase.from('calidad_recepcion_controles').select('*').order('created_at'),
       ]);
       if (partidasRes.error) throw partidasRes.error;
-      if (pacRes.error || rdiRes.error || ncRes.error || receptionRes.error || controlsRes.error) throw (pacRes.error || rdiRes.error || ncRes.error || receptionRes.error || controlsRes.error);
+      if (pacRes.error || rdiRes.error || ncRes.error || receptionRes.error) throw (pacRes.error || rdiRes.error || ncRes.error || receptionRes.error);
+      const missingProtocolTable = controlsRes.error?.message?.includes('calidad_recepcion_controles');
+      if (controlsRes.error && !missingProtocolTable) throw controlsRes.error;
+      setProtocolAvailable(!missingProtocolTable);
       const nextReceptions = receptionRes.data || [];
       const receptionIds = new Set(nextReceptions.map(item => item.id));
       setPartidas(partidasRes.data || []); setPacs(pacRes.data || []); setRdis(rdiRes.data || []); setNcs(ncRes.data || []); setRecepciones(nextReceptions); setReceptionControls((controlsRes.data || []).filter(control => receptionIds.has(control.recepcion_id)));
@@ -140,14 +144,16 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
       const rdi = rdis.find(item => String(item.id) === String(receptionPayload.rdi_id));
       const pac = pacPorPartida.get(receptionPayload.partida) || pacs.find(item => String(item.id) === String(rdi?.pac_id));
       const protocol = protocolFromPac(pac, controles_manual);
-      const { data: createdReception, error } = await supabase.from('calidad_recepciones_partidas').insert({ empresa, obra_nombre: obraNombre, ...receptionPayload, pac_id: pac?.id || null, codigo, estado: 'Pendiente de recepción' }).select().single();
+      const insertPayload = { empresa, obra_nombre: obraNombre, ...receptionPayload, codigo, estado: 'Pendiente de recepción' };
+      if (protocolAvailable) insertPayload.pac_id = pac?.id || null;
+      const { data: createdReception, error } = await supabase.from('calidad_recepciones_partidas').insert(insertPayload).select().single();
       if (error) throw error;
-      if (protocol.length) {
+      if (protocolAvailable && protocol.length) {
         const { error: protocolError } = await supabase.from('calidad_recepcion_controles').insert(protocol.map(control => ({ ...control, recepcion_id: createdReception.id, pac_id: pac?.id || null })));
         if (protocolError) throw protocolError;
       }
       await registrarEventoBitacora({ empresa, obraNombre, categoria: 'Calidad', accion: `${codigo} entregada para recepción`, detalle: `${receptionForm.partida} · ${receptionForm.cantidad || 0} ${receptionForm.unidad || ''} · ${receptionForm.sector || 'Sin sector'}`, actor: receptionForm.entrega_por || user?.nombre || user?.email, fecha: receptionForm.fecha_entrega });
-      setReceptionForm(initialReception); setExpandedReceptionId(createdReception.id); setMessage(`${codigo} registrada con ${protocol.length} control${protocol.length === 1 ? '' : 'es'} de protocolo.`); await load();
+      setReceptionForm(initialReception); setExpandedReceptionId(createdReception.id); setMessage(protocolAvailable ? `${codigo} registrada con ${protocol.length} control${protocol.length === 1 ? '' : 'es'} de protocolo.` : `${codigo} registrada. El protocolo se habilitará al ejecutar el esquema de Calidad en Supabase.`); await load();
     } catch (error) { setMessage(`No se pudo registrar la recepción: ${error.message}`); }
   };
   const updateStatus = async (table, id, estado) => {
