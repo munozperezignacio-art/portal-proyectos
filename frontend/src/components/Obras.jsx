@@ -3922,7 +3922,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                         { id: 'notas', label: '📝 Notas & Comentarios' },
                         { id: 'avances', label: '📊 Avances' },
                         { id: 'asistencia', label: '⏱️ Asistencia' },
-                        { id: 'calidad', label: '🧪 Calidad' },
+                        { id: 'calidad', label: '📋 Calidad y RDI' },
                         { id: 'prevencion', label: '🛡️ Prevención' },
                         { id: 'estados_pago', label: '💰 Estados de Pago' }
                       ].map(f => {
