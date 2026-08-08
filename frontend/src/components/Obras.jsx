@@ -5529,7 +5529,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           )}
 
           {/* VISTA DEDICADA 11: PRESUPUESTO DE OBRA */}
-          {obraActiveSubmodule === 'gestion_obra' && <div className="mb-5 rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4"><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div><p className="text-sm font-black text-indigo-950">Plan y Control de Obra</p><p className="mt-1 text-xs text-indigo-900">Conecta el presupuesto, la carta Gantt y los costos reales para decidir con una sola fuente de información.</p></div><div className="flex flex-wrap gap-2">{[['presupuesto', 'Presupuesto'], ['planificacion', 'Programación'], ['costos', 'Costos reales']].map(([id, label]) => <button key={id} onClick={() => setGestionObraTab(id)} className={`rounded-xl px-3 py-2 text-xs font-black ${gestionObraTab === id ? 'bg-indigo-800 text-white' : 'border border-indigo-200 bg-white text-indigo-900'}`}>{label}</button>)}</div></div></div>}
+          {obraActiveSubmodule === 'gestion_obra' && <div className="mb-5 rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4"><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div><p className="text-sm font-black text-indigo-950">Plan y Control de Obra</p><p className="mt-1 text-xs text-indigo-900">Conecta el presupuesto, la carta Gantt y el control de costos para decidir con una sola fuente de información.</p></div><div className="flex flex-wrap gap-2">{[['presupuesto', 'Presupuesto'], ['planificacion', 'Programación'], ['costos', 'Control de costos']].map(([id, label]) => <button key={id} onClick={() => setGestionObraTab(id)} className={`rounded-xl px-3 py-2 text-xs font-black ${gestionObraTab === id ? 'bg-indigo-800 text-white' : 'border border-indigo-200 bg-white text-indigo-900'}`}>{label}</button>)}</div></div></div>}
 
           {obraActiveSubmodule === 'gestion_obra' && gestionObraTab === 'presupuesto' && (
             <div className="space-y-6 animate-in fade-in duration-200">
@@ -5632,7 +5632,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     onDrop={(e) => { e.preventDefault(); const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10); if (!isNaN(fromIdx)) handleReorderPartidaObra(fromIdx, idx); }}
     className="bg-slate-100 hover:bg-slate-200 border-y border-slate-200 text-slate-800 transition cursor-grab active:cursor-grabbing"
   >
-                                <td colSpan="7" className="p-3">
+                                <td colSpan="5" className="p-3">
                                   <div className="grid w-full grid-cols-[112px_minmax(220px,1fr)_110px_minmax(180px,auto)] items-center gap-3">
                                     <div className="contents">
                                       <span className="hidden bg-indigo-600 text-white font-black text-[10px] px-2 py-0.5 rounded uppercase tracking-wider border border-indigo-400">
@@ -5645,7 +5645,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                     </div>
 
                                     <div className="flex items-center justify-end gap-4">
-                                      <div className="flex items-center gap-1.5 bg-white px-3 py-1 rounded-lg border border-slate-300 shadow-2xs">
+                                      <div className="hidden flex items-center gap-1.5 bg-white px-3 py-1 rounded-lg border border-slate-300 shadow-2xs">
                                         <span className="text-[10px] font-bold text-slate-500 uppercase">Subtotal Grupo:</span>
                                         <span className="font-mono font-black text-emerald-800 text-xs">
                                           ${groupSum.toLocaleString('es-CL')}
@@ -5712,6 +5712,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                     </div>
                                   </div>
                                 </td>
+                                <td className="p-3 text-right font-mono font-black text-emerald-800">${groupSum.toLocaleString('es-CL')}</td>
+                                <td className="p-3"></td>
                               </tr>
                             );
                           }
