@@ -242,7 +242,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 p-4 sm:p-6 font-sans">
       {/* Header Estándar de Obraxis */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 border border-slate-200 rounded-3xl shadow-xs">
+      <div className="mb-6 flex flex-col items-start justify-between gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-xs sm:flex-row sm:items-center">
         <div className="flex items-start gap-4">
           <button 
             onClick={() => {
