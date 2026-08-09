@@ -355,6 +355,23 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     } finally { setLoading(false); }
   };
 
+  const deleteForm = async (form) => {
+    if (!window.confirm(`¿Eliminar el formulario "${form.titulo}"? Esta acción no elimina las respuestas ya registradas.`)) return;
+    setLoading(true);
+    try {
+      if (form.id) {
+        const { error } = await supabase.from('prevencion_formularios').delete().eq('id', form.id);
+        if (error) throw error;
+      }
+      const updated = formularios.filter(item => item !== form && item.id !== form.id);
+      setFormularios(updated);
+      localStorage.setItem('obraxis_formularios_dinamicos', JSON.stringify(updated.filter(item => !item.id)));
+      setSuccessMsg('Formulario eliminado.');
+    } catch (error) {
+      setErrorMsg(`No se pudo eliminar el formulario: ${error.message}`);
+    } finally { setLoading(false); }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 p-4 sm:p-6 font-sans">
       {/* Header Estándar de Obraxis */}
@@ -706,6 +723,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                         <span>Copiar Enlace</span>
                       </button>
                       <button onClick={() => openFormEditor(form)} className="py-2 px-3 rounded-xl border border-slate-200 text-slate-700 text-[10.5px] font-bold hover:bg-slate-50">Editar</button>
+                      <button onClick={() => deleteForm(form)} disabled={loading} className="py-2 px-3 rounded-xl border border-rose-200 text-rose-700 text-[10.5px] font-bold hover:bg-rose-50">Eliminar</button>
                     </div>
                   </div>
                 );
