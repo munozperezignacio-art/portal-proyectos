@@ -377,11 +377,38 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     const form = response.prevencion_formularios || {};
     const storedFields = form.campos;
     const control = storedFields && !Array.isArray(storedFields) ? (storedFields.control_documental || {}) : {};
-    return { ...form, campos: Array.isArray(storedFields) ? storedFields : (storedFields?.items || []), codigo: control.codigo || form.codigo, revision: control.revision || form.revision, fecha_revision: control.fecha_revision || form.fecha_revision };
+    const configuredFields = Array.isArray(storedFields) ? storedFields : (storedFields?.items || []);
+    // Una respuesta nunca queda "vacía": este respaldo permite leer registros
+    // históricos incluso si la relación de Supabase no trae el formulario.
+    const fallbackFields = Object.entries(response.respuestas || {}).map(([id, value]) => ({
+      id,
+      label: id.replace(/_/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase()),
+      type: typeof value === 'string' && value.startsWith('data:image') ? 'photo' : 'text'
+    }));
+    return { ...form, campos: configuredFields.length ? configuredFields : fallbackFields, codigo: control.codigo || form.codigo, revision: control.revision || form.revision, fecha_revision: control.fecha_revision || form.fecha_revision };
   };
 
-  const downloadResponsePdf = (response) => {
-    const form = responseForm(response);
+  const resolveResponseForm = async (response) => {
+    if (response.prevencion_formularios?.campos) return response;
+    if (!response.formulario_id) return response;
+    const { data, error } = await supabase.from('prevencion_formularios').select('*').eq('id', response.formulario_id).maybeSingle();
+    if (error || !data) return response;
+    return { ...response, prevencion_formularios: data };
+  };
+
+  const reviewResponse = async (response) => {
+    setLoading(true);
+    try {
+      const resolved = await resolveResponseForm(response);
+      setViewingResponse(resolved);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const downloadResponsePdf = async (response) => {
+    const resolved = await resolveResponseForm(response);
+    const form = responseForm(resolved);
     const base64 = generateFormPdf({ form, metadata: { proyecto_nombre: response.proyecto_nombre || '', inspector: response.inspector || '' }, answers: response.respuestas || {}, mainSignature: response.firma_url, companyLogo: companyBranding?.logo_base64 });
     const bytes = Uint8Array.from(atob(base64), char => char.charCodeAt(0));
     const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
@@ -861,7 +888,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                     <h4 className="text-xs font-bold text-slate-850 uppercase">{resp.prevencion_formularios?.titulo || resp.formulario_titulo || 'Formulario'}</h4>
                     <p className="text-[10.5px] text-slate-500">Respondido por: {resp.inspector || resp.usuario_nombre || 'Anónimo'} · Obra: {resp.proyecto_nombre || 'Sin obra informada'}</p>
                   </div>
-                  <div className="flex items-center gap-2"><span className="text-[10px] text-slate-400">{new Date(resp.created_at || Date.now()).toLocaleDateString('es-CL')}</span><button onClick={() => setViewingResponse(resp)} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-black text-slate-700 hover:bg-slate-50"><Eye className="mr-1 inline h-3.5 w-3.5" />Revisar</button><button onClick={() => downloadResponsePdf(resp)} className="rounded-lg bg-primary px-2.5 py-1.5 text-[10px] font-black text-white hover:bg-primary-hover"><Download className="mr-1 inline h-3.5 w-3.5" />PDF</button></div>
+                  <div className="flex items-center gap-2"><span className="text-[10px] text-slate-400">{new Date(resp.created_at || Date.now()).toLocaleDateString('es-CL')}</span><button onClick={() => reviewResponse(resp)} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-black text-slate-700 hover:bg-slate-50"><Eye className="mr-1 inline h-3.5 w-3.5" />Revisar</button><button onClick={() => downloadResponsePdf(resp)} className="rounded-lg bg-primary px-2.5 py-1.5 text-[10px] font-black text-white hover:bg-primary-hover"><Download className="mr-1 inline h-3.5 w-3.5" />PDF</button></div>
                 </div>
               ))}
             </div>
