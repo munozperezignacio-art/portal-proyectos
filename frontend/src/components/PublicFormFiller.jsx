@@ -432,18 +432,6 @@ export default function PublicFormFiller({ formToken }) {
               Muchas gracias. El formulario "{form.titulo}" ha sido registrado correctamente en la plataforma de Prevención de Riesgos.
             </p>
           </div>
-          <button
-            onClick={() => {
-              setSubmittedSuccess(false);
-              setFillAnswers({});
-              setMainSignatureDataUrl('');
-              setRepeaterSignatures({});
-              setFillMetadata({ proyecto_nombre: '', inspector: '' });
-            }}
-            className="mt-2 bg-primary hover:bg-primary-hover text-white text-xs font-bold px-5 py-2.5 rounded-xl transition cursor-pointer"
-          >
-            Enviar Otra Respuesta
-          </button>
         </div>
       </div>
     );
