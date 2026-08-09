@@ -11,6 +11,8 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
+  const [formSearch, setFormSearch] = useState('');
+  const [responseSearch, setResponseSearch] = useState('');
 
   // Módulos disponibles para asignar formularios
   const modulosAsignables = [
@@ -48,13 +50,14 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     fetchFormularios();
     fetchRespuestas();
     fetchCapacitaciones();
-  }, []);
+  }, [user?.empresa]);
 
   const fetchFormularios = async () => {
     try {
       const { data, error } = await supabase
         .from('prevencion_formularios')
         .select('*')
+        .eq('empresa', user?.empresa || 'EMIN')
         .order('created_at', { ascending: false });
 
       if (!error && data) {
@@ -78,6 +81,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       const { data, error } = await supabase
         .from('prevencion_respuestas_formularios')
         .select('*')
+        .eq('empresa', user?.empresa || 'EMIN')
         .order('created_at', { ascending: false });
 
       if (!error && data) {
@@ -101,6 +105,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       const { data, error } = await supabase
         .from('prevencion_capacitaciones')
         .select('*')
+        .eq('empresa', user?.empresa || 'EMIN')
         .order('created_at', { ascending: false });
 
       if (!error && data) {
@@ -265,14 +270,6 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
           </div>
         </div>
 
-        {activeTab !== 'menu' && (
-          <button
-            onClick={() => setActiveTab('menu')}
-            className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3.5 py-2 rounded-xl transition cursor-pointer border border-slate-200"
-          >
-            <span>← Volver al Menú Principal</span>
-          </button>
-        )}
       </div>
 
       {/* Alertas Estándar */}
@@ -285,7 +282,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-6 mb-4">
             SUBMÓDULOS DE FORMULARIOS Y CAPACITACIONES
           </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 animate-in fade-in duration-200">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-in fade-in duration-200">
           
           {/* Card 1: Diseñador */}
           <div 
@@ -325,7 +322,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
             </div>
             <div className="space-y-1 mt-4">
               <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
-                Mis Formularios ({formularios.length})
+                Biblioteca de Formularios
               </h3>
               <p className="text-xs text-slate-500 leading-normal">
                 Administra plantillas activas, genera enlaces públicos de llenado y edita sus asignaciones.
@@ -375,7 +372,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
             </div>
             <div className="space-y-1 mt-4">
               <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
-                Registro de Respuestas ({respuestas.length})
+                Registros y Respuestas
               </h3>
               <p className="text-xs text-slate-500 leading-normal">
                 Inspecciona y exporta los registros de respuestas completadas por trabajadores y contratistas.
@@ -518,7 +515,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       {activeTab === 'forms_list' && (
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in duration-200 space-y-4">
           <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-            <h2 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider">Mis Formularios Configurados</h2>
+            <div><h2 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider">Biblioteca de Formularios</h2><p className="mt-1 text-[11px] text-slate-500">{formularios.length} formularios disponibles para publicar y responder.</p></div>
             <button
               onClick={() => setActiveTab('designer')}
               className="px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm hover:bg-primary-hover transition"
@@ -528,6 +525,8 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
             </button>
           </div>
 
+          {formularios.length > 0 && <input value={formSearch} onChange={e => setFormSearch(e.target.value)} placeholder="Buscar por título, módulo o descripción…" className="h-10 w-full max-w-md rounded-xl border border-slate-200 px-3 text-xs font-medium outline-none focus:border-primary" />}
+
           {formularios.length === 0 ? (
             <div className="text-center py-12 text-slate-400">
               <FileText className="w-12 h-12 mx-auto mb-2 opacity-40" />
@@ -535,7 +534,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {formularios.map(form => {
+              {formularios.filter(form => `${form.titulo} ${form.descripcion || ''} ${form.modulo_asignado || ''}`.toLowerCase().includes(formSearch.toLowerCase())).map(form => {
                 const publicUrl = `${window.location.origin}/?prevencion_form=${form.token_publico || form.id}`;
                 const modObj = modulosAsignables.find(m => m.id === form.modulo_asignado) || { name: 'General' };
 
@@ -669,6 +668,8 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
             <p className="text-xs text-slate-500">Historial completo de formularios completados por personal o subcontratistas.</p>
           </div>
 
+          {respuestas.length > 0 && <input value={responseSearch} onChange={e => setResponseSearch(e.target.value)} placeholder="Buscar formulario, persona o RUT…" className="h-10 w-full max-w-md rounded-xl border border-slate-200 px-3 text-xs font-medium outline-none focus:border-primary" />}
+
           {respuestas.length === 0 ? (
             <div className="text-center py-12 text-slate-400">
               <CheckSquare className="w-12 h-12 mx-auto mb-2 opacity-40" />
@@ -676,7 +677,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {respuestas.map(resp => (
+              {respuestas.filter(resp => `${resp.formulario_titulo || ''} ${resp.usuario_nombre || ''} ${resp.usuario_rut || ''}`.toLowerCase().includes(responseSearch.toLowerCase())).map(resp => (
                 <div key={resp.id} className="py-3 flex items-center justify-between">
                   <div>
                     <h4 className="text-xs font-bold text-slate-850 uppercase">{resp.formulario_titulo || 'Formulario'}</h4>
