@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { generateFormPdf } from '../utils/pdfGenerator';
 import { 
   ArrowLeft, ChevronRight, ClipboardCheck, Plus, FileText, CheckCircle2, AlertCircle, 
   HelpCircle, Trash2, Edit3, Share2, Download, Copy, Eye, BookOpen, 
@@ -13,6 +14,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   const [loading, setLoading] = useState(false);
   const [formSearch, setFormSearch] = useState('');
   const [responseSearch, setResponseSearch] = useState('');
+  const [viewingResponse, setViewingResponse] = useState(null);
 
   // Módulos disponibles para asignar formularios
   const modulosAsignables = [
@@ -369,6 +371,21 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     } catch (error) {
       setErrorMsg(`No se pudo eliminar el formulario: ${error.message}`);
     } finally { setLoading(false); }
+  };
+
+  const responseForm = (response) => {
+    const form = response.prevencion_formularios || {};
+    const storedFields = form.campos;
+    const control = storedFields && !Array.isArray(storedFields) ? (storedFields.control_documental || {}) : {};
+    return { ...form, campos: Array.isArray(storedFields) ? storedFields : (storedFields?.items || []), codigo: control.codigo || form.codigo, revision: control.revision || form.revision, fecha_revision: control.fecha_revision || form.fecha_revision };
+  };
+
+  const downloadResponsePdf = (response) => {
+    const form = responseForm(response);
+    const base64 = generateFormPdf({ form, metadata: { proyecto_nombre: response.proyecto_nombre || '', inspector: response.inspector || '' }, answers: response.respuestas || {}, mainSignature: response.firma_url, companyLogo: companyBranding?.logo_base64 });
+    const bytes = Uint8Array.from(atob(base64), char => char.charCodeAt(0));
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    const link = document.createElement('a'); link.href = url; link.download = `${(form.titulo || 'Formulario').replace(/[^a-zA-Z0-9]/g, '_')}_${new Date(response.created_at || Date.now()).toISOString().slice(0, 10)}.pdf`; link.click(); URL.revokeObjectURL(url);
   };
 
   return (
@@ -839,18 +856,19 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
           ) : (
             <div className="divide-y divide-slate-100">
               {respuestas.filter(resp => `${resp.prevencion_formularios?.titulo || resp.formulario_titulo || ''} ${resp.inspector || resp.usuario_nombre || ''} ${resp.proyecto_nombre || resp.usuario_rut || ''}`.toLowerCase().includes(responseSearch.toLowerCase())).map(resp => (
-                <div key={resp.id} className="py-3 flex items-center justify-between">
+                <div key={resp.id} className="py-3 flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <h4 className="text-xs font-bold text-slate-850 uppercase">{resp.prevencion_formularios?.titulo || resp.formulario_titulo || 'Formulario'}</h4>
                     <p className="text-[10.5px] text-slate-500">Respondido por: {resp.inspector || resp.usuario_nombre || 'Anónimo'} · Obra: {resp.proyecto_nombre || 'Sin obra informada'}</p>
                   </div>
-                  <span className="text-[10px] text-slate-400">{new Date(resp.created_at || Date.now()).toLocaleDateString('es-CL')}</span>
+                  <div className="flex items-center gap-2"><span className="text-[10px] text-slate-400">{new Date(resp.created_at || Date.now()).toLocaleDateString('es-CL')}</span><button onClick={() => setViewingResponse(resp)} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-black text-slate-700 hover:bg-slate-50"><Eye className="mr-1 inline h-3.5 w-3.5" />Revisar</button><button onClick={() => downloadResponsePdf(resp)} className="rounded-lg bg-primary px-2.5 py-1.5 text-[10px] font-black text-white hover:bg-primary-hover"><Download className="mr-1 inline h-3.5 w-3.5" />PDF</button></div>
                 </div>
               ))}
             </div>
           )}
         </div>
       )}
+      {viewingResponse && (() => { const form = responseForm(viewingResponse); return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"><div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl"><div className="mb-5 flex items-start justify-between gap-4 border-b border-slate-100 pb-4"><div><h3 className="text-sm font-black uppercase text-slate-850">{form.titulo || 'Formulario'}</h3><p className="mt-1 text-xs text-slate-500">{viewingResponse.inspector || 'Anónimo'} · {viewingResponse.proyecto_nombre || 'Sin obra'} · {new Date(viewingResponse.created_at || Date.now()).toLocaleString('es-CL')}</p></div><button onClick={() => setViewingResponse(null)} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700">Cerrar</button></div><div className="space-y-4">{(form.campos || []).map(field => <div key={field.id} className="rounded-xl border border-slate-200 p-3"><p className="text-[10px] font-black uppercase text-slate-500">{field.label}</p>{field.type === 'photo' && viewingResponse.respuestas?.[field.id] ? <img src={viewingResponse.respuestas[field.id]} alt="Evidencia" className="mt-2 max-h-64 rounded-lg border border-slate-200" /> : field.type === 'signature' && viewingResponse.respuestas?.[field.id] ? <img src={viewingResponse.respuestas[field.id]} alt="Firma" className="mt-2 max-h-24" /> : <p className="mt-1 text-sm text-slate-800 whitespace-pre-wrap">{Array.isArray(viewingResponse.respuestas?.[field.id]) ? viewingResponse.respuestas[field.id].join(', ') : (typeof viewingResponse.respuestas?.[field.id] === 'object' ? JSON.stringify(viewingResponse.respuestas?.[field.id]) : (viewingResponse.respuestas?.[field.id] || 'Sin respuesta'))}</p>}</div>)}</div></div></div>; })()}
     </div>
   );
 }
