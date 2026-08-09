@@ -46,7 +46,9 @@ export default function PublicFormFiller({ formToken }) {
       if (isNum) {
         query = query.eq('id', parseInt(formToken, 10));
       } else {
-        query = query.eq('publico_token', formToken);
+        // Los formularios se emiten con el campo `token_publico`.
+        // Mantener este nombre alineado con el generador de enlaces públicos.
+        query = query.eq('token_publico', formToken);
       }
 
       const { data, error: err } = await query.maybeSingle();
