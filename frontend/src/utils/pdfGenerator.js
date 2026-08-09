@@ -37,7 +37,17 @@ export function generateFormPdf({ form, metadata, answers, mainSignature, compan
     // Columna 1: Logo
     if (companyLogo) {
       try {
-        doc.addImage(companyLogo, 'PNG', margin + 3, y + 3, 39, 18);
+        // Cada empresa puede usar un logo con proporciones distintas. Se escala
+        // dentro del recuadro disponible sin deformarlo y se centra visualmente.
+        const image = doc.getImageProperties(companyLogo);
+        const maxWidth = 39;
+        const maxHeight = 18;
+        const scale = Math.min(maxWidth / image.width, maxHeight / image.height);
+        const logoWidth = image.width * scale;
+        const logoHeight = image.height * scale;
+        const logoX = margin + (45 - logoWidth) / 2;
+        const logoY = y + (24 - logoHeight) / 2;
+        doc.addImage(companyLogo, image.fileType || 'PNG', logoX, logoY, logoWidth, logoHeight);
       } catch (e) {
         doc.setTextColor(15, 23, 42);
         doc.setFont('helvetica', 'bold');
