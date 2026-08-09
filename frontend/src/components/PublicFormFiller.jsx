@@ -57,18 +57,21 @@ export default function PublicFormFiller({ formToken }) {
     setLoading(true);
     setError('');
     try {
-      let query = supabase.from('prevencion_formularios').select('*');
-      
       const isNum = !isNaN(formToken);
+      let data;
+      let err;
       if (isNum) {
-        query = query.eq('id', parseInt(formToken, 10));
+        ({ data, error: err } = await supabase.from('prevencion_formularios').select('*').eq('id', parseInt(formToken, 10)).maybeSingle());
       } else {
-        // Los formularios se emiten con el campo `token_publico`.
-        // Mantener este nombre alineado con el generador de enlaces públicos.
-        query = query.eq('token_publico', formToken);
+        // Existen formularios históricos con ambos nombres de columna.
+        // Intentamos primero el actual y luego el nombre legado.
+        ({ data, error: err } = await supabase.from('prevencion_formularios').select('*').eq('token_publico', formToken).maybeSingle());
+        if (err || !data) {
+          const legacy = await supabase.from('prevencion_formularios').select('*').eq('publico_token', formToken).maybeSingle();
+          data = legacy.data;
+          err = legacy.error;
+        }
       }
-
-      const { data, error: err } = await query.maybeSingle();
       if (err) throw err;
 
       if (!data) {

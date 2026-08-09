@@ -35,6 +35,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   const [formCodigo, setFormCodigo] = useState('');
   const [formRevision, setFormRevision] = useState('0');
   const [formFechaRevision, setFormFechaRevision] = useState(() => new Date().toISOString().slice(0, 10));
+  const [editingForm, setEditingForm] = useState(null);
   const [formFields, setFormFields] = useState([
     { id: Date.now(), type: 'text', label: 'Nombre o Título', required: true, options: [] }
   ]);
@@ -171,6 +172,16 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     setFormFields(formFields.filter(f => f.id !== id));
   };
 
+  const openFormEditor = (form) => {
+    const stored = form.campos;
+    const control = stored && !Array.isArray(stored) ? (stored.control_documental || {}) : {};
+    setEditingForm(form);
+    setFormTitle(form.titulo || ''); setFormDesc(form.descripcion || ''); setFormModulo(form.modulo_asignado || 'general');
+    setFormCodigo(control.codigo || ''); setFormRevision(control.revision || '0'); setFormFechaRevision(control.fecha_revision || new Date().toISOString().slice(0, 10));
+    setFormFields(Array.isArray(stored) ? stored : (stored?.items || []));
+    setActiveTab('designer');
+  };
+
   const installOperationalTemplates = async () => {
     const today = new Date().toISOString().slice(0, 10);
     const common = (codigo, modulo, titulo, descripcion, tipo_registro, items) => ({
@@ -228,16 +239,20 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
           fecha_revision: formFechaRevision
         }
       },
-      token_publico: token,
+      token_publico: editingForm?.token_publico || token,
+      publico_token: editingForm?.publico_token,
       creador_email: user?.email || 'admin@obraxis.cl',
       empresa: user?.empresa || 'EMIN',
       created_at: new Date().toISOString()
     };
 
     try {
-      const { data, error } = await supabase.from('prevencion_formularios').insert([newForm]).select();
+      const request = editingForm?.id
+        ? supabase.from('prevencion_formularios').update(newForm).eq('id', editingForm.id).select()
+        : supabase.from('prevencion_formularios').insert([newForm]).select();
+      const { data, error } = await request;
       if (error) throw error;
-      setSuccessMsg('¡Formulario creado y asignado con éxito!');
+      setSuccessMsg(editingForm ? 'Formulario actualizado con éxito.' : '¡Formulario creado y asignado con éxito!');
       fetchFormularios();
     } catch (err) {
       console.warn('Guardando formulario en localStorage:', err);
@@ -252,6 +267,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       setFormCodigo('');
       setFormRevision('0');
       setFormFechaRevision(new Date().toISOString().slice(0, 10));
+      setEditingForm(null);
       setFormFields([{ id: Date.now(), type: 'text', label: 'Nombre o Título', required: true, options: [] }]);
       setActiveTab('forms_list');
       setTimeout(() => setSuccessMsg(''), 4000);
@@ -461,7 +477,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in duration-200 space-y-6">
           <div className="border-b border-slate-100 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
             <div>
-              <h2 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider">Crear Formulario Dinámico</h2>
+              <h2 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider">{editingForm ? 'Editar Formulario' : 'Crear Formulario Dinámico'}</h2>
               <p className="text-xs text-slate-500">Configura preguntas y define en qué módulo estará disponible.</p>
             </div>
           </div>
@@ -588,7 +604,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                 className="px-6 py-2.5 rounded-xl text-xs font-extrabold text-white bg-primary hover:bg-primary-hover transition cursor-pointer shadow-sm flex items-center gap-2"
               >
                 <ClipboardCheck className="w-4 h-4" />
-                <span>{loading ? 'Guardando...' : 'Guardar y Publicar Formulario'}</span>
+                <span>{loading ? 'Guardando...' : editingForm ? 'Guardar cambios' : 'Guardar y Publicar Formulario'}</span>
               </button>
             </div>
           </form>
@@ -622,7 +638,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {formularios.filter(form => `${form.titulo} ${form.descripcion || ''} ${form.modulo_asignado || ''}`.toLowerCase().includes(formSearch.toLowerCase())).map(form => {
-                const publicUrl = `${window.location.origin}/?prevencion_form=${form.token_publico || form.id}`;
+                const publicUrl = `${window.location.origin}/?prevencion_form=${form.token_publico || form.publico_token || form.id}`;
                 const modObj = modulosAsignables.find(m => m.id === form.modulo_asignado) || { name: 'General' };
 
                 return (
@@ -650,6 +666,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                         <Share2 className="w-3.5 h-3.5 text-primary" />
                         <span>Copiar Enlace</span>
                       </button>
+                      <button onClick={() => openFormEditor(form)} className="py-2 px-3 rounded-xl border border-slate-200 text-slate-700 text-[10.5px] font-bold hover:bg-slate-50">Editar</button>
                     </div>
                   </div>
                 );
