@@ -164,6 +164,11 @@ export default function PublicFormFiller({ formToken }) {
     }));
   };
 
+  const isWarehouseEquipment = (equipment) => {
+    const assignedWork = String(equipment.obra_nombre || '').trim().toLowerCase();
+    return !assignedWork || assignedWork.includes('bodega') || assignedWork.includes('sin asignar') || assignedWork === 'libre';
+  };
+
   // Manejo de bloques repetibles
   const handleAddRepeaterInstance = (fieldId) => {
     setFillAnswers(prev => ({
@@ -544,6 +549,7 @@ export default function PublicFormFiller({ formToken }) {
                 className="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs font-semibold uppercase text-slate-800 focus:outline-none focus:border-primary"
               >
                 <option value="">-- Selecciona Obra --</option>
+                <option value="Bodega / sin asignar">Bodega / sin asignar</option>
                 {obrasList.map((ob, oIdx) => (
                   <option key={oIdx} value={ob.nombre}>{ob.nombre}</option>
                 ))}
@@ -707,7 +713,7 @@ export default function PublicFormFiller({ formToken }) {
                       className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 disabled:cursor-not-allowed disabled:bg-slate-100"
                     >
                       <option value="">{fillMetadata.proyecto_nombre ? '-- Selecciona equipo --' : '-- Primero selecciona una obra --'}</option>
-                      {maquinariaList.filter(item => item.obra_nombre === fillMetadata.proyecto_nombre).map(item => (
+                      {maquinariaList.filter(item => fillMetadata.proyecto_nombre === 'Bodega / sin asignar' ? isWarehouseEquipment(item) : item.obra_nombre === fillMetadata.proyecto_nombre).map(item => (
                         <option key={item.id || item.patente} value={item.patente}>{item.tipo || 'Equipo'} · {item.patente}</option>
                       ))}
                     </select>
