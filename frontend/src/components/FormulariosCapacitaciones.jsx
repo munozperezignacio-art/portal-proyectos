@@ -84,13 +84,12 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   const fetchRespuestas = async () => {
     try {
       const { data, error } = await supabase
-        .from('prevencion_respuestas_formularios')
-        .select('*')
-        .eq('empresa', user?.empresa || 'EMIN')
+        .from('prevencion_respuestas')
+        .select('*, prevencion_formularios(titulo, categoria, empresa)')
         .order('created_at', { ascending: false });
 
       if (!error && data) {
-        setRespuestas(data);
+        setRespuestas(data.filter(response => !response.prevencion_formularios?.empresa || response.prevencion_formularios.empresa === (user?.empresa || 'EMIN')));
       } else {
         const local = localStorage.getItem('obraxis_respuestas_formularios');
         if (local) {
@@ -839,11 +838,11 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {respuestas.filter(resp => `${resp.formulario_titulo || ''} ${resp.usuario_nombre || ''} ${resp.usuario_rut || ''}`.toLowerCase().includes(responseSearch.toLowerCase())).map(resp => (
+              {respuestas.filter(resp => `${resp.prevencion_formularios?.titulo || resp.formulario_titulo || ''} ${resp.inspector || resp.usuario_nombre || ''} ${resp.proyecto_nombre || resp.usuario_rut || ''}`.toLowerCase().includes(responseSearch.toLowerCase())).map(resp => (
                 <div key={resp.id} className="py-3 flex items-center justify-between">
                   <div>
-                    <h4 className="text-xs font-bold text-slate-850 uppercase">{resp.formulario_titulo || 'Formulario'}</h4>
-                    <p className="text-[10.5px] text-slate-500">Respondido por: {resp.usuario_nombre || 'Anónimo'} ({resp.usuario_rut || 'Sin RUT'})</p>
+                    <h4 className="text-xs font-bold text-slate-850 uppercase">{resp.prevencion_formularios?.titulo || resp.formulario_titulo || 'Formulario'}</h4>
+                    <p className="text-[10.5px] text-slate-500">Respondido por: {resp.inspector || resp.usuario_nombre || 'Anónimo'} · Obra: {resp.proyecto_nombre || 'Sin obra informada'}</p>
                   </div>
                   <span className="text-[10px] text-slate-400">{new Date(resp.created_at || Date.now()).toLocaleDateString('es-CL')}</span>
                 </div>
