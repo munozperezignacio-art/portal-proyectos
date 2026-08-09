@@ -30,6 +30,22 @@ export default function PublicFormFiller({ formToken }) {
   const [formCompanyBranding, setFormCompanyBranding] = useState(null);
   const [personalMaestro, setPersonalMaestro] = useState([]);
 
+  // Formularios anteriores guardan un arreglo; los nuevos guardan además el
+  // control documental dentro del mismo JSON. Ambos formatos siguen vigentes.
+  const normalizeForm = (rawForm) => {
+    const storedFields = rawForm?.campos;
+    const control = storedFields && !Array.isArray(storedFields)
+      ? (storedFields.control_documental || {})
+      : {};
+    return {
+      ...rawForm,
+      campos: Array.isArray(storedFields) ? storedFields : (storedFields?.items || []),
+      codigo: control.codigo ?? rawForm?.codigo ?? '',
+      revision: control.revision ?? rawForm?.revision ?? '',
+      fecha_revision: control.fecha_revision ?? rawForm?.fecha_revision ?? ''
+    };
+  };
+
   useEffect(() => {
     if (formToken) {
       loadPublicForm();
@@ -57,7 +73,8 @@ export default function PublicFormFiller({ formToken }) {
       if (!data) {
         setError('El formulario solicitado no existe o no se encuentra disponible.');
       } else {
-        setForm(data);
+        const normalizedForm = normalizeForm(data);
+        setForm(normalizedForm);
         
         // Cargar marca de la empresa propietaria y listado de obras activas
         try {
@@ -85,7 +102,7 @@ export default function PublicFormFiller({ formToken }) {
         
         // Inicializar respuestas para bloques repetibles con 1 elemento por defecto
         const initial = {};
-        (data.campos || []).forEach(f => {
+        (normalizedForm.campos || []).forEach(f => {
           if (f.type === 'repeater') {
             initial[f.id] = [{}];
           }

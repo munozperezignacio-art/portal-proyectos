@@ -32,6 +32,9 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   const [formTitle, setFormTitle] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [formModulo, setFormModulo] = useState('general');
+  const [formCodigo, setFormCodigo] = useState('');
+  const [formRevision, setFormRevision] = useState('0');
+  const [formFechaRevision, setFormFechaRevision] = useState(() => new Date().toISOString().slice(0, 10));
   const [formFields, setFormFields] = useState([
     { id: Date.now(), type: 'text', label: 'Nombre o Título', required: true, options: [] }
   ]);
@@ -182,7 +185,14 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       titulo: formTitle,
       descripcion: formDesc,
       modulo_asignado: formModulo,
-      campos: formFields,
+      campos: {
+        items: formFields,
+        control_documental: {
+          codigo: formCodigo.trim(),
+          revision: formRevision.trim(),
+          fecha_revision: formFechaRevision
+        }
+      },
       token_publico: token,
       creador_email: user?.email || 'admin@obraxis.cl',
       empresa: user?.empresa || 'EMIN',
@@ -204,6 +214,9 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       setLoading(false);
       setFormTitle('');
       setFormDesc('');
+      setFormCodigo('');
+      setFormRevision('0');
+      setFormFechaRevision(new Date().toISOString().slice(0, 10));
       setFormFields([{ id: Date.now(), type: 'text', label: 'Nombre o Título', required: true, options: [] }]);
       setActiveTab('forms_list');
       setTimeout(() => setSuccessMsg(''), 4000);
@@ -445,6 +458,21 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                 </select>
               </div>
 
+              <div className="space-y-1">
+                <label className="block text-[10.5px] font-extrabold uppercase text-slate-600">Código documental</label>
+                <input type="text" placeholder="Ej: PR-INS-001" value={formCodigo} onChange={(e) => setFormCodigo(e.target.value)} className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 bg-white focus:outline-none focus:border-primary" />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10.5px] font-extrabold uppercase text-slate-600">Versión</label>
+                <input type="text" inputMode="numeric" placeholder="Ej: 1" value={formRevision} onChange={(e) => setFormRevision(e.target.value)} className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 bg-white focus:outline-none focus:border-primary" />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10.5px] font-extrabold uppercase text-slate-600">Fecha de versión</label>
+                <input type="date" value={formFechaRevision} onChange={(e) => setFormFechaRevision(e.target.value)} className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 bg-white focus:outline-none focus:border-primary" />
+              </div>
+
               <div className="md:col-span-3 space-y-1">
                 <label className="block text-[10.5px] font-extrabold uppercase text-slate-600">Descripción u Objetivo</label>
                 <textarea
@@ -571,6 +599,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                       </div>
 
                       <h4 className="text-xs font-extrabold text-slate-850 uppercase leading-snug">{form.titulo}</h4>
+                      {(form.campos?.control_documental?.codigo || form.campos?.control_documental?.revision) && <p className="mt-1 text-[10px] font-bold text-slate-400">{form.campos.control_documental.codigo || 'Sin código'} · Versión {form.campos.control_documental.revision || '0'}</p>}
                       {form.descripcion && <p className="text-[11px] text-slate-500 line-clamp-2 mt-1">{form.descripcion}</p>}
                     </div>
 
