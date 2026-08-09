@@ -145,6 +145,11 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   const handleUpdateField = (id, key, value) => {
     setFormFields(formFields.map(f => f.id === id ? { ...f, [key]: value } : f));
   };
+  const handleUpdateOption = (fieldId, optionIndex, value) => {
+    setFormFields(formFields.map(field => field.id === fieldId ? { ...field, options: (field.options || []).map((option, index) => index === optionIndex ? value : option) } : field));
+  };
+  const addOption = (fieldId) => setFormFields(formFields.map(field => field.id === fieldId ? { ...field, options: [...(field.options || []), `Opción ${(field.options || []).length + 1}`] } : field));
+  const removeOption = (fieldId, optionIndex) => setFormFields(formFields.map(field => field.id === fieldId ? { ...field, options: (field.options || []).filter((_, index) => index !== optionIndex) } : field));
 
   const handleRemoveField = (id) => {
     setFormFields(formFields.filter(f => f.id !== id));
@@ -487,7 +492,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                       </label>
                     </div>
                   </div>
-                  {['select', 'radio', 'checkbox'].includes(field.type) && <div className="space-y-1"><label className="block text-[9.5px] font-bold text-slate-500 uppercase">Opciones (una por línea)</label><textarea rows="2" value={(field.options || []).join('\n')} onChange={e => handleUpdateField(field.id, 'options', e.target.value.split('\n').filter(Boolean))} className="w-full border border-slate-200 rounded-xl p-2 text-xs" /></div>}
+                  {['select', 'radio', 'checkbox'].includes(field.type) && <div className="space-y-2"><label className="block text-[9.5px] font-bold text-slate-500 uppercase">Alternativas</label>{(field.options || []).map((option, optionIndex) => <div key={optionIndex} className="flex gap-2"><input value={option} onChange={e => handleUpdateOption(field.id, optionIndex, e.target.value)} className="h-9 flex-1 rounded-lg border border-slate-200 px-3 text-xs font-medium"/><button type="button" onClick={() => removeOption(field.id, optionIndex)} className="rounded-lg px-2 text-[10px] font-black text-rose-700 hover:bg-rose-50">Quitar</button></div>)}<button type="button" onClick={() => addOption(field.id)} className="rounded-lg border border-primary/25 bg-primary/5 px-3 py-2 text-[11px] font-black text-primary">+ Agregar opción</button></div>}
                   {field.type === 'repeater' && <p className="rounded-xl bg-amber-50 p-3 text-[11px] font-semibold text-amber-900">Grupo repetible: el respondedor podrá agregar tantas instancias como necesite. Incluye lista desplegable, selección múltiple y firma.</p>}
                 </div>
               ))}
