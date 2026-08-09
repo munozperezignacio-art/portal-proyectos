@@ -48,6 +48,11 @@ export default function PublicFormFiller({ formToken }) {
       fields.splice(equipmentIndex >= 0 ? equipmentIndex + 1 : 0, 0, automaticField);
     }
     if ((control.tipo_registro ?? '') === 'maquinaria_uso') {
+      if (!fields.some(field => field.id === 'unidad_medicion')) {
+        const brandIndex = fields.findIndex(field => field.id === 'marca_modelo');
+        fields = [...fields];
+        fields.splice(brandIndex >= 0 ? brandIndex + 1 : 1, 0, { id: 'unidad_medicion', type: 'select', label: 'Unidad de lectura', required: true, options: ['Horómetro (hrs)', 'Kilometraje (km)'] });
+      }
       fields = fields.map(field => field.id === 'horometro_inicial' ? { ...field, autoFilled: true } : field);
     }
     return {
@@ -156,10 +161,13 @@ export default function PublicFormFiller({ formToken }) {
     } catch (err) {
       console.warn('No se pudo recuperar el último horómetro:', err.message);
     }
+    const vehicleType = /camion|camión|camioneta|minibus|vehiculo|vehículo|automóvil|auto/i.test(equipment.tipo || '');
+    const measurementUnit = vehicleType ? 'Kilometraje (km)' : 'Horómetro (hrs)';
     setFillAnswers(previous => ({
       ...previous,
       equipo_patente: equipment.patente,
       marca_modelo: equipment.marca || equipment.tipo || 'Sin información',
+      unidad_medicion: measurementUnit,
       horometro_inicial: String(lastHourmeter)
     }));
   };
@@ -293,7 +301,8 @@ export default function PublicFormFiller({ formToken }) {
         const { data: equipment } = await supabase.from('maquinaria').select('id, tipo, patente, obra_nombre').ilike('patente', patente).maybeSingle();
         const initial = Number(finalAnswers.horometro_inicial) || 0;
         const final = Number(finalAnswers.horometro_final) || 0;
-        await supabase.from('maquinaria_uso_diario').insert([{ equipo_id: equipment?.id || null, equipo_tipo: equipment?.tipo || 'Equipo', equipo_patente: patente, obra_nombre: fillMetadata.proyecto_nombre || equipment?.obra_nombre || '', fecha: new Date().toISOString().slice(0, 10), horometro_inicial: initial, horometro_final: final, horas_trabajadas: Math.max(0, final - initial), combustible_cargado: Number(finalAnswers.combustible) || 0, operador: fillMetadata.inspector || '', observaciones: finalAnswers.observaciones || '', empresa: form.empresa || 'OBRAXIS', created_at: new Date().toISOString() }]);
+        const isMileage = finalAnswers.unidad_medicion === 'Kilometraje (km)';
+        await supabase.from('maquinaria_uso_diario').insert([{ equipo_id: equipment?.id || null, equipo_tipo: equipment?.tipo || 'Equipo', equipo_patente: patente, obra_nombre: fillMetadata.proyecto_nombre || equipment?.obra_nombre || '', fecha: new Date().toISOString().slice(0, 10), horometro_inicial: initial, horometro_final: final, horas_trabajadas: isMileage ? 0 : Math.max(0, final - initial), combustible_cargado: Number(finalAnswers.combustible) || 0, operador: fillMetadata.inspector || '', observaciones: `${isMileage ? `Kilometraje: ${initial} a ${final} km. ` : ''}${finalAnswers.observaciones || ''}`.trim(), empresa: form.empresa || 'OBRAXIS', created_at: new Date().toISOString() }]);
       }
       if (form.tipo_registro === 'incidente_accidente') {
         const typeMap = { Accidente: 'STP', Incidente: 'STP' };
@@ -543,7 +552,7 @@ export default function PublicFormFiller({ formToken }) {
                 onChange={(e) => {
                   setFillMetadata({ ...fillMetadata, proyecto_nombre: e.target.value });
                   if (form.tipo_registro === 'maquinaria_uso') {
-                    setFillAnswers(previous => ({ ...previous, equipo_patente: '', marca_modelo: '', horometro_inicial: '' }));
+                    setFillAnswers(previous => ({ ...previous, equipo_patente: '', marca_modelo: '', unidad_medicion: '', horometro_inicial: '' }));
                   }
                 }}
                 className="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs font-semibold uppercase text-slate-800 focus:outline-none focus:border-primary"
@@ -698,10 +707,12 @@ export default function PublicFormFiller({ formToken }) {
               }
 
               // CAMPOS ESTÁNDAR
+              const measurementName = fillAnswers.unidad_medicion === 'Kilometraje (km)' ? 'Kilometraje' : 'Horómetro';
+              const displayedLabel = f.id === 'horometro_inicial' ? `${measurementName} inicial` : f.id === 'horometro_final' ? `${measurementName} final` : f.label;
               return (
                 <div key={f.id} className="space-y-2 border-b border-slate-100 pb-5">
                   <label className="block text-xs font-extrabold text-slate-800 uppercase">
-                    {index + 1}. {f.label} {f.required && <span className="text-red-500">*</span>}
+                    {index + 1}. {displayedLabel} {f.required && <span className="text-red-500">*</span>}
                   </label>
 
                   {form.tipo_registro === 'maquinaria_uso' && f.id === 'equipo_patente' ? (
