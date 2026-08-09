@@ -1184,10 +1184,11 @@ export default function Maquinaria({ user, onBack }) {
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleOpenEditModal(m)}
-                          className="p-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 transition cursor-pointer"
+                          className="flex items-center gap-1 rounded-lg bg-slate-200 px-2 py-1.5 text-[10px] font-black text-slate-700 transition hover:bg-slate-300 cursor-pointer"
                           title="Editar Equipo"
                         >
                           <Edit className="w-3.5 h-3.5" />
+                          <span>Editar</span>
                         </button>
                         <button
                           onClick={() => handleDeleteEquip(m)}
@@ -2524,14 +2525,6 @@ export default function Maquinaria({ user, onBack }) {
                 ></textarea>
               </div>
 
-              <details className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-3.5">
-                <summary className="cursor-pointer text-[10.5px] font-extrabold uppercase tracking-wider text-indigo-950">⚙️ Configuración avanzada: mantención y cuotas</summary>
-                <div className="mt-3 space-y-3">
-                  <div className="rounded-xl bg-white/80 p-3"><p className="mb-2 text-[10px] font-black uppercase text-indigo-900">Plan preventivo de mantención</p><div className="grid grid-cols-2 gap-2"><input type="number" min="0" placeholder="Cada X" value={formData.mantenimiento_intervalo} onChange={e=>setFormData(prev=>({...prev,mantenimiento_intervalo:e.target.value}))} className="rounded-lg border border-indigo-200 p-2 text-xs"/><select value={formData.mantenimiento_unidad} onChange={e=>setFormData(prev=>({...prev,mantenimiento_unidad:e.target.value}))} className="rounded-lg border border-indigo-200 p-2 text-xs"><option value="horas">Horómetro (hrs)</option><option value="dias">Días</option><option value="kilometros">Kilómetros</option><option value="ciclos">Ciclos</option><option value="otro">Otra unidad</option></select><input type="number" min="0" placeholder="Última lectura" value={formData.mantenimiento_ultima_lectura} onChange={e=>setFormData(prev=>({...prev,mantenimiento_ultima_lectura:e.target.value}))} className="rounded-lg border border-indigo-200 p-2 text-xs"/><input type="date" value={formData.mantenimiento_ultima_fecha} onChange={e=>setFormData(prev=>({...prev,mantenimiento_ultima_fecha:e.target.value}))} className="rounded-lg border border-indigo-200 p-2 text-xs"/></div><input placeholder="Ej. cambio aceite, filtros y engrase" value={formData.mantenimiento_descripcion} onChange={e=>setFormData(prev=>({...prev,mantenimiento_descripcion:e.target.value}))} className="mt-2 w-full rounded-lg border border-indigo-200 p-2 text-xs"/></div>
-                  {formData.tipo_activo === 'Propio' && <div className="rounded-xl bg-white/80 p-3"><p className="mb-2 text-[10px] font-black uppercase text-indigo-900">Financiamiento / cuotas del equipo propio</p><div className="grid grid-cols-2 gap-2"><input type="number" min="0" placeholder="Cuota mensual ($)" value={formData.cuota_mensual} onChange={e=>setFormData(prev=>({...prev,cuota_mensual:e.target.value}))} className="rounded-lg border border-indigo-200 p-2 text-xs"/><input type="number" min="0" placeholder="Cuotas totales" value={formData.cuotas_totales} onChange={e=>setFormData(prev=>({...prev,cuotas_totales:e.target.value}))} className="rounded-lg border border-indigo-200 p-2 text-xs"/><input type="number" min="0" placeholder="Cuotas pagadas" value={formData.cuotas_pagadas} onChange={e=>setFormData(prev=>({...prev,cuotas_pagadas:e.target.value}))} className="rounded-lg border border-indigo-200 p-2 text-xs"/><input type="date" value={formData.fecha_inicio_cuota} onChange={e=>setFormData(prev=>({...prev,fecha_inicio_cuota:e.target.value}))} className="rounded-lg border border-indigo-200 p-2 text-xs"/></div><p className="mt-2 text-[10px] text-indigo-800">Estos datos alimentarán la proyección de costo propio y cuotas pendientes en Estadísticas.</p></div>}
-                </div>
-              </details>
-
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
                 <button type="button" onClick={() => setArriendoModalOpen(false)} className="px-4 py-2.5 rounded-xl bg-slate-100 font-bold">Cancelar</button>
                 <button type="submit" className="px-5 py-2.5 rounded-xl bg-amber-600 text-white font-bold shadow-sm">Confirmar Contrato</button>
@@ -2851,6 +2844,14 @@ export default function Maquinaria({ user, onBack }) {
                   💡 Este valor se imputará internamente como costo del equipo a la obra respetando la unidad de cobro, la modalidad de días y la condición mínima contratada.
                 </p>
               </div>
+
+              <details className="rounded-2xl border border-indigo-200 bg-indigo-50/60 p-3.5">
+                <summary className="cursor-pointer text-[10.5px] font-extrabold uppercase tracking-wider text-indigo-950">⚙️ Configuración avanzada: mantención y cuotas</summary>
+                <div className="mt-3 space-y-3">
+                  <div className="rounded-xl bg-white/80 p-3"><p className="mb-2 text-[10px] font-black uppercase text-indigo-900">Plan preventivo de mantención</p><div className="grid grid-cols-2 gap-2"><input type="number" min="0" placeholder="Cada X" value={formData.mantenimiento_intervalo} onChange={e=>setFormData(prev=>({...prev,mantenimiento_intervalo:e.target.value}))} className="rounded-lg border border-indigo-200 p-2 text-xs"/><select value={formData.mantenimiento_unidad} onChange={e=>setFormData(prev=>({...prev,mantenimiento_unidad:e.target.value}))} className="rounded-lg border border-indigo-200 p-2 text-xs"><option value="horas">Horómetro (hrs)</option><option value="dias">Días</option><option value="kilometros">Kilómetros</option><option value="ciclos">Ciclos</option><option value="otro">Otra unidad</option></select><input type="number" min="0" placeholder="Última lectura" value={formData.mantenimiento_ultima_lectura} onChange={e=>setFormData(prev=>({...prev,mantenimiento_ultima_lectura:e.target.value}))} className="rounded-lg border border-indigo-200 p-2 text-xs"/><input type="date" value={formData.mantenimiento_ultima_fecha} onChange={e=>setFormData(prev=>({...prev,mantenimiento_ultima_fecha:e.target.value}))} className="rounded-lg border border-indigo-200 p-2 text-xs"/></div><input placeholder="Ej. cambio aceite, filtros y engrase" value={formData.mantenimiento_descripcion} onChange={e=>setFormData(prev=>({...prev,mantenimiento_descripcion:e.target.value}))} className="mt-2 w-full rounded-lg border border-indigo-200 p-2 text-xs"/></div>
+                  {formData.tipo_activo === 'Propio' && <div className="rounded-xl bg-white/80 p-3"><p className="mb-2 text-[10px] font-black uppercase text-indigo-900">Financiamiento / cuotas del equipo propio</p><div className="grid grid-cols-2 gap-2"><input type="number" min="0" placeholder="Cuota mensual ($)" value={formData.cuota_mensual} onChange={e=>setFormData(prev=>({...prev,cuota_mensual:e.target.value}))} className="rounded-lg border border-indigo-200 p-2 text-xs"/><input type="number" min="0" placeholder="Cuotas totales" value={formData.cuotas_totales} onChange={e=>setFormData(prev=>({...prev,cuotas_totales:e.target.value}))} className="rounded-lg border border-indigo-200 p-2 text-xs"/><input type="number" min="0" placeholder="Cuotas pagadas" value={formData.cuotas_pagadas} onChange={e=>setFormData(prev=>({...prev,cuotas_pagadas:e.target.value}))} className="rounded-lg border border-indigo-200 p-2 text-xs"/><input type="date" value={formData.fecha_inicio_cuota} onChange={e=>setFormData(prev=>({...prev,fecha_inicio_cuota:e.target.value}))} className="rounded-lg border border-indigo-200 p-2 text-xs"/></div></div>}
+                </div>
+              </details>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
                 <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 rounded-xl bg-slate-100 font-bold">Cancelar</button>
