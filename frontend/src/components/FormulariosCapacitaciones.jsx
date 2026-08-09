@@ -324,6 +324,22 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     setTimeout(() => setSuccessMsg(''), 3000);
   };
 
+  const publishLocalForm = async (form) => {
+    setLoading(true);
+    try {
+      const payload = { ...form };
+      delete payload.id;
+      const { error } = await supabase.from('prevencion_formularios').insert([payload]);
+      if (error) throw error;
+      const local = JSON.parse(localStorage.getItem('obraxis_formularios_dinamicos') || '[]').filter(item => item.token_publico !== form.token_publico && item.publico_token !== form.publico_token);
+      localStorage.setItem('obraxis_formularios_dinamicos', JSON.stringify(local));
+      await fetchFormularios();
+      setSuccessMsg('Formulario publicado. Ahora su enlace es público.');
+    } catch (error) {
+      setErrorMsg(`No se pudo publicar el formulario: ${error.message}`);
+    } finally { setLoading(false); }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 p-4 sm:p-6 font-sans">
       {/* Header Estándar de Obraxis */}
@@ -659,8 +675,9 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                     </div>
 
                     <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                      {!form.id && <button onClick={() => publishLocalForm(form)} disabled={loading} className="py-2 px-3 rounded-xl bg-emerald-600 text-white text-[10.5px] font-bold hover:bg-emerald-700">Publicar</button>}
                       <button
-                        onClick={() => copyToClipboard(publicUrl)}
+                        onClick={() => form.id ? copyToClipboard(publicUrl) : setErrorMsg('Primero publica este formulario para generar un enlace público.')}
                         className="flex-1 py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10.5px] font-bold flex items-center justify-center gap-1.5 cursor-pointer border border-slate-200"
                       >
                         <Share2 className="w-3.5 h-3.5 text-primary" />
