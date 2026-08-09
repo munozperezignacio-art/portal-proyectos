@@ -126,6 +126,10 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
 
   // Agregar campo en Diseñador
   const handleAddField = (type) => {
+    if (type === 'repeater') {
+      setFormFields([...formFields, { id: Date.now(), type: 'repeater', label: 'Grupo repetible', required: false, buttonText: '+ Agregar registro', subFields: [{ id: `${Date.now()}_select`, type: 'select', label: 'Lista desplegable', options: ['Opción 1', 'Opción 2'] }, { id: `${Date.now()}_multiple`, type: 'checkbox', label: 'Selección múltiple', options: ['Opción 1', 'Opción 2'] }, { id: `${Date.now()}_signature`, type: 'signature', label: 'Firma' }] }]);
+      return;
+    }
     setFormFields([
       ...formFields,
       {
@@ -439,12 +443,9 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
             {/* Barra de herramientas para agregar campos */}
             <div className="space-y-3">
               <label className="block text-xs font-extrabold uppercase text-slate-700">Diseño de Campos y Preguntas</label>
+              <p className="text-[11px] text-slate-500">Cada respuesta registra obra y usuario responsable desde el encabezado del formulario.</p>
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => handleAddField('text')} className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">+ Texto Corto</button>
-                <button type="button" onClick={() => handleAddField('textarea')} className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">+ Párrafo</button>
-                <button type="button" onClick={() => handleAddField('select')} className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">+ Desplegable (Select)</button>
-                <button type="button" onClick={() => handleAddField('checkbox')} className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">+ Checkbox / Casilla</button>
-                <button type="button" onClick={() => handleAddField('date')} className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">+ Fecha</button>
+                {[['text','Texto corto'],['textarea','Texto largo'],['date','Fecha'],['select','Lista desplegable'],['checkbox','Selección múltiple'],['signature','Dibujar firma'],['repeater','Grupo repetible']].map(([type,label]) => <button key={type} type="button" onClick={() => handleAddField(type)} className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">+ {label}</button>)}
               </div>
             </div>
 
@@ -486,6 +487,8 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                       </label>
                     </div>
                   </div>
+                  {['select', 'radio', 'checkbox'].includes(field.type) && <div className="space-y-1"><label className="block text-[9.5px] font-bold text-slate-500 uppercase">Opciones (una por línea)</label><textarea rows="2" value={(field.options || []).join('\n')} onChange={e => handleUpdateField(field.id, 'options', e.target.value.split('\n').filter(Boolean))} className="w-full border border-slate-200 rounded-xl p-2 text-xs" /></div>}
+                  {field.type === 'repeater' && <p className="rounded-xl bg-amber-50 p-3 text-[11px] font-semibold text-amber-900">Grupo repetible: el respondedor podrá agregar tantas instancias como necesite. Incluye lista desplegable, selección múltiple y firma.</p>}
                 </div>
               ))}
             </div>
