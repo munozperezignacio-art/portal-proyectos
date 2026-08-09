@@ -243,7 +243,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     <div className="min-h-screen bg-slate-50 text-slate-800 p-4 sm:p-6 font-sans">
       {/* Header Estándar de Obraxis */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 border border-slate-200 rounded-3xl shadow-xs">
-        <div className="flex items-center gap-3">
+        <div className="flex items-start gap-4">
           <button 
             onClick={() => {
               if (activeTab !== 'menu') {
@@ -254,18 +254,18 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                 onBack();
               }
             }} 
-            className="p-2 hover:bg-slate-100 rounded-xl transition cursor-pointer" 
+            className="mt-0.5 p-2 hover:bg-slate-100 rounded-xl transition cursor-pointer" 
             title="Volver"
           >
             <ArrowLeft className="w-5 h-5 text-slate-600" />
           </button>
           <div>
-            <h2 className="text-xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
+            <h2 className="flex items-center gap-2 text-xl font-extrabold tracking-tight text-slate-800">
               <ClipboardCheck className="w-6 h-6 text-primary shrink-0" />
               <span>Formularios y Capacitaciones</span>
             </h2>
-            <p className="text-[10px] text-slate-450 font-bold uppercase mt-0.5 tracking-wider">
-              CREA FORMULARIOS DINÁMICOS, LISTAS DE CHEQUEO Y CAPACITACIONES ASIGNABLES A CUALQUIER MÓDULO DEL SISTEMA
+            <p className="mt-2 text-xs font-medium text-slate-500">
+              Crea formularios, listas de chequeo y capacitaciones asignables a los módulos de la empresa.
             </p>
           </div>
         </div>
