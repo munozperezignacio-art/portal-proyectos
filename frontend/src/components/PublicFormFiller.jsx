@@ -804,7 +804,7 @@ export default function PublicFormFiller({ formToken }) {
             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3.5 rounded-2xl shadow-sm text-xs cursor-pointer flex items-center justify-center gap-2 transition uppercase tracking-wider"
           >
             <Send className="w-4 h-4" />
-            <span>{submitting ? 'Enviando Inspección...' : 'Enviar Inspección de Prevención'}</span>
+            <span>{submitting ? 'Enviando...' : 'Enviar'}</span>
           </button>
         </form>
 
