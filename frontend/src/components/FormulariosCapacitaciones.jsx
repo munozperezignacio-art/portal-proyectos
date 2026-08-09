@@ -176,7 +176,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     const stored = form.campos;
     const control = stored && !Array.isArray(stored) ? (stored.control_documental || {}) : {};
     setEditingForm(form);
-    setFormTitle(form.titulo || ''); setFormDesc(form.descripcion || ''); setFormModulo(form.modulo_asignado || 'general');
+    setFormTitle(form.titulo || ''); setFormDesc(form.descripcion || ''); setFormModulo(form.categoria || form.modulo_asignado || 'general');
     setFormCodigo(control.codigo || ''); setFormRevision(control.revision || '0'); setFormFechaRevision(control.fecha_revision || new Date().toISOString().slice(0, 10));
     setFormFields(Array.isArray(stored) ? stored : (stored?.items || []));
     setActiveTab('designer');
@@ -185,9 +185,9 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   const installOperationalTemplates = async () => {
     const today = new Date().toISOString().slice(0, 10);
     const common = (codigo, modulo, titulo, descripcion, tipo_registro, items) => ({
-      titulo, descripcion, modulo_asignado: modulo,
-      token_publico: `FORM_${Math.random().toString(36).slice(2, 9).toUpperCase()}`,
-      creador_email: user?.email || 'admin@obraxis.cl', empresa: user?.empresa || 'EMIN', created_at: new Date().toISOString(),
+      titulo, descripcion, categoria: modulo,
+      publico_token: `FORM_${Math.random().toString(36).slice(2, 9).toUpperCase()}`,
+      creado_por: user?.email || 'admin@obraxis.cl', empresa: user?.empresa || 'EMIN', created_at: new Date().toISOString(),
       campos: { items, control_documental: { codigo, revision: '0', fecha_revision: today, tipo_registro } }
     });
     const templates = [
@@ -230,7 +230,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     const newForm = {
       titulo: formTitle,
       descripcion: formDesc,
-      modulo_asignado: formModulo,
+      categoria: formModulo,
       campos: {
         items: formFields,
         control_documental: {
@@ -239,9 +239,8 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
           fecha_revision: formFechaRevision
         }
       },
-      token_publico: editingForm?.token_publico || token,
-      publico_token: editingForm?.publico_token,
-      creador_email: user?.email || 'admin@obraxis.cl',
+      publico_token: editingForm?.publico_token || token,
+      creado_por: user?.email || 'admin@obraxis.cl',
       empresa: user?.empresa || 'EMIN',
       created_at: new Date().toISOString()
     };
@@ -327,8 +326,11 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   const publishLocalForm = async (form) => {
     setLoading(true);
     try {
-      const payload = { ...form };
-      delete payload.id;
+      const payload = {
+        titulo: form.titulo, descripcion: form.descripcion || '', categoria: form.categoria || form.modulo_asignado || 'general', campos: form.campos,
+        publico_token: form.publico_token || form.token_publico || `FORM_${Math.random().toString(36).slice(2, 9).toUpperCase()}`,
+        creado_por: form.creado_por || form.creador_email || user?.email || 'admin@obraxis.cl', empresa: form.empresa || user?.empresa || 'EMIN', created_at: form.created_at || new Date().toISOString()
+      };
       const { error } = await supabase.from('prevencion_formularios').insert([payload]);
       if (error) throw error;
       const local = JSON.parse(localStorage.getItem('obraxis_formularios_dinamicos') || '[]').filter(item => item.token_publico !== form.token_publico && item.publico_token !== form.publico_token);
@@ -653,9 +655,9 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {formularios.filter(form => `${form.titulo} ${form.descripcion || ''} ${form.modulo_asignado || ''}`.toLowerCase().includes(formSearch.toLowerCase())).map(form => {
-                const publicUrl = `${window.location.origin}/?prevencion_form=${form.token_publico || form.publico_token || form.id}`;
-                const modObj = modulosAsignables.find(m => m.id === form.modulo_asignado) || { name: 'General' };
+              {formularios.filter(form => `${form.titulo} ${form.descripcion || ''} ${form.categoria || form.modulo_asignado || ''}`.toLowerCase().includes(formSearch.toLowerCase())).map(form => {
+                const publicUrl = `${window.location.origin}/?prevencion_form=${form.publico_token || form.token_publico || form.id}`;
+                const modObj = modulosAsignables.find(m => m.id === (form.categoria || form.modulo_asignado)) || { name: 'General' };
 
                 return (
                   <div key={form.id} className="p-5 rounded-3xl border border-slate-200 bg-white hover:border-primary shadow-xs transition flex flex-col justify-between space-y-3">
