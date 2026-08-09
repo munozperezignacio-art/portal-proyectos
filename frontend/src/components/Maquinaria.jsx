@@ -1089,17 +1089,17 @@ export default function Maquinaria({ user, onBack }) {
           </div>
 
           {/* Filtros */}
-          <div className="bg-white p-5 border border-slate-200 rounded-3xl shadow-xs grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="bg-white p-3.5 border border-slate-200 rounded-2xl shadow-xs grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
-                <Search className="w-4 h-4" />
+              <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
+                <Search className="w-3.5 h-3.5" />
               </span>
               <input
                 type="text"
                 placeholder="Buscar por tipo, patente o marca..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 text-slate-800 font-medium w-full px-3.5 py-2 border rounded-xl border-slate-200 focus:outline-none focus:border-primary transition text-xs"
+                className="h-10 w-full rounded-lg border border-slate-200 px-3 pl-8 text-[11px] font-medium text-slate-800 transition focus:border-primary focus:outline-none"
               />
             </div>
 
@@ -1107,7 +1107,7 @@ export default function Maquinaria({ user, onBack }) {
               <select
                 value={selectedTipoFilter}
                 onChange={(e) => setSelectedTipoFilter(e.target.value)}
-                className="text-slate-800 font-medium w-full px-3.5 py-2 border rounded-xl border-slate-200 focus:outline-none focus:border-primary transition text-xs bg-white"
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-medium text-slate-800 transition focus:border-primary focus:outline-none"
               >
                 <option value="">Filtrar por Tipo (Todos)</option>
                 {tiposMaquinaria.map(t => <option key={t} value={t}>{t}</option>)}
@@ -1118,7 +1118,7 @@ export default function Maquinaria({ user, onBack }) {
               <select
                 value={selectedObraFilter}
                 onChange={(e) => setSelectedObraFilter(e.target.value)}
-                className="text-slate-800 font-medium w-full px-3.5 py-2 border rounded-xl border-slate-200 focus:outline-none focus:border-primary transition text-xs bg-white"
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-medium text-slate-800 transition focus:border-primary focus:outline-none"
               >
                 <option value="">Filtrar por Obra (Todas)</option>
                 {obras.map(o => <option key={o.nombre} value={o.nombre}>{o.nombre}</option>)}
