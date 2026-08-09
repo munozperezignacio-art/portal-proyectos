@@ -35,6 +35,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   const [formCodigo, setFormCodigo] = useState('');
   const [formRevision, setFormRevision] = useState('0');
   const [formFechaRevision, setFormFechaRevision] = useState(() => new Date().toISOString().slice(0, 10));
+  const [formEmails, setFormEmails] = useState(['']);
   const [editingForm, setEditingForm] = useState(null);
   const [formFields, setFormFields] = useState([
     { id: Date.now(), type: 'text', label: 'Nombre o Título', required: true, options: [] }
@@ -177,7 +178,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     const control = stored && !Array.isArray(stored) ? (stored.control_documental || {}) : {};
     setEditingForm(form);
     setFormTitle(form.titulo || ''); setFormDesc(form.descripcion || ''); setFormModulo(form.categoria || form.modulo_asignado || 'general');
-    setFormCodigo(control.codigo || ''); setFormRevision(control.revision || '0'); setFormFechaRevision(control.fecha_revision || new Date().toISOString().slice(0, 10));
+    setFormCodigo(control.codigo || ''); setFormRevision(control.revision || '0'); setFormFechaRevision(control.fecha_revision || new Date().toISOString().slice(0, 10)); setFormEmails((form.correos_notificacion || '').split(',').map(email => email.trim()).filter(Boolean).concat((form.correos_notificacion || '').trim() ? [] : ['']));
     setFormFields(Array.isArray(stored) ? stored : (stored?.items || []));
     setActiveTab('designer');
   };
@@ -241,6 +242,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       },
       publico_token: editingForm?.publico_token || token,
       creado_por: user?.email || 'admin@obraxis.cl',
+      correos_notificacion: formEmails.map(email => email.trim()).filter(Boolean).join(','),
       empresa: user?.empresa || 'EMIN',
       created_at: new Date().toISOString()
     };
@@ -266,6 +268,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       setFormCodigo('');
       setFormRevision('0');
       setFormFechaRevision(new Date().toISOString().slice(0, 10));
+      setFormEmails(['']);
       setEditingForm(null);
       setFormFields([{ id: Date.now(), type: 'text', label: 'Nombre o Título', required: true, options: [] }]);
       setActiveTab('forms_list');
@@ -540,6 +543,13 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
               <div className="space-y-1">
                 <label className="block text-[10.5px] font-extrabold uppercase text-slate-600">Fecha de versión</label>
                 <input type="date" value={formFechaRevision} onChange={(e) => setFormFechaRevision(e.target.value)} className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 bg-white focus:outline-none focus:border-primary" />
+              </div>
+
+              <div className="md:col-span-3 space-y-1">
+                <label className="block text-[10.5px] font-extrabold uppercase text-slate-600">Correos de difusión del formulario</label>
+                <div className="space-y-2">{formEmails.map((email, index) => <div key={index} className="flex gap-2"><input type="email" placeholder="Ej: prevencion@empresa.cl" value={email} onChange={(e) => setFormEmails(values => values.map((value, position) => position === index ? e.target.value : value))} className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-medium text-slate-800 bg-white focus:outline-none focus:border-primary" />{formEmails.length > 1 && <button type="button" onClick={() => setFormEmails(values => values.filter((_, position) => position !== index))} className="rounded-xl px-3 text-[10px] font-black text-rose-700 hover:bg-rose-50">Quitar</button>}</div>)}</div>
+                <button type="button" onClick={() => setFormEmails(values => [...values, ''])} className="mt-2 rounded-lg border border-primary/25 bg-primary/5 px-3 py-2 text-[11px] font-black text-primary">+ Agregar correo</button>
+                <p className="text-[10px] text-slate-400">Al recibir una respuesta, se enviará el registro y PDF a estos destinatarios.</p>
               </div>
 
               <div className="md:col-span-3 space-y-1">
