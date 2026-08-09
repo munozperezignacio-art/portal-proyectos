@@ -150,6 +150,8 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   };
   const addOption = (fieldId) => setFormFields(formFields.map(field => field.id === fieldId ? { ...field, options: [...(field.options || []), `Opción ${(field.options || []).length + 1}`] } : field));
   const removeOption = (fieldId, optionIndex) => setFormFields(formFields.map(field => field.id === fieldId ? { ...field, options: (field.options || []).filter((_, index) => index !== optionIndex) } : field));
+  const addRepeaterField = (fieldId, type) => setFormFields(formFields.map(field => field.id === fieldId ? { ...field, subFields: [...(field.subFields || []), { id: `${Date.now()}_${type}`, type, label: `Nuevo ${type}`, options: ['Opción 1', 'Opción 2'] }] } : field));
+  const removeRepeaterField = (fieldId, subId) => setFormFields(formFields.map(field => field.id === fieldId ? { ...field, subFields: (field.subFields || []).filter(sub => sub.id !== subId) } : field));
 
   const handleRemoveField = (id) => {
     setFormFields(formFields.filter(f => f.id !== id));
@@ -493,7 +495,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                     </div>
                   </div>
                   {['select', 'radio', 'checkbox'].includes(field.type) && <div className="space-y-2"><label className="block text-[9.5px] font-bold text-slate-500 uppercase">Alternativas</label>{(field.options || []).map((option, optionIndex) => <div key={optionIndex} className="flex gap-2"><input value={option} onChange={e => handleUpdateOption(field.id, optionIndex, e.target.value)} className="h-9 flex-1 rounded-lg border border-slate-200 px-3 text-xs font-medium"/><button type="button" onClick={() => removeOption(field.id, optionIndex)} className="rounded-lg px-2 text-[10px] font-black text-rose-700 hover:bg-rose-50">Quitar</button></div>)}<button type="button" onClick={() => addOption(field.id)} className="rounded-lg border border-primary/25 bg-primary/5 px-3 py-2 text-[11px] font-black text-primary">+ Agregar opción</button></div>}
-                  {field.type === 'repeater' && <p className="rounded-xl bg-amber-50 p-3 text-[11px] font-semibold text-amber-900">Grupo repetible: el respondedor podrá agregar tantas instancias como necesite. Incluye lista desplegable, selección múltiple y firma.</p>}
+                  {field.type === 'repeater' && <div className="space-y-2 rounded-xl bg-amber-50 p-3"><p className="text-[11px] font-semibold text-amber-900">Campos dentro del grupo (el respondedor podrá repetir este bloque):</p><div className="flex flex-wrap gap-2">{[['text','Texto corto'],['select','Lista'],['checkbox','Selección múltiple'],['signature','Firma']].map(([type,label])=><button key={type} type="button" onClick={()=>addRepeaterField(field.id,type)} className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[10px] font-black text-amber-900">+ {label}</button>)}</div>{(field.subFields || []).map(sub=><div key={sub.id} className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-xs"><span>{sub.label} <b className="text-slate-400">({sub.type})</b></span><button type="button" onClick={()=>removeRepeaterField(field.id,sub.id)} className="text-[10px] font-black text-rose-700">Quitar</button></div>)}</div>}
                 </div>
               ))}
             </div>

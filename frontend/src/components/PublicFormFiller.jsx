@@ -540,6 +540,9 @@ export default function PublicFormFiller({ formToken }) {
                               />
                             )}
 
+                            {sub.type === 'select' && <select value={inst[sub.id] || ''} onChange={e => handleUpdateRepeaterAnswer(f.id, instIdx, sub.id, e.target.value)} className="w-full rounded-xl border border-slate-200 p-2 text-xs"><option value="">Seleccionar…</option>{(sub.options || []).map(option => <option key={option} value={option}>{option}</option>)}</select>}
+                            {sub.type === 'checkbox' && <div className="space-y-1">{(sub.options || []).map(option => <label key={option} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={(inst[sub.id] || []).includes(option)} onChange={e => { const current = inst[sub.id] || []; handleUpdateRepeaterAnswer(f.id, instIdx, sub.id, e.target.checked ? [...current, option] : current.filter(value => value !== option)); }} />{option}</label>)}</div>}
+
                             {sub.type === 'status_switch' && (
                               <div className="flex gap-2">
                                 {['Cumple', 'No Cumple', 'N/A'].map(st => (
