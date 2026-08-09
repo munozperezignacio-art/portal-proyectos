@@ -73,6 +73,9 @@ export default function Prevencion({ user, onBack, companyBranding }) {
     archivo_base64: '',
     archivo_tamano: ''
   });
+  useEffect(() => {
+    try { setProcedimientosList(JSON.parse(localStorage.getItem(`obraxis_procedimientos_${user?.empresa || 'default'}`) || '[]')); } catch { setProcedimientosList([]); }
+  }, [user?.empresa]);
 
   const [obrasList, setObrasList] = useState([]);
   const [formCompanyBranding, setFormCompanyBranding] = useState(null);
@@ -4369,7 +4372,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
                         </td>
                         <td className="p-3 text-center">
                           <button
-                            onClick={() => setProcedimientosList(prev => prev.filter((_, i) => i !== idx))}
+                            onClick={() => setProcedimientosList(prev => { const next = prev.filter((_, i) => i !== idx); localStorage.setItem(`obraxis_procedimientos_${user?.empresa || 'default'}`, JSON.stringify(next)); return next; })}
                             className="text-[10px] bg-slate-100 hover:bg-red-50 hover:text-red-700 text-slate-700 font-bold px-2 py-1 rounded cursor-pointer transition"
                           >
                             Eliminar
@@ -4398,10 +4401,12 @@ export default function Prevencion({ user, onBack, companyBranding }) {
               onSubmit={(e) => {
                 e.preventDefault();
                 if (!newPtsForm.nombre.trim()) return;
-                setProcedimientosList([...procedimientosList, {
+                const nextProcedimientos = [...procedimientosList, {
                   ...newPtsForm,
                   fecha: new Date().toLocaleDateString('es-CL')
-                }]);
+                }];
+                setProcedimientosList(nextProcedimientos);
+                localStorage.setItem(`obraxis_procedimientos_${user?.empresa || 'default'}`, JSON.stringify(nextProcedimientos));
                 setShowPtsModal(false);
                 setNewPtsForm({
                   codigo: 'PTS-OBR-' + String(procedimientosList.length + 2).padStart(3, '0'),
