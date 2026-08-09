@@ -171,6 +171,40 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     setFormFields(formFields.filter(f => f.id !== id));
   };
 
+  const installOperationalTemplates = async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const common = (codigo, modulo, titulo, descripcion, tipo_registro, items) => ({
+      titulo, descripcion, modulo_asignado: modulo,
+      token_publico: `FORM_${Math.random().toString(36).slice(2, 9).toUpperCase()}`,
+      creador_email: user?.email || 'admin@obraxis.cl', empresa: user?.empresa || 'EMIN', created_at: new Date().toISOString(),
+      campos: { items, control_documental: { codigo, revision: '0', fecha_revision: today, tipo_registro } }
+    });
+    const templates = [
+      common('MAQ-REG-001', 'maquinaria', 'Registro diario de uso y horómetro', 'Registro base para controlar horas, combustible, operador y evidencia de uso.', 'maquinaria_uso', [
+        { id: 'equipo_patente', type: 'text', label: 'Equipo / patente', required: true, options: [] }, { id: 'horometro_inicial', type: 'text', label: 'Horómetro inicial', required: true, options: [] }, { id: 'horometro_final', type: 'text', label: 'Horómetro final', required: true, options: [] }, { id: 'combustible', type: 'text', label: 'Combustible cargado (L)', required: false, options: [] }, { id: 'observaciones', type: 'textarea', label: 'Observaciones', required: false, options: [] }, { id: 'evidencia', type: 'photo', label: 'Evidencia fotográfica', required: false, options: [] }
+      ]),
+      common('PR-PARE-001', 'prevencion', 'Tarjeta PARE — detención preventiva', 'Detén la tarea, identifica el peligro, define controles e informa antes de reiniciar.', 'pare', [
+        { id: 'actividad', type: 'text', label: 'Actividad detenida', required: true, options: [] }, { id: 'peligro', type: 'textarea', label: 'Peligro o condición detectada', required: true, options: [] }, { id: 'riesgo', type: 'rating', label: 'Nivel de riesgo antes del control', required: true, maxRating: 5, options: [] }, { id: 'accion', type: 'textarea', label: 'Acción inmediata y control definido', required: true, options: [] }, { id: 'aviso', type: 'radio', label: '¿Se informó a la supervisión?', required: true, options: ['Sí', 'No'] }, { id: 'evidencia', type: 'photo', label: 'Evidencia fotográfica', required: false, options: [] }, { id: 'firma', type: 'signature', label: 'Firma de quien detiene', required: true, options: [] }
+      ]),
+      common('PR-INC-001', 'prevencion', 'Informe de incidente o accidente', 'Registro inicial para activar investigación, acciones inmediatas y seguimiento preventivo.', 'incidente_accidente', [
+        { id: 'tipo', type: 'radio', label: 'Tipo de evento', required: true, options: ['Incidente sin lesión', 'Casi accidente', 'Accidente sin tiempo perdido', 'Accidente con tiempo perdido'] }, { id: 'fecha_evento', type: 'date', label: 'Fecha del evento', required: true, options: [] }, { id: 'persona', type: 'text', label: 'Persona involucrada', required: false, options: [] }, { id: 'descripcion', type: 'textarea', label: 'Descripción del evento', required: true, options: [] }, { id: 'accion_inmediata', type: 'textarea', label: 'Acciones inmediatas ejecutadas', required: true, options: [] }, { id: 'gravedad', type: 'rating', label: 'Nivel de gravedad', required: true, maxRating: 5, options: [] }, { id: 'evidencia', type: 'photo', label: 'Evidencia fotográfica', required: false, options: [] }, { id: 'firma', type: 'signature', label: 'Firma del informante', required: true, options: [] }
+      ])
+    ];
+    const existingTitles = new Set(formularios.map(form => form.titulo));
+    const pending = templates.filter(template => !existingTitles.has(template.titulo));
+    if (!pending.length) { setSuccessMsg('Las plantillas operacionales ya están disponibles.'); return; }
+    setLoading(true);
+    try {
+      const { error } = await supabase.from('prevencion_formularios').insert(pending);
+      if (error) throw error;
+      await fetchFormularios();
+      setSuccessMsg(`${pending.length} plantillas operacionales instaladas.`);
+    } catch (error) {
+      const updated = [...pending, ...formularios]; setFormularios(updated); localStorage.setItem('obraxis_formularios_dinamicos', JSON.stringify(updated));
+      setSuccessMsg('Plantillas instaladas localmente.');
+    } finally { setLoading(false); setTimeout(() => setSuccessMsg(''), 4000); }
+  };
+
   // Guardar Formulario Dinámico
   const handleSaveForm = async (e) => {
     e.preventDefault();
@@ -566,13 +600,16 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in duration-200 space-y-4">
           <div className="flex justify-between items-center border-b border-slate-100 pb-3">
             <div><h2 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider">Biblioteca de Formularios</h2><p className="mt-1 text-[11px] text-slate-500">{formularios.length} formularios disponibles para publicar y responder.</p></div>
-            <button
-              onClick={() => setActiveTab('designer')}
-              className="px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm hover:bg-primary-hover transition"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Nuevo Formulario</span>
-            </button>
+            <div className="flex flex-wrap justify-end gap-2">
+              <button onClick={installOperationalTemplates} disabled={loading} className="px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-[11px] font-bold cursor-pointer hover:bg-emerald-100 transition">Instalar formularios base</button>
+              <button
+                onClick={() => setActiveTab('designer')}
+                className="px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm hover:bg-primary-hover transition"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Nuevo Formulario</span>
+              </button>
+            </div>
           </div>
 
           {formularios.length > 0 && <input value={formSearch} onChange={e => setFormSearch(e.target.value)} placeholder="Buscar por título, módulo o descripción…" className="h-10 w-full max-w-md rounded-xl border border-slate-200 px-3 text-xs font-medium outline-none focus:border-primary" />}

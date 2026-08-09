@@ -42,7 +42,8 @@ export default function PublicFormFiller({ formToken }) {
       campos: Array.isArray(storedFields) ? storedFields : (storedFields?.items || []),
       codigo: control.codigo ?? rawForm?.codigo ?? '',
       revision: control.revision ?? rawForm?.revision ?? '',
-      fecha_revision: control.fecha_revision ?? rawForm?.fecha_revision ?? ''
+      fecha_revision: control.fecha_revision ?? rawForm?.fecha_revision ?? '',
+      tipo_registro: control.tipo_registro ?? ''
     };
   };
 
@@ -227,6 +228,18 @@ export default function PublicFormFiller({ formToken }) {
         ]);
 
       if (insErr) throw insErr;
+
+      if (form.tipo_registro === 'maquinaria_uso') {
+        const patente = String(finalAnswers.equipo_patente || '').trim().toUpperCase();
+        const { data: equipment } = await supabase.from('maquinaria').select('id, tipo, patente, obra_nombre').ilike('patente', patente).maybeSingle();
+        const initial = Number(finalAnswers.horometro_inicial) || 0;
+        const final = Number(finalAnswers.horometro_final) || 0;
+        await supabase.from('maquinaria_uso_diario').insert([{ equipo_id: equipment?.id || null, equipo_tipo: equipment?.tipo || 'Equipo', equipo_patente: patente, obra_nombre: fillMetadata.proyecto_nombre || equipment?.obra_nombre || '', fecha: new Date().toISOString().slice(0, 10), horometro_inicial: initial, horometro_final: final, horas_trabajadas: Math.max(0, final - initial), combustible_cargado: Number(finalAnswers.combustible) || 0, operador: fillMetadata.inspector || '', observaciones: finalAnswers.observaciones || '', empresa: form.empresa || 'OBRAXIS', created_at: new Date().toISOString() }]);
+      }
+      if (form.tipo_registro === 'incidente_accidente') {
+        const typeMap = { 'Accidente con tiempo perdido': 'CTP', 'Accidente sin tiempo perdido': 'STP', 'Casi accidente': 'CASI_ACCIDENTE', 'Incidente sin lesión': 'STP' };
+        await supabase.from('accidentes_prevencion_obra').insert([{ fecha: finalAnswers.fecha_evento || new Date().toISOString().slice(0, 10), tipo: typeMap[finalAnswers.tipo] || 'STP', trabajador: finalAnswers.persona || fillMetadata.inspector || '', dias_perdidos: 0, descripcion: finalAnswers.descripcion || '', obra_nombre: fillMetadata.proyecto_nombre || '', empresa: form.empresa || 'OBRAXIS' }]);
+      }
 
       // --- Despachar Reporte de Prevención y Seguridad por Correo ---
       try {
