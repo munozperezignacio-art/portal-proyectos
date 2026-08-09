@@ -217,6 +217,13 @@ export default function PublicFormFiller({ formToken }) {
           finalAnswers[fId][idx][subId] = sigUrl;
         }
       });
+      // La firma principal corresponde al campo de firma del formulario. La
+      // guardamos también dentro de las respuestas para que registros, correos
+      // y PDF la presenten una sola vez con su etiqueta configurada.
+      const signatureField = (form.campos || []).find(field => field.type === 'signature');
+      if (signatureField && mainSignatureDataUrl && !finalAnswers[signatureField.id]) {
+        finalAnswers[signatureField.id] = mainSignatureDataUrl;
+      }
 
       const { error: insErr } = await supabase
         .from('prevencion_respuestas')
@@ -307,7 +314,7 @@ export default function PublicFormFiller({ formToken }) {
 
           // Firma principal
           let mainSignatureHtml = "";
-          if (mainSignatureDataUrl) {
+          if (mainSignatureDataUrl && !(form.campos || []).some(field => field.type === 'signature')) {
             mainSignatureHtml = `
               <h3 style="color: #0f172a; font-size: 13px; margin: 20px 0 10px 0; border-left: 4px solid #2563eb; padding-left: 8px; text-transform: uppercase; letter-spacing: 0.03em;">Firma del Inspector</h3>
               <div style="border: 1px solid #e2e8f0; border-radius: 12px; padding: 15px; display: inline-block; background-color: #f8fafc;">

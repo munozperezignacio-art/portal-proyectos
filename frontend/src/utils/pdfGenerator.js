@@ -15,6 +15,7 @@ export function generateFormPdf({ form, metadata, answers, mainSignature, compan
   const pageHeight = 297;
   const margin = 20;
   const contentWidth = 170; // 210 - 20*2
+  const signatureField = (form.campos || []).find(field => field.type === 'signature');
 
   const checkPage = (heightNeeded) => {
     if (y + heightNeeded > pageHeight - margin) {
@@ -124,7 +125,10 @@ export function generateFormPdf({ form, metadata, answers, mainSignature, compan
   y += 6;
 
   (form.campos || []).forEach((field) => {
-    const val = answers[field.id];
+    // La firma principal se almacena separada en respuestas históricas. Si el
+    // formulario contiene un campo firma, pertenece a ese campo y no a un
+    // segundo bloque genérico de firma al final del documento.
+    const val = answers[field.id] || (field.id === signatureField?.id ? mainSignature : undefined);
     
     // Calcular altura estimada requerida para la pregunta
     let heightNeeded = 12;
@@ -221,7 +225,7 @@ export function generateFormPdf({ form, metadata, answers, mainSignature, compan
   });
 
   // 4. Firma del Inspector al Pie
-  if (mainSignature) {
+  if (mainSignature && !signatureField) {
     checkPage(35);
     y += 5;
     doc.setDrawColor(15, 23, 42);
