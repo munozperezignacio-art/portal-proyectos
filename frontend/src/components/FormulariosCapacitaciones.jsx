@@ -198,10 +198,20 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       common('PR-PARE-001', 'prevencion', 'Tarjeta PARE — detención preventiva', 'Detén la tarea, identifica el peligro, define controles e informa antes de reiniciar.', 'pare', [
         { id: 'actividad', type: 'text', label: 'Actividad detenida', required: true, options: [] }, { id: 'peligro', type: 'textarea', label: 'Peligro o condición detectada', required: true, options: [] }, { id: 'riesgo', type: 'rating', label: 'Nivel de riesgo antes del control', required: true, maxRating: 5, options: [] }, { id: 'accion', type: 'textarea', label: 'Acción inmediata y control definido', required: true, options: [] }, { id: 'aviso', type: 'radio', label: '¿Se informó a la supervisión?', required: true, options: ['Sí', 'No'] }, { id: 'evidencia', type: 'photo', label: 'Evidencia fotográfica', required: false, options: [] }, { id: 'firma', type: 'signature', label: 'Firma de quien detiene', required: true, options: [] }
       ]),
-      common('PR-INC-001', 'prevencion', 'Informe de incidente o accidente', 'Registro inicial para activar investigación, acciones inmediatas y seguimiento preventivo.', 'incidente_accidente', [
-        { id: 'tipo', type: 'radio', label: 'Tipo de evento', required: true, options: ['Incidente sin lesión', 'Casi accidente', 'Accidente sin tiempo perdido', 'Accidente con tiempo perdido'] }, { id: 'fecha_evento', type: 'date', label: 'Fecha del evento', required: true, options: [] }, { id: 'persona', type: 'text', label: 'Persona involucrada', required: false, options: [] }, { id: 'descripcion', type: 'textarea', label: 'Descripción del evento', required: true, options: [] }, { id: 'accion_inmediata', type: 'textarea', label: 'Acciones inmediatas ejecutadas', required: true, options: [] }, { id: 'gravedad', type: 'rating', label: 'Nivel de gravedad', required: true, maxRating: 5, options: [] }, { id: 'evidencia', type: 'photo', label: 'Evidencia fotográfica', required: false, options: [] }, { id: 'firma', type: 'signature', label: 'Firma del informante', required: true, options: [] }
+      common('PR-INC-001', 'prevencion', 'Informe de incidente o accidente', 'Registro inicial del evento. La clasificación y los días perdidos se completan posteriormente en Prevención.', 'incidente_accidente', [
+        { id: 'tipo', type: 'radio', label: 'Tipo de evento', required: true, options: ['Incidente', 'Accidente'] }, { id: 'fecha_evento', type: 'date', label: 'Fecha del evento', required: true, options: [] }, { id: 'hora_evento', type: 'time', label: 'Hora del evento', required: true, options: [] }, { id: 'persona', type: 'text', label: 'Persona involucrada', required: false, options: [] }, { id: 'descripcion', type: 'textarea', label: 'Descripción inicial del evento', required: true, options: [] }, { id: 'accion_inmediata', type: 'textarea', label: 'Acciones inmediatas ejecutadas', required: true, options: [] }, { id: 'evidencia', type: 'photo', label: 'Evidencia fotográfica', required: false, options: [] }, { id: 'firma', type: 'signature', label: 'Firma del informante', required: true, options: [] }
       ])
     ];
+    const incidentTemplate = templates.find(template => template.titulo === 'Informe de incidente o accidente');
+    const existingIncident = formularios.find(form => form.titulo === incidentTemplate.titulo);
+    if (existingIncident) {
+      const refreshed = { ...existingIncident, descripcion: incidentTemplate.descripcion, campos: incidentTemplate.campos };
+      if (existingIncident.id) await supabase.from('prevencion_formularios').update({ descripcion: refreshed.descripcion, campos: refreshed.campos }).eq('id', existingIncident.id);
+      else {
+        const local = formularios.map(form => form === existingIncident ? refreshed : form);
+        setFormularios(local); localStorage.setItem('obraxis_formularios_dinamicos', JSON.stringify(local));
+      }
+    }
     const existingTitles = new Set(formularios.map(form => form.titulo));
     const pending = templates.filter(template => !existingTitles.has(template.titulo));
     if (!pending.length) { setSuccessMsg('Las plantillas operacionales ya están disponibles.'); return; }
@@ -569,7 +579,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
               <label className="block text-xs font-extrabold uppercase text-slate-700">Diseño de Campos y Preguntas</label>
               <p className="text-[11px] text-slate-500">Cada respuesta registra obra y usuario responsable desde el encabezado del formulario.</p>
               <div className="flex flex-wrap gap-2">
-                {[['text','Texto corto'],['textarea','Texto largo'],['date','Fecha'],['select','Lista desplegable'],['radio','Selección múltiple · una respuesta'],['checkbox','Checkbox · varias respuestas'],['rating','Nivel de valoración'],['photo','Subir imágenes'],['signature','Dibujar firma'],['repeater','Grupo repetible']].map(([type,label]) => <button key={type} type="button" onClick={() => handleAddField(type)} className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">+ {label}</button>)}
+                {[['text','Texto corto'],['textarea','Texto largo'],['date','Fecha'],['time','Hora'],['select','Lista desplegable'],['radio','Selección múltiple · una respuesta'],['checkbox','Checkbox · varias respuestas'],['rating','Nivel de valoración'],['photo','Subir imágenes'],['signature','Dibujar firma'],['repeater','Grupo repetible']].map(([type,label]) => <button key={type} type="button" onClick={() => handleAddField(type)} className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">+ {label}</button>)}
               </div>
             </div>
 
