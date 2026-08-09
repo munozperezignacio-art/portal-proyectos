@@ -38,6 +38,8 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   const [formRevision, setFormRevision] = useState('0');
   const [formFechaRevision, setFormFechaRevision] = useState(() => new Date().toISOString().slice(0, 10));
   const [formEmails, setFormEmails] = useState(['']);
+  const [formAllowedCargos, setFormAllowedCargos] = useState([]);
+  const [availableCargos, setAvailableCargos] = useState([]);
   const [editingForm, setEditingForm] = useState(null);
   const [formFields, setFormFields] = useState([
     { id: Date.now(), type: 'text', label: 'Nombre o Título', required: true, options: [] }
@@ -57,7 +59,19 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     fetchFormularios();
     fetchRespuestas();
     fetchCapacitaciones();
+    fetchAvailableCargos();
   }, [user?.empresa]);
+
+  const fetchAvailableCargos = async () => {
+    try {
+      const { data, error } = await supabase.from('maestro_personal').select('cargo').eq('empresa', user?.empresa || 'EMIN').order('cargo');
+      if (error) throw error;
+      setAvailableCargos([...new Set((data || []).map(person => person.cargo?.trim()).filter(Boolean))]);
+    } catch (error) {
+      console.warn('No se pudieron cargar los cargos:', error.message);
+      setAvailableCargos([]);
+    }
+  };
 
   const fetchFormularios = async () => {
     try {
@@ -180,6 +194,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     setEditingForm(form);
     setFormTitle(form.titulo || ''); setFormDesc(form.descripcion || ''); setFormModulo(form.categoria || form.modulo_asignado || 'general');
     setFormCodigo(control.codigo || ''); setFormRevision(control.revision || '0'); setFormFechaRevision(control.fecha_revision || new Date().toISOString().slice(0, 10)); setFormEmails((form.correos_notificacion || '').split(',').map(email => email.trim()).filter(Boolean).concat((form.correos_notificacion || '').trim() ? [] : ['']));
+    setFormAllowedCargos((form.cargos_obligados || '').split(',').map(cargo => cargo.trim()).filter(Boolean));
     setFormFields(Array.isArray(stored) ? stored : (stored?.items || []));
     setActiveTab('designer');
   };
@@ -254,6 +269,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       publico_token: editingForm?.publico_token || token,
       creado_por: user?.email || 'admin@obraxis.cl',
       correos_notificacion: formEmails.map(email => email.trim()).filter(Boolean).join(','),
+      cargos_obligados: formAllowedCargos.join(','),
       empresa: user?.empresa || 'EMIN',
       created_at: new Date().toISOString()
     };
@@ -280,6 +296,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       setFormRevision('0');
       setFormFechaRevision(new Date().toISOString().slice(0, 10));
       setFormEmails(['']);
+      setFormAllowedCargos([]);
       setEditingForm(null);
       setFormFields([{ id: Date.now(), type: 'text', label: 'Nombre o Título', required: true, options: [] }]);
       setActiveTab('forms_list');
@@ -343,7 +360,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       const payload = {
         titulo: form.titulo, descripcion: form.descripcion || '', categoria: form.categoria || form.modulo_asignado || 'general', campos: form.campos,
         publico_token: form.publico_token || form.token_publico || `FORM_${Math.random().toString(36).slice(2, 9).toUpperCase()}`,
-        creado_por: form.creado_por || form.creador_email || user?.email || 'admin@obraxis.cl', empresa: form.empresa || user?.empresa || 'EMIN', created_at: form.created_at || new Date().toISOString()
+        creado_por: form.creado_por || form.creador_email || user?.email || 'admin@obraxis.cl', cargos_obligados: form.cargos_obligados || '', empresa: form.empresa || user?.empresa || 'EMIN', created_at: form.created_at || new Date().toISOString()
       };
       const { error } = await supabase.from('prevencion_formularios').insert([payload]);
       if (error) throw error;
@@ -631,6 +648,13 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                   onChange={(e) => setFormDesc(e.target.value)}
                   className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 bg-white focus:outline-none focus:border-primary"
                 ></textarea>
+              </div>
+              <div className="md:col-span-3 space-y-2 rounded-xl border border-slate-200 bg-white p-3">
+                <div>
+                  <label className="block text-[10.5px] font-extrabold uppercase text-slate-600">Cargos autorizados para responder</label>
+                  <p className="mt-1 text-[10px] text-slate-400">Selecciona uno o más cargos. Sin selección, el formulario estará disponible para todo el personal.</p>
+                </div>
+                {availableCargos.length ? <div className="flex flex-wrap gap-2">{availableCargos.map(cargo => <label key={cargo} className={`cursor-pointer rounded-lg border px-2.5 py-1.5 text-[10px] font-bold transition ${formAllowedCargos.includes(cargo) ? 'border-primary bg-primary text-white' : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-primary/50'}`}><input type="checkbox" className="sr-only" checked={formAllowedCargos.includes(cargo)} onChange={() => setFormAllowedCargos(current => current.includes(cargo) ? current.filter(item => item !== cargo) : [...current, cargo])} />{cargo}</label>)}</div> : <p className="text-[10px] text-amber-700">Aún no hay cargos creados en el maestro de personal.</p>}
               </div>
             </div>
 
