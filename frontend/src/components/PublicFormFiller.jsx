@@ -257,8 +257,10 @@ export default function PublicFormFiller({ formToken }) {
                   Object.entries(instance).forEach(([subId, subVal]) => {
                     const subField = field.subFields?.find(sf => sf.id === subId);
                     const subLabel = subField ? subField.label : subId;
-                    if (subField?.type === 'signature' && subVal) {
+                    if ((subField?.type === 'signature' || subField?.type === 'photo') && subVal) {
                       formattedAns += `<b>${subLabel}:</b> <img src="${subVal}" style="max-height: 40px; vertical-align: middle;" /><br/>`;
+                    } else if (subField?.type === 'checkbox') {
+                      formattedAns += `<b>${subLabel}:</b> ${Array.isArray(subVal) && subVal.length ? subVal.join(', ') : 'Sin alternativas marcadas'}<br/>`;
                     } else {
                       formattedAns += `<b>${subLabel}:</b> ${subVal || 'N/R'}<br/>`;
                     }
@@ -271,8 +273,10 @@ export default function PublicFormFiller({ formToken }) {
               }
             } else if (field.type === 'signature') {
               formattedAns = ans ? `<img src="${ans}" style="max-height: 50px;" />` : '<span style="color: #94a3b8; font-style: italic;">No firmado</span>';
+            } else if (field.type === 'photo') {
+              formattedAns = ans ? `<img src="${ans}" style="max-height: 160px; border-radius: 8px;" />` : '<span style="color: #94a3b8; font-style: italic;">Sin evidencia fotográfica</span>';
             } else if (field.type === 'checkbox') {
-              formattedAns = ans ? 'Sí (Aceptado) ✅' : 'No ❌';
+              formattedAns = Array.isArray(ans) && ans.length ? ans.join(', ') : 'Sin alternativas marcadas';
             } else {
               formattedAns = ans || 'N/R';
             }
@@ -560,7 +564,9 @@ export default function PublicFormFiller({ formToken }) {
                             )}
 
                             {sub.type === 'select' && <select value={inst[sub.id] || ''} onChange={e => handleUpdateRepeaterAnswer(f.id, instIdx, sub.id, e.target.value)} className="w-full rounded-xl border border-slate-200 p-2 text-xs"><option value="">Seleccionar…</option>{(sub.options || []).map(option => <option key={option} value={option}>{option}</option>)}</select>}
+                            {sub.type === 'radio' && <div className="space-y-1">{(sub.options || []).map(option => <label key={option} className="flex items-center gap-2 text-xs"><input type="radio" name={`${f.id}_${instIdx}_${sub.id}`} checked={inst[sub.id] === option} onChange={() => handleUpdateRepeaterAnswer(f.id, instIdx, sub.id, option)} />{option}</label>)}</div>}
                             {sub.type === 'checkbox' && <div className="space-y-1">{(sub.options || []).map(option => <label key={option} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={(inst[sub.id] || []).includes(option)} onChange={e => { const current = inst[sub.id] || []; handleUpdateRepeaterAnswer(f.id, instIdx, sub.id, e.target.checked ? [...current, option] : current.filter(value => value !== option)); }} />{option}</label>)}</div>}
+                            {sub.type === 'photo' && <div className="space-y-2"><input type="file" accept="image/*" capture="environment" onChange={e => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onloadend = () => handleUpdateRepeaterAnswer(f.id, instIdx, sub.id, reader.result); reader.readAsDataURL(file); }} className="w-full text-xs file:mr-2 file:rounded-lg file:border-0 file:bg-primary file:px-2 file:py-1 file:text-white" />{inst[sub.id] && <img src={inst[sub.id]} alt="Evidencia" className="max-h-32 rounded-lg border border-slate-200 object-cover" />}</div>}
 
                             {sub.type === 'status_switch' && (
                               <div className="flex gap-2">
@@ -705,6 +711,15 @@ export default function PublicFormFiller({ formToken }) {
                     </div>
                   )}
 
+                  {f.type === 'rating' && (
+                    <div className="flex flex-wrap gap-2">
+                      {Array.from({ length: Number(f.maxRating) || 5 }, (_, index) => index + 1).map(level => (
+                        <button key={level} type="button" onClick={() => setFillAnswers({ ...fillAnswers, [f.id]: level })} className={`h-9 min-w-9 rounded-lg border px-3 text-xs font-black transition ${Number(fillAnswers[f.id]) === level ? 'border-primary bg-primary text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-primary'}`}>{level}</button>
+                      ))}
+                      {fillAnswers[f.id] && <span className="self-center text-[11px] font-bold text-slate-500">Valor seleccionado: {fillAnswers[f.id]}</span>}
+                    </div>
+                  )}
+
                   {f.type === 'signature' && (
                     <div className="space-y-2">
                       <div className="border-2 border-slate-200 rounded-2xl p-1 bg-slate-50/50">
@@ -741,6 +756,7 @@ export default function PublicFormFiller({ formToken }) {
                       <input
                         type="file"
                         accept="image/*"
+                        capture="environment"
                         onChange={(e) => {
                           const file = e.target.files[0];
                           if (file) {
@@ -753,6 +769,7 @@ export default function PublicFormFiller({ formToken }) {
                         }}
                         className="mt-2 text-xs text-slate-500 file:bg-primary file:text-white file:border-0 file:px-3 file:py-1 file:rounded-lg"
                       />
+                      {fillAnswers[f.id] && <img src={fillAnswers[f.id]} alt="Vista previa de evidencia" className="mx-auto mt-3 max-h-48 rounded-xl border border-slate-200 object-cover" />}
                     </div>
                   )}
 

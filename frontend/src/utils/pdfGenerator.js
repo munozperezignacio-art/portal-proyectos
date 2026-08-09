@@ -158,8 +158,8 @@ export function generateFormPdf({ form, metadata, answers, mainSignature, compan
             const subLabel = subField ? subField.label : subId;
             
             checkPage(6);
-            if (subField?.type === 'signature' && subVal) {
-              doc.text(`- ${subLabel}: [Firma Digital]`, margin + 10, y);
+            if ((subField?.type === 'signature' || subField?.type === 'photo') && subVal) {
+              doc.text(`- ${subLabel}: ${subField?.type === 'photo' ? '[Evidencia fotográfica]' : '[Firma Digital]'}`, margin + 10, y);
               try {
                 doc.addImage(subVal, 'PNG', margin + 50, y - 4, 15, 6);
               } catch (e) {
@@ -185,8 +185,16 @@ export function generateFormPdf({ form, metadata, answers, mainSignature, compan
         doc.text('[Firma Registrada]', margin, y);
         y += 5;
       }
+    } else if (field.type === 'photo' && val) {
+      try {
+        doc.addImage(val, 'JPEG', margin, y - 3, 60, 35);
+        y += 37;
+      } catch (errPhoto) {
+        doc.text('[Evidencia fotográfica registrada]', margin, y);
+        y += 5;
+      }
     } else if (field.type === 'checkbox') {
-      doc.text(val ? 'Sí (Aceptado)' : 'No', margin, y);
+      doc.text(Array.isArray(val) && val.length ? val.join(', ') : 'Sin alternativas marcadas', margin, y);
       y += 5;
     } else {
       const textVal = String(val || 'N/R');
