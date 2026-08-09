@@ -27,6 +27,7 @@ export default function PublicFormFiller({ formToken }) {
   const [repeaterSignatures, setRepeaterSignatures] = useState({});
 
   const [obrasList, setObrasList] = useState([]);
+  const [maquinariaList, setMaquinariaList] = useState([]);
   const [formCompanyBranding, setFormCompanyBranding] = useState(null);
   const [personalMaestro, setPersonalMaestro] = useState([]);
 
@@ -37,9 +38,21 @@ export default function PublicFormFiller({ formToken }) {
     const control = storedFields && !Array.isArray(storedFields)
       ? (storedFields.control_documental || {})
       : {};
+    let fields = Array.isArray(storedFields) ? storedFields : (storedFields?.items || []);
+    // Compatibilidad con el formulario base creado antes de la integración de
+    // maquinaria: se añade visualmente el dato automático sin perder campos.
+    if ((control.tipo_registro ?? '') === 'maquinaria_uso' && !fields.some(field => field.id === 'marca_modelo')) {
+      const equipmentIndex = fields.findIndex(field => field.id === 'equipo_patente');
+      const automaticField = { id: 'marca_modelo', type: 'text', label: 'Marca y modelo', required: false, options: [], autoFilled: true };
+      fields = [...fields];
+      fields.splice(equipmentIndex >= 0 ? equipmentIndex + 1 : 0, 0, automaticField);
+    }
+    if ((control.tipo_registro ?? '') === 'maquinaria_uso') {
+      fields = fields.map(field => field.id === 'horometro_inicial' ? { ...field, autoFilled: true } : field);
+    }
     return {
       ...rawForm,
-      campos: Array.isArray(storedFields) ? storedFields : (storedFields?.items || []),
+      campos: fields,
       codigo: control.codigo ?? rawForm?.codigo ?? '',
       revision: control.revision ?? rawForm?.revision ?? '',
       fecha_revision: control.fecha_revision ?? rawForm?.fecha_revision ?? '',
@@ -95,6 +108,13 @@ export default function PublicFormFiller({ formToken }) {
             .order('nombre');
           if (activeObras) setObrasList(activeObras);
 
+          const { data: equipment } = await supabase
+            .from('inventario_maquinaria')
+            .select('id, patente, tipo, marca, obra_nombre, horometro_inicial')
+            .eq('empresa', data.empresa || 'Obraxis')
+            .order('patente');
+          if (equipment) setMaquinariaList(equipment);
+
           const { data: personal } = await supabase
             .from('maestro_personal')
             .select('nombre, rut, cargo')
@@ -118,6 +138,30 @@ export default function PublicFormFiller({ formToken }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const selectEquipment = async (patente) => {
+    const equipment = maquinariaList.find(item => item.patente === patente);
+    if (!equipment) {
+      setFillAnswers(previous => ({ ...previous, equipo_patente: patente }));
+      return;
+    }
+    let lastHourmeter = Number(equipment.horometro_inicial) || 0;
+    try {
+      let { data: uses } = await supabase.from('maquinaria_uso_diario').select('horometro_final, created_at, fecha').eq('equipo_id', equipment.id).order('created_at', { ascending: false }).limit(1);
+      if (!uses?.length) {
+        ({ data: uses } = await supabase.from('maquinaria_uso_diario').select('horometro_final, created_at, fecha').eq('equipo_patente', equipment.patente).order('created_at', { ascending: false }).limit(1));
+      }
+      if (uses?.[0]?.horometro_final !== null && uses?.[0]?.horometro_final !== undefined) lastHourmeter = Number(uses[0].horometro_final) || 0;
+    } catch (err) {
+      console.warn('No se pudo recuperar el último horómetro:', err.message);
+    }
+    setFillAnswers(previous => ({
+      ...previous,
+      equipo_patente: equipment.patente,
+      marca_modelo: equipment.marca || equipment.tipo || 'Sin información',
+      horometro_inicial: String(lastHourmeter)
+    }));
   };
 
   // Manejo de bloques repetibles
@@ -491,7 +535,12 @@ export default function PublicFormFiller({ formToken }) {
               <select
                 required
                 value={fillMetadata.proyecto_nombre}
-                onChange={(e) => setFillMetadata({ ...fillMetadata, proyecto_nombre: e.target.value })}
+                onChange={(e) => {
+                  setFillMetadata({ ...fillMetadata, proyecto_nombre: e.target.value });
+                  if (form.tipo_registro === 'maquinaria_uso') {
+                    setFillAnswers(previous => ({ ...previous, equipo_patente: '', marca_modelo: '', horometro_inicial: '' }));
+                  }
+                }}
                 className="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs font-semibold uppercase text-slate-800 focus:outline-none focus:border-primary"
               >
                 <option value="">-- Selecciona Obra --</option>
@@ -649,14 +698,28 @@ export default function PublicFormFiller({ formToken }) {
                     {index + 1}. {f.label} {f.required && <span className="text-red-500">*</span>}
                   </label>
 
-                  {f.type === 'text' && (
+                  {form.tipo_registro === 'maquinaria_uso' && f.id === 'equipo_patente' ? (
+                    <select
+                      required={f.required}
+                      value={fillAnswers[f.id] || ''}
+                      onChange={(e) => selectEquipment(e.target.value)}
+                      disabled={!fillMetadata.proyecto_nombre}
+                      className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 disabled:cursor-not-allowed disabled:bg-slate-100"
+                    >
+                      <option value="">{fillMetadata.proyecto_nombre ? '-- Selecciona equipo --' : '-- Primero selecciona una obra --'}</option>
+                      {maquinariaList.filter(item => item.obra_nombre === fillMetadata.proyecto_nombre).map(item => (
+                        <option key={item.id || item.patente} value={item.patente}>{item.tipo || 'Equipo'} · {item.patente}</option>
+                      ))}
+                    </select>
+                  ) : f.type === 'text' && (
                     <input
                       type="text"
                       required={f.required}
                       value={fillAnswers[f.id] || ''}
                       onChange={(e) => setFillAnswers({ ...fillAnswers, [f.id]: e.target.value })}
                       placeholder="Escriba aquí..."
-                      className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800"
+                      readOnly={Boolean(f.autoFilled)}
+                      className={`w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 ${f.autoFilled ? 'bg-slate-50 text-slate-600' : ''}`}
                     />
                   )}
 
