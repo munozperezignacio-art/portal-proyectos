@@ -447,7 +447,7 @@ export default function PublicFormFiller({ formToken }) {
 
           await sendSystemEmail({
             to: destinationEmails,
-            subject: `📋 Nueva Inspección Pública: ${form.titulo} - ${fillMetadata.proyecto_nombre || 'General'}`,
+            subject: `Nuevo Registro: "${form.titulo}" - ${fillMetadata.proyecto_nombre || 'General'}`,
             htmlContent: mailHtml,
             attachments: [
               {

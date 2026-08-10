@@ -1330,7 +1330,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
 
           await sendSystemEmail({
             to: destinationEmails,
-            subject: `📋 Nueva Inspección: ${selectedFormToFill.titulo} - ${fillMetadata.proyecto_nombre || 'General'}`,
+            subject: `Nuevo Registro: "${selectedFormToFill.titulo}" - ${fillMetadata.proyecto_nombre || 'General'}`,
             htmlContent: mailHtml,
             attachments: [
               {
