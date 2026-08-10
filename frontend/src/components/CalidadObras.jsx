@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, ClipboardCheck, FileCheck2, Mail, Plus, RefreshCw, ShieldCheck, XCircle } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { registrarEventoBitacora } from '../utils/bitacoraService';
+import { appendAudit, auditActor } from '../utils/documentAudit';
+import DocumentAuditTrail from './DocumentAuditTrail';
 
 const initialPac = { partida: '', procedimiento: '', criterios: '', puntos_inspeccion: '', puntos_espera: '', responsable: '' };
 const initialRdi = { partida: '', pac_id: '', sector: '', cantidad: '', unidad: '', solicitado_por: '', inspector: '', observaciones: '' };
@@ -122,7 +124,7 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
     e.preventDefault();
     try {
       const codigo = `RDI-${new Date().getFullYear()}-${String(rdis.length + 1).padStart(3, '0')}`;
-      const { error } = await supabase.from('calidad_rdi').insert({ empresa, obra_nombre: obraNombre, ...rdiForm, codigo, estado: 'Enviada', fecha_solicitud: new Date().toISOString().slice(0, 10) });
+      const { error } = await supabase.from('calidad_rdi').insert({ empresa, obra_nombre: obraNombre, ...rdiForm, codigo, estado: 'Enviada', fecha_solicitud: new Date().toISOString().slice(0, 10), trazabilidad: [auditActor(user, 'Solicitud RDI emitida', 'Enviada', `${rdiForm.partida} · ${rdiForm.sector}`)] });
       if (error) throw error;
       await registrarEventoBitacora({ empresa, obraNombre, categoria: 'Calidad', accion: `${codigo} enviada a inspección`, detalle: `${rdiForm.partida} · ${rdiForm.cantidad || 0} ${rdiForm.unidad || ''} · ${rdiForm.sector}`, actor: rdiForm.solicitado_por || user?.nombre || user?.email });
       setRdiForm(initialRdi); setMessage(`${codigo} enviada a inspección.`); await load();
@@ -146,7 +148,7 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
       const rdi = rdis.find(item => String(item.id) === String(receptionPayload.rdi_id));
       const pac = pacPorPartida.get(receptionPayload.partida) || pacs.find(item => String(item.id) === String(rdi?.pac_id));
       const protocol = protocolFromPac(pac, controles_manual);
-      const insertPayload = { empresa, obra_nombre: obraNombre, ...receptionPayload, codigo, estado: 'Pendiente de recepción' };
+      const insertPayload = { empresa, obra_nombre: obraNombre, ...receptionPayload, codigo, estado: 'Pendiente de recepción', trazabilidad: [auditActor(user, 'Partida entregada para recepción', 'Pendiente de recepción', `${receptionForm.partida} · ${receptionForm.sector || 'Sin sector'}`)] };
       if (protocolAvailable) insertPayload.pac_id = pac?.id || null;
       const { data: createdReception, error } = await supabase.from('calidad_recepciones_partidas').insert(insertPayload).select().single();
       if (error) throw error;
@@ -161,9 +163,9 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
   const updateStatus = async (table, id, estado) => {
     try {
       const extra = table === 'calidad_no_conformidades' && estado === 'Cerrada' ? { fecha_cierre: new Date().toISOString().slice(0, 10) } : {};
-      const { error } = await supabase.from(table).update({ estado, ...extra }).eq('id', id);
-      if (error) throw error;
       const record = table === 'calidad_rdi' ? rdis.find(item => item.id === id) : ncs.find(item => item.id === id);
+      const { error } = await supabase.from(table).update({ estado, ...extra, ...(table === 'calidad_rdi' ? { trazabilidad: appendAudit(record?.trazabilidad, auditActor(user, 'Estado de RDI actualizado', estado)) } : {}) }).eq('id', id);
+      if (error) throw error;
       await registrarEventoBitacora({ empresa, obraNombre, categoria: 'Calidad', accion: `${record?.codigo || 'Registro de calidad'} actualizado a ${estado}`, detalle: record?.partida || record?.descripcion || '', actor: user?.nombre || user?.email || 'Usuario autorizado' });
       await load();
     } catch (error) { setMessage(`No se pudo actualizar: ${error.message}`); }
@@ -177,7 +179,7 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
       const reception = recepciones.find(item => item.id === control.recepcion_id);
       const nextControls = (controlsByReception[control.recepcion_id] || []).map(item => item.id === control.id ? nextControl : item);
       const estado = receptionStatusFromControls(nextControls);
-      const { error: receptionError } = await supabase.from('calidad_recepciones_partidas').update({ estado, recibe_por: reviewer }).eq('id', control.recepcion_id);
+      const { error: receptionError } = await supabase.from('calidad_recepciones_partidas').update({ estado, recibe_por: reviewer, trazabilidad: appendAudit(reception?.trazabilidad, auditActor(user, `Control de recepción ${nextControl.resultado}`, estado, `${nextControl.tipo}: ${nextControl.punto}${nextControl.observacion ? ` · ${nextControl.observacion}` : ''}`)) }).eq('id', control.recepcion_id);
       if (receptionError) throw receptionError;
       await registrarEventoBitacora({ empresa, obraNombre, categoria: 'Calidad', accion: `${reception?.codigo || 'Recepción'} · ${nextControl.resultado}`, detalle: `${nextControl.tipo}: ${nextControl.punto}${nextControl.observacion ? ` · ${nextControl.observacion}` : ''}`, actor: reviewer });
       await load();
@@ -239,6 +241,7 @@ function ReceptionProtocol({ item, controls, expanded, onToggle, onUpdate }) {
     {expanded && <div className="border-t border-slate-200 bg-slate-50 p-3 sm:p-4">
       <div className="mb-3 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-600"><span>Entregó: <b>{item.entrega_por}</b></span>{item.recibe_por && <span>Inspecciona: <b>{item.recibe_por}</b></span>}</div>
       {item.observaciones && <p className="mb-3 rounded-lg bg-white p-2 text-[11px] text-slate-600">{item.observaciones}</p>}
+      <DocumentAuditTrail records={item.trazabilidad} title="Registro de recepción y firmas" />
       {controls.length ? <div className="space-y-3">{controls.map(control => <ProtocolControl key={control.id} control={control} onUpdate={onUpdate} />)}</div> : <Empty text="Esta recepción no tiene controles. Crea un PAC o agrega controles manuales en la siguiente entrega." />}
     </div>}
   </article>;

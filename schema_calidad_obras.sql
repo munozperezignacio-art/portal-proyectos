@@ -118,3 +118,7 @@ CREATE POLICY "Allow_All_Operations_Anon_Authenticated" ON calidad_recepcion_con
 
 GRANT ALL ON calidad_pac, calidad_rdi, calidad_no_conformidades, calidad_recepciones_partidas, calidad_recepcion_controles TO anon, authenticated;
 GRANT ALL ON SEQUENCE calidad_pac_id_seq, calidad_rdi_id_seq, calidad_no_conformidades_id_seq, calidad_recepciones_partidas_id_seq, calidad_recepcion_controles_id_seq TO anon, authenticated;
+
+-- Registro formal de acciones de emisión, revisión y recepción en Obraxis.
+ALTER TABLE calidad_rdi ADD COLUMN IF NOT EXISTS trazabilidad JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE calidad_recepciones_partidas ADD COLUMN IF NOT EXISTS trazabilidad JSONB NOT NULL DEFAULT '[]'::jsonb;

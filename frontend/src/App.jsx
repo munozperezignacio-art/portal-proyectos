@@ -44,6 +44,7 @@ const PublicSubcontractAcreditacion = lazyWithRetry(() => import('./components/P
 const PublicSupplierAcreditacion = lazyWithRetry(() => import('./components/PublicSupplierAcreditacion'), 'proveedor-publico');
 const PublicReporteDiarioMaquinaria = lazyWithRetry(() => import('./components/PublicReporteDiarioMaquinaria'), 'maquinaria-publica');
 const PublicEstadoPago = lazyWithRetry(() => import('./components/PublicEstadoPago'), 'estado-pago-publico');
+const PublicLibroObra = lazyWithRetry(() => import('./components/PublicLibroObra'), 'libro-obra-publico');
 
 function ModuleLoader() {
   return (
@@ -307,6 +308,10 @@ function App() {
   const urlParams = new URLSearchParams(window.location.search);
   const publicEquipoArriendo = urlParams.get('arriendo_qr') || urlParams.get('reporte_diario_equipo');
   const publicEstadoPagoToken = urlParams.get('estado_pago');
+  const publicLibroObraToken = urlParams.get('libro_obra');
+  if (publicLibroObraToken) {
+    return <React.Suspense fallback={<ModuleLoader />}><PublicLibroObra token={publicLibroObraToken} /></React.Suspense>;
+  }
   if (publicEstadoPagoToken) {
     return <React.Suspense fallback={<ModuleLoader />}><PublicEstadoPago token={publicEstadoPagoToken} role={urlParams.get('rol_ep') === 'aprobacion' ? 'aprobacion' : 'revision'} /></React.Suspense>;
   }

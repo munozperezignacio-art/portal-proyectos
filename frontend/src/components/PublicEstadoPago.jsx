@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { CheckCircle2, FileText, LockKeyhole, Send, XCircle } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { registrarEventoBitacora } from '../utils/bitacoraService';
+import { appendAudit, auditActor } from '../utils/documentAudit';
 
 const money = value => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(Number(value || 0));
 const percent = value => `${Number(value || 0).toFixed(2)}%`;
@@ -72,14 +73,15 @@ export default function PublicEstadoPago({ token, role }) {
   const resolve = async (approved) => {
     const estado = approved ? (role === 'aprobacion' ? 'Aprobado' : 'En aprobación') : 'Observado';
     const field = role === 'aprobacion' ? 'observacion_aprobacion' : 'observacion_revision';
-    const { error } = await supabase.from('estados_pago_obra').update({ estado, [field]: note || null }).eq('id', item.id);
+    const actor = role === 'aprobacion' ? item.aprobador_nombre || 'Aprobador externo' : item.revisor_nombre || 'Revisor externo';
+    const { error } = await supabase.from('estados_pago_obra').update({ estado, [field]: note || null, trazabilidad: appendAudit(item.trazabilidad, auditActor({ nombre: actor, empresa: item.empresa, cargo: role === 'aprobacion' ? 'Aprobador externo' : 'Revisor externo' }, approved ? (role === 'aprobacion' ? 'Estado de Pago aprobado' : 'Revisión técnica conforme') : 'Estado de Pago observado', estado, note)) }).eq('id', item.id);
     if (error) setMessage(`No fue posible registrar la decisión: ${error.message}`);
     else { await registrarEventoBitacora({ empresa: item.empresa, obraNombre: item.obra_nombre, categoria: 'Estados de Pago', accion: `EP N° ${item.numero} ${approved ? (role === 'aprobacion' ? 'aprobado' : 'revisado conforme') : 'observado'}`, detalle: note || null, actor: role === 'aprobacion' ? item.aprobador_nombre || 'Aprobador externo' : item.revisor_nombre || 'Revisor externo' }); setMessage(approved ? 'Decisión registrada correctamente.' : 'El Estado de Pago fue devuelto con observaciones.'); await reload(); }
   };
   const submitProposal = async () => {
     const hasProposal = proposal.some(line => Number(line.cantidad_propuesta) !== Number(line.executed) || line.comentario_externo.trim());
     if (!hasProposal) { setMessage('Indica una cantidad distinta o un comentario en al menos una partida.'); return; }
-    const { error } = await supabase.from('estados_pago_obra').update({ estado: 'Observado', items: proposal, observacion_revision: note || 'Se recibió una propuesta de ajuste por partidas.' }).eq('id', item.id);
+    const { error } = await supabase.from('estados_pago_obra').update({ estado: 'Observado', items: proposal, observacion_revision: note || 'Se recibió una propuesta de ajuste por partidas.', trazabilidad: appendAudit(item.trazabilidad, auditActor({ nombre: item.revisor_nombre || 'Revisor externo', empresa: item.empresa, cargo: 'Revisor externo' }, 'Propuesta externa de ajuste', 'Observado', note || 'Se propusieron ajustes por partidas.')) }).eq('id', item.id);
     if (error) setMessage(`No fue posible enviar la propuesta: ${error.message}`);
     else { await registrarEventoBitacora({ empresa: item.empresa, obraNombre: item.obra_nombre, categoria: 'Estados de Pago', accion: `EP N° ${item.numero} observado con propuesta`, detalle: note || 'El revisor propuso ajustes por partidas.', actor: item.revisor_nombre || 'Revisor externo' }); setMessage('Propuesta enviada al preparador para su revisión.'); await reload(); }
   };

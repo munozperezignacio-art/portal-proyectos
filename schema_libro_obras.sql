@@ -26,3 +26,12 @@ DROP POLICY IF EXISTS "Allow_All_Operations_Anon_Authenticated" ON libro_obra_di
 CREATE POLICY "Allow_All_Operations_Anon_Authenticated" ON libro_obra_digital FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 GRANT ALL ON libro_obra_digital TO anon, authenticated;
 GRANT ALL ON SEQUENCE libro_obra_digital_id_seq TO anon, authenticated;
+
+-- Flujo documental y registro de acciones verificables desde Obraxis.
+ALTER TABLE libro_obra_digital ADD COLUMN IF NOT EXISTS flujo_estado TEXT NOT NULL DEFAULT 'Emitido';
+ALTER TABLE libro_obra_digital ADD COLUMN IF NOT EXISTS trazabilidad JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE libro_obra_digital ADD COLUMN IF NOT EXISTS autorizador_nombre TEXT;
+ALTER TABLE libro_obra_digital ADD COLUMN IF NOT EXISTS token_cliente TEXT UNIQUE;
+ALTER TABLE libro_obra_digital ADD COLUMN IF NOT EXISTS clave_cliente_hash TEXT;
+ALTER TABLE libro_obra_digital DROP CONSTRAINT IF EXISTS libro_obra_digital_flujo_estado_check;
+ALTER TABLE libro_obra_digital ADD CONSTRAINT libro_obra_digital_flujo_estado_check CHECK (flujo_estado IN ('Emitido', 'Autorizado', 'Enviado al cliente', 'Observado por cliente', 'Aceptado por cliente', 'Aceptado con observaciones', 'Cerrado'));
