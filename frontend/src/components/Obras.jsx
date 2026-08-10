@@ -454,6 +454,9 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [mantencionesMaquinariaList, setMantencionesMaquinariaList] = useState([]);
   const [paralizacionesMaquinariaList, setParalizacionesMaquinariaList] = useState([]);
   const [accidentesPrevencionList, setAccidentesPrevencionList] = useState([]);
+  const [formulariosPrevencionObra, setFormulariosPrevencionObra] = useState([]);
+  const [respuestasPrevencionObra, setRespuestasPrevencionObra] = useState([]);
+  const [procedimientosPrevencionObra, setProcedimientosPrevencionObra] = useState([]);
 
   const [showMantencionModal, setShowMantencionModal] = useState(false);
   const [mantencionFormData, setMantencionFormData] = useState({ equipo_nombre: '', fecha: new Date().toISOString().substring(0, 10), tipo: 'Preventiva', costo: '', descripcion: '' });
@@ -1116,6 +1119,81 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       fetchObraDetails(selectedObra.nombre);
     }
   }, [selectedObra, obraActiveSubmodule]);
+
+  // La prevención de cada obra muestra solo lo que corresponde a la faena.
+  // Los formularios de maquinaria viven y se registran exclusivamente desde
+  // Maquinaria, aunque el equipo esté asignado a esta misma obra.
+  useEffect(() => {
+    if (selectedObra?.nombre && obraActiveSubmodule === 'prevencion') {
+      fetchPrevencionObra(selectedObra.nombre);
+    }
+  }, [selectedObra?.nombre, obraActiveSubmodule]);
+
+  const fetchPrevencionObra = async (obraNombre) => {
+    const normalizedObra = String(obraNombre || '').trim().toLowerCase();
+    const isThisObra = (value) => String(value || '').trim().toLowerCase() === normalizedObra;
+    const isMachineryForm = (form) => {
+      const control = form?.campos && !Array.isArray(form.campos) ? form.campos.control_documental || {} : {};
+      return String(form?.categoria || form?.modulo_asignado || '').toLowerCase() === 'maquinaria'
+        || control.tipo_registro === 'maquinaria_uso';
+    };
+    const appliesToObra = (form) => {
+      const scope = form?.obras_asignadas || form?.obra_nombre || form?.obra_asignada || '';
+      if (Array.isArray(scope)) return !scope.length || scope.some(item => isThisObra(item));
+      if (!scope) return true;
+      return String(scope).split(',').map(item => item.trim()).some(item => isThisObra(item));
+    };
+
+    try {
+      let forms = [];
+      const { data, error } = await supabase
+        .from('prevencion_formularios')
+        .select('*')
+        .eq('empresa', user?.empresa || 'EMIN')
+        .order('created_at', { ascending: false });
+      if (!error) forms = data || [];
+      if (!forms.length) {
+        try { forms = JSON.parse(localStorage.getItem('obraxis_formularios_dinamicos') || '[]'); } catch { forms = []; }
+      }
+
+      const applicableForms = forms.filter(form => {
+        const module = String(form.categoria || form.modulo_asignado || 'general').toLowerCase();
+        return !isMachineryForm(form) && ['prevencion', 'general'].includes(module) && appliesToObra(form);
+      });
+      setFormulariosPrevencionObra(applicableForms);
+
+      let responses = [];
+      const responseResult = await supabase
+        .from('prevencion_respuestas')
+        .select('*')
+        .eq('proyecto_nombre', obraNombre)
+        .order('created_at', { ascending: false });
+      if (!responseResult.error) responses = responseResult.data || [];
+      if (!responses.length) {
+        try {
+          responses = JSON.parse(localStorage.getItem('obraxis_respuestas_formularios') || '[]')
+            .filter(response => isThisObra(response.proyecto_nombre));
+        } catch { responses = []; }
+      }
+      const formById = new window.Map(applicableForms.map(form => [String(form.id), form]));
+      setRespuestasPrevencionObra(responses.filter(response => formById.has(String(response.formulario_id))).map(response => ({
+        ...response,
+        formulario: formById.get(String(response.formulario_id))
+      })));
+
+      let pts = [];
+      try { pts = JSON.parse(localStorage.getItem(`obraxis_procedimientos_${user?.empresa || 'default'}`) || '[]'); } catch { pts = []; }
+      setProcedimientosPrevencionObra(pts.filter(ptsItem => {
+        const assigned = String(ptsItem.obra_nombre || '').toLowerCase();
+        return !assigned || assigned.includes('biblioteca') || isThisObra(ptsItem.obra_nombre);
+      }));
+    } catch (error) {
+      console.warn('No se pudo cargar la prevención de la obra:', error.message);
+      setFormulariosPrevencionObra([]);
+      setRespuestasPrevencionObra([]);
+      setProcedimientosPrevencionObra([]);
+    }
+  };
 
   const fetchObras = async () => {
     setLoading(true);
@@ -5503,32 +5581,45 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                       onClick={() => setPrevObraSubTab('inspecciones')}
                       className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${prevObraSubTab === 'inspecciones' ? 'bg-white text-rose-950 shadow-2xs font-extrabold' : 'text-slate-600 hover:text-slate-900'}`}
                     >
-                      📋 Inspecciones
+                      📋 Registros e inspecciones
                     </button>
                     <button
                       onClick={() => setPrevObraSubTab('pts')}
                       className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${prevObraSubTab === 'pts' ? 'bg-white text-rose-950 shadow-2xs font-extrabold' : 'text-slate-600 hover:text-slate-900'}`}
                     >
-                      📑 Procedimientos (PTS)
+                      📑 Procedimientos
                     </button>
                     <button
                       onClick={() => setPrevObraSubTab('incidentes')}
                       className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${prevObraSubTab === 'incidentes' ? 'bg-white text-rose-950 shadow-2xs font-extrabold' : 'text-slate-600 hover:text-slate-900'}`}
                     >
-                      ⚠️ Incidentes (Informe Flash)
+                      ⚠️ Accidentes / incidentes
                     </button>
                   </div>
                 </div>
               </div>
 
-              {/* SUB-PESTAÑA 1: INSPECCIONES DE SEGURIDAD */}
+              {/* SUB-PESTAÑA 1: REGISTROS E INSPECCIONES */}
               {prevObraSubTab === 'inspecciones' && (
                 <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
-                  <h4 className="font-bold text-xs uppercase tracking-wider text-slate-800 border-b pb-2">📋 Registro de Inspecciones de Seguridad en Obra</h4>
-                  <div className="p-6 text-center bg-slate-50 border border-dashed border-slate-200 rounded-xl space-y-2">
-                    <ShieldCheck className="w-8 h-8 text-rose-400 mx-auto" />
-                    <p className="text-xs text-slate-600 font-semibold">No se han registrado observaciones de inspección en esta obra hoy.</p>
-                    <p className="text-[11px] text-slate-500">Las inspecciones de EPP, herramientas y maquinarias realizadas por el prevencionista se listarán aquí.</p>
+                  <div className="flex items-center justify-between gap-3 border-b pb-2">
+                    <div><h4 className="font-bold text-xs uppercase tracking-wider text-slate-800">📋 Registros e inspecciones de la obra</h4><p className="mt-1 text-[10px] text-slate-500">Se cargan automáticamente según los formularios preventivos aplicables a esta faena.</p></div>
+                    <span className="rounded-lg bg-rose-50 px-2 py-1 text-[10px] font-black text-rose-800">{formulariosPrevencionObra.length} activos</span>
+                  </div>
+                  {formulariosPrevencionObra.length ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {formulariosPrevencionObra.map(form => (
+                        <div key={form.id || form.publico_token || form.titulo} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                          <p className="text-[9px] font-black uppercase tracking-wide text-rose-800">{form.codigo || form.campos?.control_documental?.codigo || 'Formulario preventivo'}</p>
+                          <h5 className="mt-1 text-xs font-extrabold text-slate-800">{form.titulo}</h5>
+                          <p className="mt-1 text-[10px] leading-relaxed text-slate-500">{form.descripcion || 'Disponible para registrar en esta obra.'}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-5 text-center text-xs font-semibold text-slate-500">No hay formularios preventivos aplicables a esta obra.</div>}
+                  <div className="border-t pt-3">
+                    <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">Últimos registros</p>
+                    {respuestasPrevencionObra.length ? <div className="space-y-2">{respuestasPrevencionObra.slice(0, 5).map(response => <div key={response.id || response.created_at} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 px-3 py-2"><div><p className="text-xs font-bold text-slate-800">{response.formulario?.titulo || 'Registro preventivo'}</p><p className="text-[10px] text-slate-500">{response.inspector || 'Sin informante'} · {new Date(response.created_at || Date.now()).toLocaleDateString('es-CL')}</p></div><span className="rounded bg-emerald-50 px-2 py-1 text-[9px] font-black text-emerald-700">Registrado</span></div>)}</div> : <p className="rounded-lg bg-slate-50 px-3 py-3 text-xs text-slate-500">Aún no hay registros de estos formularios en esta obra.</p>}
                   </div>
                 </div>
               )}
@@ -5536,31 +5627,16 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
               {/* SUB-PESTAÑA 2: PROCEDIMIENTOS DE TRABAJO (PTS) */}
               {prevObraSubTab === 'pts' && (
                 <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
-                  <h4 className="font-bold text-xs uppercase tracking-wider text-slate-800 border-b pb-2">📑 Procedimientos de Trabajo Seguro (PTS) Asociados a la Obra</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                      <span className="text-[9px] font-bold bg-rose-100 text-rose-900 px-2 py-0.5 rounded">PTS-OBR-001</span>
-                      <h5 className="font-bold text-slate-800 text-xs mt-1">Procedimiento Seguro para Excavaciones y Zanajados</h5>
-                      <p className="text-[10px] text-slate-500">Versión v2.0 | Vigente en Faena</p>
-                    </div>
-                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                      <span className="text-[9px] font-bold bg-rose-100 text-rose-900 px-2 py-0.5 rounded">PTS-OBR-004</span>
-                      <h5 className="font-bold text-slate-800 text-xs mt-1">Procedimiento de Trabajo en Altura y Moldajes</h5>
-                      <p className="text-[10px] text-slate-500">Versión v1.2 | Vigente en Faena</p>
-                    </div>
-                  </div>
+                  <div className="flex items-center justify-between gap-3 border-b pb-2"><div><h4 className="font-bold text-xs uppercase tracking-wider text-slate-800">📑 Procedimientos de Trabajo Seguro</h4><p className="mt-1 text-[10px] text-slate-500">PTS de esta obra y de la biblioteca corporativa que puede aplicar en faena.</p></div><span className="rounded-lg bg-rose-50 px-2 py-1 text-[10px] font-black text-rose-800">{procedimientosPrevencionObra.length} vigentes</span></div>
+                  {procedimientosPrevencionObra.length ? <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{procedimientosPrevencionObra.map((pts, index) => <div key={pts.id || `${pts.codigo}-${index}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-1"><span className="inline-block rounded bg-rose-100 px-2 py-0.5 text-[9px] font-bold text-rose-900">{pts.codigo || 'PTS'}</span><h5 className="mt-1 text-xs font-bold text-slate-800">{pts.nombre || 'Procedimiento sin nombre'}</h5><p className="text-[10px] text-slate-500">Versión {pts.version || 'v1.0'} · {pts.obra_nombre || 'Biblioteca corporativa'}</p></div>)}</div> : <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center"><BookOpenCheck className="mx-auto h-7 w-7 text-slate-300" /><p className="mt-2 text-xs font-semibold text-slate-600">No hay PTS asociados a esta obra.</p><p className="mt-1 text-[10px] text-slate-500">Regístralos desde Prevención de Riesgos → Procedimientos (PTS).</p></div>}
                 </div>
               )}
 
               {/* SUB-PESTAÑA 3: INCIDENTES / INFORMES FLASH */}
               {prevObraSubTab === 'incidentes' && (
                 <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
-                  <h4 className="font-bold text-xs uppercase tracking-wider text-slate-800 border-b pb-2">⚠️ Estadísticas de Incidentes e Informes Flash</h4>
-                  <div className="p-6 text-center bg-slate-50 border border-dashed border-slate-200 rounded-xl space-y-2">
-                    <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
-                    <p className="text-xs text-emerald-800 font-bold">Sin accidentes ni incidentes registrados en la obra.</p>
-                    <p className="text-[11px] text-slate-500">Los Informes Flash de prevención reportados en terreno se asociarán automáticamente a las métricas de esta obra.</p>
-                  </div>
+                  <div className="flex items-center justify-between gap-3 border-b pb-2"><div><h4 className="font-bold text-xs uppercase tracking-wider text-slate-800">⚠️ Accidentes e incidentes</h4><p className="mt-1 text-[10px] text-slate-500">Eventos reportados desde el formulario de incidente o accidente de esta obra.</p></div><span className="rounded-lg bg-rose-50 px-2 py-1 text-[10px] font-black text-rose-800">{accidentesPrevencionList.length} eventos</span></div>
+                  {accidentesPrevencionList.length ? <div className="space-y-2">{[...accidentesPrevencionList].sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || ''))).map((event, index) => <div key={event.id || `${event.fecha}-${index}`} className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-extrabold text-slate-800">{event.tipo === 'CTP' ? 'Accidente con tiempo perdido' : event.tipo === 'STP' ? 'Incidente / accidente reportado' : event.tipo || 'Evento preventivo'}</p><p className="mt-1 text-[10px] text-slate-500">{event.trabajador || 'Sin persona informada'} · {event.fecha ? new Date(`${event.fecha}T12:00:00`).toLocaleDateString('es-CL') : 'Sin fecha'}{event.descripcion ? ` · ${event.descripcion}` : ''}</p></div><span className="self-start rounded bg-white px-2 py-1 text-[9px] font-black text-slate-600 sm:self-auto">{event.dias_perdidos || 0} días perdidos</span></div>)}</div> : <div className="p-6 text-center bg-emerald-50 border border-emerald-100 rounded-xl space-y-2"><CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" /><p className="text-xs text-emerald-800 font-bold">Sin accidentes ni incidentes registrados en la obra.</p><p className="text-[11px] text-slate-500">Los eventos informados en terreno se asociarán automáticamente a esta obra.</p></div>}
                 </div>
               )}
             </div>
