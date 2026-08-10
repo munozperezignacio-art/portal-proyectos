@@ -58,4 +58,18 @@ ALTER TABLE estados_pago_obra ADD COLUMN IF NOT EXISTS observacion_aprobacion TE
 ALTER TABLE estados_pago_obra ADD COLUMN IF NOT EXISTS clave_revision_hash TEXT;
 ALTER TABLE estados_pago_obra ADD COLUMN IF NOT EXISTS clave_aprobacion_hash TEXT;
 ALTER TABLE estados_pago_obra DROP CONSTRAINT IF EXISTS estados_pago_obra_estado_check;
+
+-- Factura asociada y seguimiento de cobro de cada Estado de Pago.
+ALTER TABLE estados_pago_obra ADD COLUMN IF NOT EXISTS factura_numero TEXT;
+ALTER TABLE estados_pago_obra ADD COLUMN IF NOT EXISTS factura_fecha DATE;
+ALTER TABLE estados_pago_obra ADD COLUMN IF NOT EXISTS factura_monto NUMERIC;
+ALTER TABLE estados_pago_obra ADD COLUMN IF NOT EXISTS factura_archivo_nombre TEXT;
+ALTER TABLE estados_pago_obra ADD COLUMN IF NOT EXISTS factura_archivo_base64 TEXT;
+ALTER TABLE estados_pago_obra ADD COLUMN IF NOT EXISTS factura_estado TEXT NOT NULL DEFAULT 'Pendiente de emisión';
+ALTER TABLE estados_pago_obra ADD COLUMN IF NOT EXISTS factura_fecha_envio DATE;
+ALTER TABLE estados_pago_obra ADD COLUMN IF NOT EXISTS factura_fecha_pago DATE;
+ALTER TABLE estados_pago_obra ADD COLUMN IF NOT EXISTS factura_observaciones TEXT;
+ALTER TABLE estados_pago_obra ADD COLUMN IF NOT EXISTS factura_actualizada_en TIMESTAMPTZ;
+ALTER TABLE estados_pago_obra DROP CONSTRAINT IF EXISTS estados_pago_obra_factura_estado_check;
+ALTER TABLE estados_pago_obra ADD CONSTRAINT estados_pago_obra_factura_estado_check CHECK (factura_estado IN ('Pendiente de emisión', 'Emitida', 'Enviada al cliente', 'Recepcionada', 'Pagada', 'Rechazada', 'Anulada'));
 ALTER TABLE estados_pago_obra ADD CONSTRAINT estados_pago_obra_estado_check CHECK (estado IN ('Borrador', 'En revisión', 'Observado', 'En aprobación', 'Aprobado', 'Enviado', 'Pagado', 'Rechazado'));

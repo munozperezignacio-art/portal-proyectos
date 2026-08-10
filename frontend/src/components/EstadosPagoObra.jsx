@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BadgeDollarSign, CheckCircle2, Copy, FileText, RefreshCw, Send, Trash2 } from 'lucide-react';
+import { BadgeDollarSign, CheckCircle2, Copy, FileText, Paperclip, ReceiptText, RefreshCw, Send, Trash2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { sendSystemEmail } from '../utils/emailService';
 import { canModifyOrDeleteRecords } from '../utils/userLevel';
@@ -13,6 +13,11 @@ const matchesPartida = (a, b) => {
 const money = (value) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(Number(value || 0));
 const percent = (value) => `${Number(value || 0).toFixed(2)}%`;
 const initialForm = () => ({ fecha_corte: new Date().toISOString().slice(0, 10), retencion_pct: '5', observaciones: '' });
+const initialInvoiceForm = (item = {}) => ({
+  factura_numero: item.factura_numero || '', factura_fecha: item.factura_fecha || '', factura_monto: item.factura_monto ?? item.monto_neto ?? '',
+  factura_estado: item.factura_estado || 'Pendiente de emisión', factura_fecha_envio: item.factura_fecha_envio || '', factura_fecha_pago: item.factura_fecha_pago || '',
+  factura_observaciones: item.factura_observaciones || '', factura_archivo_nombre: item.factura_archivo_nombre || '', factura_archivo_base64: item.factura_archivo_base64 || '',
+});
 const token = () => `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
 const accessCode = () => {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -39,6 +44,9 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
   const [visibleAccessCodes, setVisibleAccessCodes] = useState({});
   const [reviewingPayment, setReviewingPayment] = useState(null);
   const [reviewItems, setReviewItems] = useState([]);
+  const [invoicePayment, setInvoicePayment] = useState(null);
+  const [invoiceForm, setInvoiceForm] = useState(initialInvoiceForm);
+  const [savingInvoice, setSavingInvoice] = useState(false);
   const canPreparePayment = canModifyOrDeleteRecords(user);
   const clientName = obra?.cliente || '';
   const clientEmail = obra?.cliente_email || '';
@@ -196,6 +204,33 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
     await registrarEventoBitacora({ empresa, obraNombre, categoria: 'Estados de Pago', accion: `EP N° ${item.numero} eliminado`, detalle: 'El Estado de Pago fue eliminado por un usuario autorizado.', actor: user?.nombre || user?.email || 'Usuario autorizado' });
     await load();
   };
+  const openInvoice = (item) => { setInvoicePayment(item); setInvoiceForm(initialInvoiceForm(item)); };
+  const selectInvoiceFile = (file) => {
+    if (!file) return;
+    if (file.size > 4.5 * 1024 * 1024) { setMessage('El respaldo de factura debe pesar como máximo 4,5 MB.'); return; }
+    const reader = new FileReader();
+    reader.onload = () => setInvoiceForm(current => ({ ...current, factura_archivo_nombre: file.name, factura_archivo_base64: reader.result }));
+    reader.readAsDataURL(file);
+  };
+  const saveInvoice = async () => {
+    if (!invoicePayment) return;
+    if (invoiceForm.factura_estado !== 'Pendiente de emisión' && !String(invoiceForm.factura_numero || '').trim()) { setMessage('Ingresa el número de factura para registrar su seguimiento.'); return; }
+    setSavingInvoice(true);
+    try {
+      const payload = {
+        factura_numero: invoiceForm.factura_numero.trim() || null, factura_fecha: invoiceForm.factura_fecha || null,
+        factura_monto: invoiceForm.factura_monto === '' ? null : Number(invoiceForm.factura_monto || 0), factura_estado: invoiceForm.factura_estado,
+        factura_fecha_envio: invoiceForm.factura_fecha_envio || null, factura_fecha_pago: invoiceForm.factura_fecha_pago || null,
+        factura_observaciones: invoiceForm.factura_observaciones.trim() || null, factura_archivo_nombre: invoiceForm.factura_archivo_nombre || null,
+        factura_archivo_base64: invoiceForm.factura_archivo_base64 || null, factura_actualizada_en: new Date().toISOString(),
+      };
+      const { error } = await supabase.from('estados_pago_obra').update(payload).eq('id', invoicePayment.id);
+      if (error) throw error;
+      await registrarEventoBitacora({ empresa, obraNombre, categoria: 'Estados de Pago', accion: `Factura de EP N° ${invoicePayment.numero} actualizada`, detalle: payload.factura_numero ? `Factura N° ${payload.factura_numero}: ${payload.factura_estado}.` : `Seguimiento de factura: ${payload.factura_estado}.`, actor: user?.nombre || user?.email || 'Usuario autorizado' });
+      setInvoicePayment(null); setMessage(`Seguimiento de factura del EP N° ${invoicePayment.numero} guardado.`); await load();
+    } catch (error) { setMessage(`No se pudo guardar la factura: ${error.message}`); }
+    finally { setSavingInvoice(false); }
+  };
   const startReview = (item) => {
     setReviewingPayment(item);
     setReviewItems((item.items || []).map(line => ({ ...line, cantidad_final: line.cantidad_propuesta ?? line.executed ?? 0 })));
@@ -245,7 +280,7 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
           {estados.length ? <div className="space-y-2">{estados.map(item => <div key={item.id} className="rounded-xl bg-slate-50 p-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div><p className="text-xs font-black text-slate-800">Estado de Pago N° {item.numero}</p><p className="text-[11px] text-slate-500">Corte {item.fecha_corte} · Neto {money(item.monto_neto)}</p></div>
-              <div className="flex items-center gap-2"><span className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-slate-600">{item.estado}</span>{canPreparePayment && <button type="button" onClick={() => deletePayment(item)} title="Eliminar Estado de Pago" className="rounded-lg border border-rose-200 bg-white p-1.5 text-rose-700 hover:bg-rose-50"><Trash2 className="h-3.5 w-3.5" /></button>}</div>
+              <div className="flex items-center gap-2"><span className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-slate-600">{item.estado}</span>{canPreparePayment && <button type="button" onClick={() => openInvoice(item)} title="Factura y seguimiento" className="rounded-lg border border-emerald-200 bg-white p-1.5 text-emerald-700 hover:bg-emerald-50"><ReceiptText className="h-3.5 w-3.5" /></button>}{canPreparePayment && <button type="button" onClick={() => deletePayment(item)} title="Eliminar Estado de Pago" className="rounded-lg border border-rose-200 bg-white p-1.5 text-rose-700 hover:bg-rose-50"><Trash2 className="h-3.5 w-3.5" /></button>}</div>
             </div>
             {item.estado === 'Observado' && (item.items || []).some(line => line.comentario_externo || Number(line.cantidad_propuesta) !== Number(line.executed)) && <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-900"><b>Propuesta externa por partidas</b>{(item.items || []).filter(line => line.comentario_externo || Number(line.cantidad_propuesta) !== Number(line.executed)).map((line, index) => <p key={index} className="mt-1">{line.partida}: propone {line.cantidad_propuesta} {line.unidad} (emitido: {line.executed} {line.unidad}){line.comentario_externo ? ` · ${line.comentario_externo}` : ''}</p>)}{canPreparePayment && <button type="button" onClick={() => startReview(item)} className="mt-3 rounded-lg bg-amber-700 px-3 py-2 text-[11px] font-black text-white">Revisar propuesta y preparar aprobación</button>}</div>}
             {reviewingPayment?.id === item.id && <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs"><p className="font-black text-blue-950">Revisión interna de la propuesta</p><p className="mt-1 text-[11px] text-blue-900">Ajusta la cantidad final que aceptas para cada partida. Se recalculará el monto de este Estado de Pago antes de enviarlo a aprobación.</p><div className="mt-3 space-y-2">{reviewItems.map((line, index) => <div key={`${line.partida}-${index}`} className="grid gap-2 rounded-lg bg-white p-2 sm:grid-cols-[1fr_120px_auto]"><span className="font-bold text-slate-700">{line.partida}<small className="mt-1 block font-normal text-slate-500">Propuesta externa: {line.cantidad_propuesta} {line.unidad}</small></span><label className="text-[10px] font-bold text-slate-500">Cantidad final<input type="number" min="0" max={line.quantity} value={line.cantidad_final} onChange={event => setReviewItems(rows => rows.map((row, rowIndex) => rowIndex === index ? { ...row, cantidad_final: event.target.value } : row))} className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-right text-xs" /></label><span className="self-end pb-1 text-right font-bold text-slate-700">{money(Math.max(0, Number(line.cantidad_final || 0) * Number(line.unitPrice || 0) - Number(line.monto_anterior || 0)))}</span></div>)}</div><div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={prepareForApproval} className="rounded-lg bg-emerald-700 px-3 py-2 text-[11px] font-black text-white">Guardar corrección y preparar aprobación</button><button type="button" onClick={() => { setReviewingPayment(null); setReviewItems([]); }} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-[11px] font-black text-slate-700">Cancelar</button></div></div>}
@@ -255,5 +290,6 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
         </div>
       </section>
     </div>
+    {invoicePayment && <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-0 sm:items-center sm:p-5"><div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl sm:rounded-2xl"><div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-3"><div><h3 className="flex items-center gap-2 text-base font-black text-slate-900"><ReceiptText className="h-5 w-5 text-emerald-700" />Factura y seguimiento</h3><p className="mt-1 text-xs text-slate-500">Estado de Pago N° {invoicePayment.numero} · Neto contractual {money(invoicePayment.monto_neto)}</p></div><button type="button" onClick={() => setInvoicePayment(null)} className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-black text-slate-700">Cerrar</button></div><div className="mt-4 grid gap-3 sm:grid-cols-2"><label className="text-[11px] font-bold text-slate-600">N° de factura<input value={invoiceForm.factura_numero} onChange={event => setInvoiceForm({ ...invoiceForm, factura_numero: event.target.value })} placeholder="Ej.: 1024" className={`${input} mt-1`} /></label><label className="text-[11px] font-bold text-slate-600">Fecha de emisión<input type="date" value={invoiceForm.factura_fecha} onChange={event => setInvoiceForm({ ...invoiceForm, factura_fecha: event.target.value })} className={`${input} mt-1`} /></label><label className="text-[11px] font-bold text-slate-600">Monto facturado<input type="number" min="0" value={invoiceForm.factura_monto} onChange={event => setInvoiceForm({ ...invoiceForm, factura_monto: event.target.value })} className={`${input} mt-1`} /></label><label className="text-[11px] font-bold text-slate-600">Estado de cobro<select value={invoiceForm.factura_estado} onChange={event => setInvoiceForm({ ...invoiceForm, factura_estado: event.target.value })} className={`${input} mt-1`}><option>Pendiente de emisión</option><option>Emitida</option><option>Enviada al cliente</option><option>Recepcionada</option><option>Pagada</option><option>Rechazada</option><option>Anulada</option></select></label><label className="text-[11px] font-bold text-slate-600">Fecha de envío al cliente<input type="date" value={invoiceForm.factura_fecha_envio} onChange={event => setInvoiceForm({ ...invoiceForm, factura_fecha_envio: event.target.value })} className={`${input} mt-1`} /></label><label className="text-[11px] font-bold text-slate-600">Fecha de pago<input type="date" value={invoiceForm.factura_fecha_pago} onChange={event => setInvoiceForm({ ...invoiceForm, factura_fecha_pago: event.target.value })} className={`${input} mt-1`} /></label></div><label className="mt-3 block text-[11px] font-bold text-slate-600">Observaciones de seguimiento<textarea rows={3} value={invoiceForm.factura_observaciones} onChange={event => setInvoiceForm({ ...invoiceForm, factura_observaciones: event.target.value })} placeholder="Recepción, compromiso de pago, rechazo u observaciones." className={`${input} mt-1`} /></label><div className="mt-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3"><label className="flex cursor-pointer items-center gap-2 text-xs font-black text-slate-700"><Paperclip className="h-4 w-4 text-emerald-700" />Adjuntar respaldo de factura<input type="file" accept="application/pdf,image/*" onChange={event => selectInvoiceFile(event.target.files?.[0])} className="hidden" /></label><p className="mt-1 text-[10px] text-slate-500">PDF o imagen, máximo 4,5 MB. {invoiceForm.factura_archivo_nombre || 'Aún no hay archivo adjunto.'}</p>{invoiceForm.factura_archivo_base64 && <a href={invoiceForm.factura_archivo_base64} download={invoiceForm.factura_archivo_nombre || 'factura'} className="mt-2 inline-block text-[11px] font-black text-blue-700">Ver respaldo adjunto</a>}</div><div className="mt-5 flex flex-wrap justify-end gap-2"><button type="button" onClick={() => setInvoicePayment(null)} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-black text-slate-700">Cancelar</button><button type="button" disabled={savingInvoice} onClick={saveInvoice} className="rounded-lg bg-emerald-700 px-4 py-2 text-xs font-black text-white disabled:opacity-60">{savingInvoice ? 'Guardando…' : 'Guardar seguimiento'}</button></div></div></div>}
   </div>;
 }
