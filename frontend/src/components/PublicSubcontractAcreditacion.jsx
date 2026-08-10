@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { formatRut } from '../utils/rutUtils';
+import PublicObraxisHeader from './PublicObraxisHeader';
 import { 
   Building2, ShieldCheck, User, Truck, FileUp, CheckCircle2, Lock, 
   Plus, Trash2, FileText, Check, AlertCircle, Sparkles, ExternalLink, Key, Eye, Download, XCircle, MessageSquare, Save, RefreshCw
@@ -334,10 +335,11 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
 
   if (!authenticated) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-blue-950 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-blue-950 flex flex-col p-4">
+        <div className="w-full"><PublicObraxisHeader /></div>
+        <div className="flex flex-1 items-center justify-center">
         <div className="bg-white rounded-3xl p-8 shadow-2xl max-w-md w-full border border-slate-100/20 space-y-6">
           <div className="text-center space-y-2">
-            <img src="/brand/obraxis-primary.png" alt="Obraxis" className="mx-auto h-12 w-32 object-contain" />
             <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto text-primary">
               <ShieldCheck className="w-8 h-8" />
             </div>
@@ -376,16 +378,17 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
             </button>
           </form>
         </div>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-6 space-y-6">
+      <PublicObraxisHeader />
       {/* HEADER MINISITIO */}
       <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs flex flex-wrap justify-between items-center gap-4">
         <div className="flex items-center gap-3">
-          <img src="/brand/obraxis-primary.png" alt="Obraxis" className="h-12 w-24 object-contain" />
           <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary font-black text-lg">
             <Building2 className="w-6 h-6" />
           </div>
