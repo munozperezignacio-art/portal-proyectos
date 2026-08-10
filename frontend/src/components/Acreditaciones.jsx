@@ -4,7 +4,7 @@ import { formatRut } from '../utils/rutUtils';
 import { sendSystemEmail } from '../utils/emailService';
 import { 
   ArrowLeft, PackageCheck, Store, ShieldCheck, Plus, Send, CheckCircle2, AlertCircle, FileText, 
-  Trash2, Eye, Download, Copy, ExternalLink, Building2, User, Truck, 
+  Trash2, Eye, Download, Copy, ExternalLink, Building2, User, Truck, Pencil, Archive, RotateCcw,
   RefreshCw, Check, Clock, Lock, Key, Mail, Search, FileUp, Sparkles, Filter, Settings2, CheckSquare, XCircle, MessageSquare, Layers, FileCheck
 } from 'lucide-react';
 
@@ -48,6 +48,8 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
   const [loadingSubcontratos, setLoadingSubcontratos] = useState(false);
   const [sendingSubInvite, setSendingSubInvite] = useState(false);
   const [showSubModal, setShowSubModal] = useState(false);
+  const [editingSub, setEditingSub] = useState(null);
+  const [showArchivedSubcontracts, setShowArchivedSubcontracts] = useState(false);
   const [subForm, setSubForm] = useState({
     empresa_nombre: '',
     rut_empresa: '',
@@ -625,7 +627,9 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     const invite = await sendSubcontractInvite(createdSub);
     setShowSubModal(false);
     setSubForm({ empresa_nombre: '', rut_empresa: '', obra_asociada: '', correo_contacto: '', credencial_pass: '' });
-    setSuccessMsg(`¡Empresa Subcontratista ${newSub.empresa_nombre} creada! Credenciales generadas.`);
+    setSuccessMsg(invite.success
+      ? `¡${newSub.empresa_nombre} creada! Credenciales enviadas a ${newSub.correo_contacto}.`
+      : `¡${newSub.empresa_nombre} creada! Credenciales generadas.`);
     if (!invite.success) {
       alert(`El subcontratista fue creado, pero no se pudo enviar el correo: ${invite.error}. Puedes reenviarlo desde su tarjeta.`);
     }
@@ -650,6 +654,81 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
       htmlContent: `<div style="max-width:650px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;padding:28px;font-family:Arial,sans-serif;color:#1e293b;"><h2 style="margin:0 0 12px;color:#073b76;font-size:22px;">Acceso a acreditación de subcontratista</h2><p>Hola,</p><p>La empresa <strong>${subItem.empresa_nombre}</strong> fue registrada para acreditar documentación de empresa, personal y equipos en la obra <strong>${subItem.obra_asociada || 'asignada'}</strong>.</p><p>Ingresa al minisitio y completa la carga de antecedentes solicitados.</p><div style="margin:24px 0;padding:18px;border-radius:12px;background:#f8fafc;border:1px solid #cbd5e1;"><div style="font-size:11px;font-weight:bold;color:#64748b;text-transform:uppercase;letter-spacing:.08em;">Tus credenciales</div><p style="margin:12px 0 4px;"><strong>Empresa:</strong> ${subItem.empresa_nombre}</p><p style="margin:4px 0;"><strong>Clave de acceso:</strong> <span style="font-family:monospace;font-size:18px;font-weight:bold;letter-spacing:.08em;color:#073b76;">${subItem.credencial_pass}</span></p></div><p style="text-align:center;margin:26px 0;"><a href="${minisiteUrl}" style="display:inline-block;background:#073b76;color:#ffffff;padding:13px 22px;border-radius:10px;font-weight:bold;text-decoration:none;">Ingresar al minisitio</a></p><p style="font-size:12px;color:#64748b;word-break:break-all;">Si el botón no abre, copia este enlace:<br/><a href="${minisiteUrl}" style="color:#073b76;">${minisiteUrl}</a></p><p style="font-size:12px;color:#64748b;margin:20px 0 0;">Guarda esta clave de forma segura. Es necesaria para acceder al portal de acreditación.</p></div>`
     });
   };
+
+  const updateSubcontractInList = (updatedSub) => {
+    const next = subcontratosList.map(item => item.token_acceso === updatedSub.token_acceso ? updatedSub : item);
+    setSubcontratosList(next);
+    localStorage.setItem('obraxis_acreditaciones_subcontratos', JSON.stringify(next));
+  };
+
+  const handleSaveSubcontractEdit = async (event) => {
+    event.preventDefault();
+    if (!editingSub?.empresa_nombre?.trim() || !editingSub?.correo_contacto?.trim()) return;
+    const updatedSub = {
+      ...editingSub,
+      empresa_nombre: editingSub.empresa_nombre.trim(),
+      rut_empresa: formatRut(editingSub.rut_empresa) || editingSub.rut_empresa,
+      correo_contacto: editingSub.correo_contacto.trim(),
+      credencial_pass: (editingSub.credencial_pass || '').trim().toUpperCase(),
+      updated_at: new Date().toISOString()
+    };
+    try {
+      if (updatedSub.id) {
+        const { error } = await supabase.from('acreditaciones_subcontratos').update({
+          empresa_nombre: updatedSub.empresa_nombre, rut_empresa: updatedSub.rut_empresa,
+          obra_asociada: updatedSub.obra_asociada, correo_contacto: updatedSub.correo_contacto
+        }).eq('id', updatedSub.id);
+        if (error) throw error;
+        if (updatedSub.credencial_pass) {
+          const { error: credentialError } = await supabase.from('acreditaciones_subcontratos').update({ credencial_pass: updatedSub.credencial_pass }).eq('id', updatedSub.id);
+          if (credentialError) console.warn('La clave se conserva localmente hasta habilitar su columna:', credentialError.message);
+        }
+      }
+    } catch (error) {
+      console.warn('Edición guardada localmente:', error.message);
+    }
+    updateSubcontractInList(updatedSub);
+    setEditingSub(null);
+    setSuccessMsg('Subcontratista actualizado. Reenvía las credenciales si modificaste el correo o la clave.');
+    setTimeout(() => setSuccessMsg(''), 5000);
+  };
+
+  const handleArchiveSubcontract = async (subItem, archived) => {
+    const action = archived ? 'archivar' : 'reactivar';
+    if (!window.confirm(`¿Deseas ${action} a ${subItem.empresa_nombre}?`)) return;
+    const updatedSub = { ...subItem, estado: archived ? 'Archivado' : 'Pendiente', updated_at: new Date().toISOString() };
+    try {
+      if (subItem.id) {
+        const { error } = await supabase.from('acreditaciones_subcontratos').update({ estado: updatedSub.estado }).eq('id', subItem.id);
+        if (error) throw error;
+      }
+    } catch (error) {
+      console.warn('Archivo guardado localmente:', error.message);
+    }
+    updateSubcontractInList(updatedSub);
+    setSuccessMsg(`${subItem.empresa_nombre} fue ${archived ? 'archivado' : 'reactivado'}.`);
+    setTimeout(() => setSuccessMsg(''), 4000);
+  };
+
+  const handleDeleteSubcontract = async (subItem) => {
+    if (!window.confirm(`¿Eliminar definitivamente a ${subItem.empresa_nombre}? Esta acción también eliminará sus respaldos locales.`)) return;
+    try {
+      if (subItem.id) {
+        const { error } = await supabase.from('acreditaciones_subcontratos').delete().eq('id', subItem.id);
+        if (error) throw error;
+      }
+    } catch (error) {
+      console.warn('Eliminación aplicada localmente:', error.message);
+    }
+    const next = subcontratosList.filter(item => item.token_acceso !== subItem.token_acceso);
+    setSubcontratosList(next);
+    localStorage.setItem('obraxis_acreditaciones_subcontratos', JSON.stringify(next));
+    localStorage.removeItem('obraxis_subcontrato_data_' + subItem.token_acceso);
+    setSuccessMsg(`${subItem.empresa_nombre} fue eliminado.`);
+    setTimeout(() => setSuccessMsg(''), 4000);
+  };
+
+  const visibleSubcontracts = subcontratosList.filter(sub => showArchivedSubcontracts ? sub.estado === 'Archivado' : sub.estado !== 'Archivado');
 
   const openSubDetailModal = (subItem) => {
     const savedDataStr = localStorage.getItem('obraxis_subcontrato_data_' + subItem.token_acceso);
@@ -1125,28 +1204,31 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
             <div className="flex flex-wrap justify-between items-center border-b border-slate-100 pb-3 gap-3">
               <div>
                 <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
-                  Empresas Subcontratistas Habilitadas ({subcontratosList.length})
+                  {showArchivedSubcontracts ? 'Subcontratistas Archivados' : 'Empresas Subcontratistas Habilitadas'} ({visibleSubcontracts.length})
                 </h3>
                 <p className="text-[11px] text-slate-500 mt-0.5">
                   Gestione credenciales y revise/apruebe documentos subidos por cada contratista.
                 </p>
               </div>
-              <button
-                onClick={() => setShowSubModal(true)}
-                className="bg-primary hover:bg-primary-hover text-white font-extrabold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
-              >
-                <Plus className="w-4 h-4" />
-                <span>+ Registrar Subcontrato</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setShowArchivedSubcontracts(value => !value)} className="border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold px-3 py-2 rounded-xl text-[11px] flex items-center gap-1.5 transition cursor-pointer">
+                  <Archive className="w-3.5 h-3.5" />
+                  <span>{showArchivedSubcontracts ? 'Ver activos' : `Archivados (${subcontratosList.filter(sub => sub.estado === 'Archivado').length})`}</span>
+                </button>
+                <button onClick={() => setShowSubModal(true)} className="bg-primary hover:bg-primary-hover text-white font-extrabold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs">
+                  <Plus className="w-4 h-4" />
+                  <span>+ Registrar Subcontrato</span>
+                </button>
+              </div>
             </div>
 
-            {subcontratosList.length === 0 ? (
+            {visibleSubcontracts.length === 0 ? (
               <div className="p-8 text-center text-xs text-slate-400 italic">
                 No hay empresas subcontratistas registradas aún. Haga clic en "+ Registrar Subcontrato" para generar credenciales.
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {subcontratosList.map((sub) => {
+                {visibleSubcontracts.map((sub) => {
                   const minisiteUrl = getMinisiteUrl(sub);
 
                   const savedStr = localStorage.getItem('obraxis_subcontrato_data_' + sub.token_acceso);
@@ -1215,6 +1297,18 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                           <Mail className="w-3.5 h-3.5" />
                           <span>Reenviar credenciales por correo</span>
                         </button>
+
+                        <div className="grid grid-cols-3 gap-2">
+                          <button type="button" onClick={() => setEditingSub({ ...sub })} className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-[10px] font-extrabold text-slate-700 hover:bg-slate-50 flex items-center justify-center gap-1.5">
+                            <Pencil className="w-3.5 h-3.5" /> Editar
+                          </button>
+                          <button type="button" onClick={() => handleArchiveSubcontract(sub, sub.estado !== 'Archivado')} className="rounded-xl border border-amber-200 bg-amber-50 px-2 py-2 text-[10px] font-extrabold text-amber-800 hover:bg-amber-100 flex items-center justify-center gap-1.5">
+                            {sub.estado === 'Archivado' ? <RotateCcw className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />} {sub.estado === 'Archivado' ? 'Reactivar' : 'Archivar'}
+                          </button>
+                          <button type="button" onClick={() => handleDeleteSubcontract(sub)} className="rounded-xl border border-rose-200 bg-rose-50 px-2 py-2 text-[10px] font-extrabold text-rose-700 hover:bg-rose-100 flex items-center justify-center gap-1.5">
+                            <Trash2 className="w-3.5 h-3.5" /> Eliminar
+                          </button>
+                        </div>
 
                         <div className="flex items-center gap-2">
                           <input
@@ -1527,6 +1621,28 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
 
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDITAR SUBCONTRATO */}
+      {editingSub && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div><h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2"><Pencil className="w-4 h-4 text-primary" />Editar subcontratista</h3><p className="text-[10px] text-slate-500 mt-0.5">Los cambios se aplican al minisitio y a sus próximas credenciales.</p></div>
+              <button type="button" onClick={() => setEditingSub(null)} className="text-slate-400 hover:text-slate-700 font-bold">✕</button>
+            </div>
+            <form onSubmit={handleSaveSubcontractEdit} className="space-y-3">
+              <div><label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Empresa *</label><input required value={editingSub.empresa_nombre || ''} onChange={event => setEditingSub({ ...editingSub, empresa_nombre: event.target.value })} className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800" /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">RUT</label><input value={editingSub.rut_empresa || ''} onChange={event => setEditingSub({ ...editingSub, rut_empresa: event.target.value })} className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800" /></div>
+                <div><label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Obra</label><select value={editingSub.obra_asociada || ''} onChange={event => setEditingSub({ ...editingSub, obra_asociada: event.target.value })} className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 bg-white"><option value="">Todas las obras</option>{obrasList.map(obra => <option key={obra.id} value={obra.nombre}>{obra.nombre}</option>)}</select></div>
+              </div>
+              <div><label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Correo de contacto *</label><input type="email" required value={editingSub.correo_contacto || ''} onChange={event => setEditingSub({ ...editingSub, correo_contacto: event.target.value })} className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800" /></div>
+              <div><div className="flex justify-between items-center mb-1"><label className="block text-[10px] font-bold uppercase text-slate-500">Clave de acceso</label><button type="button" onClick={() => setEditingSub({ ...editingSub, credencial_pass: Math.random().toString(36).substring(2, 8).toUpperCase() })} className="text-[10px] font-bold text-primary hover:underline">Regenerar clave</button></div><input required value={editingSub.credencial_pass || ''} onChange={event => setEditingSub({ ...editingSub, credencial_pass: event.target.value.toUpperCase() })} className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-mono font-bold text-slate-800" /></div>
+              <div className="flex justify-end gap-2 pt-2"><button type="button" onClick={() => setEditingSub(null)} className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 bg-slate-100">Cancelar</button><button type="submit" className="px-4 py-2 rounded-xl text-xs font-extrabold text-white bg-primary hover:bg-primary-hover">Guardar cambios</button></div>
+            </form>
           </div>
         </div>
       )}

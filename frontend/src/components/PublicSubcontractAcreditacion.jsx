@@ -241,6 +241,10 @@ export default function PublicSubcontractAcreditacion({ token, companyNameParam 
   const handleLogin = (e) => {
     e.preventDefault();
     if (!subInfo) return;
+    if (subInfo.estado === 'Archivado') {
+      alert('Este proceso de acreditación está archivado y ya no admite carga de documentos. Contacta al administrador de la obra.');
+      return;
+    }
     const expectedPass = (subInfo.credencial_pass || '').trim().toUpperCase();
     const entered = passInput.trim().toUpperCase();
     if (entered === expectedPass || entered === '1234' || entered === 'PASS123' || !subInfo.credencial_pass) {
