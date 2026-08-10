@@ -15,6 +15,7 @@ import CalidadObras from './CalidadObras';
 import LibroObrasDigital from './LibroObrasDigital';
 import EstadosPagoObra from './EstadosPagoObra';
 import { registrarEventoBitacora } from '../utils/bitacoraService';
+import { generateFormPdf } from '../utils/pdfGenerator';
 
 const defaultCovers = [
   "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=600&q=80",
@@ -457,6 +458,9 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [formulariosPrevencionObra, setFormulariosPrevencionObra] = useState([]);
   const [respuestasPrevencionObra, setRespuestasPrevencionObra] = useState([]);
   const [procedimientosPrevencionObra, setProcedimientosPrevencionObra] = useState([]);
+  const [selectedPrevencionResponse, setSelectedPrevencionResponse] = useState(null);
+  const [showIncidentFollowUp, setShowIncidentFollowUp] = useState(false);
+  const [incidentFollowUpForm, setIncidentFollowUpForm] = useState({});
 
   const [showMantencionModal, setShowMantencionModal] = useState(false);
   const [mantencionFormData, setMantencionFormData] = useState({ equipo_nombre: '', fecha: new Date().toISOString().substring(0, 10), tipo: 'Preventiva', costo: '', descripcion: '' });
@@ -1193,6 +1197,75 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       setRespuestasPrevencionObra([]);
       setProcedimientosPrevencionObra([]);
     }
+  };
+
+  const getPrevencionFormFields = (form) => {
+    const stored = form?.campos;
+    return Array.isArray(stored) ? stored : (stored?.items || []);
+  };
+
+  const isIncidentResponse = (response) => {
+    const control = response?.formulario?.campos && !Array.isArray(response.formulario.campos)
+      ? response.formulario.campos.control_documental || {}
+      : {};
+    return control.tipo_registro === 'incidente_accidente';
+  };
+
+  const openIncidentFollowUp = (response) => {
+    const followUp = response.respuestas?.__seguimiento_accidente || {};
+    setSelectedPrevencionResponse(response);
+    setIncidentFollowUpForm({
+      asistencia_mutual: Boolean(followUp.asistencia_mutual),
+      mutual_nombre: followUp.mutual_nombre || '',
+      fecha_asistencia_mutual: followUp.fecha_asistencia_mutual || '',
+      diagnostico: followUp.diagnostico || '',
+      fecha_inicio_reposo: followUp.fecha_inicio_reposo || '',
+      fecha_alta_medica: followUp.fecha_alta_medica || '',
+      dias_perdidos: followUp.dias_perdidos ?? 0,
+      estado_caso: followUp.estado_caso || 'Abierto',
+      investigacion_requerida: Boolean(followUp.investigacion_requerida),
+      medidas_correctivas: followUp.medidas_correctivas || '',
+      responsable_seguimiento: followUp.responsable_seguimiento || '',
+      fecha_seguimiento: followUp.fecha_seguimiento || ''
+    });
+    setShowIncidentFollowUp(true);
+  };
+
+  const saveIncidentFollowUp = async (event) => {
+    event.preventDefault();
+    if (!selectedPrevencionResponse?.id) return;
+    const nextAnswers = {
+      ...(selectedPrevencionResponse.respuestas || {}),
+      __seguimiento_accidente: { ...incidentFollowUpForm, dias_perdidos: Math.max(0, Number(incidentFollowUpForm.dias_perdidos) || 0), actualizado_en: new Date().toISOString(), actualizado_por: user?.nombre || user?.email || 'Prevención' }
+    };
+    setModalLoading(true);
+    try {
+      const { error } = await supabase.from('prevencion_respuestas').update({ respuestas: nextAnswers }).eq('id', selectedPrevencionResponse.id);
+      if (error) throw error;
+      setSelectedPrevencionResponse(current => ({ ...current, respuestas: nextAnswers }));
+      setShowIncidentFollowUp(false);
+      await fetchPrevencionObra(selectedObra?.nombre);
+      await registrarEventoBitacora({ empresa: user?.empresa, obraNombre: selectedObra?.nombre, categoria: 'Prevención', accion: 'Seguimiento de accidente/incidente actualizado', detalle: `Estado: ${incidentFollowUpForm.estado_caso || 'Abierto'} · ${Math.max(0, Number(incidentFollowUpForm.dias_perdidos) || 0)} día(s) perdidos.`, actor: user?.nombre || user?.email || 'Prevención de riesgos', fecha: new Date().toISOString().slice(0, 10) });
+      setSuccessMsg('Seguimiento de accidente/incidente actualizado.');
+    } catch (error) {
+      setErrorMsg(`No se pudo actualizar el seguimiento: ${error.message}`);
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const downloadPrevencionResponsePdf = (response) => {
+    const form = response?.formulario;
+    if (!form) return;
+    const normalizedForm = { ...form, campos: getPrevencionFormFields(form) };
+    const base64 = generateFormPdf({ form: normalizedForm, metadata: { proyecto_nombre: response.proyecto_nombre || selectedObra?.nombre || '', inspector: response.inspector || '' }, answers: response.respuestas || {}, mainSignature: response.firma_url, companyLogo: companyBranding?.logo_base64 });
+    const bytes = Uint8Array.from(atob(base64), char => char.charCodeAt(0));
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${(form.titulo || 'Registro').replace(/[^a-zA-Z0-9]/g, '_')}_${new Date(response.created_at || Date.now()).toISOString().slice(0, 10)}.pdf`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   const fetchObras = async () => {
@@ -5619,7 +5692,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   ) : <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-5 text-center text-xs font-semibold text-slate-500">No hay formularios preventivos aplicables a esta obra.</div>}
                   <div className="border-t pt-3">
                     <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">Últimos registros</p>
-                    {respuestasPrevencionObra.length ? <div className="space-y-2">{respuestasPrevencionObra.slice(0, 5).map(response => <div key={response.id || response.created_at} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 px-3 py-2"><div><p className="text-xs font-bold text-slate-800">{response.formulario?.titulo || 'Registro preventivo'}</p><p className="text-[10px] text-slate-500">{response.inspector || 'Sin informante'} · {new Date(response.created_at || Date.now()).toLocaleDateString('es-CL')}</p></div><span className="rounded bg-emerald-50 px-2 py-1 text-[9px] font-black text-emerald-700">Registrado</span></div>)}</div> : <p className="rounded-lg bg-slate-50 px-3 py-3 text-xs text-slate-500">Aún no hay registros de estos formularios en esta obra.</p>}
+                    {respuestasPrevencionObra.filter(response => !isIncidentResponse(response)).length ? <div className="space-y-2">{respuestasPrevencionObra.filter(response => !isIncidentResponse(response)).slice(0, 5).map(response => <div key={response.id || response.created_at} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 px-3 py-2"><div><p className="text-xs font-bold text-slate-800">{response.formulario?.titulo || 'Registro preventivo'}</p><p className="text-[10px] text-slate-500">{response.inspector || 'Sin informante'} · {new Date(response.created_at || Date.now()).toLocaleDateString('es-CL')}</p></div><div className="flex items-center gap-2"><button onClick={() => setSelectedPrevencionResponse(response)} className="rounded bg-slate-100 px-2 py-1 text-[9px] font-black text-slate-700 hover:bg-slate-200">Ver</button><button onClick={() => downloadPrevencionResponsePdf(response)} className="rounded bg-emerald-50 px-2 py-1 text-[9px] font-black text-emerald-700 hover:bg-emerald-100">Descargar</button></div></div>)}</div> : <p className="rounded-lg bg-slate-50 px-3 py-3 text-xs text-slate-500">Aún no hay registros de estos formularios en esta obra.</p>}
                   </div>
                 </div>
               )}
@@ -5635,10 +5708,30 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
               {/* SUB-PESTAÑA 3: INCIDENTES / INFORMES FLASH */}
               {prevObraSubTab === 'incidentes' && (
                 <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
-                  <div className="flex items-center justify-between gap-3 border-b pb-2"><div><h4 className="font-bold text-xs uppercase tracking-wider text-slate-800">⚠️ Accidentes e incidentes</h4><p className="mt-1 text-[10px] text-slate-500">Eventos reportados desde el formulario de incidente o accidente de esta obra.</p></div><span className="rounded-lg bg-rose-50 px-2 py-1 text-[10px] font-black text-rose-800">{accidentesPrevencionList.length} eventos</span></div>
-                  {accidentesPrevencionList.length ? <div className="space-y-2">{[...accidentesPrevencionList].sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || ''))).map((event, index) => <div key={event.id || `${event.fecha}-${index}`} className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-extrabold text-slate-800">{event.tipo === 'CTP' ? 'Accidente con tiempo perdido' : event.tipo === 'STP' ? 'Incidente / accidente reportado' : event.tipo || 'Evento preventivo'}</p><p className="mt-1 text-[10px] text-slate-500">{event.trabajador || 'Sin persona informada'} · {event.fecha ? new Date(`${event.fecha}T12:00:00`).toLocaleDateString('es-CL') : 'Sin fecha'}{event.descripcion ? ` · ${event.descripcion}` : ''}</p></div><span className="self-start rounded bg-white px-2 py-1 text-[9px] font-black text-slate-600 sm:self-auto">{event.dias_perdidos || 0} días perdidos</span></div>)}</div> : <div className="p-6 text-center bg-emerald-50 border border-emerald-100 rounded-xl space-y-2"><CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" /><p className="text-xs text-emerald-800 font-bold">Sin accidentes ni incidentes registrados en la obra.</p><p className="text-[11px] text-slate-500">Los eventos informados en terreno se asociarán automáticamente a esta obra.</p></div>}
+                  <div className="flex items-center justify-between gap-3 border-b pb-2"><div><h4 className="font-bold text-xs uppercase tracking-wider text-slate-800">⚠️ Accidentes e incidentes</h4><p className="mt-1 text-[10px] text-slate-500">Eventos reportados desde el formulario de incidente o accidente de esta obra.</p></div><span className="rounded-lg bg-rose-50 px-2 py-1 text-[10px] font-black text-rose-800">{respuestasPrevencionObra.filter(isIncidentResponse).length} eventos</span></div>
+                  {respuestasPrevencionObra.filter(isIncidentResponse).length ? <div className="space-y-2">{respuestasPrevencionObra.filter(isIncidentResponse).sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))).map(response => { const answers = response.respuestas || {}; const followUp = answers.__seguimiento_accidente || {}; return <div key={response.id || response.created_at} className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 lg:flex-row lg:items-center lg:justify-between"><div><p className="text-xs font-extrabold text-slate-800">{answers.tipo || 'Incidente / accidente reportado'}</p><p className="mt-1 text-[10px] text-slate-500">{answers.persona || response.inspector || 'Sin persona informada'} · {answers.fecha_evento ? new Date(`${answers.fecha_evento}T12:00:00`).toLocaleDateString('es-CL') : new Date(response.created_at || Date.now()).toLocaleDateString('es-CL')}{answers.descripcion ? ` · ${answers.descripcion}` : ''}</p><p className="mt-1 text-[10px] font-bold text-slate-600">{followUp.asistencia_mutual ? `Mutual: ${followUp.mutual_nombre || 'asistencia registrada'}` : 'Sin asistencia a mutual registrada'} · {followUp.dias_perdidos || 0} días perdidos</p></div><div className="flex flex-wrap gap-2"><button onClick={() => setSelectedPrevencionResponse(response)} className="rounded-lg bg-white px-2.5 py-1.5 text-[10px] font-black text-slate-700 ring-1 ring-slate-200">Ver registro</button><button onClick={() => openIncidentFollowUp(response)} className="rounded-lg bg-rose-700 px-2.5 py-1.5 text-[10px] font-black text-white">Gestionar caso</button><button onClick={() => downloadPrevencionResponsePdf(response)} className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-[10px] font-black text-emerald-700">PDF</button></div></div>; })}</div> : <div className="p-6 text-center bg-emerald-50 border border-emerald-100 rounded-xl space-y-2"><CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" /><p className="text-xs text-emerald-800 font-bold">Sin accidentes ni incidentes registrados en la obra.</p><p className="text-[11px] text-slate-500">Los eventos informados en terreno se asociarán automáticamente a esta obra.</p></div>}
                 </div>
               )}
+            </div>
+          )}
+
+          {selectedPrevencionResponse && (
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto bg-slate-950/50 p-3 backdrop-blur-sm">
+              <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
+                <div className="mb-5 flex items-start justify-between gap-4 border-b border-slate-200 pb-4"><div><p className="text-[10px] font-black uppercase tracking-wider text-rose-700">Registro de prevención</p><h3 className="mt-1 text-base font-black text-slate-900">{selectedPrevencionResponse.formulario?.titulo || 'Formulario preventivo'}</h3><p className="mt-1 text-xs text-slate-500">{selectedPrevencionResponse.inspector || 'Sin informante'} · {selectedPrevencionResponse.proyecto_nombre || selectedObra?.nombre} · {new Date(selectedPrevencionResponse.created_at || Date.now()).toLocaleString('es-CL')}</p></div><div className="flex gap-2"><button onClick={() => downloadPrevencionResponsePdf(selectedPrevencionResponse)} className="rounded-xl bg-emerald-700 px-3 py-2 text-xs font-black text-white">Descargar PDF</button><button onClick={() => setSelectedPrevencionResponse(null)} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700">Cerrar</button></div></div>
+                <div className="space-y-3">{getPrevencionFormFields(selectedPrevencionResponse.formulario).map(field => { const value = selectedPrevencionResponse.respuestas?.[field.id] || (field.type === 'signature' ? selectedPrevencionResponse.firma_url : null); return <div key={field.id} className="rounded-xl border border-slate-200 p-3"><p className="text-[10px] font-black uppercase tracking-wider text-slate-500">{field.label}</p>{(field.type === 'photo' || field.type === 'signature') && value ? <img src={value} alt={field.label} className={field.type === 'photo' ? 'mt-2 max-h-64 rounded-lg border border-slate-200' : 'mt-2 max-h-24'} /> : <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{Array.isArray(value) ? value.join(', ') : (typeof value === 'object' && value ? JSON.stringify(value) : (value || 'Sin respuesta'))}</p>}</div>; })}</div>
+              </div>
+            </div>
+          )}
+
+          {showIncidentFollowUp && selectedPrevencionResponse && (
+            <div className="fixed inset-0 z-[10000] flex items-center justify-center overflow-y-auto bg-slate-950/55 p-3 backdrop-blur-sm">
+              <form onSubmit={saveIncidentFollowUp} className="w-full max-w-3xl rounded-3xl bg-white p-6 shadow-2xl">
+                <div className="mb-5 flex items-start justify-between gap-4 border-b border-slate-200 pb-4"><div><p className="text-[10px] font-black uppercase tracking-wider text-rose-700">Seguimiento de caso</p><h3 className="mt-1 text-base font-black text-slate-900">Accidente / incidente</h3><p className="mt-1 text-xs text-slate-500">Complementa el aviso inicial sin modificar el registro emitido desde terreno.</p></div><button type="button" onClick={() => setShowIncidentFollowUp(false)} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700">Cerrar</button></div>
+                <div className="grid gap-4 md:grid-cols-2"><label className="rounded-xl border border-slate-200 p-3 text-xs font-bold text-slate-700"><span className="flex items-center gap-2"><input type="checkbox" checked={incidentFollowUpForm.asistencia_mutual} onChange={event => setIncidentFollowUpForm({ ...incidentFollowUpForm, asistencia_mutual: event.target.checked })} /> Asistencia a mutual</span></label><label className="text-xs font-bold text-slate-700">Mutual<input value={incidentFollowUpForm.mutual_nombre} disabled={!incidentFollowUpForm.asistencia_mutual} onChange={event => setIncidentFollowUpForm({ ...incidentFollowUpForm, mutual_nombre: event.target.value })} placeholder="Ej. ACHS, Mutual de Seguridad, IST" className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" /></label><label className="text-xs font-bold text-slate-700">Fecha de asistencia<input type="date" value={incidentFollowUpForm.fecha_asistencia_mutual} disabled={!incidentFollowUpForm.asistencia_mutual} onChange={event => setIncidentFollowUpForm({ ...incidentFollowUpForm, fecha_asistencia_mutual: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" /></label><label className="text-xs font-bold text-slate-700">Estado del caso<select value={incidentFollowUpForm.estado_caso} onChange={event => setIncidentFollowUpForm({ ...incidentFollowUpForm, estado_caso: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2"><option>Abierto</option><option>En tratamiento</option><option>Con seguimiento</option><option>Cerrado</option></select></label><label className="text-xs font-bold text-slate-700">Inicio de reposo<input type="date" value={incidentFollowUpForm.fecha_inicio_reposo} onChange={event => setIncidentFollowUpForm({ ...incidentFollowUpForm, fecha_inicio_reposo: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" /></label><label className="text-xs font-bold text-slate-700">Alta médica<input type="date" value={incidentFollowUpForm.fecha_alta_medica} onChange={event => setIncidentFollowUpForm({ ...incidentFollowUpForm, fecha_alta_medica: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" /></label><label className="text-xs font-bold text-slate-700">Días perdidos<input type="number" min="0" value={incidentFollowUpForm.dias_perdidos} onChange={event => setIncidentFollowUpForm({ ...incidentFollowUpForm, dias_perdidos: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" /></label><label className="rounded-xl border border-slate-200 p-3 text-xs font-bold text-slate-700"><span className="flex items-center gap-2"><input type="checkbox" checked={incidentFollowUpForm.investigacion_requerida} onChange={event => setIncidentFollowUpForm({ ...incidentFollowUpForm, investigacion_requerida: event.target.checked })} /> Requiere investigación</span></label></div>
+                <div className="mt-4 grid gap-4"><label className="text-xs font-bold text-slate-700">Diagnóstico / calificación médica<textarea rows={2} value={incidentFollowUpForm.diagnostico} onChange={event => setIncidentFollowUpForm({ ...incidentFollowUpForm, diagnostico: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" /></label><label className="text-xs font-bold text-slate-700">Medidas correctivas y preventivas<textarea rows={3} value={incidentFollowUpForm.medidas_correctivas} onChange={event => setIncidentFollowUpForm({ ...incidentFollowUpForm, medidas_correctivas: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" /></label><div className="grid gap-4 md:grid-cols-2"><label className="text-xs font-bold text-slate-700">Responsable del seguimiento<input value={incidentFollowUpForm.responsable_seguimiento} onChange={event => setIncidentFollowUpForm({ ...incidentFollowUpForm, responsable_seguimiento: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" /></label><label className="text-xs font-bold text-slate-700">Próximo seguimiento<input type="date" value={incidentFollowUpForm.fecha_seguimiento} onChange={event => setIncidentFollowUpForm({ ...incidentFollowUpForm, fecha_seguimiento: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" /></label></div></div>
+                <div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => setShowIncidentFollowUp(false)} className="rounded-xl bg-slate-100 px-4 py-2.5 text-xs font-bold text-slate-700">Cancelar</button><button disabled={modalLoading} className="rounded-xl bg-rose-700 px-4 py-2.5 text-xs font-black text-white disabled:opacity-60">{modalLoading ? 'Guardando…' : 'Guardar seguimiento'}</button></div>
+              </form>
             </div>
           )}
 

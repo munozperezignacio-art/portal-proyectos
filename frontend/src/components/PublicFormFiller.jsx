@@ -308,8 +308,17 @@ export default function PublicFormFiller({ formToken }) {
         await supabase.from('maquinaria_uso_diario').insert([{ equipo_id: equipment?.id || null, equipo_tipo: equipment?.tipo || 'Equipo', equipo_patente: patente, obra_nombre: fillMetadata.proyecto_nombre || equipment?.obra_nombre || '', fecha: new Date().toISOString().slice(0, 10), horometro_inicial: initial, horometro_final: final, horas_trabajadas: isMileage ? 0 : Math.max(0, final - initial), combustible_cargado: Number(finalAnswers.combustible) || 0, operador: fillMetadata.inspector || '', observaciones: `${isMileage ? `Kilometraje: ${initial} a ${final} km. ` : ''}${finalAnswers.observaciones || ''}`.trim(), empresa: form.empresa || 'OBRAXIS', created_at: new Date().toISOString() }]);
       }
       if (form.tipo_registro === 'incidente_accidente') {
-        const typeMap = { Accidente: 'STP', Incidente: 'STP' };
-        await supabase.from('accidentes_prevencion_obra').insert([{ fecha: finalAnswers.fecha_evento || new Date().toISOString().slice(0, 10), tipo: typeMap[finalAnswers.tipo] || 'STP', trabajador: finalAnswers.persona || fillMetadata.inspector || '', dias_perdidos: 0, descripcion: finalAnswers.descripcion || '', obra_nombre: fillMetadata.proyecto_nombre || '', empresa: form.empresa || 'OBRAXIS' }]);
+        // El aviso inicial queda guardado en prevencion_respuestas, que es la
+        // fuente trazable del formulario. El seguimiento (mutual, reposo y
+        // medidas) se complementa posteriormente desde la ficha de la obra.
+        // La tabla histórica de accidentes puede no existir en instalaciones
+        // antiguas, por lo que no debe impedir que el informante envíe el caso.
+        try {
+          const typeMap = { Accidente: 'STP', Incidente: 'STP' };
+          await supabase.from('accidentes_prevencion_obra').insert([{ fecha: finalAnswers.fecha_evento || new Date().toISOString().slice(0, 10), tipo: typeMap[finalAnswers.tipo] || 'STP', trabajador: finalAnswers.persona || fillMetadata.inspector || '', dias_perdidos: 0, descripcion: finalAnswers.descripcion || '', obra_nombre: fillMetadata.proyecto_nombre || '', empresa: form.empresa || 'OBRAXIS' }]);
+        } catch (incidentSyncError) {
+          console.warn('El aviso quedó registrado en el formulario; la sincronización histórica se omitió:', incidentSyncError.message);
+        }
       }
 
       // --- Despachar Reporte de Prevención y Seguridad por Correo ---
