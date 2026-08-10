@@ -2730,14 +2730,15 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
     <div className="space-y-6">
       
       {/* 1. Cabecera Principal */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white p-6 border border-slate-200 rounded-3xl shadow-xs">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white p-5 border border-slate-200 rounded-3xl shadow-xs">
         <div className="flex items-center gap-3">
           <button onClick={handleHeaderBack} className="p-1.5 hover:bg-slate-100 rounded-lg transition cursor-pointer" title="Volver">
             <ArrowLeft className="w-5 h-5 text-slate-600" />
           </button>
+          <div className="rounded-xl bg-slate-50 p-2.5 text-primary"><FileSpreadsheet className="h-6 w-6" /></div>
           <div>
-            <h2 className="text-xl font-bold text-slate-800 tracking-tight font-sans">Presupuestos</h2>
-            <p className="text-[10px] text-slate-455 font-bold uppercase mt-0.5">Control de costos, diagramas Gantt y asignación de recursos independientes</p>
+            <h1 className="text-xl font-black leading-tight tracking-tight text-slate-900 sm:text-2xl">Presupuestos</h1>
+            <p className="mt-1 text-sm font-medium leading-relaxed text-slate-500">Control de costos, diagramas Gantt y asignación de recursos.</p>
           </div>
         </div>
 

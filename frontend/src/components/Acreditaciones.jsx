@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import ModuleHeader from './ModuleHeader';
 import { formatRut } from '../utils/rutUtils';
 import { sendSystemEmail } from '../utils/emailService';
 import { 
@@ -843,31 +844,14 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
   return (
     <div className="space-y-6 font-sans">
       {/* 1. CABECERA PRINCIPAL */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 border border-slate-200 rounded-3xl shadow-xs">
-        <div className="flex items-center gap-3">
-          <button onClick={handleHeaderBack} className="p-2 hover:bg-slate-100 rounded-xl transition cursor-pointer" title="Volver">
-            <ArrowLeft className="w-5 h-5 text-slate-600" />
-          </button>
-          <div>
-            <h2 className="text-xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
-              <ShieldCheck className="w-6 h-6 text-primary" />
-              <span>Módulo de Acreditaciones</span>
-            </h2>
-            <p className="text-[10px] text-slate-450 font-bold uppercase mt-0.5">
-              Gestión de acreditaciones propias para faena y control de subcontratos externos
-            </p>
-          </div>
-        </div>
-
-        {activeSection !== '' && (
+      <ModuleHeader title="Acreditaciones" subtitle="Gestión de acreditaciones para faena y control documental de subcontratos." Icon={ShieldCheck} onBack={handleHeaderBack} actions={activeSection !== '' && (
           <button
             onClick={() => setActiveSection('')}
             className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3.5 py-2 rounded-xl transition cursor-pointer border border-slate-200"
           >
             <span>← Volver al Menú Principal</span>
           </button>
-        )}
-      </div>
+        )} />
 
       {successMsg && (
         <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-2xl text-xs font-bold flex items-center gap-2 animate-in fade-in">

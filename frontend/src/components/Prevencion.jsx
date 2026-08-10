@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
+import ModuleHeader from './ModuleHeader';
 import { sendSystemEmail } from '../utils/emailService';
 import { generateFormPdf } from '../utils/pdfGenerator';
 import { jsPDF } from 'jspdf';
@@ -1379,23 +1380,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
     <div className="space-y-6 font-sans">
 
       {/* 1. Cabecera Principal */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 border border-slate-200 rounded-3xl shadow-xs">
-        <div className="flex items-center gap-3">
-          <button onClick={handleHeaderBack} className="p-1.5 hover:bg-slate-100 rounded-lg transition cursor-pointer" title="Volver">
-            <ArrowLeft className="w-5 h-5 text-slate-600" />
-          </button>
-          <div>
-            <h2 className="text-xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
-              <ShieldAlert className="w-6 h-6 text-primary" />
-              <span>Prevención de Riesgos</span>
-            </h2>
-            <p className="text-[10px] text-slate-450 font-bold uppercase mt-0.5">
-              Gestor de inspecciones de terreno, Análisis Seguro de Trabajo (AST), Matriz de Riesgo y Auditorías.
-            </p>
-          </div>
-        </div>
-
-      </div>
+      <ModuleHeader title="Prevención de Riesgos" subtitle="Gestión de inspecciones de terreno, análisis seguro de trabajo, matriz de riesgos y auditorías." Icon={ShieldAlert} onBack={handleHeaderBack} />
 
       {/* Alertas */}
       {successMsg && <div className="bg-emerald-50 text-emerald-700 p-3.5 rounded-xl text-xs font-semibold border border-emerald-250 animate-in fade-in duration-150">{successMsg}</div>}

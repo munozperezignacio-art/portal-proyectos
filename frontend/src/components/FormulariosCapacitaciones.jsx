@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import ModuleHeader from './ModuleHeader';
 import { generateFormPdf } from '../utils/pdfGenerator';
 import { 
   ArrowLeft, ChevronRight, ClipboardCheck, Plus, FileText, CheckCircle2, AlertCircle, 
@@ -478,35 +479,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 p-4 sm:p-6 font-sans">
       {/* Header Estándar de Obraxis */}
-      <div className="mb-6 flex flex-col items-start justify-between gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-xs sm:flex-row sm:items-center">
-        <div className="flex items-start gap-4">
-          <button 
-            onClick={() => {
-              if (activeTab !== 'menu') {
-                setActiveTab('menu');
-                setSuccessMsg('');
-                setErrorMsg('');
-              } else {
-                onBack();
-              }
-            }} 
-            className="mt-0.5 p-2 hover:bg-slate-100 rounded-xl transition cursor-pointer" 
-            title="Volver"
-          >
-            <ArrowLeft className="w-5 h-5 text-slate-600" />
-          </button>
-          <div>
-            <h2 className="flex items-center gap-2 text-xl font-extrabold tracking-tight text-slate-800">
-              <ClipboardCheck className="w-6 h-6 text-primary shrink-0" />
-              <span>Formularios y Capacitaciones</span>
-            </h2>
-            <p className="mt-2 text-xs font-medium text-slate-500">
-              Crea formularios, listas de chequeo y capacitaciones asignables a los módulos de la empresa.
-            </p>
-          </div>
-        </div>
-
-      </div>
+      <ModuleHeader className="mb-6" title="Formularios y Capacitaciones" subtitle="Crea formularios, listas de chequeo y capacitaciones asignables a los módulos de la empresa." Icon={ClipboardCheck} onBack={() => { if (activeTab !== 'menu') { setActiveTab('menu'); setSuccessMsg(''); setErrorMsg(''); } else { onBack(); } }} />
 
       {/* Alertas Estándar */}
       {successMsg && <div className="mb-6 bg-emerald-50 text-emerald-700 p-3.5 rounded-xl text-xs font-semibold border border-emerald-250 animate-in fade-in duration-150">{successMsg}</div>}

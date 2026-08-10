@@ -4,6 +4,7 @@ import { supabase } from '../supabaseClient';
 import { registrarEventoBitacora } from '../utils/bitacoraService';
 import { appendAudit, auditActor } from '../utils/documentAudit';
 import DocumentAuditTrail from './DocumentAuditTrail';
+import ModuleHeader from './ModuleHeader';
 
 const initialPac = { partida: '', procedimiento: '', criterios: '', puntos_inspeccion: '', puntos_espera: '', responsable: '' };
 const initialRdi = { partida: '', pac_id: '', sector: '', cantidad: '', unidad: '', solicitado_por: '', inspector: '', observaciones: '' };
@@ -188,10 +189,7 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
   const input = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 focus:border-blue-600 focus:outline-none';
 
   return <div className="space-y-5">
-    <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 lg:flex-row lg:items-center lg:justify-between">
-      <div><div className="flex items-center gap-2"><ShieldCheck className="h-6 w-6 text-emerald-700" /><h1 className="text-xl font-black text-slate-900">{embedded ? `Calidad · ${obraInicial}` : 'Control Corporativo de Calidad'}</h1></div><p className="mt-1 text-xs text-slate-500">PAC, solicitudes RDI, recepción de partidas y no conformidades con trazabilidad.</p></div>
-      <div className="flex flex-wrap gap-2">{!embedded && <select value={obraNombre} onChange={e => setObraNombre(e.target.value)} className="min-w-52 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold"><option value="">Selecciona una obra</option>{obras.map(o => <option key={o.nombre} value={o.nombre}>{o.nombre}</option>)}</select>}<button onClick={load} className="flex items-center gap-1 rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"><RefreshCw className="h-3.5 w-3.5" />Actualizar</button>{!embedded && <button onClick={onBack} className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700">Volver</button>}</div>
-    </div>
+    <ModuleHeader title={embedded ? `Calidad · ${obraInicial}` : 'Control Corporativo de Calidad'} subtitle="PAC, solicitudes RDI, recepción de partidas y no conformidades con trazabilidad." Icon={ShieldCheck} onBack={onBack} actions={<>{!embedded && <select value={obraNombre} onChange={e => setObraNombre(e.target.value)} className="min-w-52 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold"><option value="">Selecciona una obra</option>{obras.map(o => <option key={o.nombre} value={o.nombre}>{o.nombre}</option>)}</select>}<button onClick={load} className="flex items-center gap-1 rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"><RefreshCw className="h-3.5 w-3.5" />Actualizar</button></>} />
     {message && <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-900">{message}</div>}
     {(clientName || clientEmail || clientPhone) && <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-950"><Mail className="h-3.5 w-3.5" /><span className="font-black">Mandante / inspección:</span><span>{clientName || 'Sin nombre'}{clientEmail ? ` · ${clientEmail}` : ''}{clientPhone ? ` · ${clientPhone}` : ''}</span></div>}
     <div className="flex flex-wrap gap-2 rounded-xl bg-slate-100 p-1.5">{[['resumen','Resumen'],['pac','PAC por partida'],['rdi','Solicitudes RDI'],['recepciones','Entrega y recepción'],['nc','No conformidades']].map(([id,label]) => <button key={id} onClick={() => setTab(id)} className={`rounded-lg px-3 py-2 text-xs font-bold ${tab === id ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-600'}`}>{label}</button>)}</div>

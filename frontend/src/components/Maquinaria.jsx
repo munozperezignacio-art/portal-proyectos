@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { obraxisLogoBase64 } from '../obraxisLogoBase64';
 import { supabase } from '../supabaseClient';
+import ModuleHeader from './ModuleHeader';
 import { 
   Truck, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Check, QrCode, 
   Building2, Eye, Camera, Image, Calendar, Clock, Gauge, Fuel, CheckCircle2, 
@@ -881,35 +882,7 @@ export default function Maquinaria({ user, onBack }) {
     <div className="min-h-screen bg-slate-50 text-slate-800 p-4 sm:p-6 font-sans">
       
       {/* 1. Encabezado Oficial Estándar Obraxis */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 border border-slate-200 rounded-3xl shadow-xs mb-6">
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={() => {
-              if (activeSection !== '') {
-                setActiveSection('');
-                setSuccessMsg('');
-                setErrorMsg('');
-              } else {
-                onBack();
-              }
-            }} 
-            className="p-2 hover:bg-slate-100 rounded-xl transition cursor-pointer" 
-            title="Volver"
-          >
-            <ArrowLeft className="w-5 h-5 text-slate-600" />
-          </button>
-          <div>
-            <h2 className="text-xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
-              <Truck className="w-6 h-6 text-primary shrink-0" />
-              <span>Gestión de Maquinaria y Equipos</span>
-            </h2>
-            <p className="text-[10px] text-slate-450 font-bold uppercase mt-0.5 tracking-wider">
-              INVENTARIO, ASIGNACIONES EN FAENA, HORÓMETROS, RESERVAS DE OBRAS FUTURAS Y ARRIENDOS A TERCEROS
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
+      <ModuleHeader className="mb-6" title="Gestión de Maquinaria y Equipos" subtitle="Inventario, asignaciones en faena, horómetros, reservas de obras futuras y arriendos a terceros." Icon={Truck} onBack={() => { if (activeSection !== '') { setActiveSection(''); setSuccessMsg(''); setErrorMsg(''); } else { onBack(); } }} actions={<>
           {activeSection !== '' && (
             <button
               onClick={() => setActiveSection('')}
@@ -925,8 +898,7 @@ export default function Maquinaria({ user, onBack }) {
             <Plus className="w-4 h-4" />
             <span>Ingresar Nuevo Equipo</span>
           </button>
-        </div>
-      </div>
+        </>} />
 
       {/* Alertas Globales */}
       {successMsg && <div className="mb-6 bg-emerald-50 text-emerald-700 p-2 rounded-lg text-xs font-semibold border border-emerald-250 animate-in fade-in duration-150">{successMsg}</div>}
