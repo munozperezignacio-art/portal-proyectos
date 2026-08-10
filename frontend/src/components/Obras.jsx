@@ -15,6 +15,7 @@ import CalidadObras from './CalidadObras';
 import LibroObrasDigital from './LibroObrasDigital';
 import EstadosPagoObra from './EstadosPagoObra';
 import { registrarEventoBitacora } from '../utils/bitacoraService';
+import FormAnswerDisplay from './FormAnswerDisplay';
 import { generateFormPdf } from '../utils/pdfGenerator';
 
 const defaultCovers = [
@@ -5778,7 +5779,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
             <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto bg-slate-950/50 p-3 backdrop-blur-sm">
               <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
                 <div className="mb-5 flex items-start justify-between gap-4 border-b border-slate-200 pb-4"><div><p className="text-[10px] font-black uppercase tracking-wider text-rose-700">Registro de prevención</p><h3 className="mt-1 text-base font-black text-slate-900">{selectedPrevencionResponse.formulario?.titulo || 'Formulario preventivo'}</h3><p className="mt-1 text-xs text-slate-500">{selectedPrevencionResponse.inspector || 'Sin informante'} · {selectedPrevencionResponse.proyecto_nombre || selectedObra?.nombre} · {new Date(selectedPrevencionResponse.created_at || Date.now()).toLocaleString('es-CL')}</p></div><div className="flex gap-2"><button onClick={() => downloadPrevencionResponsePdf(selectedPrevencionResponse)} className="rounded-xl bg-emerald-700 px-3 py-2 text-xs font-black text-white">Descargar PDF</button><button onClick={() => setSelectedPrevencionResponse(null)} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700">Cerrar</button></div></div>
-                <div className="space-y-3">{getPrevencionFormFields(selectedPrevencionResponse.formulario).map(field => { const value = selectedPrevencionResponse.respuestas?.[field.id] || (field.type === 'signature' ? selectedPrevencionResponse.firma_url : null); return <div key={field.id} className="rounded-xl border border-slate-200 p-3"><p className="text-[10px] font-black uppercase tracking-wider text-slate-500">{field.label}</p>{(field.type === 'photo' || field.type === 'signature') && value ? <img src={value} alt={field.label} className={field.type === 'photo' ? 'mt-2 max-h-64 rounded-lg border border-slate-200' : 'mt-2 max-h-24'} /> : <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{Array.isArray(value) ? value.join(', ') : (typeof value === 'object' && value ? JSON.stringify(value) : (value || 'Sin respuesta'))}</p>}</div>; })}</div>
+                <div className="space-y-3">{getPrevencionFormFields(selectedPrevencionResponse.formulario).map(field => { const value = selectedPrevencionResponse.respuestas?.[field.id] || (field.type === 'signature' ? selectedPrevencionResponse.firma_url : null); return <div key={field.id} className="rounded-xl border border-slate-200 p-3"><p className="text-[10px] font-black uppercase tracking-wider text-slate-500">{field.label}</p><FormAnswerDisplay field={field} value={value} /></div>; })}</div>
               </div>
             </div>
           )}
