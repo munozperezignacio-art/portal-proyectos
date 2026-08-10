@@ -9,10 +9,8 @@ import {
   Share2, Copy, Eye, Edit, ChevronLeft, ChevronRight, Search, QrCode, AlertTriangle, 
   Type, AlignLeft, Hash, Calendar, CheckSquare, Radio, ToggleLeft, 
   PenTool, Camera, Sparkles, Send, Check, Download, Layers, Building2, User, BoxSelect, Layers3,
-  Award, BookOpen, GraduationCap, Video, HelpCircle, ExternalLink, FileSpreadsheet, Loader2, Settings
+  Award, BookOpen, GraduationCap, Video, HelpCircle, ExternalLink, FileSpreadsheet, Loader2
 } from 'lucide-react';
-import ContextualEmailConfigModal from './ContextualEmailConfigModal';
-import { canConfigureEmails, getUserLevel } from '../utils/userLevel';
 
 export default function Prevencion({ user, onBack, companyBranding }) {
   // Apartado activo: '' (Menú), 'builder' (Creador), 'mis_formularios', 'completar', 'respuestas', 'capacitaciones', 'evaluaciones'
@@ -31,8 +29,6 @@ export default function Prevencion({ user, onBack, companyBranding }) {
     }
     return true;
   };
-
-  const [showPrevEmailModal, setShowPrevEmailModal] = useState(false);
 
   // Lista de Formularios Guardados (Plantillas)
   const [formularios, setFormularios] = useState([]);
@@ -1399,32 +1395,6 @@ export default function Prevencion({ user, onBack, companyBranding }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {canConfigureEmails(user) && (
-            <button
-              type="button"
-              onClick={() => setShowPrevEmailModal(true)}
-              className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3.5 py-2.5 rounded-xl border border-slate-200 transition cursor-pointer"
-              title="Configurar destinatarios de notificaciones de seguridad por correo"
-            >
-              <Settings className="w-4 h-4 text-blue-900" />
-              <span>Correos ⚙️</span>
-            </button>
-          )}
-
-          {activeSection === '' && getUserLevel(user) <= 3 && (
-            <button
-              onClick={() => {
-                resetBuilder();
-                setActiveSection('builder');
-              }}
-              className="flex items-center gap-1.5 bg-primary text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-primary-hover transition cursor-pointer shadow-sm"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Crear Nuevo Formulario</span>
-            </button>
-          )}
-        </div>
       </div>
 
       {/* Alertas */}
@@ -1473,67 +1443,6 @@ export default function Prevencion({ user, onBack, companyBranding }) {
             </div>
           )}
 
-          {/* Card 4: Registro de Respuestas */}
-          {isSubmenuEnabled('prevencion_formularios') && (
-            <div 
-              onClick={() => { setActiveSection('respuestas'); setErrorMsg(''); setSuccessMsg(''); }}
-              className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[160px]"
-            >
-              <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300 w-fit">
-                <Layers className="w-6 h-6" />
-              </div>
-              <div className="space-y-1 mt-4">
-                <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
-                  Registro de Inspecciones ({respuestas.length})
-                </h3>
-                <p style={{ display: 'none' }}></p>
-                <p className="text-xs text-slate-500 leading-normal">
-                  Historial completo de inspecciones enviadas con firmantes múltiples desglosados.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Card 5: Capacitaciones */}
-          {isSubmenuEnabled('prevencion_capacitaciones') && (
-            <div 
-              onClick={() => { setActiveSection('capacitaciones'); setErrorMsg(''); setSuccessMsg(''); fetchCapacitaciones(); }}
-              className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[160px]"
-            >
-              <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300 w-fit">
-                <GraduationCap className="w-6 h-6" />
-              </div>
-              <div className="space-y-1 mt-4">
-                <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
-                  Capacitaciones ({capacitaciones.length})
-                </h3>
-                <p className="text-xs text-slate-500 leading-normal">
-                  Administra cursos con videos, textos y cuestionarios de evaluación con calificaciones.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Card 6: Resultados Evaluaciones */}
-          {isSubmenuEnabled('prevencion_capacitaciones') && (
-            <div 
-              onClick={() => { setActiveSection('evaluaciones'); setErrorMsg(''); setSuccessMsg(''); fetchIntentosEvaluaciones(); }}
-              className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[160px]"
-            >
-              <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300 w-fit">
-                <Award className="w-6 h-6" />
-              </div>
-              <div className="space-y-1 mt-4">
-                <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
-                  Resultados Evaluaciones ({intentosEvaluaciones.length})
-                </h3>
-                <p className="text-xs text-slate-500 leading-normal">
-                  Verifica las notas, aciertos y estado de aprobación de los trabajadores en tiempo real.
-                </p>
-              </div>
-            </div>
-          )}
-
           {/* Card 7: Cumplimiento de Seguridad y Prevención */}
           {isSubmenuEnabled('prevencion_cumplimiento') && (
             <div 
@@ -1560,20 +1469,20 @@ export default function Prevencion({ user, onBack, companyBranding }) {
               </div>
             </div>
           )}
-          {/* Card 8: Generar QR Operacional */}
+          {/* Card 8: Matriz de Riesgos */}
           <div 
-            onClick={() => { setActiveSection('generar_qr'); setErrorMsg(''); setSuccessMsg(''); }}
+            onClick={() => { setActiveSection('matriz_riesgos'); setErrorMsg(''); setSuccessMsg(''); }}
             className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[160px]"
           >
-            <div className="p-4 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300 w-fit">
-              <QrCode className="w-6 h-6" />
+            <div className="p-4 bg-rose-50 text-rose-700 rounded-2xl group-hover:bg-rose-700 group-hover:text-white transition-all duration-300 w-fit">
+              <AlertTriangle className="w-6 h-6" />
             </div>
             <div className="space-y-1 mt-4">
               <h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-primary transition">
-                Generar QR
+                Matriz de Riesgos
               </h3>
               <p className="text-xs text-slate-500 leading-normal">
-                Genera códigos QR agrupados para accesos rápidos en obra a charlas de 5 min, AST e inspecciones.
+                Identifica peligros, evalúa riesgos, define controles y mantiene su trazabilidad por obra.
               </p>
             </div>
           </div>
@@ -4298,6 +4207,40 @@ export default function Prevencion({ user, onBack, companyBranding }) {
         </div>
       )}
 
+      {/* ================= APARTADO: MATRIZ DE RIESGOS ================= */}
+      {activeSection === 'matriz_riesgos' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-rose-50 text-rose-700 rounded-2xl"><AlertTriangle className="w-6 h-6" /></div>
+              <div>
+                <h3 className="font-extrabold text-slate-850 text-base">Matriz de Identificación de Peligros y Evaluación de Riesgos</h3>
+                <p className="text-sm text-slate-500 mt-1 max-w-3xl">Será la fuente única de control preventivo por obra: desde la tarea y el peligro hasta el responsable, la medida de control y la verificación de su eficacia.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[
+              ['1. Identificar', 'Proceso, actividad, tarea, peligro, evento no deseado y personas expuestas.'],
+              ['2. Evaluar', 'Controles existentes, probabilidad, consecuencia, nivel de riesgo inherente y residual.'],
+              ['3. Controlar', 'Jerarquía de controles, responsable, plazo, evidencia, revisión y estado de cierre.']
+            ].map(([title, description]) => (
+              <div key={title} className="bg-white border border-slate-200 rounded-2xl p-5">
+                <p className="text-xs font-extrabold text-primary uppercase tracking-wide">{title}</p>
+                <p className="text-xs text-slate-500 leading-relaxed mt-2">{description}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-slate-50 border border-dashed border-slate-300 rounded-3xl p-8 text-center">
+            <FileSpreadsheet className="w-9 h-9 text-slate-300 mx-auto" />
+            <h4 className="mt-3 text-sm font-extrabold text-slate-700">Matriz corporativa y por obra</h4>
+            <p className="mt-1 text-xs text-slate-500 max-w-xl mx-auto">Aquí estarán las matrices vigentes, sus revisiones y sus acciones de control. La implementación continuará con la tabla, escalas configurables y seguimiento de medidas.</p>
+          </div>
+        </div>
+      )}
+
       {/* ================= APARTADO: PROCEDIMIENTOS (PTS) ================= */}
       {activeSection === 'procedimientos' && (
         <div className="space-y-6 animate-in fade-in duration-200">
@@ -4533,15 +4476,6 @@ export default function Prevencion({ user, onBack, companyBranding }) {
           </div>
         </div>
       )}
-
-      {/* Modal Contextual de Correos de Prevención de Riesgos */}
-      <ContextualEmailConfigModal
-        isOpen={showPrevEmailModal}
-        onClose={() => setShowPrevEmailModal(false)}
-        moduloTitle="Configurar Correos de Prevención de Riesgos"
-        moduloKey="prevencion_riesgos"
-        user={user}
-      />
 
     </div>
   );
