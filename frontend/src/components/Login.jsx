@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { Eye, EyeOff, Lock, Building2, User, AlertCircle, Loader2, QrCode, Navigation, RotateCcw, CheckCircle2, AlertTriangle, Search, Mail, KeyRound } from 'lucide-react';
-import { obraxisLogoBase64 } from '../obraxisLogoBase64';
 import { sendSystemEmail } from '../utils/emailService';
 
 function Login({ onLoginSuccess, onBackHome }) {
@@ -349,7 +348,8 @@ function Login({ onLoginSuccess, onBackHome }) {
   };
 
   // Logo base64 obtenido de la versión original
-  const obraxisLogo = obraxisLogoBase64;
+  // Marca institucional; cada empresa conserva su propio logo configurado.
+  const obraxisLogo = '/brand/obraxis-primary.png';
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -452,7 +452,7 @@ function Login({ onLoginSuccess, onBackHome }) {
         
         {/* Encabezado y Logo */}
         <div className="text-center mb-6">
-          <img src={selectedBranding?.logo_base64 || obraxisLogoBase64} className="mx-auto max-h-24 object-contain mb-3" alt="Obraxis Logo" />
+          <img src={selectedBranding?.logo_base64 || obraxisLogo} className="mx-auto max-h-24 object-contain mb-3" alt="Obraxis Logo" />
           <h2 className="text-xl font-bold text-slate-800">Portal de Proyectos</h2>
           <p className="text-xs text-slate-500 mt-1 font-medium">Control Operativo Centralizado</p>
         </div>
