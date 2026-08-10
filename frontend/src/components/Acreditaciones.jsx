@@ -46,6 +46,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
   ]);
   const [newSupplierDocLabel, setNewSupplierDocLabel] = useState('');
   const [loadingSubcontratos, setLoadingSubcontratos] = useState(false);
+  const [sendingSubInvite, setSendingSubInvite] = useState(false);
   const [showSubModal, setShowSubModal] = useState(false);
   const [subForm, setSubForm] = useState({
     empresa_nombre: '',
@@ -584,6 +585,11 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
       return;
     }
 
+    if (!subForm.correo_contacto.trim()) {
+      alert('Ingrese el correo de contacto. Allí se enviarán las credenciales de acceso al minisitio.');
+      return;
+    }
+
     const token = 'sub_' + Math.random().toString(36).substring(2, 9);
     const pass = subForm.credencial_pass || Math.random().toString(36).substring(2, 8).toUpperCase();
 
@@ -598,10 +604,13 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
       created_at: new Date().toISOString()
     };
 
+    setSendingSubInvite(true);
+    let createdSub = newSub;
     try {
       const { data, error } = await supabase.from('acreditaciones_subcontratos').insert([newSub]).select();
       if (!error && data) {
-        setSubcontratosList([data[0], ...subcontratosList]);
+        createdSub = { ...newSub, ...data[0] };
+        setSubcontratosList([createdSub, ...subcontratosList]);
       } else {
         const updated = [newSub, ...subcontratosList];
         setSubcontratosList(updated);
@@ -613,9 +622,14 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
       localStorage.setItem('obraxis_acreditaciones_subcontratos', JSON.stringify(updated));
     }
 
+    const invite = await sendSubcontractInvite(createdSub);
     setShowSubModal(false);
     setSubForm({ empresa_nombre: '', rut_empresa: '', obra_asociada: '', correo_contacto: '', credencial_pass: '' });
     setSuccessMsg(`¡Empresa Subcontratista ${newSub.empresa_nombre} creada! Credenciales generadas.`);
+    if (!invite.success) {
+      alert(`El subcontratista fue creado, pero no se pudo enviar el correo: ${invite.error}. Puedes reenviarlo desde su tarjeta.`);
+    }
+    setSendingSubInvite(false);
     setTimeout(() => setSuccessMsg(''), 5000);
   };
 
@@ -623,6 +637,18 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     const origin = window.location.origin;
     const cleanName = encodeURIComponent(subItem.empresa_nombre.toLowerCase().replace(/\s+/g, '-'));
     return `${origin}/?acreditacion_subcontrato=${cleanName}&token=${subItem.token_acceso}`;
+  };
+
+  const sendSubcontractInvite = async (subItem) => {
+    const email = (subItem?.correo_contacto || '').trim();
+    if (!email) return { success: false, error: 'El subcontratista no tiene correo de contacto' };
+
+    const minisiteUrl = getMinisiteUrl(subItem);
+    return sendSystemEmail({
+      to: email,
+      subject: `Acreditación de subcontratista · ${subItem.obra_asociada || 'Obraxis'}`,
+      htmlContent: `<div style="max-width:650px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;padding:28px;font-family:Arial,sans-serif;color:#1e293b;"><h2 style="margin:0 0 12px;color:#073b76;font-size:22px;">Acceso a acreditación de subcontratista</h2><p>Hola,</p><p>La empresa <strong>${subItem.empresa_nombre}</strong> fue registrada para acreditar documentación de empresa, personal y equipos en la obra <strong>${subItem.obra_asociada || 'asignada'}</strong>.</p><p>Ingresa al minisitio y completa la carga de antecedentes solicitados.</p><div style="margin:24px 0;padding:18px;border-radius:12px;background:#f8fafc;border:1px solid #cbd5e1;"><div style="font-size:11px;font-weight:bold;color:#64748b;text-transform:uppercase;letter-spacing:.08em;">Tus credenciales</div><p style="margin:12px 0 4px;"><strong>Empresa:</strong> ${subItem.empresa_nombre}</p><p style="margin:4px 0;"><strong>Clave de acceso:</strong> <span style="font-family:monospace;font-size:18px;font-weight:bold;letter-spacing:.08em;color:#073b76;">${subItem.credencial_pass}</span></p></div><p style="text-align:center;margin:26px 0;"><a href="${minisiteUrl}" style="display:inline-block;background:#073b76;color:#ffffff;padding:13px 22px;border-radius:10px;font-weight:bold;text-decoration:none;">Ingresar al minisitio</a></p><p style="font-size:12px;color:#64748b;word-break:break-all;">Si el botón no abre, copia este enlace:<br/><a href="${minisiteUrl}" style="color:#073b76;">${minisiteUrl}</a></p><p style="font-size:12px;color:#64748b;margin:20px 0 0;">Guarda esta clave de forma segura. Es necesaria para acceder al portal de acreditación.</p></div>`
+    });
   };
 
   const openSubDetailModal = (subItem) => {
@@ -1176,6 +1202,20 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                           <span>Revisar, Aprobar o Rechazar Documentos</span>
                         </button>
 
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const result = await sendSubcontractInvite(sub);
+                            setSuccessMsg(result.success ? `Credenciales reenviadas a ${sub.correo_contacto}.` : `No se pudo reenviar el correo: ${result.error}`);
+                            setTimeout(() => setSuccessMsg(''), 5000);
+                          }}
+                          disabled={!sub.correo_contacto}
+                          className="w-full border border-primary/25 bg-white text-primary hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-50 font-extrabold py-2 rounded-xl text-[11px] flex items-center justify-center gap-2 transition cursor-pointer"
+                        >
+                          <Mail className="w-3.5 h-3.5" />
+                          <span>Reenviar credenciales por correo</span>
+                        </button>
+
                         <div className="flex items-center gap-2">
                           <input
                             type="text"
@@ -1547,6 +1587,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                 <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Correo Electrónico de Contacto</label>
                 <input
                   type="email"
+                  required
                   placeholder="contacto@subcontrato.cl"
                   value={subForm.correo_contacto}
                   onChange={(e) => setSubForm({ ...subForm, correo_contacto: e.target.value })}
@@ -1575,9 +1616,10 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                 </button>
                 <button
                   type="submit"
+                  disabled={sendingSubInvite}
                   className="px-4 py-2 rounded-xl text-xs font-extrabold text-white bg-primary hover:bg-primary-hover transition cursor-pointer shadow-xs"
                 >
-                  Generar Credenciales y Crear
+                  {sendingSubInvite ? 'Creando y enviando…' : 'Crear y enviar credenciales'}
                 </button>
               </div>
             </form>
