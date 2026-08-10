@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { Truck, Calendar, Gauge, Fuel, User, CheckCircle2, AlertCircle, ArrowLeft, Send, ShieldCheck, Building2 } from 'lucide-react';
-import { obraxisLogoBase64 } from '../obraxisLogoBase64';
 
 export default function PublicReporteDiarioMaquinaria({ equipoId, patente }) {
   const [equipo, setEquipo] = useState(null);
@@ -136,7 +135,7 @@ export default function PublicReporteDiarioMaquinaria({ equipoId, patente }) {
         
         {/* Logo y Encabezado Oficial Obraxis */}
         <div className="text-center space-y-3 bg-slate-800/80 p-6 rounded-3xl border border-slate-700 shadow-xl backdrop-blur-md">
-          <img src={obraxisLogoBase64} alt="Obraxis" className="h-10 mx-auto object-contain mb-1" />
+          <img src="/brand/obraxis-primary.png" alt="Obraxis" className="h-16 w-40 mx-auto object-contain mb-1" />
           <div>
             <span className="text-[9px] font-black tracking-widest uppercase bg-amber-500/20 text-amber-400 px-3 py-1 rounded-full border border-amber-500/30">
               REPORTE DIARIO DE MAQUINARIA EN FAENA

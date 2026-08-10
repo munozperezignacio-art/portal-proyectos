@@ -520,7 +520,7 @@ export default function PublicFormFiller({ formToken }) {
                 alt="Logo Empresa" 
               />
             ) : (
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">OBRAXIS</div>
+              <img src="/brand/obraxis-primary.png" alt="Obraxis" className="h-14 w-32 object-contain" />
             )}
           </div>
 

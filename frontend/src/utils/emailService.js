@@ -51,7 +51,7 @@ export async function sendSystemEmail({ to, subject, htmlContent, attachments, c
         sender: `Obraxis <${sender}>`,
         to: recipients,
         subject: subject,
-        htmlContent: htmlContent,
+        htmlContent: `<div style="margin:0;padding:24px 12px;background:#f1f5f9;font-family:Arial,sans-serif;"><div style="max-width:720px;margin:0 auto 12px;text-align:center;"><img src="https://www.obraxis.cl/brand/obraxis-primary.png" alt="Obraxis" style="width:150px;height:64px;object-fit:contain;display:inline-block;" /></div>${htmlContent}<p style="max-width:650px;margin:16px auto 0;text-align:center;font-size:10px;line-height:1.5;color:#64748b;">Enviado desde <a href="https://www.obraxis.cl" style="color:#073b76;font-weight:bold;text-decoration:none;">Obraxis</a> · Gestión inteligente para construir mejor.</p></div>`,
         attachments: attachments || [],
       }),
     });

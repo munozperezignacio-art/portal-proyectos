@@ -225,6 +225,7 @@ export default function PublicTrainingFiller({ trainingToken }) {
         {/* Encabezado */}
         <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs flex justify-between items-center">
           <div className="space-y-1">
+            <img src="/brand/obraxis-primary.png" alt="Obraxis" className="mb-2 h-10 w-28 object-contain object-left" />
             <span className="text-[8px] font-black uppercase px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 tracking-wider">Módulo de Prevención</span>
             <h1 className="text-base font-black text-slate-850 uppercase tracking-wide leading-tight">{training.titulo}</h1>
             {training.descripcion && <p className="text-xs text-slate-500 font-semibold">{training.descripcion}</p>}

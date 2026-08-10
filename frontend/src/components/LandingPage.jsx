@@ -1,140 +1,49 @@
 import React from 'react';
-import { 
-  Building2, Users, Truck, ShieldAlert, LayoutDashboard, ChevronRight, 
-  Layers, ClipboardCheck, BadgeCheck 
+import {
+  ArrowRight, BarChart3, Building2, CheckCircle2, ClipboardCheck,
+  FileCheck2, LayoutDashboard, Mail, Menu, ShieldCheck, Smartphone, Truck, Users
 } from 'lucide-react';
-import { obraxisLogoBase64 } from '../obraxisLogoBase64';
+
+const features = [
+  { icon: Building2, title: 'Obras conectadas', text: 'Presupuesto, programación, avances, costos y estados de pago en una misma lectura.' },
+  { icon: ClipboardCheck, title: 'Control en terreno', text: 'Reportes diarios, formularios, RDI, recepciones y bitácora digital desde cualquier dispositivo.' },
+  { icon: ShieldCheck, title: 'Calidad y prevención', text: 'PAC, no conformidades, procedimientos, incidentes y evidencias con trazabilidad.' },
+  { icon: Truck, title: 'Recursos bajo control', text: 'Personal, cuadrillas, equipos, horómetros, kilometraje, mantenciones e inventario.' }
+];
 
 export default function LandingPage({ onGoToLogin, user, onGoToDashboard }) {
+  const openPortal = user ? onGoToDashboard : onGoToLogin;
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans select-none antialiased">
-      {/* 1. Header/Navbar */}
-      <header className="bg-slate-900/80 backdrop-blur-md border-b border-slate-800 sticky top-0 z-50 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <img src={obraxisLogoBase64} alt="Obraxis Logo" className="h-9 object-contain bg-white rounded-xl px-3 py-1 shadow-sm" />
-        </div>
+    <div className="min-h-screen overflow-x-hidden bg-slate-50 font-sans text-slate-900 antialiased">
+      <div className="border-b border-blue-100 bg-[#062f63] px-5 py-2.5 text-center text-[11px] font-bold text-white sm:text-xs">
+        Gestión inteligente para construir mejor <span className="mx-2 hidden text-orange-300 sm:inline">•</span><a href="#contacto" className="underline decoration-orange-400 underline-offset-4">Conversemos sobre tu empresa</a>
+      </div>
 
-        <div>
-          {user ? (
-            <button
-              onClick={onGoToDashboard}
-              className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold px-5 py-2.5 rounded-xl transition cursor-pointer shadow-md shadow-blue-900/30"
-            >
-              <span>Ir al Portal</span>
-              <LayoutDashboard className="w-4 h-4" />
-            </button>
-          ) : (
-            <button
-              onClick={onGoToLogin}
-              className="flex items-center gap-1.5 bg-slate-850 hover:bg-slate-800 text-white border border-slate-700 text-xs font-extrabold px-5 py-2.5 rounded-xl transition cursor-pointer"
-            >
-              <span>Iniciar Sesión</span>
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          )}
+      <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 px-5 py-3 backdrop-blur lg:px-10">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
+          <a href="/" aria-label="Obraxis inicio" className="flex items-center"><img src="/brand/obraxis-primary.png" alt="Obraxis" className="h-11 w-40 object-contain object-center sm:h-12 sm:w-48" /></a>
+          <nav className="hidden items-center gap-6 text-xs font-bold text-slate-600 md:flex"><a href="#solucion" className="hover:text-[#073b76]">Solución</a><a href="#beneficios" className="hover:text-[#073b76]">Beneficios</a><a href="#contacto" className="hover:text-[#073b76]">Contacto</a></nav>
+          <div className="flex items-center gap-2"><button onClick={openPortal} className="hidden rounded-xl px-4 py-2.5 text-xs font-black text-[#073b76] hover:bg-blue-50 sm:block">{user ? 'Ir a mi panel' : 'Iniciar sesión'}</button><button onClick={openPortal} className="inline-flex items-center gap-2 rounded-xl bg-[#073b76] px-4 py-2.5 text-xs font-black text-white shadow-lg shadow-blue-950/15 transition hover:bg-[#052d5d]"><span>{user ? 'Abrir plataforma' : 'Solicitar acceso'}</span><ArrowRight className="h-3.5 w-3.5" /></button><Menu className="h-5 w-5 text-slate-500 md:hidden" /></div>
         </div>
       </header>
 
-      {/* 2. Hero Section */}
-      <section className="relative overflow-hidden py-24 sm:py-32 px-6 flex-1 flex flex-col justify-center items-center text-center bg-radial from-slate-800 via-slate-900 to-slate-950">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#0f172a_1px,transparent_1px),linear-gradient(to_bottom,#0f172a_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-30"></div>
-
-        <div className="max-w-3xl relative z-10 space-y-6">
-          <div className="inline-flex items-center gap-1.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black uppercase tracking-widest px-3.5 py-1.5 rounded-full">
-            <BadgeCheck className="w-3.5 h-3.5" />
-            SaaS de Control Civil & Obras
+      <main>
+        <section className="relative isolate overflow-hidden bg-gradient-to-br from-[#062b5a] via-[#073b76] to-[#0b5b9a] px-5 pb-20 pt-16 text-white sm:pb-28 sm:pt-24">
+          <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(255,255,255,.15)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.15)_1px,transparent_1px)] [background-size:48px_48px]"></div>
+          <div className="absolute -right-20 top-10 h-96 w-96 rounded-full bg-orange-500/20 blur-3xl"></div>
+          <div className="relative mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[1.05fr_.95fr]">
+            <div className="max-w-2xl"><div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[.16em] text-blue-100"><CheckCircle2 className="h-3.5 w-3.5 text-orange-300" /> Plataforma integral para construcción</div><h1 className="text-4xl font-black leading-[.98] tracking-tight sm:text-6xl">La obra avanza.<br /><span className="text-orange-400">Tu gestión también.</span></h1><p className="mt-6 max-w-xl text-base font-medium leading-relaxed text-blue-100 sm:text-lg">Obraxis conecta planificación, terreno, calidad, prevención y costos para que tomes decisiones con información real, todos los días.</p><div className="mt-8 flex flex-wrap gap-3"><button onClick={openPortal} className="inline-flex items-center gap-2 rounded-2xl bg-orange-500 px-6 py-4 text-xs font-black uppercase tracking-wide text-white shadow-xl shadow-orange-950/25 transition hover:bg-orange-400">Conocer Obraxis <ArrowRight className="h-4 w-4" /></button><a href="#contacto" className="inline-flex items-center gap-2 rounded-2xl border border-white/25 bg-white/10 px-6 py-4 text-xs font-black uppercase tracking-wide text-white transition hover:bg-white/20"><Mail className="h-4 w-4" /> Contáctanos</a></div><div className="mt-10 flex flex-wrap gap-x-6 gap-y-3 text-xs font-bold text-blue-100"><span className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-orange-300" /> Obras y proyectos</span><span className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-orange-300" /> Control desde terreno</span><span className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-orange-300" /> Documentación trazable</span></div></div>
+            <div className="relative mx-auto w-full max-w-lg rounded-[2rem] border border-white/20 bg-white p-3 shadow-2xl shadow-blue-950/40"><img src="/brand/obraxis-primary.png" alt="Logo Obraxis" className="h-52 w-full rounded-[1.45rem] object-contain sm:h-64" /><div className="grid grid-cols-3 gap-2 px-2 pb-2"><div className="rounded-xl bg-blue-50 p-3 text-center"><BarChart3 className="mx-auto h-5 w-5 text-[#073b76]" /><p className="mt-1 text-[9px] font-black uppercase text-slate-600">Decisiones</p></div><div className="rounded-xl bg-orange-50 p-3 text-center"><Smartphone className="mx-auto h-5 w-5 text-orange-500" /><p className="mt-1 text-[9px] font-black uppercase text-slate-600">Terreno</p></div><div className="rounded-xl bg-emerald-50 p-3 text-center"><FileCheck2 className="mx-auto h-5 w-5 text-emerald-600" /><p className="mt-1 text-[9px] font-black uppercase text-slate-600">Trazabilidad</p></div></div></div>
           </div>
+        </section>
 
-          <h1 className="text-4xl sm:text-6xl font-black tracking-tight text-white uppercase leading-none">
-            La plataforma definitiva para la gestión de <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">Proyectos y Obras</span>
-          </h1>
+        <section id="solucion" className="px-5 py-20 sm:py-24"><div className="mx-auto max-w-7xl"><div className="max-w-2xl"><p className="text-xs font-black uppercase tracking-[.18em] text-orange-600">Una sola operación</p><h2 className="mt-3 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">Todo lo que pasa en una obra, conectado.</h2><p className="mt-4 text-sm leading-relaxed text-slate-600">Deja atrás las planillas aisladas, los reportes dispersos y las decisiones tardías. Obraxis ordena la operación para equipos de construcción que necesitan avanzar con control.</p></div><div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-4">{features.map(({ icon: Icon, title, text }) => <article key={title} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-lg"><div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-[#073b76]"><Icon className="h-5 w-5" /></div><h3 className="mt-5 text-sm font-black text-slate-900">{title}</h3><p className="mt-2 text-xs font-medium leading-relaxed text-slate-600">{text}</p></article>)}</div></div></section>
 
-          <p className="text-sm sm:text-base text-slate-400 font-semibold leading-relaxed max-w-2xl mx-auto">
-            Optimiza el rendimiento diario de tu faena. Controla asistencia, maquinaria, combustible, prevención de riesgos y presupuestos civiles en una única plataforma unificada.
-          </p>
+        <section id="beneficios" className="bg-[#062f63] px-5 py-16 text-white sm:py-20"><div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-2 lg:items-center"><div><p className="text-xs font-black uppercase tracking-[.18em] text-orange-300">Construido para la faena</p><h2 className="mt-3 text-3xl font-black leading-tight sm:text-4xl">Menos administración. Más control de obra.</h2></div><div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><div className="rounded-2xl border border-white/15 bg-white/10 p-4"><Users className="h-5 w-5 text-orange-300" /><p className="mt-3 text-xs font-black">Equipos alineados</p></div><div className="rounded-2xl border border-white/15 bg-white/10 p-4"><BarChart3 className="h-5 w-5 text-orange-300" /><p className="mt-3 text-xs font-black">Datos accionables</p></div><div className="rounded-2xl border border-white/15 bg-white/10 p-4"><ShieldCheck className="h-5 w-5 text-orange-300" /><p className="mt-3 text-xs font-black">Cumplimiento</p></div><div className="rounded-2xl border border-white/15 bg-white/10 p-4"><LayoutDashboard className="h-5 w-5 text-orange-300" /><p className="mt-3 text-xs font-black">Visión integral</p></div></div></div></section>
 
-          <div className="pt-6 flex flex-wrap justify-center gap-4">
-            {user ? (
-              <button
-                onClick={onGoToDashboard}
-                className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-wider px-8 py-4 rounded-2xl transition cursor-pointer shadow-lg shadow-blue-900/40 flex items-center gap-2"
-              >
-                <span>Acceder a mi panel</span>
-                <ChevronRight className="w-4.5 h-4.5" />
-              </button>
-            ) : (
-              <button
-                onClick={onGoToLogin}
-                className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-wider px-8 py-4 rounded-2xl transition cursor-pointer shadow-lg shadow-blue-900/40 flex items-center gap-2"
-              >
-                <span>Ingresar al Portal</span>
-                <ChevronRight className="w-4.5 h-4.5" />
-              </button>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* 3. Features Grid */}
-      <section className="py-20 px-6 bg-slate-950 border-t border-slate-900">
-        <div className="max-w-6xl mx-auto space-y-12">
-          <div className="text-center space-y-2">
-            <h2 className="text-2xl font-black text-white uppercase tracking-wide">Módulos Integrados</h2>
-            <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Solución todo-en-uno para el control en terreno</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* Feature 1 */}
-            <div className="bg-slate-900 border border-slate-800 hover:border-blue-500/50 p-6 rounded-3xl transition duration-300 space-y-4">
-              <div className="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-400 flex items-center justify-center shadow-inner">
-                <Building2 className="w-6 h-6" />
-              </div>
-              <h3 className="font-extrabold text-sm text-white uppercase">Control de Proyectos</h3>
-              <p className="text-xs text-slate-450 font-semibold leading-relaxed">
-                Seguimiento de producción diaria en obra, control de faenas activas e inventarios físicos de materiales.
-              </p>
-            </div>
-
-            {/* Feature 2 */}
-            <div className="bg-slate-900 border border-slate-800 hover:border-emerald-500/50 p-6 rounded-3xl transition duration-300 space-y-4">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center shadow-inner">
-                <Users className="w-6 h-6" />
-              </div>
-              <h3 className="font-extrabold text-sm text-white uppercase">Asistencia RRHH</h3>
-              <p className="text-xs text-slate-450 font-semibold leading-relaxed">
-                Planillas de marcas y control biométrico en terreno. Liquidación de horas ordinarias y extras autorizadas.
-              </p>
-            </div>
-
-            {/* Feature 3 */}
-            <div className="bg-slate-900 border border-slate-800 hover:border-amber-500/50 p-6 rounded-3xl transition duration-300 space-y-4">
-              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center shadow-inner">
-                <Truck className="w-6 h-6" />
-              </div>
-              <h3 className="font-extrabold text-sm text-white uppercase">Maquinaria y Combustible</h3>
-              <p className="text-xs text-slate-450 font-semibold leading-relaxed">
-                Inventario fotográfico de flota, registro de horómetros de entrada/salida y carga de combustible.
-              </p>
-            </div>
-
-            {/* Feature 4 */}
-            <div className="bg-slate-900 border border-slate-800 hover:border-red-500/50 p-6 rounded-3xl transition duration-300 space-y-4">
-              <div className="w-12 h-12 rounded-2xl bg-red-500/10 text-red-400 flex items-center justify-center shadow-inner">
-                <ShieldAlert className="w-6 h-6" />
-              </div>
-              <h3 className="font-extrabold text-sm text-white uppercase">Seguridad y Prevención</h3>
-              <p className="text-xs text-slate-450 font-semibold leading-relaxed">
-                Creador de formularios dinámicos con firma electrónica y calendario semanal de cumplimiento automatizado.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 4. Footer */}
-      <footer className="bg-slate-950 border-t border-slate-900 py-8 px-6 text-center text-[10px] text-slate-650 font-bold uppercase tracking-wider">
-        <div>© 2026 Obraxis. Todos los derechos reservados.</div>
-      </footer>
+        <section id="contacto" className="px-5 py-20"><div className="mx-auto max-w-5xl overflow-hidden rounded-[2rem] bg-gradient-to-br from-orange-500 to-orange-600 p-8 text-white shadow-xl shadow-orange-200 sm:p-12"><div className="grid gap-8 md:grid-cols-[1fr_auto] md:items-center"><div><p className="text-xs font-black uppercase tracking-[.18em] text-orange-100">Hablemos de tu operación</p><h2 className="mt-3 text-3xl font-black">¿Quieres ver Obraxis aplicado a tus obras?</h2><p className="mt-3 max-w-xl text-sm font-medium text-orange-50">Agenda una conversación y revisemos cómo ordenar tu operación, desde el presupuesto hasta el terreno.</p></div><a href="mailto:contacto@obraxis.cl?subject=Quiero%20conocer%20Obraxis" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-6 py-4 text-xs font-black uppercase tracking-wide text-orange-600 transition hover:bg-orange-50"><Mail className="h-4 w-4" /> Contáctanos</a></div></div></section>
+      </main>
+      <footer className="border-t border-slate-200 bg-white px-5 py-10"><div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 sm:flex-row"><img src="/brand/obraxis-primary.png" alt="Obraxis" className="h-10 w-32 object-contain" /><p className="text-center text-[10px] font-bold uppercase tracking-wider text-slate-400">© 2026 Obraxis · Gestión inteligente para construir mejor</p><a href="mailto:contacto@obraxis.cl" className="text-xs font-black text-[#073b76] hover:text-orange-600">contacto@obraxis.cl</a></div></footer>
     </div>
   );
 }
