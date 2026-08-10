@@ -1094,6 +1094,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   // Listas desplegables cargadas de la base de datos para la obra
   const [personalList, setPersonalList] = useState([]);
   const [maquinariaList, setMaquinariaList] = useState([]);
+  const [maquinariaUsoObra, setMaquinariaUsoObra] = useState([]);
   const [partidasList, setPartidasList] = useState([]);
   const handleReorderPartidaObra = (fromIdx, toIdx) => {
     if (fromIdx === toIdx || toIdx < 0 || toIdx >= partidasList.length) return;
@@ -1567,6 +1568,25 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       setMaquinariaList(finalMaqObra);
     } catch (eMaq) {
       console.error('Error en módulo Maquinaria:', eMaq);
+    }
+
+    // Registros de uso realizados desde el dashboard de Maquinarias, filtrados para esta obra.
+    try {
+      const { data: usosRemotos, error: usosError } = await supabase
+        .from('maquinaria_uso_diario')
+        .select('*')
+        .eq('empresa', user?.empresa || 'OBRAXIS')
+        .order('fecha', { ascending: false });
+      let usos = usosError ? [] : (usosRemotos || []);
+      if (!usos.length) {
+        try { usos = JSON.parse(localStorage.getItem('obraxis_maquinaria_uso') || '[]'); } catch { usos = []; }
+      }
+      setMaquinariaUsoObra(usos.filter(registro => isMatchObra(registro.obra_nombre, obraNombre)));
+    } catch {
+      try {
+        const locales = JSON.parse(localStorage.getItem('obraxis_maquinaria_uso') || '[]');
+        setMaquinariaUsoObra(locales.filter(registro => isMatchObra(registro.obra_nombre, obraNombre)));
+      } catch { setMaquinariaUsoObra([]); }
     }
 
     // 3. Cargar partidas de obra
@@ -3857,6 +3877,12 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   >
                     Arriendos Externos (Con Proveedor)
                   </button>
+                  <button
+                    onClick={() => setMaqSubTab('registros')}
+                    className={`px-4 py-2 rounded-xl transition cursor-pointer ${maqSubTab === 'registros' ? 'bg-white text-blue-950 shadow-xs font-extrabold' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    Registros de uso ({maquinariaUsoObra.length})
+                  </button>
                 </div>
 
                 {maqSubTab === 'arriendos' && (
@@ -3945,6 +3971,13 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
               )}
 
               {/* CONTENIDO PESTAÑA 2: ARRIENDOS EXTERNOS */}
+              {maqSubTab === 'registros' && (
+                <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
+                  <div className="flex flex-col gap-2 border-b border-slate-100 pb-3 sm:flex-row sm:items-center sm:justify-between"><div><h4 className="font-extrabold text-slate-850 text-xs uppercase tracking-wider">Registros operacionales de maquinaria</h4><p className="mt-1 text-[11px] text-slate-500">Horómetros, combustible y operador registrados desde el dashboard de Maquinarias.</p></div><span className="w-fit rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-800">{maquinariaUsoObra.length} registro(s)</span></div>
+                  {maquinariaUsoObra.length ? <div className="overflow-x-auto rounded-xl border border-slate-200"><table className="w-full min-w-[760px] text-left text-xs"><thead className="bg-slate-50 text-[10px] font-black uppercase text-slate-600"><tr><th className="p-3">Fecha</th><th className="p-3">Equipo / patente</th><th className="p-3">Medición inicial</th><th className="p-3">Medición final</th><th className="p-3">Uso</th><th className="p-3">Combustible</th><th className="p-3">Operador</th><th className="p-3">Observaciones</th></tr></thead><tbody className="divide-y divide-slate-100">{maquinariaUsoObra.map((registro, index) => <tr key={registro.id || `${registro.equipo_id}-${registro.fecha}-${index}`} className="hover:bg-slate-50"><td className="p-3 font-bold text-slate-700">{registro.fecha || 'Sin fecha'}</td><td className="p-3 font-bold text-slate-800">{registro.equipo_tipo || 'Equipo'}<span className="ml-1 font-mono text-slate-500">({registro.equipo_patente || 'S/P'})</span></td><td className="p-3">{registro.horometro_inicial ?? 0}</td><td className="p-3">{registro.horometro_final ?? 0}</td><td className="p-3 font-black text-emerald-700">{registro.horas_trabajadas ?? 0} h</td><td className="p-3">{registro.combustible_cargado ?? 0} L</td><td className="p-3">{registro.operador || 'Sin informar'}</td><td className="max-w-[260px] p-3 text-slate-600">{registro.observaciones || '—'}</td></tr>)}</tbody></table></div> : <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-xs text-slate-500"><p className="font-bold text-slate-700">Aún no hay registros de uso para esta obra.</p><p className="mt-1">Regístralos desde Maquinarias → Uso de Equipos. Aquí se muestran automáticamente según la obra imputada.</p></div>}
+                </div>
+              )}
+
               {maqSubTab === 'arriendos' && (
                 <div className="bg-white border border-slate-200 rounded-2xl p-4">
                   {arriendosList.length === 0 ? (
