@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ArrowRight, BarChart3, Building2, CheckCircle2, ClipboardCheck,
   FileCheck2, LayoutDashboard, Loader2, Mail, Menu, Send, ShieldCheck, Smartphone, Truck, Users
@@ -18,6 +18,24 @@ export default function LandingPage({ onGoToLogin, user, onGoToDashboard }) {
   const [contact, setContact] = useState({ nombre: '', empresa: '', correo: '', telefono: '', mensaje: '' });
   const [contactStatus, setContactStatus] = useState(null);
   const [sendingContact, setSendingContact] = useState(false);
+
+  useEffect(() => {
+    const hero = document.querySelector('main > section');
+    if (!hero) return undefined;
+    const ns = 'http://www.w3.org/2000/svg';
+    const trend = document.createElementNS(ns, 'svg');
+    trend.setAttribute('viewBox', '0 0 1440 720');
+    trend.setAttribute('preserveAspectRatio', 'none');
+    trend.setAttribute('aria-hidden', 'true');
+    trend.className.baseVal = 'pointer-events-none absolute inset-0 h-full w-full opacity-75';
+    trend.style.zIndex = '1';
+    trend.innerHTML = '<defs><filter id="obraxisTrendGlow" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="4" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter><marker id="obraxisTrendArrow" markerWidth="12" markerHeight="12" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#22c55e"/></marker></defs><polyline points="0,650 92,642 176,650 255,575 340,592 430,515 510,498 575,520 665,450 740,430 820,365 895,382 975,295 1065,215 1140,235 1220,145 1300,115 1355,128 1430,45" fill="none" stroke="#22c55e" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#obraxisTrendArrow)" filter="url(#obraxisTrendGlow)"/>';
+    const content = Array.from(hero.children).find(element => element.classList.contains('relative'));
+    const previousZIndex = content?.style.zIndex || '';
+    if (content) content.style.zIndex = '2';
+    hero.appendChild(trend);
+    return () => { trend.remove(); if (content) content.style.zIndex = previousZIndex; };
+  }, []);
 
   const sendContact = async (event) => {
     event.preventDefault();
