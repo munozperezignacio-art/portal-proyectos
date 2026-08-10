@@ -1240,6 +1240,21 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                   const empDocs = savedData.companyDocs || sub.companyDocs || {};
                   const empApprovedCount = Object.values(empDocs).filter(d => d && d.status === 'Aprobado').length;
                   const percent = Math.round((empApprovedCount / mandatoryCompanyDocs.length) * 100) || 0;
+                  const personalRecords = savedData.personalList || sub.personalList || [];
+                  const equiposRecords = savedData.equiposList || sub.equiposList || [];
+                  const personalDocs = personalRecords.flatMap(persona => Object.values(persona.docs || {}));
+                  const equiposDocs = equiposRecords.flatMap(equipo => Object.values(equipo.docs || {}));
+                  const personalApproved = personalDocs.filter(documento => documento && documento.status === 'Aprobado').length;
+                  const equiposApproved = equiposDocs.filter(documento => documento && documento.status === 'Aprobado').length;
+                  const getDocumentStatus = (records, approved, total) => {
+                    if (!records.length) return { label: 'Sin registros', tone: 'text-slate-500 bg-slate-100' };
+                    if (approved === total && total > 0) return { label: 'Conforme', tone: 'text-emerald-700 bg-emerald-50' };
+                    if (approved > 0) return { label: 'En revisión', tone: 'text-amber-700 bg-amber-50' };
+                    return { label: 'Pendiente', tone: 'text-rose-700 bg-rose-50' };
+                  };
+                  const companyStatus = getDocumentStatus([empDocs], empApprovedCount, mandatoryCompanyDocs.length);
+                  const personalStatus = getDocumentStatus(personalRecords, personalApproved, personalDocs.length);
+                  const equiposStatus = getDocumentStatus(equiposRecords, equiposApproved, equiposDocs.length);
 
                   return (
                     <div key={sub.id || sub.token_acceso} className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4 hover:shadow-sm transition">
@@ -1261,9 +1276,10 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                         <div className="bg-slate-200 rounded-full h-2 overflow-hidden">
                           <div className="bg-emerald-500 h-full transition-all duration-300" style={{ width: `${percent}%` }}></div>
                         </div>
-                        <div className="flex justify-between text-[9.5px] text-slate-500 pt-1 font-semibold">
-                          <span>Personal: {(savedData.personalList || []).length} personas</span>
-                          <span>Equipos: {(savedData.equiposList || []).length} vehículos</span>
+                        <div className="grid grid-cols-3 gap-2 pt-2 text-[9px] font-bold">
+                          <div className="rounded-lg border border-slate-200 bg-white px-2 py-1.5"><p className="text-slate-500">Docs empresa</p><p className="mt-0.5 text-slate-700">{empApprovedCount}/{mandatoryCompanyDocs.length}</p><span className={`mt-1 inline-flex rounded px-1.5 py-0.5 ${companyStatus.tone}`}>{companyStatus.label}</span></div>
+                          <div className="rounded-lg border border-slate-200 bg-white px-2 py-1.5"><p className="text-slate-500">Docs personal</p><p className="mt-0.5 text-slate-700">{personalRecords.length ? `${personalApproved}/${personalDocs.length}` : '0 personas'}</p><span className={`mt-1 inline-flex rounded px-1.5 py-0.5 ${personalStatus.tone}`}>{personalStatus.label}</span></div>
+                          <div className="rounded-lg border border-slate-200 bg-white px-2 py-1.5"><p className="text-slate-500">Docs equipos</p><p className="mt-0.5 text-slate-700">{equiposRecords.length ? `${equiposApproved}/${equiposDocs.length}` : '0 equipos'}</p><span className={`mt-1 inline-flex rounded px-1.5 py-0.5 ${equiposStatus.tone}`}>{equiposStatus.label}</span></div>
                         </div>
                       </div>
 
