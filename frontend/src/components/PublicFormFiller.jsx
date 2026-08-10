@@ -137,6 +137,8 @@ export default function PublicFormFiller({ formToken }) {
           }
         });
         setFillAnswers(initial);
+        const obraPreseleccionada = new URLSearchParams(window.location.search).get('obra');
+        if (obraPreseleccionada) setFillMetadata(current => ({ ...current, proyecto_nombre: obraPreseleccionada }));
       }
     } catch (err) {
       setError('Error cargando formulario: ' + err.message);

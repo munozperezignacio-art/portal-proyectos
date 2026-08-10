@@ -459,6 +459,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [formulariosPrevencionObra, setFormulariosPrevencionObra] = useState([]);
   const [respuestasPrevencionObra, setRespuestasPrevencionObra] = useState([]);
   const [prevencionRecordFilter, setPrevencionRecordFilter] = useState('todos');
+  const [showPrevencionAssignedForms, setShowPrevencionAssignedForms] = useState(false);
+  const [prevencionFormSearch, setPrevencionFormSearch] = useState('');
   const [procedimientosPrevencionObra, setProcedimientosPrevencionObra] = useState([]);
   const [selectedPrevencionResponse, setSelectedPrevencionResponse] = useState(null);
   const [showIncidentFollowUp, setShowIncidentFollowUp] = useState(false);
@@ -1202,6 +1204,20 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       setRespuestasPrevencionObra([]);
       setProcedimientosPrevencionObra([]);
     }
+  };
+
+  const openObraRegisters = (obra) => {
+    setSelectedObra(obra);
+    setPrevObraSubTab('inspecciones');
+    setShowPrevencionAssignedForms(true);
+    setObraActiveSubmodule('prevencion');
+  };
+
+  const openAssignedPrevencionForm = (form) => {
+    const formToken = form.token_publico || form.publico_token || form.id;
+    if (!formToken) return;
+    const obraParam = encodeURIComponent(selectedObra?.nombre || '');
+    window.location.assign(`/?prevencion_form=${encodeURIComponent(formToken)}&obra=${obraParam}`);
   };
 
   const getPrevencionFormFields = (form) => {
@@ -2635,6 +2651,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                       {o.tipo && (
                         <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Especialidad: {o.tipo}</p>
                       )}
+                      <button onClick={(event) => { event.stopPropagation(); openObraRegisters(o); }} className="mt-3 inline-flex w-fit items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-[10px] font-black text-rose-800 hover:bg-rose-100">📋 Registros asignados</button>
                     </div>
                   </div>
                 );
@@ -2774,7 +2791,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
             </button>
           </div>
 
-          {obraActiveSubmodule === null && <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4"><div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><p className="text-xs font-black uppercase tracking-wider text-blue-900">Acciones de hoy</p><p className="mt-1 text-xs text-slate-600">Accesos directos para registrar, controlar y resolver lo prioritario en faena.</p></div><div className="flex flex-wrap gap-2"><button onClick={() => setObraActiveSubmodule('avance')} className="rounded-lg bg-blue-900 px-3 py-2 text-xs font-bold text-white">Registrar avance</button><button onClick={() => { setEquipoTab('asistencia'); setObraActiveSubmodule('equipo'); }} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-900">Asistencia</button><button onClick={() => setObraActiveSubmodule('calidad')} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-900">Calidad</button><button onClick={() => setObraActiveSubmodule('estados_pago')} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-900">Estados de pago</button></div></div></div>}
+          {obraActiveSubmodule === null && <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4"><div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><p className="text-xs font-black uppercase tracking-wider text-blue-900">Acciones de hoy</p><p className="mt-1 text-xs text-slate-600">Accesos directos para registrar, controlar y resolver lo prioritario en faena.</p></div><div className="flex flex-wrap gap-2"><button onClick={() => setObraActiveSubmodule('avance')} className="rounded-lg bg-blue-900 px-3 py-2 text-xs font-bold text-white">Registrar avance</button><button onClick={() => { setPrevObraSubTab('inspecciones'); setShowPrevencionAssignedForms(true); setObraActiveSubmodule('prevencion'); }} className="rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-bold text-rose-800">Registros asignados</button><button onClick={() => { setEquipoTab('asistencia'); setObraActiveSubmodule('equipo'); }} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-900">Asistencia</button><button onClick={() => setObraActiveSubmodule('calidad')} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-900">Calidad</button><button onClick={() => setObraActiveSubmodule('estados_pago')} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-900">Estados de pago</button></div></div></div>}
 
           {/* NAVEGACIÓN PRINCIPAL: VISTA DE TARJETAS / RECTÁNGULOS OPERATIVOS */}
           {obraActiveSubmodule === null && (
@@ -5739,17 +5756,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                     <div><h4 className="font-bold text-xs uppercase tracking-wider text-slate-800">📋 Registros e inspecciones de la obra</h4><p className="mt-1 text-[10px] text-slate-500">Se cargan automáticamente según los formularios preventivos aplicables a esta faena.</p></div>
                     <span className="rounded-lg bg-rose-50 px-2 py-1 text-[10px] font-black text-rose-800">{formulariosPrevencionObra.length} activos</span>
                   </div>
-                  {formulariosPrevencionObra.length ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {formulariosPrevencionObra.map(form => (
-                        <div key={form.id || form.publico_token || form.titulo} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                          <p className="text-[9px] font-black uppercase tracking-wide text-rose-800">{form.codigo || form.campos?.control_documental?.codigo || 'Formulario preventivo'}</p>
-                          <h5 className="mt-1 text-xs font-extrabold text-slate-800">{form.titulo}</h5>
-                          <p className="mt-1 text-[10px] leading-relaxed text-slate-500">{form.descripcion || 'Disponible para registrar en esta obra.'}</p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-5 text-center text-xs font-semibold text-slate-500">No hay formularios preventivos aplicables a esta obra.</div>}
+                  {formulariosPrevencionObra.length ? <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-black text-slate-800">Formularios asignados a esta obra</p><p className="mt-0.5 text-[10px] text-slate-500">Se mantienen plegados para priorizar los registros emitidos.</p></div><button type="button" onClick={() => setShowPrevencionAssignedForms(value => !value)} className="rounded-lg border border-rose-200 bg-white px-3 py-2 text-[10px] font-black text-rose-800 hover:bg-rose-50">{showPrevencionAssignedForms ? 'Ocultar asignados' : `Ver ${formulariosPrevencionObra.length} asignados`}</button></div>{showPrevencionAssignedForms && <div className="mt-3 border-t border-slate-200 pt-3"><div className="relative mb-3"><Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" /><input value={prevencionFormSearch} onChange={event => setPrevencionFormSearch(event.target.value)} placeholder="Buscar formulario asignado…" className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-xs outline-none focus:border-rose-400" /></div><div className="grid grid-cols-1 gap-3 md:grid-cols-2">{formulariosPrevencionObra.filter(form => `${form.codigo || ''} ${form.titulo || ''} ${form.descripcion || ''}`.toLowerCase().includes(prevencionFormSearch.trim().toLowerCase())).map(form => <div key={form.id || form.publico_token || form.titulo} className="rounded-xl border border-slate-200 bg-white p-3"><p className="text-[9px] font-black uppercase tracking-wide text-rose-800">{form.codigo || form.campos?.control_documental?.codigo || 'Formulario preventivo'}</p><h5 className="mt-1 text-xs font-extrabold text-slate-800">{form.titulo}</h5><p className="mt-1 min-h-8 text-[10px] leading-relaxed text-slate-500">{form.descripcion || 'Disponible para registrar en esta obra.'}</p><button type="button" onClick={() => openAssignedPrevencionForm(form)} className="mt-3 rounded-lg bg-rose-700 px-3 py-2 text-[10px] font-black text-white hover:bg-rose-800">Realizar registro</button></div>)}</div>{!formulariosPrevencionObra.some(form => `${form.codigo || ''} ${form.titulo || ''} ${form.descripcion || ''}`.toLowerCase().includes(prevencionFormSearch.trim().toLowerCase())) && <p className="py-3 text-center text-xs text-slate-500">No hay formularios que coincidan con la búsqueda.</p>}</div>}</div> : <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-5 text-center text-xs font-semibold text-slate-500">No hay formularios preventivos aplicables a esta obra.</div>}
                   <div className="border-t pt-3">
                     <div className="mb-3 flex flex-col justify-between gap-2 sm:flex-row sm:items-center"><div><p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Registros emitidos</p><p className="mt-1 text-[10px] text-slate-500">Consulta, revisa o descarga cada documento emitido en la obra.</p></div><select value={prevencionRecordFilter} onChange={event => setPrevencionRecordFilter(event.target.value)} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700"><option value="todos">Todos los registros</option>{formulariosPrevencionObra.filter(form => !((form.campos?.control_documental || {}).tipo_registro === 'incidente_accidente')).map(form => <option key={form.id || form.titulo} value={String(form.id)}>{form.titulo}</option>)}</select></div>
                     {(() => { const records = respuestasPrevencionObra.filter(response => !isIncidentResponse(response) && (prevencionRecordFilter === 'todos' || String(response.formulario_id) === prevencionRecordFilter)); return records.length ? <div className="overflow-x-auto rounded-xl border border-slate-200"><table className="w-full min-w-[680px] text-left text-xs"><thead className="bg-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-500"><tr><th className="px-3 py-2.5">Formulario</th><th className="px-3 py-2.5">Informante</th><th className="px-3 py-2.5">Fecha</th><th className="px-3 py-2.5 text-right">Documento</th></tr></thead><tbody className="divide-y divide-slate-100">{records.map(response => <tr key={response.id || response.created_at} className="hover:bg-slate-50"><td className="px-3 py-3 font-bold text-slate-800">{response.formulario?.titulo || 'Registro preventivo'}</td><td className="px-3 py-3 text-slate-600">{response.inspector || 'Sin informante'}</td><td className="px-3 py-3 text-slate-600">{new Date(response.created_at || Date.now()).toLocaleString('es-CL')}</td><td className="px-3 py-3"><div className="flex justify-end gap-2"><button onClick={() => setSelectedPrevencionResponse(response)} className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-[10px] font-black text-slate-700 hover:bg-slate-200">Ver</button><button onClick={() => downloadPrevencionResponsePdf(response)} className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-[10px] font-black text-emerald-700 hover:bg-emerald-100">Descargar PDF</button></div></td></tr>)}</tbody></table></div> : <p className="rounded-lg bg-slate-50 px-3 py-4 text-xs text-slate-500">No hay registros para el formulario seleccionado en esta obra.</p>; })()}
