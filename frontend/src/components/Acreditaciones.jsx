@@ -51,12 +51,14 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
   const [showSubModal, setShowSubModal] = useState(false);
   const [editingSub, setEditingSub] = useState(null);
   const [showArchivedSubcontracts, setShowArchivedSubcontracts] = useState(false);
+  const [colaboracionesObra, setColaboracionesObra] = useState([]);
   const [subForm, setSubForm] = useState({
     empresa_nombre: '',
     rut_empresa: '',
     obra_asociada: '',
     correo_contacto: '',
-    credencial_pass: ''
+    credencial_pass: '',
+    integrar_en_obraxis: false
   });
 
   // Modal para Revisar Documentos y Acreditación de Subcontratista
@@ -106,6 +108,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     fetchHistorialInterno();
     fetchSubcontratos();
     fetchProveedores();
+    fetchColaboracionesObra();
     loadMandatoryDocsConfig();
   }, []);
 
@@ -588,6 +591,11 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
       return;
     }
 
+    if (!normalizarRutEnlace(subForm.rut_empresa)) {
+      alert('Ingrese el RUT de la empresa. El RUT es la llave de enlace entre empresas en Obraxis.');
+      return;
+    }
+
     if (!subForm.correo_contacto.trim()) {
       alert('Ingrese el correo de contacto. Allí se enviarán las credenciales de acceso al minisitio.');
       return;
@@ -598,7 +606,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
 
     const newSub = {
       empresa_nombre: subForm.empresa_nombre,
-      rut_empresa: formatRut(subForm.rut_empresa) || '76.000.000-0',
+      rut_empresa: formatRut(subForm.rut_empresa),
       obra_asociada: subForm.obra_asociada || selectedObra || 'Todas las Obras',
       correo_contacto: subForm.correo_contacto,
       token_acceso: token,
@@ -625,11 +633,22 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
       localStorage.setItem('obraxis_acreditaciones_subcontratos', JSON.stringify(updated));
     }
 
-    const invite = await sendSubcontractInvite(createdSub);
+    let collaborationResult = null;
+    if (subForm.integrar_en_obraxis) {
+      collaborationResult = await crearColaboracionObra(createdSub);
+    }
+    const invite = collaborationResult?.success
+      ? await sendCollaborationInvite(createdSub, collaborationResult)
+      : await sendSubcontractInvite(createdSub);
     setShowSubModal(false);
-    setSubForm({ empresa_nombre: '', rut_empresa: '', obra_asociada: '', correo_contacto: '', credencial_pass: '' });
+    setSubForm({ empresa_nombre: '', rut_empresa: '', obra_asociada: '', correo_contacto: '', credencial_pass: '', integrar_en_obraxis: false });
+    const collaborationMessage = collaborationResult?.success
+      ? ' Invitación de colaboración enviada a su cuenta Obraxis.'
+      : collaborationResult?.notFound
+        ? ' El RUT no tiene cuenta Obraxis; se enviaron las credenciales del minisitio externo.'
+        : '';
     setSuccessMsg(invite.success
-      ? `¡${newSub.empresa_nombre} creada! Credenciales enviadas a ${newSub.correo_contacto}.`
+      ? `¡${newSub.empresa_nombre} creada!${collaborationMessage}`
       : `¡${newSub.empresa_nombre} creada! Credenciales generadas.`);
     if (!invite.success) {
       alert(`El subcontratista fue creado, pero no se pudo enviar el correo: ${invite.error}. Puedes reenviarlo desde su tarjeta.`);
@@ -644,6 +663,104 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     return `${origin}/?acreditacion_subcontrato=${cleanName}&token=${subItem.token_acceso}`;
   };
 
+  const normalizarRutEnlace = (rut) => String(rut || '').replace(/[^0-9kK]/g, '').toUpperCase();
+
+  const fetchColaboracionesObra = async () => {
+    const empresaActual = user?.empresa || companyBranding?.empresa;
+    if (!empresaActual) return;
+    try {
+      const [enviadas, recibidas] = await Promise.all([
+        supabase.from('colaboraciones_obra').select('*').eq('empresa_contratista', empresaActual).order('created_at', { ascending: false }),
+        supabase.from('colaboraciones_obra').select('*').eq('empresa_colaboradora', empresaActual).order('created_at', { ascending: false })
+      ]);
+      if (enviadas.error && recibidas.error) return;
+      const unicas = [...(enviadas.data || []), ...(recibidas.data || [])]
+        .filter((item, index, array) => array.findIndex(candidate => candidate.id === item.id) === index);
+      setColaboracionesObra(unicas);
+    } catch (error) {
+      console.warn('No fue posible cargar las colaboraciones de obra:', error.message);
+    }
+  };
+
+  const buscarEmpresaObraxisPorRut = async (rut) => {
+    const rutNormalizado = normalizarRutEnlace(rut);
+    if (!rutNormalizado) return null;
+    const { data, error } = await supabase
+      .from('config_empresa')
+      .select('empresa, razon_social, rut, correo_administrador')
+      .not('rut', 'is', null);
+    if (error) throw error;
+    return (data || []).find(empresa => normalizarRutEnlace(empresa.rut) === rutNormalizado) || null;
+  };
+
+  const crearColaboracionObra = async (subItem) => {
+    const empresaContratista = user?.empresa || companyBranding?.empresa;
+    if (!empresaContratista) return { success: false, error: 'No se identificó la empresa contratista activa.' };
+
+    let rutContratista = companyBranding?.rut;
+    try {
+      if (!rutContratista) {
+        const { data } = await supabase.from('config_empresa').select('rut').eq('empresa', empresaContratista).maybeSingle();
+        rutContratista = data?.rut;
+      }
+      if (!normalizarRutEnlace(rutContratista)) {
+        return { success: false, error: 'Configura primero el RUT de tu empresa en Configuración.' };
+      }
+
+      const empresaColaboradora = await buscarEmpresaObraxisPorRut(subItem.rut_empresa);
+      if (!empresaColaboradora) {
+        return { success: false, notFound: true, error: 'No existe una empresa Obraxis con ese RUT. Se mantendrá el minisitio externo.' };
+      }
+      if (normalizarRutEnlace(empresaColaboradora.rut) === normalizarRutEnlace(rutContratista)) {
+        return { success: false, error: 'No puedes vincular tu propia empresa como colaboradora.' };
+      }
+
+      const payload = {
+        empresa_contratista: empresaContratista,
+        rut_contratista: formatRut(rutContratista),
+        empresa_colaboradora: empresaColaboradora.empresa,
+        rut_colaboradora: formatRut(subItem.rut_empresa),
+        obra_nombre: subItem.obra_asociada,
+        correo_contacto: subItem.correo_contacto,
+        estado: 'Pendiente de aceptación',
+        invitado_por: user?.nombre || user?.name || user?.usuario || 'Equipo contratista'
+      };
+      const { data, error } = await supabase
+        .from('colaboraciones_obra')
+        .upsert(payload, { onConflict: 'rut_contratista,rut_colaboradora,obra_nombre' })
+        .select()
+        .maybeSingle();
+      if (error) throw error;
+      setColaboracionesObra(previous => [data, ...previous.filter(item => item.id !== data.id)]);
+      return { success: true, collaboration: data, company: empresaColaboradora };
+    } catch (error) {
+      console.warn('No fue posible crear la colaboración de obra:', error.message);
+      return { success: false, error: error.message || 'No fue posible crear la colaboración en Obraxis.' };
+    }
+  };
+
+  const responderColaboracionObra = async (collaboration, estado) => {
+    try {
+      const { data, error } = await supabase
+        .from('colaboraciones_obra')
+        .update({
+          estado,
+          respondido_por: user?.nombre || user?.name || user?.usuario || 'Empresa colaboradora',
+          respondido_en: new Date().toISOString()
+        })
+        .eq('id', collaboration.id)
+        .select()
+        .maybeSingle();
+      if (error) throw error;
+      setColaboracionesObra(previous => previous.map(item => item.id === collaboration.id ? data : item));
+      setSuccessMsg(estado === 'Activa' ? `Colaboración aceptada para ${collaboration.obra_nombre}.` : `Colaboración rechazada para ${collaboration.obra_nombre}.`);
+      setTimeout(() => setSuccessMsg(''), 5000);
+    } catch (error) {
+      setErrorMsg(`No fue posible responder la invitación: ${error.message}`);
+      setTimeout(() => setErrorMsg(''), 6000);
+    }
+  };
+
   const sendSubcontractInvite = async (subItem) => {
     const email = (subItem?.correo_contacto || '').trim();
     if (!email) return { success: false, error: 'El subcontratista no tiene correo de contacto' };
@@ -653,6 +770,18 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
       to: email,
       subject: `Acreditación de subcontratista · ${subItem.obra_asociada || 'Obraxis'}`,
       htmlContent: `<div style="max-width:650px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;padding:28px;font-family:Arial,sans-serif;color:#1e293b;"><h2 style="margin:0 0 12px;color:#073b76;font-size:22px;">Acceso a acreditación de subcontratista</h2><p>Hola,</p><p>La empresa <strong>${subItem.empresa_nombre}</strong> fue registrada para acreditar documentación de empresa, personal y equipos en la obra <strong>${subItem.obra_asociada || 'asignada'}</strong>.</p><p>Ingresa al minisitio y completa la carga de antecedentes solicitados.</p><div style="margin:24px 0;padding:18px;border-radius:12px;background:#f8fafc;border:1px solid #cbd5e1;"><div style="font-size:11px;font-weight:bold;color:#64748b;text-transform:uppercase;letter-spacing:.08em;">Tus credenciales</div><p style="margin:12px 0 4px;"><strong>Empresa:</strong> ${subItem.empresa_nombre}</p><p style="margin:4px 0;"><strong>Clave de acceso:</strong> <span style="font-family:monospace;font-size:18px;font-weight:bold;letter-spacing:.08em;color:#073b76;">${subItem.credencial_pass}</span></p></div><p style="text-align:center;margin:26px 0;"><a href="${minisiteUrl}" style="display:inline-block;background:#073b76;color:#ffffff;padding:13px 22px;border-radius:10px;font-weight:bold;text-decoration:none;">Ingresar al minisitio</a></p><p style="font-size:12px;color:#64748b;word-break:break-all;">Si el botón no abre, copia este enlace:<br/><a href="${minisiteUrl}" style="color:#073b76;">${minisiteUrl}</a></p><p style="font-size:12px;color:#64748b;margin:20px 0 0;">Guarda esta clave de forma segura. Es necesaria para acceder al portal de acreditación.</p></div>`
+    });
+  };
+
+  const sendCollaborationInvite = async (subItem, result) => {
+    const email = (result?.company?.correo_administrador || subItem?.correo_contacto || '').trim();
+    if (!email) return { success: false, error: 'La empresa colaboradora no tiene correo de contacto' };
+    const collaboration = result.collaboration;
+    const dashboardUrl = window.location.origin;
+    return sendSystemEmail({
+      to: email,
+      subject: `Invitación a colaboración de obra · ${collaboration.obra_nombre}`,
+      htmlContent: `<div style="max-width:650px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;padding:28px;font-family:Arial,sans-serif;color:#1e293b;"><h2 style="margin:0 0 12px;color:#073b76;font-size:22px;">Invitación a obra colaborativa</h2><p>Hola,</p><p>La empresa <strong>${collaboration.empresa_contratista}</strong> invitó a <strong>${collaboration.empresa_colaboradora}</strong> a colaborar en la obra <strong>${collaboration.obra_nombre}</strong>.</p><p>El enlace se realizó mediante el RUT de empresa <strong>${subItem.rut_empresa}</strong>. Inicia sesión en Obraxis para aceptar o rechazar la invitación desde <strong>Acreditaciones</strong>.</p><p style="text-align:center;margin:26px 0;"><a href="${dashboardUrl}" style="display:inline-block;background:#073b76;color:#ffffff;padding:13px 22px;border-radius:10px;font-weight:bold;text-decoration:none;">Ingresar a Obraxis</a></p><p style="font-size:12px;color:#64748b;margin:20px 0 0;">Una vez aceptada, ambas empresas verán la relación asociada a esta obra y quedará trazabilidad de la aceptación.</p></div>`
     });
   };
 
@@ -689,6 +818,10 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
       console.warn('Edición guardada localmente:', error.message);
     }
     updateSubcontractInList(updatedSub);
+    if (editingSub.integrar_en_obraxis) {
+      const collaborationResult = await crearColaboracionObra(updatedSub);
+      if (collaborationResult.success) await sendCollaborationInvite(updatedSub, collaborationResult);
+    }
     setEditingSub(null);
     setSuccessMsg('Subcontratista actualizado. Reenvía las credenciales si modificaste el correo o la clave.');
     setTimeout(() => setSuccessMsg(''), 5000);
@@ -1206,6 +1339,40 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
               </div>
             </div>
 
+            {colaboracionesObra.length > 0 && (
+              <div className="rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-[11px] font-black uppercase tracking-wider text-indigo-950">Colaboraciones entre empresas Obraxis</h4>
+                    <p className="mt-0.5 text-[10px] text-indigo-800">Relaciones vinculadas por RUT de empresa y asociadas a una obra.</p>
+                  </div>
+                  <span className="rounded-lg bg-white px-2 py-1 text-[10px] font-extrabold text-indigo-800">{colaboracionesObra.length} vinculada{colaboracionesObra.length === 1 ? '' : 's'}</span>
+                </div>
+                <div className="space-y-2">
+                  {colaboracionesObra.map(collaboration => {
+                    const soyColaboradora = collaboration.empresa_colaboradora === (user?.empresa || companyBranding?.empresa);
+                    const pendienteParaMi = soyColaboradora && collaboration.estado === 'Pendiente de aceptación';
+                    const tone = collaboration.estado === 'Activa' ? 'bg-emerald-100 text-emerald-800' : collaboration.estado === 'Rechazada' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800';
+                    return (
+                      <div key={collaboration.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-indigo-100 bg-white px-3 py-2.5">
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-extrabold text-slate-800 truncate">{collaboration.obra_nombre}</p>
+                          <p className="text-[10px] text-slate-500">{collaboration.empresa_contratista} <span className="mx-1">→</span> {collaboration.empresa_colaboradora}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`rounded-md px-2 py-1 text-[9px] font-extrabold ${tone}`}>{collaboration.estado}</span>
+                          {pendienteParaMi && <>
+                            <button type="button" onClick={() => responderColaboracionObra(collaboration, 'Activa')} className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[10px] font-extrabold text-white hover:bg-emerald-700">Aceptar</button>
+                            <button type="button" onClick={() => responderColaboracionObra(collaboration, 'Rechazada')} className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-[10px] font-extrabold text-rose-700 hover:bg-rose-100">Rechazar</button>
+                          </>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {visibleSubcontracts.length === 0 ? (
               <div className="p-8 text-center text-xs text-slate-400 italic">
                 No hay empresas subcontratistas registradas aún. Haga clic en "+ Registrar Subcontrato" para generar credenciales.
@@ -1214,6 +1381,10 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {visibleSubcontracts.map((sub) => {
                   const minisiteUrl = getMinisiteUrl(sub);
+                  const collaboration = colaboracionesObra.find(item =>
+                    normalizarRutEnlace(item.rut_colaboradora) === normalizarRutEnlace(sub.rut_empresa)
+                    && item.obra_nombre === (sub.obra_asociada || 'Todas las Obras')
+                  );
 
                   const savedStr = localStorage.getItem('obraxis_subcontrato_data_' + sub.token_acceso);
                   let savedData = { companyDocs: {}, personalList: [], equiposList: [] };
@@ -1251,6 +1422,13 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                           {sub.obra_asociada || 'Obraxis'}
                         </span>
                       </div>
+
+                      {collaboration && (
+                        <div className="flex items-center justify-between rounded-lg border border-indigo-100 bg-indigo-50 px-2.5 py-2 text-[10px]">
+                          <span className="font-bold text-indigo-900">Conectada con Obraxis por RUT</span>
+                          <span className="font-extrabold text-indigo-700">{collaboration.estado}</span>
+                        </div>
+                      )}
 
                       <div className="space-y-1">
                         <div className="flex justify-between text-[10px] font-bold text-slate-600">
@@ -1640,6 +1818,10 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                 <div><label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Obra</label><select value={editingSub.obra_asociada || ''} onChange={event => setEditingSub({ ...editingSub, obra_asociada: event.target.value })} className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 bg-white"><option value="">Todas las obras</option>{obrasList.map(obra => <option key={obra.id} value={obra.nombre}>{obra.nombre}</option>)}</select></div>
               </div>
               <div><label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Correo de contacto *</label><input type="email" required value={editingSub.correo_contacto || ''} onChange={event => setEditingSub({ ...editingSub, correo_contacto: event.target.value })} className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800" /></div>
+              <label className="flex cursor-pointer gap-2.5 rounded-xl border border-indigo-200 bg-indigo-50/60 p-3">
+                <input type="checkbox" checked={Boolean(editingSub.integrar_en_obraxis)} onChange={event => setEditingSub({ ...editingSub, integrar_en_obraxis: event.target.checked })} className="mt-0.5 h-4 w-4 accent-indigo-700" />
+                <span><span className="block text-[11px] font-extrabold text-indigo-950">Empresa colaboradora en Obraxis</span><span className="block mt-0.5 text-[10px] leading-relaxed text-indigo-800">Busca la empresa por su RUT y envía una invitación para esta obra. Si no existe, conserva el minisitio externo.</span></span>
+              </label>
               <div><div className="flex justify-between items-center mb-1"><label className="block text-[10px] font-bold uppercase text-slate-500">Clave de acceso</label><button type="button" onClick={() => setEditingSub({ ...editingSub, credencial_pass: Math.random().toString(36).substring(2, 8).toUpperCase() })} className="text-[10px] font-bold text-primary hover:underline">Regenerar clave</button></div><input required value={editingSub.credencial_pass || ''} onChange={event => setEditingSub({ ...editingSub, credencial_pass: event.target.value.toUpperCase() })} className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-mono font-bold text-slate-800" /></div>
               <div className="flex justify-end gap-2 pt-2"><button type="button" onClick={() => setEditingSub(null)} className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 bg-slate-100">Cancelar</button><button type="submit" className="px-4 py-2 rounded-xl text-xs font-extrabold text-white bg-primary hover:bg-primary-hover">Guardar cambios</button></div>
             </form>
@@ -1674,9 +1856,10 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">RUT Empresa</label>
-                  <input
-                    type="text"
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">RUT Empresa *</label>
+                <input
+                  type="text"
+                  required
                     placeholder="76.123.456-7"
                     value={subForm.rut_empresa}
                     onChange={(e) => setSubForm({ ...subForm, rut_empresa: e.target.value })}
@@ -1698,6 +1881,19 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                   </select>
                 </div>
               </div>
+
+              <label className="flex cursor-pointer gap-2.5 rounded-xl border border-indigo-200 bg-indigo-50/60 p-3">
+                <input
+                  type="checkbox"
+                  checked={subForm.integrar_en_obraxis}
+                  onChange={(e) => setSubForm({ ...subForm, integrar_en_obraxis: e.target.checked })}
+                  className="mt-0.5 h-4 w-4 accent-indigo-700"
+                />
+                <span>
+                  <span className="block text-[11px] font-extrabold text-indigo-950">Empresa colaboradora en Obraxis</span>
+                  <span className="block mt-0.5 text-[10px] leading-relaxed text-indigo-800">Usaremos el RUT para encontrar su cuenta Obraxis e invitarla a colaborar en esta obra. Si no existe, se mantiene el acceso por minisitio.</span>
+                </span>
+              </label>
 
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Correo Electrónico de Contacto</label>
@@ -1735,7 +1931,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                   disabled={sendingSubInvite}
                   className="px-4 py-2 rounded-xl text-xs font-extrabold text-white bg-primary hover:bg-primary-hover transition cursor-pointer shadow-xs"
                 >
-                  {sendingSubInvite ? 'Creando y enviando…' : 'Crear y enviar credenciales'}
+                  {sendingSubInvite ? 'Creando y enviando…' : subForm.integrar_en_obraxis ? 'Crear e invitar a Obraxis' : 'Crear y enviar credenciales'}
                 </button>
               </div>
             </form>
