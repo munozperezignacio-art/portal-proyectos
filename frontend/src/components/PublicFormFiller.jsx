@@ -700,7 +700,7 @@ export default function PublicFormFiller({ formToken }) {
                       className="w-full bg-amber-600 hover:bg-amber-700 text-white font-extrabold py-2.5 rounded-2xl text-xs transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
                     >
                       <Plus className="w-4 h-4" />
-                      <span>{f.buttonText || '+ Agregar Otro'}</span>
+                      <span>{String(f.buttonText || 'Agregar otro').replace(/^\+\s*/, '')}</span>
                     </button>
                   </div>
                 );
