@@ -436,7 +436,21 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     setLoading(true);
     try {
       const resolved = await resolveResponseForm(response);
-      setViewingResponse(resolved);
+      const form = responseForm(resolved);
+      const flattenedAnswers = { ...(resolved.respuestas || {}) };
+      const flattenedFields = (form.campos || []).flatMap(field => {
+        const groupAnswers = flattenedAnswers[field.id];
+        if (field.type !== 'repeater' || !Array.isArray(groupAnswers)) return [field];
+        delete flattenedAnswers[field.id];
+        return groupAnswers.flatMap((instance, instanceIndex) => Object.entries(instance || {}).map(([subId, value]) => {
+          const subField = field.subFields?.find(sub => sub.id === subId) || { label: subId, type: 'text' };
+          const displayId = `${field.id}__${instanceIndex}__${subId}`;
+          flattenedAnswers[displayId] = value;
+          return { ...subField, id: displayId, label: `${field.label} · ${subField.label}` };
+        }));
+      });
+      (flattenedFields || []).filter(field => field.type === 'signature' && !flattenedAnswers[field.id]).forEach(field => { if (resolved.firma_url) flattenedAnswers[field.id] = resolved.firma_url; });
+      setViewingResponse({ ...resolved, respuestas: flattenedAnswers, prevencion_formularios: { ...form, campos: flattenedFields } });
     } finally {
       setLoading(false);
     }
@@ -449,6 +463,16 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     const bytes = Uint8Array.from(atob(base64), char => char.charCodeAt(0));
     const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
     const link = document.createElement('a'); link.href = url; link.download = `${(form.titulo || 'Formulario').replace(/[^a-zA-Z0-9]/g, '_')}_${new Date(response.created_at || Date.now()).toISOString().slice(0, 10)}.pdf`; link.click(); URL.revokeObjectURL(url);
+  };
+
+  const renderResponseAnswer = (field, response) => {
+    const value = response.respuestas?.[field.id] || (field.type === 'signature' ? response.firma_url : null);
+    if (field.type === 'repeater') {
+      if (!Array.isArray(value) || !value.length) return <p className="mt-1 text-sm text-slate-500">Sin registros</p>;
+      return <div className="mt-2 divide-y divide-slate-200 rounded-lg border border-slate-200">{value.map((instance, index) => <div key={index} className="space-y-3 p-3">{Object.entries(instance || {}).map(([subId, subValue]) => { const subField = field.subFields?.find(sub => sub.id === subId) || { label: subId, type: 'text' }; return <div key={subId}><p className="text-[10px] font-black uppercase text-slate-500">{subField.label}</p>{(subField.type === 'signature' || subField.type === 'photo') && subValue ? <img src={subValue} alt={subField.label} className={subField.type === 'photo' ? 'mt-1 max-h-64 rounded-lg border border-slate-200' : 'mt-1 max-h-24'} /> : <p className="mt-1 text-sm text-slate-800 whitespace-pre-wrap">{Array.isArray(subValue) ? subValue.join(', ') : (subValue || 'Sin respuesta')}</p>}</div>; })}</div>)}</div>;
+    }
+    if ((field.type === 'photo' || field.type === 'signature') && value) return <img src={value} alt={field.label} className={field.type === 'photo' ? 'mt-2 max-h-64 rounded-lg border border-slate-200' : 'mt-2 max-h-24'} />;
+    return <p className="mt-1 text-sm text-slate-800 whitespace-pre-wrap">{Array.isArray(value) ? value.join(', ') : (typeof value === 'object' && value ? JSON.stringify(value) : (value || 'Sin respuesta'))}</p>;
   };
 
   return (

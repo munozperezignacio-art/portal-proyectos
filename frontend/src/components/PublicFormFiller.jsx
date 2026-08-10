@@ -269,9 +269,12 @@ export default function PublicFormFiller({ formToken }) {
     try {
       const finalAnswers = JSON.parse(JSON.stringify(fillAnswers));
       Object.entries(repeaterSignatures).forEach(([key, sigUrl]) => {
-        const [fId, idx, subId] = key.split('_instance_');
-        if (finalAnswers[fId] && finalAnswers[fId][idx]) {
-          finalAnswers[fId][idx][subId] = sigUrl;
+        const [fieldId, instanceKey] = key.split('_instance_');
+        const separator = instanceKey?.indexOf('_');
+        const instanceIndex = separator >= 0 ? instanceKey.slice(0, separator) : '';
+        const subFieldId = separator >= 0 ? instanceKey.slice(separator + 1) : '';
+        if (fieldId && subFieldId && finalAnswers[fieldId] && finalAnswers[fieldId][instanceIndex]) {
+          finalAnswers[fieldId][instanceIndex][subFieldId] = sigUrl;
         }
       });
       // La firma principal corresponde al campo de firma del formulario. La

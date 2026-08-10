@@ -157,13 +157,12 @@ export function generateFormPdf({ form, metadata, answers, mainSignature, compan
     if (field.type === 'repeater') {
       if (Array.isArray(val) && val.length > 0) {
         val.forEach((instance, instIdx) => {
-          checkPage(15);
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(8);
-          doc.setTextColor(71, 85, 105);
-          doc.text(`[Instancia ${instIdx + 1}]`, margin + 5, y);
-          y += 4;
-          
+          if (instIdx > 0) {
+            checkPage(7);
+            doc.setDrawColor(226, 232, 240);
+            doc.line(margin + 5, y, margin + contentWidth - 5, y);
+            y += 5;
+          }
           doc.setFont('helvetica', 'normal');
           doc.setTextColor(15, 23, 42);
           
@@ -175,7 +174,8 @@ export function generateFormPdf({ form, metadata, answers, mainSignature, compan
             if ((subField?.type === 'signature' || subField?.type === 'photo') && subVal) {
               doc.text(`- ${subLabel}: ${subField?.type === 'photo' ? '[Evidencia fotográfica]' : '[Firma Digital]'}`, margin + 10, y);
               try {
-                doc.addImage(subVal, 'PNG', margin + 50, y - 4, 15, 6);
+                doc.addImage(subVal, 'PNG', margin + 50, y - 4, subField?.type === 'photo' ? 60 : 40, subField?.type === 'photo' ? 35 : 15);
+                y += subField?.type === 'photo' ? 32 : 12;
               } catch (e) {
                 // Si la imagen falla
               }
