@@ -610,6 +610,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [rdisBitacoraList, setRdisBitacoraList] = useState([]);
   const [estadosPagoBitacoraList, setEstadosPagoBitacoraList] = useState([]);
   const [eventosBitacoraList, setEventosBitacoraList] = useState([]);
+  const [libroObraBitacoraList, setLibroObraBitacoraList] = useState([]);
 
   // Filtros avanzados para Libro de Asistencia Digital (Toda la Obra / Persona Individual / Grupo de Cuadrilla)
   const [libroFiltroTipo, setLibroFiltroTipo] = useState('toda_obra'); // 'toda_obra' | 'persona' | 'cuadrilla'
@@ -1672,16 +1673,18 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
     // 7. Hitos integrados para la Bitácora: calidad y estados de pago.
     try {
-      const [rdisResult, estadosPagoResult, eventosResult] = await Promise.all([
+      const [rdisResult, estadosPagoResult, eventosResult, libroResult] = await Promise.all([
         supabase.from('calidad_rdi').select('*').eq('obra_nombre', obraNombre).order('created_at', { ascending: true }),
         supabase.from('estados_pago_obra').select('*').eq('obra_nombre', obraNombre).order('created_at', { ascending: true }),
         supabase.from('bitacora_eventos_obra').select('*').eq('obra_nombre', obraNombre).order('fecha', { ascending: true }).order('created_at', { ascending: true }),
+        supabase.from('libro_obra_digital').select('*').eq('obra_nombre', obraNombre).order('fecha', { ascending: true }).order('created_at', { ascending: true }),
       ]);
       setRdisBitacoraList(rdisResult.data || []);
       setEstadosPagoBitacoraList((estadosPagoResult.data || []).filter(item => !user?.empresa || item.empresa === user.empresa));
       setEventosBitacoraList((eventosResult.data || []).filter(item => !user?.empresa || item.empresa === user.empresa));
+      setLibroObraBitacoraList((libroResult.data || []).filter(item => !user?.empresa || item.empresa === user.empresa));
     } catch (e) {
-      setRdisBitacoraList([]); setEstadosPagoBitacoraList([]); setEventosBitacoraList([]);
+      setRdisBitacoraList([]); setEstadosPagoBitacoraList([]); setEventosBitacoraList([]); setLibroObraBitacoraList([]);
     }
 
     // 8. Arriendos de maquinaria
@@ -4096,7 +4099,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                         className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
                       >
                         <Plus className="w-4 h-4" />
-                        <span>+ Agregar Nota / Comentario</span>
+                        <span>Agregar Nota / Comentario</span>
                       </button>
                     </div>
 
@@ -4105,6 +4108,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                       {[
                         { id: 'todos', label: 'Todos' },
                         { id: 'notas', label: '📝 Notas & Comentarios' },
+                        { id: 'libro_obra', label: '📖 Libro de Obra' },
                         { id: 'avances', label: '📊 Avances' },
                         { id: 'asistencia', label: '⏱️ Asistencia' },
                         { id: 'calidad', label: '📋 Calidad y RDI' },
@@ -4205,6 +4209,13 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                       }
                     });
 
+                    (libroObraBitacoraList || []).forEach(folio => {
+                      if (bitacoraFilters.includes('todos') || bitacoraFilters.includes('libro_obra')) {
+                        const rawDt = folio.fecha || (folio.created_at ? String(folio.created_at).substring(0, 10) : fechaInicioReal);
+                        unifiedBitacoraEvents.push({ type: 'libro_obra', dateStr: rawDt, dateObj: new Date(rawDt + 'T12:00:00'), title: `Libro de Obra · ${folio.folio || 'Folio sin número'} · ${folio.asunto || 'Registro'}`, description: folio.detalle || 'Sin detalle informado.', author: folio.emisor || 'Libro de Obra', badge: `${folio.tipo || 'Registro'} · ${folio.estado || 'Abierto'}`, color: folio.estado === 'Cerrado' ? 'emerald' : 'blue' });
+                      }
+                    });
+
                     (reportesAvanceList || []).forEach(av => {
                       if (bitacoraFilters.includes('todos') || bitacoraFilters.includes('avances')) {
                         const rawDt = av.fecha || av.fecha_avance || (av.created_at ? String(av.created_at).substring(0, 10) : fechaInicioReal);
@@ -4237,10 +4248,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                     }
 
                     (eventosBitacoraList || []).forEach(evento => {
-                      const filterId = evento.categoria === 'Estados de Pago' ? 'estados_pago' : evento.categoria === 'Prevención' ? 'prevencion' : 'calidad';
+                      const filterId = evento.categoria === 'Estados de Pago' ? 'estados_pago' : evento.categoria === 'Prevención' ? 'prevencion' : evento.categoria === 'Libro de Obra' ? 'libro_obra' : 'calidad';
                       if (bitacoraFilters.includes('todos') || bitacoraFilters.includes(filterId)) {
                         const rawDt = evento.fecha || (evento.created_at ? String(evento.created_at).substring(0, 10) : fechaInicioReal);
-                        const color = evento.categoria === 'Estados de Pago' ? 'blue' : evento.categoria === 'Prevención' ? 'rose' : 'amber';
+                      const color = evento.categoria === 'Estados de Pago' || evento.categoria === 'Libro de Obra' ? 'blue' : evento.categoria === 'Prevención' ? 'rose' : 'amber';
                         unifiedBitacoraEvents.push({ type: filterId, dateStr: rawDt, dateObj: new Date(rawDt + 'T12:00:00'), title: `${evento.categoria} · ${evento.accion}`, description: evento.detalle || 'Evento registrado en el módulo de obra.', author: evento.actor || 'Sistema', badge: evento.categoria, color });
                       }
                     });

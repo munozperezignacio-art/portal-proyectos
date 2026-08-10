@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { BookOpenCheck, CheckCircle2, Mail, MessageSquarePlus, RefreshCw } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+import { registrarEventoBitacora } from '../utils/bitacoraService';
 
 const initialEntry = { tipo: 'Registro diario', fecha: new Date().toISOString().slice(0, 10), asunto: '', detalle: '', emisor: '', destinatario: '', partida: '' };
 const types = ['Registro diario', 'Instrucción', 'Observación', 'Acuerdo', 'Incidente'];
@@ -62,6 +63,8 @@ export default function LibroObrasDigital({ user, obraNombre, obra }) {
     try {
       const { error } = await supabase.from('libro_obra_digital').update({ estado: 'Cerrado', fecha_cierre: new Date().toISOString().slice(0, 10) }).eq('id', id);
       if (error) throw error;
+      const entry = entries.find(item => item.id === id);
+      await registrarEventoBitacora({ empresa, obraNombre, categoria: 'Libro de Obra', accion: `${entry?.folio || 'Folio'} cerrado`, detalle: entry?.asunto || 'Cierre de registro del Libro de Obra.', actor: user?.nombre || user?.email || 'Usuario autorizado' });
       await load();
     } catch (error) { setMessage(`No se pudo cerrar el folio: ${error.message}`); }
   };
