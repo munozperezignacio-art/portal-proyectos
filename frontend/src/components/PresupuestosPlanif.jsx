@@ -2737,8 +2737,8 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
           </button>
           <div className="rounded-xl bg-slate-50 p-2.5 text-primary"><FileSpreadsheet className="h-6 w-6" /></div>
           <div>
-            <h1 className="text-xl font-black leading-tight tracking-tight text-slate-900 sm:text-2xl">Presupuestos</h1>
-            <p className="mt-1 text-sm font-medium leading-relaxed text-slate-500">Control de costos, diagramas Gantt y asignación de recursos.</p>
+            <h1 className="text-lg font-black leading-tight tracking-tight text-slate-900 sm:text-xl">Presupuestos</h1>
+            <p className="mt-1 text-xs font-normal leading-relaxed text-slate-500 sm:text-[13px]">Control de costos, diagramas Gantt y asignación de recursos.</p>
           </div>
         </div>
 
