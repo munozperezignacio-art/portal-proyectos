@@ -14,6 +14,7 @@ import LastPlannerLookahead from './LastPlannerLookahead';
 import CalidadObras from './CalidadObras';
 import LibroObrasDigital from './LibroObrasDigital';
 import EstadosPagoObra from './EstadosPagoObra';
+import FlujoCajaObra from './FlujoCajaObra';
 import { registrarEventoBitacora } from '../utils/bitacoraService';
 import FormAnswerDisplay from './FormAnswerDisplay';
 import { generateFormPdf } from '../utils/pdfGenerator';
@@ -384,7 +385,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   // Submódulo activo de la Obra (null = Vista Principal de Tarjetas / Rectángulos)
   const [obraActiveSubmodule, setObraActiveSubmodule] = useState(null); // null | 'avance' | 'equipo' | 'maquinaria' | 'materiales' | 'bitacora' | 'libro_obra' | 'estados_pago' | 'estadisticas' | 'calidad' | 'prevencion' | 'gestion_obra'
   const [equipoTab, setEquipoTab] = useState('asistencia'); // asistencia | personal | cuadrillas
-  const [gestionObraTab, setGestionObraTab] = useState('presupuesto'); // presupuesto | planificacion | costos
+  const [gestionObraTab, setGestionObraTab] = useState('presupuesto'); // presupuesto | planificacion | costos | flujo_caja
 
   // Sub-pestañas para Avance, Asistencia, Maquinaria, Bitácora y Prevención
   const [avanceSubTab, setAvanceSubTab] = useState('visor'); // 'visor' | 'registro'
@@ -5803,7 +5804,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           )}
 
           {/* VISTA DEDICADA 11: PRESUPUESTO DE OBRA */}
-          {obraActiveSubmodule === 'gestion_obra' && <div className="mb-5 rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4"><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div><p className="text-sm font-black text-indigo-950">Plan y Control de Obra</p><p className="mt-1 text-xs text-indigo-900">Conecta el presupuesto, la carta Gantt y el control de costos para decidir con una sola fuente de información.</p></div><div className="flex flex-wrap gap-2">{[['presupuesto', 'Presupuesto'], ['planificacion', 'Programación'], ['costos', 'Control de costos']].map(([id, label]) => <button key={id} onClick={() => setGestionObraTab(id)} className={`rounded-xl px-3 py-2 text-xs font-black ${gestionObraTab === id ? 'bg-indigo-800 text-white' : 'border border-indigo-200 bg-white text-indigo-900'}`}>{label}</button>)}</div></div></div>}
+          {obraActiveSubmodule === 'gestion_obra' && <div className="mb-5 rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4"><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div><p className="text-sm font-black text-indigo-950">Plan y Control de Obra</p><p className="mt-1 text-xs text-indigo-900">Conecta el presupuesto, la carta Gantt, el control de costos y el flujo de caja para decidir con una sola fuente de información.</p></div><div className="flex flex-wrap gap-2">{[['presupuesto', 'Presupuesto'], ['planificacion', 'Programación'], ['costos', 'Control de costos'], ['flujo_caja', 'Flujo de caja']].map(([id, label]) => <button key={id} onClick={() => setGestionObraTab(id)} className={`rounded-xl px-3 py-2 text-xs font-black ${gestionObraTab === id ? 'bg-indigo-800 text-white' : 'border border-indigo-200 bg-white text-indigo-900'}`}>{label}</button>)}</div></div></div>}
 
           {obraActiveSubmodule === 'gestion_obra' && gestionObraTab === 'presupuesto' && (
             <div className="space-y-6 animate-in fade-in duration-200">
@@ -6596,6 +6597,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
               })()}
             </div>
           )}
+
+          {obraActiveSubmodule === 'gestion_obra' && gestionObraTab === 'flujo_caja' && <FlujoCajaObra obra={selectedObra} user={user} partidas={partidasList} costos={costosList} liquidaciones={liquidacionesList} avances={reportesAvanceList} />}
 
           {/* VISTA DEDICADA 13: CONTROL DE COSTOS DE OBRA */}
           {obraActiveSubmodule === 'gestion_obra' && gestionObraTab === 'costos' && (
