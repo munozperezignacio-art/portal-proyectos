@@ -45,6 +45,17 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     { id: Date.now(), type: 'text', label: 'Nombre o Título', required: true, options: [] }
   ]);
 
+  const protectedBaseFields = {
+    maquinaria_uso: ['equipo_patente', 'horometro_inicial', 'horometro_final'],
+    pare: ['actividad', 'peligro', 'riesgo', 'accion', 'aviso', 'firma'],
+    incidente_accidente: ['tipo', 'fecha_evento', 'hora_evento', 'descripcion', 'accion_inmediata', 'firma']
+  };
+  const formRegistrationType = (form) => {
+    const stored = form?.campos;
+    return !Array.isArray(stored) ? stored?.control_documental?.tipo_registro : '';
+  };
+  const isProtectedField = (field) => Boolean(field.systemRequired || (protectedBaseFields[formRegistrationType(editingForm)] || []).includes(field.id));
+
   // Estados de Capacitaciones
   const [capacitaciones, setCapacitaciones] = useState([]);
   const [capTitle, setCapTitle] = useState('');
@@ -164,6 +175,8 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   };
 
   const handleUpdateField = (id, key, value) => {
+    const field = formFields.find(item => item.id === id);
+    if (field && isProtectedField(field) && ['label', 'required', 'type'].includes(key)) return;
     setFormFields(formFields.map(f => f.id === id ? { ...f, [key]: value } : f));
   };
   const handleUpdateOption = (fieldId, optionIndex, value) => {
@@ -185,6 +198,11 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   const updateRepeaterOption = (fieldId, subId, index, value) => setFormFields(formFields.map(field => field.id === fieldId ? { ...field, subFields: (field.subFields || []).map(sub => sub.id === subId ? { ...sub, options: (sub.options || []).map((option, optionIndex) => optionIndex === index ? value : option) } : sub) } : field));
 
   const handleRemoveField = (id) => {
+    const field = formFields.find(item => item.id === id);
+    if (field && isProtectedField(field)) {
+      setErrorMsg('Este es un campo base requerido para el funcionamiento del formulario y no se puede eliminar.');
+      return;
+    }
     setFormFields(formFields.filter(f => f.id !== id));
   };
 
@@ -195,7 +213,8 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     setFormTitle(form.titulo || ''); setFormDesc(form.descripcion || ''); setFormModulo(form.categoria || form.modulo_asignado || 'general');
     setFormCodigo(control.codigo || ''); setFormRevision(control.revision || '0'); setFormFechaRevision(control.fecha_revision || new Date().toISOString().slice(0, 10)); setFormEmails((form.correos_notificacion || '').split(',').map(email => email.trim()).filter(Boolean).concat((form.correos_notificacion || '').trim() ? [] : ['']));
     setFormAllowedCargos((form.cargos_obligados || '').split(',').map(cargo => cargo.trim()).filter(Boolean));
-    setFormFields(Array.isArray(stored) ? stored : (stored?.items || []));
+    const requiredIds = protectedBaseFields[formRegistrationType(form)] || [];
+    setFormFields((Array.isArray(stored) ? stored : (stored?.items || [])).map(field => (field.systemRequired || requiredIds.includes(field.id)) ? { ...field, systemRequired: true, required: true } : field));
     setActiveTab('designer');
   };
 
@@ -205,7 +224,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       titulo, descripcion, categoria: modulo,
       publico_token: `FORM_${Math.random().toString(36).slice(2, 9).toUpperCase()}`,
       creado_por: user?.email || 'admin@obraxis.cl', empresa: user?.empresa || 'EMIN', created_at: new Date().toISOString(),
-      campos: { items, control_documental: { codigo, revision: '0', fecha_revision: today, tipo_registro } }
+      campos: { items: items.map(field => (protectedBaseFields[tipo_registro] || []).includes(field.id) ? { ...field, required: true, systemRequired: true } : field), control_documental: { codigo, revision: '0', fecha_revision: today, tipo_registro } }
     });
     const templates = [
       common('MAQ-REG-001', 'maquinaria', 'Registro diario de uso y horómetro', 'Registro base para controlar horas, combustible, operador y evidencia de uso.', 'maquinaria_uso', [
@@ -673,13 +692,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                 <div key={field.id} className="p-4 rounded-2xl border border-slate-200 bg-white shadow-xs space-y-3 relative">
                   <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
                     <span className="text-[10px] font-black text-primary uppercase tracking-wider">Campo #{index + 1} ({field.type})</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveField(field.id)}
-                      className="text-slate-400 hover:text-rose-600 transition cursor-pointer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {isProtectedField(field) ? <span className="rounded-lg bg-amber-50 px-2 py-1 text-[9px] font-black uppercase text-amber-800">Campo base bloqueado</span> : <button type="button" onClick={() => handleRemoveField(field.id)} className="text-slate-400 hover:text-rose-600 transition cursor-pointer"><Trash2 className="w-4 h-4" /></button>}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -689,7 +702,8 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                         type="text"
                         value={field.label}
                         onChange={(e) => handleUpdateField(field.id, 'label', e.target.value)}
-                        className="w-full border border-slate-200 rounded-xl p-2 text-xs font-bold text-slate-800"
+                        readOnly={isProtectedField(field)}
+                        className={`w-full border border-slate-200 rounded-xl p-2 text-xs font-bold text-slate-800 ${isProtectedField(field) ? 'bg-slate-50 text-slate-500' : ''}`}
                       />
                     </div>
 
@@ -699,6 +713,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                           type="checkbox"
                           checked={field.required}
                           onChange={(e) => handleUpdateField(field.id, 'required', e.target.checked)}
+                          disabled={isProtectedField(field)}
                           className="w-4 h-4 text-primary rounded"
                         />
                         <span>Obligatorio</span>
