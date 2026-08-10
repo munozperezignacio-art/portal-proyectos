@@ -2652,7 +2652,6 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                       {o.tipo && (
                         <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Especialidad: {o.tipo}</p>
                       )}
-                      <button onClick={(event) => { event.stopPropagation(); openObraRegisters(o); }} className="mt-3 inline-flex w-fit items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-[10px] font-black text-rose-800 hover:bg-rose-100">📋 Registros asignados</button>
                     </div>
                   </div>
                 );
