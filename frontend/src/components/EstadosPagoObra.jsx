@@ -78,10 +78,24 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
       if (rdiResult.error && !rdiResult.error.message?.includes('calidad_rdi')) throw rdiResult.error;
       if (estadosResult.error) throw estadosResult.error;
       if (condicionesResult.error) throw condicionesResult.error;
-      setPartidas((partidasResult.data || []).filter(p => !['TITULO', 'GRUPO'].includes(p.unidad) && !p.es_titulo));
+      const loadedPartidas = (partidasResult.data || []).filter(p => !['TITULO', 'GRUPO'].includes(p.unidad) && !p.es_titulo);
+      const contractSnapshot = loadedPartidas.reduce((sum, partida) => sum + (Number(partida.cantidad_presupuestada ?? partida.cantidad ?? 0) * (Number(partida.costo_por_dia) || Number(partida.pu) || 0)), 0);
+      const loadedStates = estadosResult.data || [];
+      const enrichedStates = loadedStates.map(state => {
+        const items = Array.isArray(state.items) ? state.items : [];
+        if (!contractSnapshot || !items.length || items.some(line => Number(line.monto_contrato || 0) > 0)) return state;
+        return { ...state, items: items.map((line, index) => index === 0 ? { ...line, monto_contrato: contractSnapshot } : line) };
+      });
+      const statesToEnrich = enrichedStates.filter((state, index) => state !== loadedStates[index]);
+      if (statesToEnrich.length) {
+        const updates = await Promise.all(statesToEnrich.map(state => supabase.from('estados_pago_obra').update({ items: state.items }).eq('id', state.id)));
+        const updateError = updates.find(result => result.error)?.error;
+        if (updateError) throw updateError;
+      }
+      setPartidas(loadedPartidas);
       setAvances((avancesResult.data || []).filter(r => String(r.obra_nombre || r.obra || '').trim() === obraNombre));
       setRdis(rdiResult.data || []);
-      setEstados(estadosResult.data || []);
+      setEstados(enrichedStates);
       setCondiciones(condicionesResult.data || null);
       setAnticipoPct(String(condicionesResult.data?.anticipo_pct || 0));
       setContactos({ revisor_nombre: condicionesResult.data?.revisor_nombre || '', revisor_email: condicionesResult.data?.revisor_email || '', aprobador_nombre: condicionesResult.data?.aprobador_nombre || '', aprobador_email: condicionesResult.data?.aprobador_email || '' });

@@ -35,7 +35,9 @@ export default function PublicEstadoPago({ token, role }) {
     const before = valid.filter(row => Number(row.numero) < Number(payment.numero));
     const total = field => valid.reduce((sum, row) => sum + Number(row[field] || 0), 0);
     const prior = field => before.reduce((sum, row) => sum + Number(row[field] || 0), 0);
-    const contract = (partidasResult.data || []).reduce((sum, row) => sum + Number(row.cantidad_presupuestada ?? row.cantidad ?? 0) * (Number(row.costo_por_dia) || Number(row.pu) || 0), 0);
+    const contractFromPartidas = (partidasResult.data || []).reduce((sum, row) => sum + Number(row.cantidad_presupuestada ?? row.cantidad ?? 0) * (Number(row.costo_por_dia) || Number(row.pu) || 0), 0);
+    const contractFromSnapshot = (payment.items || []).reduce((value, line) => value || Number(line.monto_contrato || 0), 0);
+    const contract = contractFromPartidas || contractFromSnapshot;
     setSummary({
       bruto_anterior: prior('monto_bruto'), bruto_acumulado: total('monto_bruto'), retencion_acumulada: total('retencion_monto'), anticipo_acumulado: total('anticipo_descontado'), neto_acumulado: total('monto_neto'),
       avance_periodo_pct: contract > 0 ? Number(payment.monto_bruto || 0) / contract * 100 : 0,
