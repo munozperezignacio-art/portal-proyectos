@@ -77,8 +77,8 @@ export default function PublicEstadoPago({ token, role }) {
     const estado = approved ? (role === 'aprobacion' ? 'Aprobado' : 'En aprobación') : 'Observado';
     const field = role === 'aprobacion' ? 'observacion_aprobacion' : 'observacion_revision';
     const actor = role === 'aprobacion' ? item.aprobador_nombre || 'Aprobador externo' : item.revisor_nombre || 'Revisor externo';
-    const { error } = await supabase.from('estados_pago_obra').update({ estado, [field]: note || null, trazabilidad: appendAudit(item.trazabilidad, auditActor({ nombre: actor, empresa: item.empresa, cargo: role === 'aprobacion' ? 'Aprobador externo' : 'Revisor externo' }, approved ? (role === 'aprobacion' ? 'Estado de Pago aprobado' : 'Revisión técnica conforme') : 'Estado de Pago observado', estado, note)) }).eq('id', item.id);
-    if (error) setMessage(`No fue posible registrar la decisión: ${error.message}`);
+    const { data: savedDecision, error } = await supabase.from('estados_pago_obra').update({ estado, [field]: note || null, trazabilidad: appendAudit(item.trazabilidad, auditActor({ nombre: actor, empresa: item.empresa, cargo: role === 'aprobacion' ? 'Aprobador externo' : 'Revisor externo' }, approved ? (role === 'aprobacion' ? 'Estado de Pago aprobado' : 'Revisión técnica conforme') : 'Estado de Pago observado', estado, note)) }).eq('id', item.id).select('id,estado').maybeSingle();
+    if (error || !savedDecision || savedDecision.estado !== estado) setMessage(`No fue posible registrar la decisión${error?.message ? `: ${error.message}` : '. El registro no fue actualizado.'}`);
     else { await registrarEventoBitacora({ empresa: item.empresa, obraNombre: item.obra_nombre, categoria: 'Estados de Pago', accion: `EP N° ${item.numero} ${approved ? (role === 'aprobacion' ? 'aprobado' : 'revisado conforme') : 'observado'}`, detalle: note || null, actor: role === 'aprobacion' ? item.aprobador_nombre || 'Aprobador externo' : item.revisor_nombre || 'Revisor externo' }); setMessage(approved ? 'Decisión registrada correctamente.' : 'El Estado de Pago fue devuelto con observaciones.'); await reload(); }
   };
   const submitProposal = async () => {
