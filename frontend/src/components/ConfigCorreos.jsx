@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient';
 import { sendSystemEmail } from '../utils/emailService';
 import PermissionsGovernancePanel from './PermissionsGovernancePanel';
 import { 
-  Settings, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Check, Mail, Filter, User, Lock, Building2, ShieldAlert
+  Settings, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Check, Mail, Filter, User, Lock, Building2, ShieldAlert, Copy, Archive, ArchiveRestore, ShieldCheck
 } from 'lucide-react';
 
 function ConfigCorreos({ user, onBack }) {
@@ -83,13 +83,12 @@ function ConfigCorreos({ user, onBack }) {
   const [roleEditing, setRoleEditing] = useState(null);
   const [roleModalLoading, setRoleModalLoading] = useState(false);
   const [searchRoleQuery, setSearchRoleQuery] = useState('');
+  const [roleToConfigure, setRoleToConfigure] = useState('');
   const [roleFormData, setRoleFormData] = useState({
     nombre: '',
     rol_base: 'Inspector',
     descripcion: '',
-    empresa: '',
-    modulos: [],
-    submenus: []
+    empresa: ''
   });
 
   // Estados de Configuración de la Plataforma Global (Obraxis)
@@ -118,6 +117,7 @@ function ConfigCorreos({ user, onBack }) {
       fetchAllCompanies();
     } else if (activeTab === 'roles') {
       fetchRoles();
+      fetchUsers();
       fetchCompaniesForSelect();
     } else if (activeTab === 'plataforma') {
       fetchPlatformSettings();
@@ -279,9 +279,7 @@ function ConfigCorreos({ user, onBack }) {
       nombre: '',
       rol_base: 'Inspector',
       descripcion: '',
-      empresa: defaultEmpresa,
-      modulos: [],
-      submenus: []
+      empresa: defaultEmpresa
     });
     setSuccessMsg('');
     setErrorMsg('');
@@ -294,9 +292,7 @@ function ConfigCorreos({ user, onBack }) {
       nombre: role.nombre,
       rol_base: role.rol_base || 'Inspector',
       descripcion: role.descripcion || '',
-      empresa: role.empresa,
-      modulos: role.modulos ? role.modulos.split(',').map(m => m.trim()) : [],
-      submenus: role.submenus ? role.submenus.split(',').map(s => s.trim()) : []
+      empresa: role.empresa
     });
     setSuccessMsg('');
     setErrorMsg('');
@@ -313,28 +309,33 @@ function ConfigCorreos({ user, onBack }) {
       nombre: roleFormData.nombre.trim(),
       rol_base: roleFormData.rol_base,
       descripcion: roleFormData.descripcion.trim(),
-      empresa: roleFormData.empresa,
-      modulos: (roleFormData.modulos || []).join(','),
-      submenus: (roleFormData.submenus || []).join(',')
+      empresa: roleFormData.empresa
     };
 
     try {
       if (roleEditing) {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('roles')
           .update(dataToSave)
-          .eq('id', roleEditing.id);
+          .eq('id', roleEditing.id)
+          .select('id')
+          .single();
         if (error) throw error;
+        setRoleToConfigure(String(data.id));
         setSuccessMsg('Rol actualizado correctamente.');
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('roles')
-          .insert([dataToSave]);
+          .insert([{ ...dataToSave, modulos: '', submenus: '', permisos: {} }])
+          .select('id')
+          .single();
         if (error) throw error;
+        setRoleToConfigure(String(data.id));
         setSuccessMsg('Rol creado correctamente.');
       }
-      fetchRoles();
-      setTimeout(() => setRoleModalOpen(false), 1500);
+      await fetchRoles();
+      setRoleModalOpen(false);
+      setActiveTab('permisos');
     } catch (err) {
       setErrorMsg(err.message || 'Error al guardar el rol.');
     } finally {
@@ -343,6 +344,11 @@ function ConfigCorreos({ user, onBack }) {
   };
 
   const handleDeleteRole = async (role) => {
+    const assignedUsers = usersList.filter(usr => usr.empresa === role.empresa && usr.rol === role.nombre).length;
+    if (assignedUsers > 0) {
+      alert(`No se puede eliminar este rol porque está asignado a ${assignedUsers} usuario${assignedUsers === 1 ? '' : 's'}. Puedes archivarlo.`);
+      return;
+    }
     if (!window.confirm(`¿Estás seguro de eliminar el rol "${role.nombre}"?`)) return;
     try {
       const { error } = await supabase
@@ -353,6 +359,37 @@ function ConfigCorreos({ user, onBack }) {
       fetchRoles();
     } catch (err) {
       alert('Error al eliminar el rol: ' + err.message);
+    }
+  };
+
+  const handleDuplicateRole = async (role) => {
+    try {
+      const { data, error } = await supabase.from('roles').insert([{
+        nombre: `${role.nombre} (copia)`,
+        descripcion: role.descripcion || '',
+        empresa: role.empresa,
+        rol_base: role.rol_base || 'Inspector',
+        modulos: '',
+        submenus: '',
+        permisos: role.permisos || {},
+        archivado: false
+      }]).select('id').single();
+      if (error) throw error;
+      setRoleToConfigure(String(data.id));
+      await fetchRoles();
+      setActiveTab('permisos');
+    } catch (err) {
+      alert('Error al duplicar el rol: ' + err.message);
+    }
+  };
+
+  const handleToggleArchiveRole = async (role) => {
+    try {
+      const { error } = await supabase.from('roles').update({ archivado: !role.archivado }).eq('id', role.id);
+      if (error) throw error;
+      await fetchRoles();
+    } catch (err) {
+      alert('Error al actualizar el rol: ' + err.message);
     }
   };
 
@@ -1065,7 +1102,7 @@ function ConfigCorreos({ user, onBack }) {
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
-          Gestión de Roles
+          Roles
         </button>
         <button
           onClick={() => setActiveTab('permisos')}
@@ -1360,7 +1397,7 @@ function ConfigCorreos({ user, onBack }) {
           )}
         </>
       ) : activeTab === 'permisos' ? (
-        <PermissionsGovernancePanel user={user} />
+        <PermissionsGovernancePanel user={user} initialRoleId={roleToConfigure} />
       ) : activeTab === 'roles' ? (
         /* PANEL DE ROLES PERSONALIZADOS */
         <>
@@ -1389,21 +1426,33 @@ function ConfigCorreos({ user, onBack }) {
                 role.nombre.toLowerCase().includes(searchRoleQuery.toLowerCase()) ||
                 (role.descripcion && role.descripcion.toLowerCase().includes(searchRoleQuery.toLowerCase()))
               ).map((role) => (
-                <div key={role.id} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4 hover:shadow-md transition">
+                <div key={role.id} className={`bg-white border rounded-2xl p-5 shadow-sm space-y-4 hover:shadow-md transition ${role.archivado ? 'border-amber-200 opacity-75' : 'border-slate-200'}`}>
                   <div className="flex justify-between items-start">
                     <div>
-                      <h3 className="text-sm font-bold text-slate-800">{role.nombre}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-bold text-slate-800">{role.nombre}</h3>
+                        {role.archivado && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase text-amber-800">Archivado</span>}
+                      </div>
                       <p className="text-[10px] text-slate-400 font-medium mt-0.5 uppercase tracking-wider">
-                        Empresa: {role.empresa} | Hereda: {role.rol_base}
+                        Empresa: {role.empresa}
                       </p>
                     </div>
                     <div className="flex gap-1.5">
+                      <button onClick={() => { setRoleToConfigure(String(role.id)); setActiveTab('permisos'); }} className="p-1.5 hover:bg-emerald-50 text-emerald-700 rounded-lg transition cursor-pointer" title="Configurar permisos">
+                        <ShieldCheck className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => handleDuplicateRole(role)} className="p-1.5 hover:bg-slate-100 text-slate-600 rounded-lg transition cursor-pointer" title="Duplicar">
+                        <Copy className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => handleOpenEditRoleModal(role)}
                         className="p-1.5 hover:bg-slate-100 text-primary rounded-lg transition cursor-pointer"
                         title="Editar"
                       >
                         <Edit className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => handleToggleArchiveRole(role)} className="p-1.5 hover:bg-amber-50 text-amber-700 rounded-lg transition cursor-pointer" title={role.archivado ? 'Restaurar' : 'Archivar'}>
+                        {role.archivado ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
                       </button>
                       <button
                         onClick={() => handleDeleteRole(role)}
@@ -1419,37 +1468,9 @@ function ConfigCorreos({ user, onBack }) {
                     <p className="text-xs text-slate-500 line-clamp-2">{role.descripcion}</p>
                   )}
 
-                  <div className="space-y-2 pt-2 border-t border-slate-100">
-                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Módulos Asignados</p>
-                    <div className="flex flex-wrap gap-1">
-                      {role.modulos ? (
-                        role.modulos.split(',').map((m) => (
-                          <span key={m} className="px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-600 rounded text-[9px] font-bold capitalize">
-                            {m.trim()}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-slate-400 text-[10px] italic">Sin módulos asignados</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Submenús Permitidos</p>
-                    <div className="flex flex-wrap gap-1">
-                      {role.submenus ? (
-                        role.submenus.split(',').map((s) => {
-                          const cat = submenusDisponibles.find(x => x.id === s.trim());
-                          return (
-                            <span key={s} className="px-2 py-0.5 bg-indigo-50 border border-indigo-100 text-indigo-650 rounded text-[9px] font-bold" title={cat?.label}>
-                              {cat ? cat.label.split(':')[1]?.trim() || cat.label : s.trim()}
-                            </span>
-                          );
-                        })
-                      ) : (
-                        <span className="text-slate-400 text-[10px] italic">Sin submenús permitidos</span>
-                      )}
-                    </div>
+                  <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Usuarios asignados</span>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black text-slate-700">{usersList.filter(usr => usr.empresa === role.empresa && usr.rol === role.nombre).length}</span>
                   </div>
                 </div>
               ))}
@@ -1781,9 +1802,9 @@ function ConfigCorreos({ user, onBack }) {
                     <option value="Administrador">Administrador (Intermedio)</option>
                     <option value="Superusuario">Superusuario (Total)</option>
                   </optgroup>
-                  {rolesList.filter(r => r.empresa === userFormData.empresa).length > 0 && (
+                  {rolesList.filter(r => r.empresa === userFormData.empresa && !r.archivado).length > 0 && (
                     <optgroup label="Roles Personalizados">
-                      {rolesList.filter(r => r.empresa === userFormData.empresa).map(r => (
+                      {rolesList.filter(r => r.empresa === userFormData.empresa && !r.archivado).map(r => (
                         <option key={r.id} value={r.nombre}>{r.nombre}</option>
                       ))}
                     </optgroup>
@@ -2185,117 +2206,19 @@ function ConfigCorreos({ user, onBack }) {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Empresa</label>
-                  {(user?.rol_base || user?.rol || 'Inspector').toLowerCase() === 'superusuario' ? (
-                    <select
-                      value={roleFormData.empresa}
-                      onChange={(e) => setRoleFormData({ ...roleFormData, empresa: e.target.value })}
-                      className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none bg-white cursor-pointer"
-                    >
-                      {allCompaniesList.map(c => <option key={c.empresa} value={c.empresa}>{c.empresa}</option>)}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      disabled
-                      value={roleFormData.empresa}
-                      className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 bg-slate-100"
-                    />
-                  )}
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nivel de Usuario y Permisos</label>
-                  <select
-                    value={roleFormData.rol_base}
-                    onChange={(e) => setRoleFormData({ ...roleFormData, rol_base: e.target.value })}
-                    className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none bg-white cursor-pointer font-medium"
-                  >
-                    <option value="Superusuario">Nivel 0: Administración Obraxis (SuperAdmin Global)</option>
-                    <option value="Administrador">Nivel 1: Administración Empresa (Admin / Gerencia)</option>
-                    <option value="Jefe">Nivel 2: Creador / Asignado (Jefe Proyecto / Creador)</option>
-                    <option value="Supervisor">Nivel 3: Revisor / Supervisor</option>
-                    <option value="Inspector">Nivel 4: Operativo / Terreno (Capturador de datos)</option>
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Empresa</label>
+                {(user?.rol_base || user?.rol || 'Inspector').toLowerCase() === 'superusuario' ? (
+                  <select value={roleFormData.empresa} onChange={(e) => setRoleFormData({ ...roleFormData, empresa: e.target.value })} className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none bg-white cursor-pointer">
+                    {allCompaniesList.map(c => <option key={c.empresa} value={c.empresa}>{c.empresa}</option>)}
                   </select>
-                </div>
+                ) : (
+                  <input type="text" disabled value={roleFormData.empresa} className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 bg-slate-100" />
+                )}
               </div>
 
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1.5">Módulos por Defecto</label>
-                <div className="flex flex-wrap gap-2">
-                  {modulosDisponibles.filter(m => {
-                    if (roleFormData.rol_base === 'Superusuario') return true;
-                    const comp = allCompaniesList.find(c => c.empresa === roleFormData.empresa);
-                    if (comp && comp.modulos_activos) {
-                      const compMods = comp.modulos_activos.split(',').map(x => x.trim().toLowerCase());
-                      return m === 'admin' || compMods.includes(m);
-                    }
-                    return true;
-                  }).map((m) => {
-                    const isChecked = roleFormData.modulos.includes(m);
-                    return (
-                      <button
-                        type="button"
-                        key={m}
-                        onClick={() => {
-                          const mods = [...roleFormData.modulos];
-                          const idx = mods.indexOf(m);
-                          if (idx === -1) mods.push(m);
-                          else mods.splice(idx, 1);
-                          setRoleFormData({ ...roleFormData, modulos: mods });
-                        }}
-                        className={`px-3 py-1.5 rounded-lg text-[10px] font-bold capitalize transition border ${
-                          isChecked 
-                            ? 'bg-primary text-white border-primary' 
-                            : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                        }`}
-                      >
-                        {m}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1.5">Submenús por Defecto</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 bg-slate-50 rounded-2xl border border-slate-100 max-h-[160px] overflow-y-auto">
-                  {submenusDisponibles.filter(s => {
-                    if (!roleFormData.modulos.includes(s.modulo)) return false;
-                    if ((user?.rol_base || user?.rol || 'Inspector').toLowerCase() !== 'superusuario') {
-                      const comp = allCompaniesList.find(c => c.empresa === roleFormData.empresa);
-                      if (comp && comp.submenus_activos) {
-                        const compSubs = comp.submenus_activos.split(',').map(x => x.trim().toLowerCase());
-                        return compSubs.includes(s.id);
-                      }
-                      return true;
-                    }
-                    return true;
-                  }).map((s) => {
-                    const isChecked = roleFormData.submenus?.includes(s.id);
-                    return (
-                      <label key={s.id} className="flex items-center gap-2 text-[10px] font-semibold text-slate-650 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={(e) => {
-                            const subs = [...(roleFormData.submenus || [])];
-                            const idx = subs.indexOf(s.id);
-                            if (e.target.checked) {
-                              if (idx === -1) subs.push(s.id);
-                            } else {
-                              if (idx !== -1) subs.splice(idx, 1);
-                            }
-                            setRoleFormData({ ...roleFormData, submenus: subs });
-                          }}
-                          className="rounded border-slate-300 text-primary focus:ring-primary h-3.5 w-3.5"
-                        />
-                        <span>{s.label}</span>
-                      </label>
-                    );
-                  })}
-                </div>
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-[11px] font-semibold leading-relaxed text-emerald-900">
+                Este espacio solo define la identidad del rol. Al guardar, continuarás automáticamente en <strong>Permisos y Flujos</strong> para configurar lo que puede ver y hacer.
               </div>
 
               <button

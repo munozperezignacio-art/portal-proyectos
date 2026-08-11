@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight, Save, ShieldCheck, UserCog, Users } from 'lu
 import { supabase } from '../supabaseClient';
 import { PERMISSIONS_CATALOG, PERMISSION_ACTIONS, defaultPermission, permissionKey } from '../utils/permissionsCatalog';
 
-export default function PermissionsGovernancePanel({ user }) {
+export default function PermissionsGovernancePanel({ user, initialRoleId = '' }) {
   const [subjectType, setSubjectType] = useState('rol');
   const [roles, setRoles] = useState([]);
   const [users, setUsers] = useState([]);
@@ -18,7 +18,7 @@ export default function PermissionsGovernancePanel({ user }) {
     const load = async () => {
       setLoading(true);
       const [rolesResult, usersResult] = await Promise.all([
-        supabase.from('roles').select('id,nombre,rol_base,empresa,permisos').eq('empresa', user.empresa).order('nombre'),
+        supabase.from('roles').select('id,nombre,rol_base,empresa,permisos,archivado').eq('empresa', user.empresa).eq('archivado', false).order('nombre'),
         supabase.from('usuarios').select('id,usuario,nombre,rol,rol_base,empresa,permisos').eq('empresa', user.empresa).order('nombre'),
       ]);
       setRoles(rolesResult.data || []);
@@ -30,6 +30,13 @@ export default function PermissionsGovernancePanel({ user }) {
 
   const subjects = subjectType === 'rol' ? roles : users;
   const selected = useMemo(() => subjects.find(item => String(item.id) === String(subjectId)), [subjects, subjectId]);
+
+  useEffect(() => {
+    if (initialRoleId && roles.some(role => String(role.id) === String(initialRoleId))) {
+      setSubjectType('rol');
+      setSubjectId(String(initialRoleId));
+    }
+  }, [initialRoleId, roles]);
 
   useEffect(() => {
     if (!subjects.length) { setSubjectId(''); setPermissions({}); return; }
