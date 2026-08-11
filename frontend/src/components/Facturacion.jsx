@@ -9,6 +9,8 @@ import {
 import { comunasChile } from '../utils/comunas';
 import ContextualEmailConfigModal from './ContextualEmailConfigModal';
 import { canConfigureEmails } from '../utils/userLevel';
+import useUserPermissions from '../utils/useUserPermissions';
+import { can } from '../utils/permissionsCatalog';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -46,6 +48,14 @@ class ErrorBoundary extends React.Component {
 }
 
 export default function Facturacion({ user, companyBranding, onBack }) {
+  const { permissions, loading: permissionsLoading } = useUserPermissions(user);
+  const canView = can(user, permissions, 'facturacion.documentos.ver');
+  const canCreate = can(user, permissions, 'facturacion.documentos.crear');
+  const canEdit = can(user, permissions, 'facturacion.documentos.editar');
+  const canDelete = can(user, permissions, 'facturacion.documentos.eliminar');
+  const canSend = can(user, permissions, 'facturacion.documentos.enviar');
+  const canReview = can(user, permissions, 'facturacion.documentos.revisar');
+  const canConfigure = can(user, permissions, 'facturacion.documentos.configurar');
   const isSubmenuEnabled = (submenuId) => {
     const rBase = (user?.rol_base || user?.rol || 'Inspector').toLowerCase();
     if (user && rBase === 'superusuario') return true;
@@ -300,6 +310,7 @@ export default function Facturacion({ user, companyBranding, onBack }) {
   // MANTENEDOR: SECCIONES
   // -------------------------------------------------------------
   const handleSaveSeccion = async () => {
+    if (!canConfigure) { setErrorMsg('Tu perfil no está autorizado para configurar secciones.'); return; }
     if (!seccionNombre.trim()) {
       setErrorMsg("El nombre de la sección no puede estar vacío.");
       return;
@@ -327,6 +338,7 @@ export default function Facturacion({ user, companyBranding, onBack }) {
   };
 
   const handleDeleteSeccion = async (id) => {
+    if (!canDelete) { setErrorMsg('Tu perfil no está autorizado para eliminar secciones.'); return; }
     if (!confirm("¿Seguro que deseas eliminar esta Sección?")) return;
     try {
       const { error } = await supabase
@@ -342,6 +354,7 @@ export default function Facturacion({ user, companyBranding, onBack }) {
   // MANTENEDOR: PROVEEDORES
   // -------------------------------------------------------------
   const handleSaveProveedor = async () => {
+    if (!canCreate) { setErrorMsg('Tu perfil no está autorizado para crear proveedores.'); return; }
     if (!provRut.trim() || !provRazonSocial.trim()) {
       setErrorMsg("RUT y Razón Social son campos requeridos.");
       return;
@@ -379,6 +392,7 @@ export default function Facturacion({ user, companyBranding, onBack }) {
   };
 
   const handleDeleteProveedor = async (id) => {
+    if (!canDelete) { setErrorMsg('Tu perfil no está autorizado para eliminar proveedores.'); return; }
     if (!confirm("¿Seguro que deseas eliminar este Proveedor?")) return;
     try {
       const { error } = await supabase
@@ -394,6 +408,7 @@ export default function Facturacion({ user, companyBranding, onBack }) {
   // ACCIONES: CENTROS DE GESTIÓN
   // -------------------------------------------------------------
   const handleSaveCentro = async () => {
+    if (!canConfigure) { setErrorMsg('Tu perfil no está autorizado para configurar centros de gestión.'); return; }
     if (!/^\d{3}$/.test(centroCodigo)) {
       setErrorMsg("El código debe tener exactamente 3 dígitos (ej: 001-999).");
       return;
@@ -427,6 +442,7 @@ export default function Facturacion({ user, companyBranding, onBack }) {
   };
 
   const handleDeleteCentro = async (id) => {
+    if (!canDelete) { setErrorMsg('Tu perfil no está autorizado para eliminar centros de gestión.'); return; }
     if (!confirm("¿Seguro que deseas eliminar este Centro?")) return;
     try {
       const { error } = await supabase
@@ -442,6 +458,7 @@ export default function Facturacion({ user, companyBranding, onBack }) {
   // ACCIONES: ÓRDENES DE COMPRA (OC)
   // -------------------------------------------------------------
   const handleSaveOC = async () => {
+    if (!canCreate) { setErrorMsg('Tu perfil no está autorizado para crear órdenes de compra.'); return; }
     const provSelected = proveedores.find(p => p.id === parseInt(ocProveedorId));
     if (!provSelected) {
       setErrorMsg("Debes seleccionar un proveedor.");
@@ -526,6 +543,7 @@ export default function Facturacion({ user, companyBranding, onBack }) {
   };
 
   const handleSaveRecepcion = async () => {
+    if (!canCreate) { setErrorMsg('Tu perfil no está autorizado para registrar recepciones.'); return; }
     if (!recepRecibidoPor.trim()) {
       alert("Por favor, ingresa el nombre de la persona que recibe.");
       return;
@@ -572,6 +590,7 @@ export default function Facturacion({ user, companyBranding, onBack }) {
   // ACCIONES: EMISIÓN DTE (VENTAS)
   // -------------------------------------------------------------
   const handleEmitirDTE = async () => {
+    if (!canSend) { setErrorMsg('Tu perfil no está autorizado para emitir documentos tributarios.'); return; }
     if (!dteReceptorRut.trim() || !dteReceptorNombre.trim()) {
       setErrorMsg("Ingresa los datos fiscales del receptor.");
       return;
@@ -753,6 +772,7 @@ ${detalleXml}  </Documento>
   // ACCIONES: INGRESO DE COMPRAS Y REGLAS DE RECHAZO AUTOMÁTICO
   // -------------------------------------------------------------
   const handleIngresarCompra = async () => {
+    if (!canCreate) { setErrorMsg('Tu perfil no está autorizado para ingresar compras.'); return; }
     const provSelected = proveedores.find(p => p.id === parseInt(compProveedorId));
     if (!compFolio || !provSelected || !compCentroGestion || !compSeccionId) {
       setErrorMsg("Completa los campos obligatorios del emisor.");
@@ -833,6 +853,7 @@ ${detalleXml}  </Documento>
   // ACCIONES: ACUSE / RECLAMO DE DTE ANTE EL SII (MANUAL)
   // -------------------------------------------------------------
   const handleAceptarDTEComercial = async (dteId) => {
+    if (!canReview) { setErrorMsg('Tu perfil no está autorizado para aceptar documentos.'); return; }
     try {
       const { error } = await supabase
         .from('facturacion_documentos')
@@ -851,6 +872,7 @@ ${detalleXml}  </Documento>
   };
 
   const handleConfirmRechazoDTE = async () => {
+    if (!canReview) { setErrorMsg('Tu perfil no está autorizado para rechazar documentos.'); return; }
     if (!reclamoMotivo.trim()) {
       alert("Por favor, ingresa el motivo del rechazo.");
       return;
@@ -875,6 +897,7 @@ ${detalleXml}  </Documento>
   // CONFIGURACIÓN DE REGLAS DE NEGOCIO EN BD
   // -------------------------------------------------------------
   const handleToggleRuleRechazo = async (checked) => {
+    if (!canConfigure) { setErrorMsg('Tu perfil no está autorizado para configurar reglas de rechazo.'); return; }
     try {
       const { error } = await supabase
         .from('facturacion_config')
@@ -890,6 +913,7 @@ ${detalleXml}  </Documento>
   // CONFIGURACIÓN DE REGISTRO SII Y CERTIFICADO
   // -------------------------------------------------------------
   const handleSaveConfigSii = async () => {
+    if (!canConfigure) { setErrorMsg('Tu perfil no está autorizado para configurar la integración SII.'); return; }
     setLoading(true);
     setErrorMsg('');
     setSuccessMsg('');
@@ -944,6 +968,7 @@ ${detalleXml}  </Documento>
   };
 
   const handleUploadCAF = async () => {
+    if (!canConfigure) { setErrorMsg('Tu perfil no está autorizado para cargar folios CAF.'); return; }
     const desdeNum = parseInt(cafDesde);
     const hastaNum = parseInt(cafHasta);
     if (isNaN(desdeNum) || isNaN(hastaNum) || desdeNum >= hastaNum) {
@@ -1028,6 +1053,8 @@ ${detalleXml}  </Documento>
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', minimumFractionDigits: 0 }).format(Math.round(val || 0));
   };
 
+  if (permissionsLoading) return <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">Cargando permisos…</div>;
+  if (!canView) return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center text-sm font-bold text-amber-900">Tu perfil no tiene permiso para ver Facturación.</div>;
   return (
     <ErrorBoundary>
       <div className="space-y-6">

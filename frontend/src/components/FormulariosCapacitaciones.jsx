@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import ModuleHeader from './ModuleHeader';
 import { generateFormPdf } from '../utils/pdfGenerator';
+import useUserPermissions from '../utils/useUserPermissions';
+import { can } from '../utils/permissionsCatalog';
 import { 
   ArrowLeft, ChevronRight, ClipboardCheck, Plus, FileText, CheckCircle2, AlertCircle, 
   HelpCircle, Trash2, Edit3, Share2, Download, Copy, Eye, BookOpen, 
@@ -9,6 +11,14 @@ import {
 } from 'lucide-react';
 
 export default function FormulariosCapacitaciones({ user, onBack, companyBranding }) {
+  const { permissions, loading: permissionsLoading } = useUserPermissions(user);
+  const canView = can(user, permissions, 'formularios.formularios.ver');
+  const canCreate = can(user, permissions, 'formularios.formularios.crear');
+  const canEdit = can(user, permissions, 'formularios.formularios.editar');
+  const canDelete = can(user, permissions, 'formularios.formularios.eliminar');
+  const canSend = can(user, permissions, 'formularios.formularios.enviar');
+  const canReview = can(user, permissions, 'formularios.formularios.revisar');
+  const canDownload = can(user, permissions, 'formularios.formularios.descargar');
   const [activeTab, setActiveTab] = useState('menu'); // menu, designer, forms_list, capacitaciones, respuestas
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -220,6 +230,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   };
 
   const installOperationalTemplates = async () => {
+    if (!canCreate) { setErrorMsg('Tu perfil no está autorizado para instalar plantillas.'); return; }
     const today = new Date().toISOString().slice(0, 10);
     const common = (codigo, modulo, titulo, descripcion, tipo_registro, items) => ({
       titulo, descripcion, categoria: modulo,
@@ -266,6 +277,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   // Guardar Formulario Dinámico
   const handleSaveForm = async (e) => {
     e.preventDefault();
+    if (editingForm ? !canEdit : !canCreate) { setErrorMsg('Tu perfil no está autorizado para guardar este formulario.'); return; }
     if (!formTitle.trim()) {
       setErrorMsg('Ingrese el título del formulario.');
       return;
@@ -327,6 +339,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   // Guardar Capacitación / Charla
   const handleSaveCapacitacion = async (e) => {
     e.preventDefault();
+    if (!canCreate) { setErrorMsg('Tu perfil no está autorizado para crear capacitaciones.'); return; }
     if (!capTitle.trim()) {
       setErrorMsg('Ingrese el título de la capacitación.');
       return;
@@ -375,6 +388,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   };
 
   const publishLocalForm = async (form) => {
+    if (!canSend) { setErrorMsg('Tu perfil no está autorizado para publicar formularios.'); return; }
     setLoading(true);
     try {
       const payload = {
@@ -394,6 +408,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   };
 
   const deleteForm = async (form) => {
+    if (!canDelete) { setErrorMsg('Tu perfil no está autorizado para eliminar formularios.'); return; }
     if (!window.confirm(`¿Eliminar el formulario "${form.titulo}"? Esta acción no elimina las respuestas ya registradas.`)) return;
     setLoading(true);
     try {
@@ -434,6 +449,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   };
 
   const reviewResponse = async (response) => {
+    if (!canReview) { setErrorMsg('Tu perfil no está autorizado para revisar respuestas.'); return; }
     setLoading(true);
     try {
       const resolved = await resolveResponseForm(response);
@@ -458,6 +474,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   };
 
   const downloadResponsePdf = async (response) => {
+    if (!canDownload) { setErrorMsg('Tu perfil no está autorizado para descargar respuestas.'); return; }
     const resolved = await resolveResponseForm(response);
     const form = responseForm(resolved);
     const base64 = generateFormPdf({ form, metadata: { proyecto_nombre: response.proyecto_nombre || '', inspector: response.inspector || '' }, answers: response.respuestas || {}, mainSignature: response.firma_url, companyLogo: companyBranding?.logo_base64 });
@@ -476,6 +493,8 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     return <p className="mt-1 text-sm text-slate-800 whitespace-pre-wrap">{Array.isArray(value) ? value.join(', ') : (typeof value === 'object' && value ? JSON.stringify(value) : (value || 'Sin respuesta'))}</p>;
   };
 
+  if (permissionsLoading) return <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">Cargando permisos…</div>;
+  if (!canView) return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center text-sm font-bold text-amber-900">Tu perfil no tiene permiso para ver Formularios y Capacitaciones.</div>;
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 p-4 sm:p-6 font-sans">
       {/* Header Estándar de Obraxis */}

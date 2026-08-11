@@ -4,6 +4,8 @@ import ModuleHeader from './ModuleHeader';
 import { sendSystemEmail } from '../utils/emailService';
 import { generateFormPdf } from '../utils/pdfGenerator';
 import { jsPDF } from 'jspdf';
+import useUserPermissions from '../utils/useUserPermissions';
+import { can } from '../utils/permissionsCatalog';
 import { 
   ArrowLeft, ShieldAlert, Plus, Save, Trash2, FileText, CheckCircle2, 
   ChevronUp, ChevronDown, GripVertical, 
@@ -14,6 +16,14 @@ import {
 } from 'lucide-react';
 
 export default function Prevencion({ user, onBack, companyBranding }) {
+  const { permissions, loading: permissionsLoading } = useUserPermissions(user);
+  const canView = can(user, permissions, 'prevencion.registros.ver');
+  const canCreate = can(user, permissions, 'prevencion.registros.crear');
+  const canEdit = can(user, permissions, 'prevencion.registros.editar');
+  const canDelete = can(user, permissions, 'prevencion.registros.eliminar');
+  const canReview = can(user, permissions, 'prevencion.registros.revisar');
+  const canDownload = can(user, permissions, 'prevencion.registros.descargar');
+  const canConfigure = can(user, permissions, 'prevencion.registros.configurar');
   // Apartado activo: '' (Menú), 'builder' (Creador), 'mis_formularios', 'completar', 'respuestas', 'capacitaciones', 'evaluaciones'
   const [activeSection, setActiveSection] = useState('');
 
@@ -278,6 +288,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
   };
 
   const handleDeleteRespuesta = async (respId) => {
+    if (!canDelete) { setErrorMsg('Tu perfil no está autorizado para eliminar registros.'); return; }
     if (!window.confirm('¿Está seguro de que desea eliminar este registro de inspección? Esta acción no se puede deshacer.')) {
       return;
     }
@@ -299,6 +310,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
   };
 
   const handleClearAllRespuestas = async () => {
+    if (!canDelete) { setErrorMsg('Tu perfil no está autorizado para eliminar registros.'); return; }
     if (!window.confirm('⚠️ ¿ATENCIÓN: Está seguro de que desea eliminar TODO el historial de inspecciones? Esta acción borrará permanentemente todos los registros.')) {
       return;
     }
@@ -318,6 +330,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
   };
 
   const handleDeleteIntentoEvaluacion = async (intentoId) => {
+    if (!canDelete) { setErrorMsg('Tu perfil no está autorizado para eliminar evaluaciones.'); return; }
     if (!window.confirm('¿Está seguro de que desea eliminar este registro de evaluación?')) {
       return;
     }
@@ -433,6 +446,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
   };
 
   const handleSaveScheduledConfig = async () => {
+    if (!canConfigure) { setErrorMsg('Tu perfil no está autorizado para configurar reportes.'); return; }
     setLoadingSchedule(true);
     try {
       const { data: existing } = await supabase
@@ -621,6 +635,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
     }
   };
   const handleSaveAsignacion = async () => {
+    if (!canCreate) { setErrorMsg('Tu perfil no está autorizado para crear asignaciones.'); return; }
     if (!asigTrabajadorRut || !asigTrabajadorNombre.trim() || !asigRegistroNombre.trim()) {
       setErrorMsg('Por favor complete todos los datos del trabajador y del registro operacional.');
       return;
@@ -659,6 +674,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
   };
 
   const handleDeleteAsignacion = async (id) => {
+    if (!canDelete) { setErrorMsg('Tu perfil no está autorizado para eliminar asignaciones.'); return; }
     if (!window.confirm('¿Está seguro de eliminar esta asignación de cumplimiento? Se borrará también su historial.')) return;
     setErrorMsg('');
     setSuccessMsg('');
@@ -677,6 +693,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
   };
 
   const handleSaveCumplimientoLog = async () => {
+    if (!(canCreate || canEdit)) { setErrorMsg('Tu perfil no está autorizado para registrar cumplimiento.'); return; }
     if (!selectedAsigForLog) return;
     setSavingForm(true);
     setErrorMsg('');
@@ -776,6 +793,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
   };
 
   const handleSaveCapacitacion = async () => {
+    if (capId ? !canEdit : !canCreate) { setErrorMsg('Tu perfil no está autorizado para guardar capacitaciones.'); return; }
     if (!capTitulo.trim()) {
       setErrorMsg('Por favor ingresa un título para la capacitación.');
       return;
@@ -825,6 +843,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
   };
 
   const handleDeleteCapacitacion = async (id) => {
+    if (!canDelete) { setErrorMsg('Tu perfil no está autorizado para eliminar capacitaciones.'); return; }
     if (!window.confirm('¿Está seguro de eliminar esta capacitación y todas sus evaluaciones registradas?')) return;
     try {
       const { error } = await supabase
@@ -841,6 +860,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
   };
 
   const handleSaveQuiz = async () => {
+    if (!canEdit) { setErrorMsg('Tu perfil no está autorizado para editar evaluaciones.'); return; }
     if (!selectedCapForQuiz) return;
     setSavingForm(true);
     setErrorMsg('');
@@ -1010,6 +1030,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
   };
 
   const handleSaveForm = async () => {
+    if (editingFormId ? !canEdit : !canCreate) { setErrorMsg('Tu perfil no está autorizado para guardar formularios preventivos.'); return; }
     if (!formMeta.titulo.trim()) {
       alert('Por favor, ingresa un título para el formulario.');
       return;
@@ -1189,6 +1210,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
 
   const handleSubmitFill = async (e) => {
     e.preventDefault();
+    if (!canCreate) { setErrorMsg('Tu perfil no está autorizado para emitir registros preventivos.'); return; }
     if (!selectedFormToFill) return;
 
     setSubmittingFill(true);
@@ -1376,6 +1398,8 @@ export default function Prevencion({ user, onBack, companyBranding }) {
     }
   };
 
+  if (permissionsLoading) return <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">Cargando permisos…</div>;
+  if (!canView) return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center text-sm font-bold text-amber-900">Tu perfil no tiene permiso para ver Prevención de Riesgos.</div>;
   return (
     <div className="space-y-6 font-sans">
 

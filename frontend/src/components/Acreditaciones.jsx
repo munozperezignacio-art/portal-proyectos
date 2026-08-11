@@ -3,6 +3,8 @@ import { supabase } from '../supabaseClient';
 import ModuleHeader from './ModuleHeader';
 import { formatRut } from '../utils/rutUtils';
 import { sendSystemEmail } from '../utils/emailService';
+import useUserPermissions from '../utils/useUserPermissions';
+import { can } from '../utils/permissionsCatalog';
 import { 
   ArrowLeft, PackageCheck, Store, ShieldCheck, Plus, Send, CheckCircle2, AlertCircle, FileText, 
   Trash2, Eye, Download, Copy, ExternalLink, Building2, User, Truck, Pencil, Archive, RotateCcw,
@@ -10,6 +12,15 @@ import {
 } from 'lucide-react';
 
 export default function Acreditaciones({ user, onBack, companyBranding }) {
+  const { permissions, loading: permissionsLoading } = useUserPermissions(user);
+  const canView = can(user, permissions, 'acreditaciones.subcontratos.ver');
+  const canCreate = can(user, permissions, 'acreditaciones.subcontratos.crear');
+  const canEdit = can(user, permissions, 'acreditaciones.subcontratos.editar');
+  const canDelete = can(user, permissions, 'acreditaciones.subcontratos.eliminar');
+  const canSend = can(user, permissions, 'acreditaciones.subcontratos.enviar');
+  const canReview = can(user, permissions, 'acreditaciones.subcontratos.revisar');
+  const canApprove = can(user, permissions, 'acreditaciones.subcontratos.aprobar');
+  const canConfigure = can(user, permissions, 'acreditaciones.subcontratos.configurar');
   // Apartado activo del módulo: '' (Menú Principal), 'acreditarme', 'subcontratos', 'config_docs'
   const [activeSection, setActiveSection] = useState('');
 
@@ -154,6 +165,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
   };
 
   const saveMandatoryDocsConfig = async (compDocs, workDocs, eqDocs, supDocs = mandatorySupplierDocs) => {
+    if (!canConfigure) { setErrorMsg('Tu perfil no está autorizado para configurar documentos obligatorios.'); return; }
     localStorage.setItem('obraxis_mandatory_company_docs', JSON.stringify(compDocs));
     localStorage.setItem('obraxis_mandatory_worker_docs', JSON.stringify(workDocs));
     localStorage.setItem('obraxis_mandatory_equipo_docs', JSON.stringify(eqDocs));
@@ -239,6 +251,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
 
   const handleCreateProveedor = async (e) => {
     e.preventDefault();
+    if (!canCreate) { setErrorMsg('Tu perfil no está autorizado para crear proveedores.'); return; }
     if (!provForm.empresa_nombre) {
       alert('Ingrese el Nombre de la Empresa Proveedora.');
       return;
@@ -481,6 +494,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
 
   const handleSendAcreditacion = async (e) => {
     e.preventDefault();
+    if (!canSend) { setErrorMsg('Tu perfil no está autorizado para enviar acreditaciones.'); return; }
     if (!selectedObra) {
       alert('Por favor seleccione una Obra / Proyecto.');
       return;
@@ -586,6 +600,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
   // Lógica Subcontratos
   const handleCreateSubcontrato = async (e) => {
     e.preventDefault();
+    if (!canCreate) { setErrorMsg('Tu perfil no está autorizado para crear subcontratos.'); return; }
     if (!subForm.empresa_nombre) {
       alert('Ingrese el Nombre de la Empresa Subcontratista.');
       return;
@@ -694,6 +709,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
   };
 
   const crearColaboracionObra = async (subItem) => {
+    if (!canSend) { setErrorMsg('Tu perfil no está autorizado para enviar invitaciones de colaboración.'); return; }
     const empresaContratista = user?.empresa || companyBranding?.empresa;
     if (!empresaContratista) return { success: false, error: 'No se identificó la empresa contratista activa.' };
 
@@ -740,6 +756,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
   };
 
   const responderColaboracionObra = async (collaboration, estado) => {
+    if (!canApprove) { setErrorMsg('Tu perfil no está autorizado para aprobar o rechazar colaboraciones.'); return; }
     try {
       const { data, error } = await supabase
         .from('colaboraciones_obra')
@@ -793,6 +810,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
 
   const handleSaveSubcontractEdit = async (event) => {
     event.preventDefault();
+    if (!canEdit) { setErrorMsg('Tu perfil no está autorizado para editar subcontratos.'); return; }
     if (!editingSub?.empresa_nombre?.trim() || !editingSub?.correo_contacto?.trim()) return;
     const updatedSub = {
       ...editingSub,
@@ -828,6 +846,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
   };
 
   const handleArchiveSubcontract = async (subItem, archived) => {
+    if (!canEdit) { setErrorMsg('Tu perfil no está autorizado para archivar o reactivar subcontratos.'); return; }
     const action = archived ? 'archivar' : 'reactivar';
     if (!window.confirm(`¿Deseas ${action} a ${subItem.empresa_nombre}?`)) return;
     const updatedSub = { ...subItem, estado: archived ? 'Archivado' : 'Pendiente', updated_at: new Date().toISOString() };
@@ -845,6 +864,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
   };
 
   const handleDeleteSubcontract = async (subItem) => {
+    if (!canDelete) { setErrorMsg('Tu perfil no está autorizado para eliminar subcontratos.'); return; }
     if (!window.confirm(`¿Eliminar definitivamente a ${subItem.empresa_nombre}? Esta acción también eliminará sus respaldos locales.`)) return;
     try {
       if (subItem.id) {
@@ -974,6 +994,8 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     }
   };
 
+  if (permissionsLoading) return <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">Cargando permisos…</div>;
+  if (!canView) return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center text-sm font-bold text-amber-900">Tu perfil no tiene permiso para ver Acreditaciones.</div>;
   return (
     <div className="space-y-6 font-sans">
       {/* 1. CABECERA PRINCIPAL */}
