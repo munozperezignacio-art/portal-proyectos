@@ -91,7 +91,7 @@ function ConfigCorreos({ user, onBack }) {
   const [roleToConfigure, setRoleToConfigure] = useState('');
   const [roleFormData, setRoleFormData] = useState({
     nombre: '',
-    rol_base: 'Inspector',
+    rol_base: 'Personalizado',
     descripcion: '',
     empresa: ''
   });
@@ -278,7 +278,7 @@ function ConfigCorreos({ user, onBack }) {
     const defaultEmpresa = user?.empresa || 'Obraxis';
     setRoleFormData({
       nombre: '',
-      rol_base: 'Inspector',
+      rol_base: 'Personalizado',
       descripcion: '',
       empresa: defaultEmpresa
     });
@@ -291,7 +291,7 @@ function ConfigCorreos({ user, onBack }) {
     setRoleEditing(role);
     setRoleFormData({
       nombre: role.nombre,
-      rol_base: role.rol_base || 'Inspector',
+      rol_base: 'Personalizado',
       descripcion: role.descripcion || '',
       empresa: role.empresa
     });
@@ -308,7 +308,7 @@ function ConfigCorreos({ user, onBack }) {
 
     const dataToSave = {
       nombre: roleFormData.nombre.trim(),
-      rol_base: roleFormData.rol_base,
+      rol_base: 'Personalizado',
       descripcion: roleFormData.descripcion.trim(),
       empresa: roleFormData.empresa
     };
@@ -384,7 +384,7 @@ function ConfigCorreos({ user, onBack }) {
         nombre: copyName,
         descripcion: role.descripcion || '',
         empresa: role.empresa,
-        rol_base: role.rol_base || 'Inspector',
+        rol_base: 'Personalizado',
         modulos: '',
         submenus: '',
         permisos: role.permisos || {},
@@ -484,9 +484,7 @@ function ConfigCorreos({ user, onBack }) {
     setErrorMsg('');
 
     const selectedRole = rolesList.find(r => r.nombre === userFormData.rol);
-    const rolBase = selectedRole 
-      ? selectedRole.rol_base 
-      : (['superusuario', 'administrador', 'inspector'].includes(userFormData.rol.toLowerCase()) ? userFormData.rol : 'Inspector');
+    const rolBase = selectedRole ? 'Personalizado' : (userFormData.rol_base || 'Personalizado');
 
     const dataToSave = {
       usuario: userFormData.usuario.trim(),
@@ -1895,13 +1893,8 @@ function ConfigCorreos({ user, onBack }) {
                   onChange={handleUserRoleChange}
                   className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none bg-white cursor-pointer"
                 >
-                  <optgroup label="Roles Base del Sistema">
-                    <option value="Inspector">Inspector (Básico)</option>
-                    <option value="Administrador">Administrador (Intermedio)</option>
-                    <option value="Superusuario">Superusuario (Total)</option>
-                  </optgroup>
                   {rolesList.filter(r => r.empresa === userFormData.empresa && !r.archivado).length > 0 && (
-                    <optgroup label="Roles Personalizados">
+                    <optgroup label="Roles de la empresa">
                       {rolesList.filter(r => r.empresa === userFormData.empresa && !r.archivado).map(r => (
                         <option key={r.id} value={r.nombre}>{r.nombre}</option>
                       ))}

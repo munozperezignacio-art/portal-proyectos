@@ -49,7 +49,7 @@ export default function PermissionsGovernancePanel({ user, initialRoleId = '' })
   useEffect(() => { if (selected) setPermissions(selected.permisos || {}); }, [selected?.id]);
 
   const effectiveUser = subjectType === 'rol'
-    ? { empresa: user.empresa, rol: selected?.nombre, rol_base: selected?.rol_base }
+    ? { empresa: user.empresa, rol: selected?.nombre }
     : selected;
   const checked = key => Object.prototype.hasOwnProperty.call(permissions, key) ? Boolean(permissions[key]) : defaultPermission(effectiveUser, key);
   const toggle = key => setPermissions(current => ({ ...current, [key]: !checked(key) }));
@@ -88,7 +88,7 @@ export default function PermissionsGovernancePanel({ user, initialRoleId = '' })
           <button type="button" onClick={() => setSubjectType('usuario')} className={`flex items-center justify-center gap-1 rounded-lg px-3 py-2 text-xs font-black ${subjectType === 'usuario' ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500'}`}><UserCog className="h-3.5 w-3.5" />Usuarios</button>
         </div>
         <select value={subjectId} onChange={event => setSubjectId(event.target.value)} disabled={loading} className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-800">
-          {subjects.map(item => <option key={item.id} value={item.id}>{subjectType === 'rol' ? `${item.nombre} · ${item.rol_base}` : `${item.nombre || item.usuario} · ${item.rol || item.rol_base}`}</option>)}
+          {subjects.map(item => <option key={item.id} value={item.id}>{subjectType === 'rol' ? item.nombre : `${item.nombre || item.usuario} · ${item.rol || 'Sin rol asignado'}`}</option>)}
         </select>
       </div>
     </div>
