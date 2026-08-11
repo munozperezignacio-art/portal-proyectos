@@ -499,13 +499,13 @@ function ConfigCorreos({ user, onBack }) {
       nombre: userFormData.nombre.trim(),
       correo: userFormData.correo.trim(),
       cargo: userFormData.cargo.trim(),
-      contrasena: userFormData.contrasena.trim(),
       empresa: userFormData.empresa,
       rol: userFormData.rol,
       rol_base: rolBase,
       modulos: userFormData.modulos.join(','),
       submenus: (userFormData.submenus || []).join(',')
     };
+    if (!userEditing || userFormData.contrasena.trim()) dataToSave.contrasena = userFormData.contrasena.trim();
 
     try {
       if (userEditing) {
@@ -520,7 +520,7 @@ function ConfigCorreos({ user, onBack }) {
           .from('usuarios')
           .insert([dataToSave]);
         if (error) throw error;
-        setSuccessMsg('Usuario creado correctamente.');
+        setSuccessMsg('Usuario e identidad segura creados correctamente.');
 
         // Enviar correo de bienvenida si se registró un correo
         if (dataToSave.correo) {
@@ -1933,13 +1933,13 @@ function ConfigCorreos({ user, onBack }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Contraseña</label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">{userEditing ? 'Nueva contraseña (opcional)' : 'Contraseña inicial'}</label>
                   <input
                     type="text"
-                    required
+                    required={!userEditing}
                     value={userFormData.contrasena}
                     onChange={(e) => setUserFormData({ ...userFormData, contrasena: e.target.value })}
-                    placeholder="Contraseña"
+                    placeholder={userEditing ? 'Dejar vacío para conservarla' : 'Contraseña inicial'}
                     className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
                   />
                 </div>

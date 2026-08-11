@@ -6,6 +6,7 @@ import {
   FileSpreadsheet, Upload, CalendarDays, Hammer, ChevronLeft, ChevronRight, Search, Star
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
+import { getAuthenticatedProfile } from './utils/auth';
 
 // Cada módulo operativo se descarga solo cuando el usuario lo abre. Esto acelera el ingreso al portal y al dashboard.
 // Si Vercel publica una versión nueva mientras el portal está abierto, los archivos con hash de la versión anterior pueden dejar de existir.
@@ -88,6 +89,7 @@ const defaultCovers = [
 
 function App() {
   const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [selectedCompanyOverride, setSelectedCompanyOverride] = useState(null);
   const [empresasList, setEmpresasList] = useState([]);
   const [path, setPath] = useState(window.location.pathname);
@@ -139,28 +141,40 @@ function App() {
   });
   const [moduleSearch, setModuleSearch] = useState('');
 
-  // Cargar sesión del usuario desde localStorage al iniciar
+  // Restaurar y validar la sesión administrada por Supabase Auth.
   useEffect(() => {
-    const savedUser = localStorage.getItem('obraxis_user');
-    const loginTimeStr = localStorage.getItem('obraxis_user_login_time');
-    if (savedUser && loginTimeStr) {
+    let active = true;
+
+    const clearLocalUser = () => {
+      localStorage.removeItem('obraxis_user');
+      localStorage.removeItem('obraxis_user_login_time');
+      if (active) setUser(null);
+    };
+
+    const restoreSession = async () => {
       try {
-        const loginTime = parseInt(loginTimeStr, 10);
-        const elapsed = Date.now() - loginTime;
-        const fiveHoursMs = 5 * 60 * 60 * 1000;
-        if (elapsed > fiveHoursMs) {
-          // Expirado
-          localStorage.removeItem('obraxis_user');
-          localStorage.removeItem('obraxis_user_login_time');
-          setUser(null);
-        } else {
-          setUser(JSON.parse(savedUser));
-        }
-      } catch (e) {
-        localStorage.removeItem('obraxis_user');
-        localStorage.removeItem('obraxis_user_login_time');
+        // getUser validates the token with Supabase Auth before protected UI is shown.
+        const { data, error } = await supabase.auth.getUser();
+        if (error || !data.user) return clearLocalUser();
+        const profile = await getAuthenticatedProfile(data.user);
+        if (active) setUser(profile);
+      } catch (error) {
+        console.error('No se pudo restaurar la sesión:', error);
+        clearLocalUser();
+      } finally {
+        if (active) setAuthLoading(false);
       }
-    }
+    };
+
+    restoreSession();
+    const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') clearLocalUser();
+    });
+
+    return () => {
+      active = false;
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   // Intervalo de auto-cierre de sesión tras 5 horas
@@ -172,11 +186,13 @@ function App() {
         const elapsed = Date.now() - loginTime;
         const fiveHoursMs = 5 * 60 * 60 * 1000;
         if (elapsed > fiveHoursMs) {
-          setUser(null);
-          localStorage.removeItem('obraxis_user');
-          localStorage.removeItem('obraxis_user_login_time');
-          navigateTo('/login');
-          alert('Su sesión ha expirado tras 5 horas de permanencia. Por favor inicie sesión nuevamente.');
+          supabase.auth.signOut().finally(() => {
+            setUser(null);
+            localStorage.removeItem('obraxis_user');
+            localStorage.removeItem('obraxis_user_login_time');
+            navigateTo('/login');
+            alert('Su sesión ha expirado tras 5 horas de permanencia. Por favor inicie sesión nuevamente.');
+          });
         }
       }
     }, 60000); // chequeo cada 1 minuto
@@ -299,7 +315,8 @@ function App() {
     navigateTo('/dashboard');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
     localStorage.removeItem('obraxis_user');
     localStorage.removeItem('obraxis_user_login_time');
@@ -350,6 +367,8 @@ function App() {
   // --- CONTROL DE RUTAS OFICIAL OBRAXIS ---
   const rawPath = (path || '').toLowerCase();
   const normalizedPath = rawPath.endsWith('/') && rawPath.length > 1 ? rawPath.slice(0, -1) : rawPath;
+
+  if (authLoading) return <ModuleLoader />;
 
   // 1. Ruta /login -> Inicio de Sesión y Marcación QR
   if (normalizedPath === '/login') {

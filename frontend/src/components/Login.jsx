@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { Eye, EyeOff, Lock, Building2, User, AlertCircle, Loader2, QrCode, Navigation, RotateCcw, CheckCircle2, AlertTriangle, Search, Mail, KeyRound } from 'lucide-react';
 import { sendSystemEmail } from '../utils/emailService';
+import { getAuthenticatedProfile } from '../utils/auth';
 
 function Login({ onLoginSuccess, onBackHome }) {
   const [username, setUsername] = useState('');
@@ -357,26 +358,20 @@ function Login({ onLoginSuccess, onBackHome }) {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase
-        .from('usuarios')
-        .select('*')
-        .ilike('usuario', username.trim())
-        .ilike('empresa', company.trim())
-        .eq('contrasena', password.trim())
-        .maybeSingle();
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: username.trim().toLowerCase(),
+        password
+      });
 
-      if (error) {
-        throw new Error('Error al conectar con la base de datos: ' + error.message);
+      if (error) throw new Error('Correo o contraseña incorrectos.');
+
+      try {
+        const profile = await getAuthenticatedProfile(data.user, company);
+        onLoginSuccess(profile);
+      } catch (profileError) {
+        await supabase.auth.signOut();
+        throw profileError;
       }
-
-      if (!data) {
-        setError('Credenciales incorrectas o empresa no registrada.');
-        setLoading(false);
-        return;
-      }
-
-      // Login exitoso, guardamos el usuario en local y notificamos a App.jsx
-      onLoginSuccess(data);
     } catch (err) {
       setError(err.message || 'Ocurrió un error inesperado al intentar iniciar sesión.');
     } finally {
@@ -468,21 +463,21 @@ function Login({ onLoginSuccess, onBackHome }) {
         {/* Formulario */}
         <form onSubmit={handleLogin} className="space-y-4">
           
-          {/* Usuario */}
+          {/* Correo */}
           <div>
             <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-              Usuario
+              Correo electrónico
             </label>
             <div className="relative">
               <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
                 <User className="w-4 h-4" />
               </span>
               <input
-                type="text"
+                type="email"
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="Ingresa tu usuario"
+                placeholder="nombre@empresa.cl"
                 className="pl-9 text-slate-800 font-medium w-full px-3 py-2.5 border rounded-lg border-slate-200 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition text-sm bg-slate-50"
               />
             </div>
