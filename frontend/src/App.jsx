@@ -36,6 +36,7 @@ const PresupuestosPlanif = lazyWithRetry(() => import('./components/Presupuestos
 const Prevencion = lazyWithRetry(() => import('./components/Prevencion'), 'prevencion');
 const CalidadObras = lazyWithRetry(() => import('./components/CalidadObras'), 'calidad');
 const Facturacion = lazyWithRetry(() => import('./components/Facturacion'), 'facturacion');
+const BodegaEmpresa = lazyWithRetry(() => import('./components/BodegaEmpresa'), 'bodega');
 const Acreditaciones = lazyWithRetry(() => import('./components/Acreditaciones'), 'acreditaciones');
 const FormulariosCapacitaciones = lazyWithRetry(() => import('./components/FormulariosCapacitaciones'), 'formularios');
 const PublicFormFiller = lazyWithRetry(() => import('./components/PublicFormFiller'), 'formulario-publico');
@@ -900,6 +901,14 @@ function App() {
                 setSelectedObraName(null);
                 setCurrentModule('dashboard');
               }} 
+            />
+          ) : currentModule === 'bodega' ? (
+            <BodegaEmpresa
+              user={activeUserContext}
+              onBack={() => {
+                setSelectedObraName(null);
+                setCurrentModule('dashboard');
+              }}
             />
           ) : (
             /* Fallback */
