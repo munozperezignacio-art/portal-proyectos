@@ -18,14 +18,15 @@ begin
     if linked_id is null then
       if profile.contrasena is null or btrim(profile.contrasena)='' then raise exception 'El perfil % no tiene contraseña', profile.id; end if;
       linked_id := gen_random_uuid();
-      insert into auth.users (instance_id,id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,is_super_admin,created_at,updated_at,confirmation_token,recovery_token,email_change_token_new,email_change_token_current,reauthentication_token,is_sso_user,is_anonymous)
-      values ('00000000-0000-0000-0000-000000000000',linked_id,'authenticated','authenticated',lower(btrim(profile.correo)),crypt(profile.contrasena,gen_salt('bf')),now(),jsonb_build_object('provider','email','providers',array['email']),jsonb_build_object('nombre',profile.nombre),false,now(),now(),'','','','','',false,false);
+      insert into auth.users (instance_id,id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,is_super_admin,created_at,updated_at,confirmation_token,recovery_token,email_change_token_new,email_change,email_change_token_current,reauthentication_token,is_sso_user,is_anonymous)
+      values ('00000000-0000-0000-0000-000000000000',linked_id,'authenticated','authenticated',lower(btrim(profile.correo)),crypt(profile.contrasena,gen_salt('bf')),now(),jsonb_build_object('provider','email','providers',array['email']),jsonb_build_object('nombre',profile.nombre),false,now(),now(),'','','','','','',false,false);
       insert into auth.identities (id,provider_id,user_id,identity_data,provider,last_sign_in_at,created_at,updated_at)
       values (gen_random_uuid(),lower(btrim(profile.correo)),linked_id,jsonb_build_object('sub',linked_id::text,'email',lower(btrim(profile.correo)),'email_verified',true,'phone_verified',false),'email',now(),now(),now());
     end if;
     update public.usuarios set auth_user_id=linked_id where id=profile.id;
   end loop;
   update public.usuarios set contrasena=null;
+  update auth.users set email_change='' where email_change is null;
 end $$;
 
 create or replace function private.obraxis_actor_can_access_company(target_company text) returns boolean language sql stable security definer set search_path=public,auth as $$
@@ -49,8 +50,8 @@ begin
   if linked_id is null then
     if new.contrasena is null or btrim(new.contrasena)='' then raise exception 'La contraseña inicial es obligatoria'; end if;
     linked_id:=gen_random_uuid();
-    insert into auth.users (instance_id,id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,is_super_admin,created_at,updated_at,confirmation_token,recovery_token,email_change_token_new,email_change_token_current,reauthentication_token,is_sso_user,is_anonymous)
-    values ('00000000-0000-0000-0000-000000000000',linked_id,'authenticated','authenticated',clean_email,crypt(new.contrasena,gen_salt('bf')),now(),jsonb_build_object('provider','email','providers',array['email']),jsonb_build_object('nombre',new.nombre),false,now(),now(),'','','','','',false,false);
+    insert into auth.users (instance_id,id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,is_super_admin,created_at,updated_at,confirmation_token,recovery_token,email_change_token_new,email_change,email_change_token_current,reauthentication_token,is_sso_user,is_anonymous)
+    values ('00000000-0000-0000-0000-000000000000',linked_id,'authenticated','authenticated',clean_email,crypt(new.contrasena,gen_salt('bf')),now(),jsonb_build_object('provider','email','providers',array['email']),jsonb_build_object('nombre',new.nombre),false,now(),now(),'','','','','','',false,false);
     insert into auth.identities (id,provider_id,user_id,identity_data,provider,last_sign_in_at,created_at,updated_at)
     values (gen_random_uuid(),clean_email,linked_id,jsonb_build_object('sub',linked_id::text,'email',clean_email,'email_verified',true,'phone_verified',false),'email',now(),now(),now());
   else
