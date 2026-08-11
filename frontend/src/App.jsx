@@ -35,7 +35,7 @@ const ConfigCorreos = lazyWithRetry(() => import('./components/ConfigCorreos'), 
 const PresupuestosPlanif = lazyWithRetry(() => import('./components/PresupuestosPlanif'), 'presupuestos');
 const Prevencion = lazyWithRetry(() => import('./components/Prevencion'), 'prevencion');
 const CalidadObras = lazyWithRetry(() => import('./components/CalidadObras'), 'calidad');
-const Facturacion = lazyWithRetry(() => import('./components/Facturacion'), 'facturacion');
+const Facturacion = lazyWithRetry(() => import('./components/FacturacionV2'), 'facturacion');
 const BodegaEmpresa = lazyWithRetry(() => import('./components/BodegaEmpresa'), 'bodega');
 const RendicionGastos = lazyWithRetry(() => import('./components/RendicionGastos'), 'gastos');
 const Acreditaciones = lazyWithRetry(() => import('./components/Acreditaciones'), 'acreditaciones');
