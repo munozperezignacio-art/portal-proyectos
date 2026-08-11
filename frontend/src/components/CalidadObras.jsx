@@ -5,6 +5,8 @@ import { registrarEventoBitacora } from '../utils/bitacoraService';
 import { appendAudit, auditActor } from '../utils/documentAudit';
 import DocumentAuditTrail from './DocumentAuditTrail';
 import ModuleHeader from './ModuleHeader';
+import useUserPermissions from '../utils/useUserPermissions';
+import { can } from '../utils/permissionsCatalog';
 
 const initialPac = { partida: '', procedimiento: '', criterios: '', puntos_inspeccion: '', puntos_espera: '', responsable: '' };
 const initialRdi = { partida: '', pac_id: '', sector: '', cantidad: '', unidad: '', solicitado_por: '', inspector: '', observaciones: '' };
@@ -56,8 +58,15 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
   const [rdiForm, setRdiForm] = useState(initialRdi);
   const [ncForm, setNcForm] = useState(initialNc);
   const [receptionForm, setReceptionForm] = useState(initialReception);
+  const { permissions, loading: permissionsLoading } = useUserPermissions(user);
 
   const empresa = user?.empresa || null;
+  const canView = can(user, permissions, 'obras.calidad.ver');
+  const canCreate = can(user, permissions, 'obras.calidad.crear');
+  const canEdit = can(user, permissions, 'obras.calidad.editar');
+  const canSend = can(user, permissions, 'obras.calidad.enviar');
+  const canReview = can(user, permissions, 'obras.calidad.revisar');
+  const canApprove = can(user, permissions, 'obras.calidad.aprobar');
   const partidasEjecutables = useMemo(() => partidas.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo)), [partidas]);
   const pacPorPartida = useMemo(() => new Map(pacs.map(p => [p.partida, p])), [pacs]);
   const controlsByReception = useMemo(() => receptionControls.reduce((result, control) => {
@@ -114,6 +123,7 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
 
   const savePac = async (e) => {
     e.preventDefault();
+    if (!canCreate) { setMessage('Tu perfil no está autorizado para crear PAC.'); return; }
     try {
       const { error } = await supabase.from('calidad_pac').insert({ empresa, obra_nombre: obraNombre, ...pacForm, estado: 'Activo' });
       if (error) throw error;
@@ -123,6 +133,7 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
   };
   const saveRdi = async (e) => {
     e.preventDefault();
+    if (!(canCreate && canSend)) { setMessage('Tu perfil no está autorizado para crear y enviar solicitudes RDI.'); return; }
     try {
       const codigo = `RDI-${new Date().getFullYear()}-${String(rdis.length + 1).padStart(3, '0')}`;
       const { error } = await supabase.from('calidad_rdi').insert({ empresa, obra_nombre: obraNombre, ...rdiForm, codigo, estado: 'Enviada', fecha_solicitud: new Date().toISOString().slice(0, 10), trazabilidad: [auditActor(user, 'Solicitud RDI emitida', 'Enviada', `${rdiForm.partida} · ${rdiForm.sector}`)] });
@@ -133,6 +144,7 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
   };
   const saveNc = async (e) => {
     e.preventDefault();
+    if (!canCreate) { setMessage('Tu perfil no está autorizado para registrar no conformidades.'); return; }
     try {
       const codigo = `NC-${new Date().getFullYear()}-${String(ncs.length + 1).padStart(3, '0')}`;
       const { error } = await supabase.from('calidad_no_conformidades').insert({ empresa, obra_nombre: obraNombre, ...ncForm, codigo, estado: 'Abierta' });
@@ -143,6 +155,7 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
   };
   const saveReception = async (e) => {
     e.preventDefault();
+    if (!canCreate) { setMessage('Tu perfil no está autorizado para entregar partidas a recepción.'); return; }
     try {
       const codigo = `REC-${new Date().getFullYear()}-${String(recepciones.length + 1).padStart(3, '0')}`;
       const { controles_manual, ...receptionPayload } = receptionForm;
@@ -162,6 +175,11 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
     } catch (error) { setMessage(`No se pudo registrar la recepción: ${error.message}`); }
   };
   const updateStatus = async (table, id, estado) => {
+    const approvalStates = ['Aprobada', 'Cerrada', 'Verificada'];
+    if (approvalStates.includes(estado) ? !canApprove : !(canReview || canEdit)) {
+      setMessage('Tu perfil no está autorizado para cambiar este estado de calidad.');
+      return;
+    }
     try {
       const extra = table === 'calidad_no_conformidades' && estado === 'Cerrada' ? { fecha_cierre: new Date().toISOString().slice(0, 10) } : {};
       const record = table === 'calidad_rdi' ? rdis.find(item => item.id === id) : ncs.find(item => item.id === id);
@@ -172,6 +190,7 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
     } catch (error) { setMessage(`No se pudo actualizar: ${error.message}`); }
   };
   const updateReceptionControl = async (control, changes) => {
+    if (!canReview) { setMessage('Tu perfil no está autorizado para revisar protocolos de recepción.'); return; }
     try {
       const reviewer = user?.nombre || user?.email || 'Usuario autorizado';
       const nextControl = { ...control, ...changes };
@@ -188,9 +207,13 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
   };
   const input = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 focus:border-blue-600 focus:outline-none';
 
+  if (permissionsLoading) return <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">Cargando permisos…</div>;
+  if (!canView) return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center text-sm font-bold text-amber-900">Tu perfil no tiene permiso para ver Calidad de Obra.</div>;
+
   return <div className="space-y-5">
     <ModuleHeader title={embedded ? `Calidad · ${obraInicial}` : 'Control Corporativo de Calidad'} subtitle="PAC, solicitudes RDI, recepción de partidas y no conformidades con trazabilidad." Icon={ShieldCheck} onBack={onBack} actions={<>{!embedded && <select value={obraNombre} onChange={e => setObraNombre(e.target.value)} className="min-w-52 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold"><option value="">Selecciona una obra</option>{obras.map(o => <option key={o.nombre} value={o.nombre}>{o.nombre}</option>)}</select>}<button onClick={load} className="flex items-center gap-1 rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"><RefreshCw className="h-3.5 w-3.5" />Actualizar</button></>} />
     {message && <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-900">{message}</div>}
+    {!canCreate && <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-600">Acceso de consulta. La creación de PAC, RDI, recepciones y no conformidades está restringida por tu rol.</div>}
     {(clientName || clientEmail || clientPhone) && <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-950"><Mail className="h-3.5 w-3.5" /><span className="font-black">Mandante / inspección:</span><span>{clientName || 'Sin nombre'}{clientEmail ? ` · ${clientEmail}` : ''}{clientPhone ? ` · ${clientPhone}` : ''}</span></div>}
     <div className="flex flex-wrap gap-2 rounded-xl bg-slate-100 p-1.5">{[['resumen','Resumen'],['pac','PAC por partida'],['rdi','Solicitudes RDI'],['recepciones','Entrega y recepción'],['nc','No conformidades']].map(([id,label]) => <button key={id} onClick={() => setTab(id)} className={`rounded-lg px-3 py-2 text-xs font-bold ${tab === id ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-600'}`}>{label}</button>)}</div>
     {!obraNombre ? <div className="rounded-2xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500">Selecciona una obra para comenzar su control de calidad.</div> : loading ? <div className="p-10 text-center text-sm text-slate-500">Cargando calidad de obra…</div> : <>

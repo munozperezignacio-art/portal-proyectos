@@ -18,6 +18,8 @@ import FlujoCajaObra from './FlujoCajaObra';
 import { registrarEventoBitacora } from '../utils/bitacoraService';
 import FormAnswerDisplay from './FormAnswerDisplay';
 import { generateFormPdf } from '../utils/pdfGenerator';
+import useUserPermissions from '../utils/useUserPermissions';
+import { can } from '../utils/permissionsCatalog';
 
 const defaultCovers = [
   "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=600&q=80",
@@ -226,6 +228,12 @@ function ObraGpsMapPicker({ lat, lng, radius, onChange, canEdit }) {
 }
 
 function Obras({ user, onBack, initialObraName, companyBranding }) {
+  const { permissions: userPermissions } = useUserPermissions(user);
+  const canPrevView = can(user, userPermissions, 'obras.prevencion.ver');
+  const canPrevCreate = can(user, userPermissions, 'obras.prevencion.crear');
+  const canPrevEdit = can(user, userPermissions, 'obras.prevencion.editar');
+  const canPrevReview = can(user, userPermissions, 'obras.prevencion.revisar');
+  const canPrevDownload = can(user, userPermissions, 'obras.prevencion.descargar');
   const rBase = (user?.rol_base || user?.rol || 'Inspector').toLowerCase();
   const canEditGPS = ['admin', 'administrador', 'superadmin', 'superusuario', 'gerencia', 'jefe', 'supervisor'].some(r => rBase.includes(r));
 
@@ -1215,6 +1223,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   };
 
   const openAssignedPrevencionForm = (form) => {
+    if (!canPrevCreate) {
+      setErrorMsg('Tu perfil no está autorizado para realizar registros de prevención.');
+      return;
+    }
     const formToken = form.token_publico || form.publico_token || form.id;
     if (!formToken) return;
     const obraParam = encodeURIComponent(selectedObra?.nombre || '');
@@ -1234,6 +1246,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   };
 
   const openIncidentFollowUp = (response) => {
+    if (!(canPrevReview || canPrevEdit)) {
+      setErrorMsg('Tu perfil no está autorizado para gestionar incidentes o accidentes.');
+      return;
+    }
     const followUp = response.respuestas?.__seguimiento_accidente || {};
     setSelectedPrevencionResponse(response);
     setIncidentFollowUpForm({
@@ -1255,6 +1271,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
   const saveIncidentFollowUp = async (event) => {
     event.preventDefault();
+    if (!(canPrevReview || canPrevEdit)) {
+      setErrorMsg('Tu perfil no está autorizado para guardar seguimientos de prevención.');
+      return;
+    }
     if (!selectedPrevencionResponse?.id) return;
     const nextAnswers = {
       ...(selectedPrevencionResponse.respuestas || {}),
@@ -1277,6 +1297,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   };
 
   const downloadPrevencionResponsePdf = (response) => {
+    if (!canPrevDownload) {
+      setErrorMsg('Tu perfil no está autorizado para descargar registros de prevención.');
+      return;
+    }
     const form = response?.formulario;
     if (!form) return;
     const normalizedForm = { ...form, campos: getPrevencionFormFields(form) };
@@ -5714,7 +5738,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           )}
 
           {/* VISTA DEDICADA 10: PREVENCIÓN DE RIESGOS DE OBRA */}
-          {obraActiveSubmodule === 'prevencion' && (
+          {obraActiveSubmodule === 'prevencion' && !canPrevView && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center text-sm font-bold text-amber-900">Tu perfil no tiene permiso para ver Prevención de Riesgos de esta obra.</div>
+          )}
+          {obraActiveSubmodule === 'prevencion' && canPrevView && (
             <div className="space-y-6 animate-in fade-in duration-200">
               <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-3">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">

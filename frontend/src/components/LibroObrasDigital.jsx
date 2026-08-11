@@ -15,7 +15,8 @@ import { supabase } from "../supabaseClient";
 import { sendSystemEmail } from "../utils/emailService";
 import { auditActor, appendAudit } from "../utils/documentAudit";
 import { registrarEventoBitacora } from "../utils/bitacoraService";
-import { canModifyOrDeleteRecords } from "../utils/userLevel";
+import useUserPermissions from "../utils/useUserPermissions";
+import { can } from "../utils/permissionsCatalog";
 
 const emptyEntry = () => ({
   tipo: "Registro diario",
@@ -83,8 +84,15 @@ export default function LibroObrasDigital({ user, obraNombre, obra }) {
   const [message, setMessage] = useState("");
   const [editing, setEditing] = useState(null);
   const [visibleCodes, setVisibleCodes] = useState({});
+  const { permissions, loading: permissionsLoading } = useUserPermissions(user);
   const empresa = user?.empresa || null;
-  const canManage = canModifyOrDeleteRecords(user);
+  const canView = can(user, permissions, "obras.libro_obra.ver");
+  const canCreate = can(user, permissions, "obras.libro_obra.crear");
+  const canEdit = can(user, permissions, "obras.libro_obra.editar");
+  const canSend = can(user, permissions, "obras.libro_obra.enviar");
+  const canReview = can(user, permissions, "obras.libro_obra.revisar");
+  const canApprove = can(user, permissions, "obras.libro_obra.aprobar");
+  const canDownload = can(user, permissions, "obras.libro_obra.descargar");
   const clientName = obra?.cliente || "";
   const clientEmail = obra?.cliente_email || "";
   const load = async () => {
@@ -160,7 +168,7 @@ export default function LibroObrasDigital({ user, obraNombre, obra }) {
   };
   const saveEntry = async (event) => {
     event.preventDefault();
-    if (!canManage) {
+    if (!(editing ? canEdit : canCreate)) {
       setMessage(
         "Tu perfil no está autorizado para emitir o modificar folios.",
       );
@@ -228,6 +236,7 @@ export default function LibroObrasDigital({ user, obraNombre, obra }) {
     }
   };
   const authorise = async (entry) => {
+    if (!canApprove) { setMessage("Tu perfil no está autorizado para aprobar folios."); return; }
     try {
       await updateEntry(
         entry,
@@ -244,6 +253,7 @@ export default function LibroObrasDigital({ user, obraNombre, obra }) {
     }
   };
   const sendToClient = async (entry) => {
+    if (!canSend) { setMessage("Tu perfil no está autorizado para enviar folios."); return; }
     if (!clientEmail) {
       setMessage(
         "Configura el correo del cliente en la ficha de la obra antes de enviar el folio.",
@@ -279,6 +289,7 @@ export default function LibroObrasDigital({ user, obraNombre, obra }) {
     }
   };
   const closeEntry = async (entry) => {
+    if (!canApprove) { setMessage("Tu perfil no está autorizado para cerrar folios."); return; }
     try {
       await updateEntry(
         entry,
@@ -295,6 +306,7 @@ export default function LibroObrasDigital({ user, obraNombre, obra }) {
     }
   };
   const acceptComments = async (entry) => {
+    if (!canReview) { setMessage("Tu perfil no está autorizado para resolver observaciones."); return; }
     try {
       await updateEntry(
         entry,
@@ -312,6 +324,7 @@ export default function LibroObrasDigital({ user, obraNombre, obra }) {
     }
   };
   const startEdit = (entry) => {
+    if (!canEdit) { setMessage("Tu perfil no está autorizado para modificar folios."); return; }
     setEditing(entry);
     setForm({
       tipo: entry.tipo,
@@ -325,6 +338,10 @@ export default function LibroObrasDigital({ user, obraNombre, obra }) {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
   const downloadEntrySheet = (entry) => {
+    if (!canDownload) {
+      setMessage("Tu perfil no está autorizado para descargar folios.");
+      return;
+    }
     const printWindow = window.open("", "_blank", "width=980,height=780");
     if (!printWindow) {
       setMessage(
@@ -347,6 +364,8 @@ export default function LibroObrasDigital({ user, obraNombre, obra }) {
   };
   const input =
     "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 focus:border-blue-600 focus:outline-none";
+  if (permissionsLoading) return <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">Cargando permisos…</div>;
+  if (!canView) return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center text-sm font-bold text-amber-900">Tu perfil no tiene permiso para ver el Libro de Obras.</div>;
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
       <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 lg:flex-row lg:items-center lg:justify-between">
@@ -381,7 +400,7 @@ export default function LibroObrasDigital({ user, obraNombre, obra }) {
         {clientEmail ? ` · ${clientEmail}` : " · Sin correo configurado"}
       </div>
       <div className="grid gap-4 xl:grid-cols-[390px_1fr]">
-        <form
+        {(canCreate || (editing && canEdit)) ? <form
           onSubmit={saveEntry}
           className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5"
         >
@@ -448,7 +467,7 @@ export default function LibroObrasDigital({ user, obraNombre, obra }) {
             ))}
           </select>
           <button
-            disabled={!canManage}
+            disabled={editing ? !canEdit : !canCreate}
             className="w-full rounded-xl bg-blue-900 py-2.5 text-xs font-black text-white disabled:opacity-50"
           >
             {editing ? "Guardar corrección y reemitir" : "Emitir folio"}
@@ -465,7 +484,7 @@ export default function LibroObrasDigital({ user, obraNombre, obra }) {
               Cancelar corrección
             </button>
           )}
-        </form>
+        </form> : <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-xs font-semibold text-slate-600">Tu perfil tiene acceso de consulta al Libro de Obras.</div>}
         <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white p-4">
             <div>
@@ -533,15 +552,15 @@ export default function LibroObrasDigital({ user, obraNombre, obra }) {
                   </div>
                 )}
                 <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3 text-[11px]">
-                  <button
+                  {canDownload && <button
                     type="button"
                     onClick={() => downloadEntrySheet(entry)}
                     className="flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 font-black text-slate-700 hover:bg-slate-50"
                   >
                     <Download className="h-3.5 w-3.5" />
                     Descargar hoja
-                  </button>
-                  {canManage && entry.flujo_estado === "Emitido" && (
+                  </button>}
+                  {canApprove && entry.flujo_estado === "Emitido" && (
                     <button
                       onClick={() => authorise(entry)}
                       className="flex items-center gap-1 rounded-lg bg-blue-800 px-3 py-2 font-black text-white"
@@ -550,7 +569,7 @@ export default function LibroObrasDigital({ user, obraNombre, obra }) {
                       Autorizar envío
                     </button>
                   )}
-                  {canManage && entry.flujo_estado === "Autorizado" && (
+                  {canSend && entry.flujo_estado === "Autorizado" && (
                     <button
                       onClick={() => sendToClient(entry)}
                       className="flex items-center gap-1 rounded-lg bg-indigo-700 px-3 py-2 font-black text-white"
@@ -559,24 +578,24 @@ export default function LibroObrasDigital({ user, obraNombre, obra }) {
                       Enviar al cliente
                     </button>
                   )}
-                  {canManage &&
+                  {(canEdit || canReview) &&
                     entry.flujo_estado === "Observado por cliente" && (
                       <>
-                        <button
+                        {canEdit && <button
                           onClick={() => startEdit(entry)}
                           className="rounded-lg bg-amber-700 px-3 py-2 font-black text-white"
                         >
                           Modificar y reenviar
-                        </button>
-                        <button
+                        </button>}
+                        {canReview && <button
                           onClick={() => acceptComments(entry)}
                           className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 font-black text-emerald-800"
                         >
                           Aceptar con comentarios
-                        </button>
+                        </button>}
                       </>
                     )}
-                  {canManage &&
+                  {canApprove &&
                     entry.flujo_estado === "Aceptado por cliente" && (
                       <button
                         onClick={() => closeEntry(entry)}
