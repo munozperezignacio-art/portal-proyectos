@@ -54,6 +54,9 @@ export const PERMISSIONS_CATALOG = [
   { id: 'gastos', label: 'Rendición de Gastos', menus: [
     { id: 'rendiciones', label: 'Rendiciones, comprobantes y aprobación', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'revisar', 'aprobar', 'descargar', 'configurar'] },
   ]},
+  { id: 'clientes', label: 'Clientes y Portal del Cliente', menus: [
+    { id: 'portales', label: 'Portales, obras y contactos', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'revisar', 'configurar'] },
+  ]},
   { id: 'admin', label: 'Panel de control', menus: [
     { id: 'usuarios', label: 'Usuarios y roles', actions: ['ver', 'crear', 'editar', 'eliminar', 'configurar'] },
     { id: 'permisos', label: 'Permisos y flujos', actions: ['ver', 'editar', 'configurar'] },

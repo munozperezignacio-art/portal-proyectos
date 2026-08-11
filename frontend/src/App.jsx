@@ -47,6 +47,8 @@ const PublicSupplierAcreditacion = lazyWithRetry(() => import('./components/Publ
 const PublicReporteDiarioMaquinaria = lazyWithRetry(() => import('./components/PublicReporteDiarioMaquinaria'), 'maquinaria-publica');
 const PublicEstadoPago = lazyWithRetry(() => import('./components/PublicEstadoPago'), 'estado-pago-publico');
 const PublicLibroObra = lazyWithRetry(() => import('./components/PublicLibroObra'), 'libro-obra-publico');
+const ClientesPortal = lazyWithRetry(() => import('./components/ClientesPortal'), 'clientes');
+const PublicClientePortal = lazyWithRetry(() => import('./components/PublicClientePortal'), 'portal-cliente');
 
 function ModuleLoader() {
   return (
@@ -311,6 +313,10 @@ function App() {
   const publicEquipoArriendo = urlParams.get('arriendo_qr') || urlParams.get('reporte_diario_equipo');
   const publicEstadoPagoToken = urlParams.get('estado_pago');
   const publicLibroObraToken = urlParams.get('libro_obra');
+  const publicClienteToken = urlParams.get('cliente_portal');
+  if (publicClienteToken) {
+    return <React.Suspense fallback={<ModuleLoader />}><PublicClientePortal token={publicClienteToken} /></React.Suspense>;
+  }
   if (publicLibroObraToken) {
     return <React.Suspense fallback={<ModuleLoader />}><PublicLibroObra token={publicLibroObraToken} /></React.Suspense>;
   }
@@ -893,6 +899,14 @@ function App() {
                 setSelectedObraName(null);
                 setCurrentModule('dashboard');
               }} 
+            />
+          ) : currentModule === 'clientes' ? (
+            <ClientesPortal
+              user={activeUserContext}
+              onBack={() => {
+                setSelectedObraName(null);
+                setCurrentModule('dashboard');
+              }}
             />
           ) : currentModule === 'facturacion' ? (
             <Facturacion 
