@@ -7,6 +7,11 @@ import {
 } from 'lucide-react';
 
 function ConfigCorreos({ user, onBack }) {
+  const platformSessionUser = (() => {
+    try { return JSON.parse(localStorage.getItem('obraxis_user') || 'null'); } catch { return null; }
+  })();
+  const platformRole = String(platformSessionUser?.rol_base || platformSessionUser?.rol || '').toLowerCase();
+  const isObraxisGlobalAdmin = platformSessionUser?.empresa === 'Obraxis' && platformRole === 'superusuario';
   const [configs, setConfigs] = useState([]);
   const [obras, setObras] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -229,10 +234,7 @@ function ConfigCorreos({ user, onBack }) {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      let query = supabase.from('usuarios').select('*');
-      if ((user?.rol_base || user?.rol || 'Inspector').toLowerCase() !== 'superusuario') {
-        query = query.eq('empresa', user.empresa);
-      }
+      let query = supabase.from('usuarios').select('*').eq('empresa', user.empresa);
       const { data, error } = await query.order('usuario', { ascending: true });
       if (error) throw error;
       setUsersList(data || []);
@@ -244,6 +246,10 @@ function ConfigCorreos({ user, onBack }) {
   };
 
   const fetchCompaniesForSelect = async () => {
+    if (!isObraxisGlobalAdmin) {
+      setAllCompaniesList(user?.empresa ? [{ empresa: user.empresa }] : []);
+      return;
+    }
     try {
       const { data, error } = await supabase
         .from('config_empresa')
@@ -258,10 +264,7 @@ function ConfigCorreos({ user, onBack }) {
 
   const fetchRoles = async () => {
     try {
-      let query = supabase.from('roles').select('*');
-      if ((user?.rol_base || user?.rol || 'Inspector').toLowerCase() !== 'superusuario') {
-        query = query.eq('empresa', user.empresa);
-      }
+      let query = supabase.from('roles').select('*').eq('empresa', user.empresa);
       const { data, error } = await query.order('nombre', { ascending: true });
       if (error) throw error;
       setRolesList(data || []);
@@ -272,9 +275,7 @@ function ConfigCorreos({ user, onBack }) {
 
   const handleOpenAddRoleModal = () => {
     setRoleEditing(null);
-    const defaultEmpresa = (user?.rol_base || user?.rol || 'Inspector').toLowerCase() === 'superusuario'
-      ? (allCompaniesList[0]?.empresa || user?.empresa || 'Obraxis')
-      : (user?.empresa || 'Obraxis');
+    const defaultEmpresa = user?.empresa || 'Obraxis';
     setRoleFormData({
       nombre: '',
       rol_base: 'Inspector',
@@ -318,9 +319,18 @@ function ConfigCorreos({ user, onBack }) {
           .from('roles')
           .update(dataToSave)
           .eq('id', roleEditing.id)
+          .eq('empresa', user.empresa)
           .select('id')
           .single();
         if (error) throw error;
+        if (roleEditing.nombre !== dataToSave.nombre) {
+          const { error: usersRoleError } = await supabase
+            .from('usuarios')
+            .update({ rol: dataToSave.nombre })
+            .eq('empresa', roleEditing.empresa)
+            .eq('rol', roleEditing.nombre);
+          if (usersRoleError) throw usersRoleError;
+        }
         setRoleToConfigure(String(data.id));
         setSuccessMsg('Rol actualizado correctamente.');
       } else {
@@ -354,7 +364,8 @@ function ConfigCorreos({ user, onBack }) {
       const { error } = await supabase
         .from('roles')
         .delete()
-        .eq('id', role.id);
+        .eq('id', role.id)
+        .eq('empresa', user.empresa);
       if (error) throw error;
       fetchRoles();
     } catch (err) {
@@ -364,8 +375,13 @@ function ConfigCorreos({ user, onBack }) {
 
   const handleDuplicateRole = async (role) => {
     try {
+      const copyBase = `${role.nombre} (copia`;
+      const existingNames = new Set(rolesList.filter(item => item.empresa === role.empresa).map(item => item.nombre));
+      let copyName = `${copyBase})`;
+      let copyNumber = 2;
+      while (existingNames.has(copyName)) copyName = `${copyBase} ${copyNumber++})`;
       const { data, error } = await supabase.from('roles').insert([{
-        nombre: `${role.nombre} (copia)`,
+        nombre: copyName,
         descripcion: role.descripcion || '',
         empresa: role.empresa,
         rol_base: role.rol_base || 'Inspector',
@@ -385,7 +401,7 @@ function ConfigCorreos({ user, onBack }) {
 
   const handleToggleArchiveRole = async (role) => {
     try {
-      const { error } = await supabase.from('roles').update({ archivado: !role.archivado }).eq('id', role.id);
+      const { error } = await supabase.from('roles').update({ archivado: !role.archivado }).eq('id', role.id).eq('empresa', user.empresa);
       if (error) throw error;
       await fetchRoles();
     } catch (err) {
@@ -396,9 +412,7 @@ function ConfigCorreos({ user, onBack }) {
 
   const handleOpenAddUserModal = () => {
     setUserEditing(null);
-    const defaultEmpresa = (user?.rol_base || user?.rol || 'Inspector').toLowerCase() === 'superusuario'
-      ? (allCompaniesList[0]?.empresa || user?.empresa || 'Obraxis')
-      : (user?.empresa || 'Obraxis');
+    const defaultEmpresa = user?.empresa || 'Obraxis';
     setUserFormData({
       usuario: '',
       nombre: '',
@@ -586,6 +600,11 @@ function ConfigCorreos({ user, onBack }) {
 
   // --- CRUD DE EMPRESAS ---
   const fetchAllCompanies = async () => {
+    if (!isObraxisGlobalAdmin) {
+      setAllCompaniesList([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -602,6 +621,10 @@ function ConfigCorreos({ user, onBack }) {
   };
 
   const handleOpenAddCompanyModal = () => {
+    if (!isObraxisGlobalAdmin) {
+      alert('Solo Obraxis puede crear nuevas empresas.');
+      return;
+    }
     setCompanyEditing(null);
     setCompanyFormData({
       empresa: '',
@@ -613,8 +636,8 @@ function ConfigCorreos({ user, onBack }) {
       logo_base64: '',
       color_primario: '#1e3a8a',
       color_secundario: '#1d4ed8',
-      modulos_activos: [],
-      submenus_activos: []
+      modulos_activos: [...modulosDisponibles],
+      submenus_activos: submenusDisponibles.map(item => item.id)
     });
     setSuccessMsg('');
     setErrorMsg('');
@@ -622,6 +645,10 @@ function ConfigCorreos({ user, onBack }) {
   };
 
   const handleOpenEditCompanyModal = (comp) => {
+    if (!isObraxisGlobalAdmin) {
+      alert('Solo Obraxis puede modificar empresas.');
+      return;
+    }
     setCompanyEditing(comp);
     setCompanyFormData({
       empresa: comp.empresa,
@@ -661,6 +688,10 @@ function ConfigCorreos({ user, onBack }) {
 
   const handleSubmitCompany = async (e) => {
     e.preventDefault();
+    if (!isObraxisGlobalAdmin) {
+      setErrorMsg('Solo Obraxis puede crear o modificar empresas.');
+      return;
+    }
     setCompanyModalLoading(true);
     setSuccessMsg('');
     setErrorMsg('');
@@ -695,6 +726,7 @@ function ConfigCorreos({ user, onBack }) {
         // Cascade rename company in other tables if renamed
         if (oldName !== newName) {
           await supabase.from('usuarios').update({ empresa: newName }).eq('empresa', oldName);
+          await supabase.from('roles').update({ empresa: newName }).eq('empresa', oldName);
           await supabase.from('obras').update({ empresa: newName }).eq('empresa', oldName);
           await supabase.from('maestro_personal').update({ empresa: newName }).eq('empresa', oldName);
           await supabase.from('inventario_maquinaria').update({ empresa: newName }).eq('empresa', oldName);
@@ -724,7 +756,69 @@ function ConfigCorreos({ user, onBack }) {
           .from('config_empresa')
           .insert([dataToSave]);
         if (error) throw error;
-        setSuccessMsg('Nueva empresa registrada con éxito.');
+
+        const adminRoleName = 'Administrador de Empresa';
+        const initialPassword = `Ox-${Array.from(crypto.getRandomValues(new Uint8Array(6)), value => (value % 36).toString(36)).join('').toUpperCase()}`;
+        const emailPrefix = dataToSave.correo_administrador.split('@')[0] || 'administrador';
+        const companySlug = dataToSave.empresa.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toLowerCase();
+        const baseUsername = `${emailPrefix.replace(/[^a-zA-Z0-9._-]/g, '').toLowerCase()}.${companySlug}`;
+        let adminUsername = baseUsername;
+        const { data: existingUsers } = await supabase.from('usuarios').select('usuario').ilike('usuario', `${baseUsername}%`);
+        const usedNames = new Set((existingUsers || []).map(item => item.usuario));
+        let suffix = 2;
+        while (usedNames.has(adminUsername)) adminUsername = `${baseUsername}${suffix++}`;
+
+        const { error: roleError } = await supabase.from('roles').insert([{
+          nombre: adminRoleName,
+          rol_base: 'Administrador',
+          descripcion: 'Administración general de la empresa y configuración inicial de permisos.',
+          empresa: dataToSave.empresa,
+          modulos: '',
+          submenus: '',
+          permisos: {},
+          archivado: false
+        }]);
+        if (roleError) {
+          await supabase.from('config_empresa').delete().eq('empresa', dataToSave.empresa);
+          throw roleError;
+        }
+
+        const { error: userError } = await supabase.from('usuarios').insert([{
+          usuario: adminUsername,
+          nombre: dataToSave.administrador,
+          correo: dataToSave.correo_administrador,
+          cargo: 'Administrador de Empresa',
+          contrasena: initialPassword,
+          empresa: dataToSave.empresa,
+          rol: adminRoleName,
+          rol_base: 'Administrador',
+          obras: 'todas',
+          modulos: dataToSave.modulos_activos,
+          submenus: dataToSave.submenus_activos,
+          permisos: {}
+        }]);
+        if (userError) {
+          await supabase.from('roles').delete().eq('empresa', dataToSave.empresa).eq('nombre', adminRoleName);
+          await supabase.from('config_empresa').delete().eq('empresa', dataToSave.empresa);
+          throw userError;
+        }
+
+        let credentialsMailSent = false;
+        try {
+          const mailResult = await sendSystemEmail({
+            to: dataToSave.correo_administrador,
+            subject: `Bienvenido a Obraxis · ${dataToSave.empresa}`,
+            htmlContent: `<div style="max-width:650px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:28px;font-family:Arial,sans-serif;color:#1e293b"><h2 style="color:#073b76">Tu empresa ya está habilitada en Obraxis</h2><p>Hola <strong>${dataToSave.administrador}</strong>,</p><p>Se creó la cuenta inicial de administración para <strong>${dataToSave.empresa}</strong>.</p><div style="background:#f8fafc;border-radius:12px;padding:18px;margin:20px 0"><p><strong>Usuario:</strong> ${adminUsername}</p><p><strong>Contraseña temporal:</strong> ${initialPassword}</p><p><strong>Rol:</strong> ${adminRoleName}</p></div><p style="text-align:center"><a href="https://www.obraxis.cl/login" style="display:inline-block;background:#073b76;color:#fff;padding:12px 22px;border-radius:9px;text-decoration:none;font-weight:bold">Ingresar a Obraxis</a></p><p style="font-size:12px;color:#64748b">Al ingresar podrás cambiar nombres, crear nuevos roles y configurar sus permisos sin acceder a información de otras empresas.</p></div>`
+          });
+          credentialsMailSent = Boolean(mailResult?.success);
+          if (!credentialsMailSent) console.error('No fue posible enviar las credenciales:', mailResult?.error);
+        } catch (mailError) {
+          console.error('Empresa creada, pero no fue posible enviar las credenciales:', mailError);
+        }
+
+        setSuccessMsg(credentialsMailSent
+          ? `Nueva empresa creada. Usuario inicial: ${adminUsername}. Se enviaron las credenciales a ${dataToSave.correo_administrador}.`
+          : `Nueva empresa creada. Usuario: ${adminUsername} · Contraseña temporal: ${initialPassword}. No fue posible enviar el correo; guarda estas credenciales.`);
       }
 
       fetchAllCompanies();
@@ -775,6 +869,10 @@ function ConfigCorreos({ user, onBack }) {
   };
 
   const handleDeleteCompany = async (comp) => {
+    if (!isObraxisGlobalAdmin) {
+      alert('Solo Obraxis puede eliminar empresas.');
+      return;
+    }
     if (comp.empresa === 'Obraxis') {
       alert("No se puede eliminar la empresa principal Obraxis.");
       return;
@@ -1051,7 +1149,7 @@ function ConfigCorreos({ user, onBack }) {
           </button>
         )}
 
-        {activeTab === 'empresas' && user.empresa === 'Obraxis' && (user?.rol_base || user?.rol || 'Inspector').toLowerCase() === 'superusuario' && (
+        {activeTab === 'empresas' && isObraxisGlobalAdmin && (
           <button
             onClick={handleOpenAddCompanyModal}
             className="bg-primary hover:bg-primary-hover text-white font-semibold px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 cursor-pointer shadow-sm transition"
@@ -1114,7 +1212,7 @@ function ConfigCorreos({ user, onBack }) {
         >
           Permisos y Flujos
         </button>
-        {user.empresa === 'Obraxis' && (user?.rol_base || user?.rol || 'Inspector').toLowerCase() === 'superusuario' && (
+        {isObraxisGlobalAdmin && (
           <button
             onClick={() => setActiveTab('empresas')}
             className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 whitespace-nowrap cursor-pointer ${
@@ -1126,7 +1224,7 @@ function ConfigCorreos({ user, onBack }) {
             Gestión de Empresas
           </button>
         )}
-        {user.empresa === 'Obraxis' && (user?.rol_base || user?.rol || 'Inspector').toLowerCase() === 'superusuario' && (
+        {isObraxisGlobalAdmin && (
           <button
             onClick={() => setActiveTab('plataforma')}
             className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 whitespace-nowrap cursor-pointer ${
@@ -1477,7 +1575,7 @@ function ConfigCorreos({ user, onBack }) {
             </div>
           )}
         </>
-      ) : activeTab === 'empresas' && user.empresa === 'Obraxis' && (user?.rol_base || user?.rol || 'Inspector').toLowerCase() === 'superusuario' ? (
+      ) : activeTab === 'empresas' && isObraxisGlobalAdmin ? (
         /* PANEL DE EMPRESAS (Solo superusuario Obraxis) */
         <>
           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-sm">
