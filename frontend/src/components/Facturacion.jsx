@@ -1093,7 +1093,7 @@ ${detalleXml}  </Documento>
       {!configSii?.proveedor_integracion && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-950">
           <p className="font-black">Operación tributaria en modo interno</p>
-          <p className="mt-1 leading-relaxed">Puedes preparar, asignar, revisar y controlar DTE en Obraxis. La emisión, aceptación, reclamo, cesión y consulta con validez tributaria quedarán confirmadas sólo cuando se conecte un proveedor DTE certificado o el servicio correspondiente del SII.</p>
+          <p className="mt-1 leading-relaxed">Puedes preparar, revisar y controlar DTE en Obraxis. La emisión, aceptación, reclamo, cesión y consulta con validez tributaria quedarán confirmadas sólo cuando se conecte un proveedor DTE certificado o el servicio correspondiente del SII.</p>
         </div>
       )}
       {errorMsg && (
