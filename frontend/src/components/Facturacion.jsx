@@ -11,6 +11,7 @@ import ContextualEmailConfigModal from './ContextualEmailConfigModal';
 import { canConfigureEmails } from '../utils/userLevel';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
+import FacturacionElectronica from './FacturacionElectronica';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -47,7 +48,7 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-export default function Facturacion({ user, companyBranding, onBack }) {
+function FacturacionLegacy({ user, companyBranding, onBack }) {
   const { permissions, loading: permissionsLoading } = useUserPermissions(user);
   const canView = can(user, permissions, 'facturacion.documentos.ver');
   const canCreate = can(user, permissions, 'facturacion.documentos.crear');
@@ -2559,3 +2560,5 @@ ${detalleXml}  </Documento>
     </ErrorBoundary>
   );
 }
+
+export default FacturacionElectronica;

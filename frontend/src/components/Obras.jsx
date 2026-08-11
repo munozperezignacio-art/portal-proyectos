@@ -1512,10 +1512,41 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           try { setCostosList(JSON.parse(savedCostosStr)); } catch (err) {}
         }
         try {
-          const { data: allCostos } = await supabase.from('costos_reales_obra').select('*');
-          const supaCostos = (allCostos || []).filter(c => isMatchObra(c.obra_nombre, obraNombre));
-          if (supaCostos && supaCostos.length > 0) setCostosList(supaCostos);
-        } catch (errC) {}
+          const { data: facturasObra, error: facturasError } = await supabase
+            .from('facturacion_documentos')
+            .select('*')
+            .eq('empresa', user?.empresa || '')
+            .eq('direccion_flujo', 'Compra')
+            .eq('obra_nombre', obraNombre)
+            .neq('estado_acuse', 'Reclamado')
+            .neq('estado_sii', 'Rechazado')
+            .order('fecha_emision', { ascending: false });
+          if (facturasError) throw facturasError;
+          const costosFacturacion = (facturasObra || []).map(doc => ({
+            id: `dte-${doc.id}`,
+            factura_documento_id: doc.id,
+            obra_nombre: doc.obra_nombre,
+            nombre: `${doc.nombre_emisor || doc.nombre_receptor || 'Proveedor'} · DTE ${doc.tipo_dte}-${doc.folio}`,
+            tipo_costo: 'Factura de compra',
+            asociar_factura: 'SI',
+            num_factura: String(doc.folio),
+            monto: parseFloat(doc.monto_neto) > 0 ? parseFloat(doc.monto_neto) : (parseFloat(doc.monto_total) || 0),
+            monto_neto: parseFloat(doc.monto_neto) || 0,
+            monto_iva: parseFloat(doc.monto_iva) || 0,
+            monto_total: parseFloat(doc.monto_total) || 0,
+            fecha: doc.fecha_emision,
+            origen: doc.origen || 'Facturación electrónica',
+            imputaciones: []
+          }));
+          if (costosFacturacion.length > 0) {
+            setCostosList(current => {
+              const manuales = (current || []).filter(item => !item.factura_documento_id);
+              return [...costosFacturacion, ...manuales];
+            });
+          }
+        } catch (errC) {
+          console.warn('No fue posible cargar facturas como gasto real:', errC);
+        }
         // Cargar Mantenciones, Paralizaciones y Accidentes de la Obra
         try {
           const savedMant = localStorage.getItem(`obraxis_mantenciones_${obraNombre}`);
