@@ -358,12 +358,17 @@ function Login({ onLoginSuccess, onBackHome }) {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: username.trim().toLowerCase(),
-        password
+      const { data: loginData, error: loginError } = await supabase.functions.invoke('login-usuario', {
+        body: { usuario: username.trim(), empresa: company.trim(), password }
       });
-
-      if (error) throw new Error('Correo o contraseña incorrectos.');
+      if (loginError || loginData?.error || !loginData?.access_token) {
+        throw new Error(loginData?.error || 'Usuario, empresa o contraseña incorrectos.');
+      }
+      const { data, error } = await supabase.auth.setSession({
+        access_token: loginData.access_token,
+        refresh_token: loginData.refresh_token
+      });
+      if (error || !data.user) throw new Error('No fue posible iniciar la sesión segura.');
 
       try {
         const profile = await getAuthenticatedProfile(data.user, company);
@@ -463,21 +468,21 @@ function Login({ onLoginSuccess, onBackHome }) {
         {/* Formulario */}
         <form onSubmit={handleLogin} className="space-y-4">
           
-          {/* Correo */}
+          {/* Usuario */}
           <div>
             <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-              Correo electrónico
+              Usuario
             </label>
             <div className="relative">
               <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
                 <User className="w-4 h-4" />
               </span>
               <input
-                type="email"
+                type="text"
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="nombre@empresa.cl"
+                placeholder="Ingresa tu usuario"
                 className="pl-9 text-slate-800 font-medium w-full px-3 py-2.5 border rounded-lg border-slate-200 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition text-sm bg-slate-50"
               />
             </div>
