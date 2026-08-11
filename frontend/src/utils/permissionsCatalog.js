@@ -47,6 +47,9 @@ export const PERMISSIONS_CATALOG = [
   { id: 'facturacion', label: 'Facturación', menus: [
     { id: 'documentos', label: 'Documentos tributarios', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'revisar', 'descargar', 'configurar'] },
   ]},
+  { id: 'gastos', label: 'Rendición de Gastos', menus: [
+    { id: 'rendiciones', label: 'Rendiciones, comprobantes y aprobación', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'revisar', 'aprobar', 'descargar', 'configurar'] },
+  ]},
   { id: 'admin', label: 'Panel de control', menus: [
     { id: 'usuarios', label: 'Usuarios y roles', actions: ['ver', 'crear', 'editar', 'eliminar', 'configurar'] },
     { id: 'permisos', label: 'Permisos y flujos', actions: ['ver', 'editar', 'configurar'] },
