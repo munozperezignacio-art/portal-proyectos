@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 import { sendSystemEmail } from '../utils/emailService';
 import { formatRut } from '../utils/rutUtils';
 import PermissionsGovernancePanel from './PermissionsGovernancePanel';
+import NotificationMaster from './NotificationMaster';
 import { PERMISSIONS_CATALOG, permissionKey } from '../utils/permissionsCatalog';
 import { 
   Settings, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Check, Mail, Filter, User, Lock, Building2, ShieldAlert, Copy, Archive, ArchiveRestore, ShieldCheck
@@ -37,7 +38,7 @@ function ConfigCorreos({ user, onBack }) {
   const [logoBase64, setLogoBase64] = useState('');
   const [primaryColor, setPrimaryColor] = useState('#1e3a8a');
   const [secondaryColor, setSecondaryColor] = useState('#1d4ed8');
-  const [activeTab, setActiveTab] = useState('alertas');
+  const [activeTab, setActiveTab] = useState('notificaciones');
   const [brandingLoading, setBrandingLoading] = useState(false);
   const [brandingSuccess, setBrandingSuccess] = useState('');
   const [brandingError, setBrandingError] = useState('');
@@ -119,6 +120,8 @@ function ConfigCorreos({ user, onBack }) {
   useEffect(() => {
     if (activeTab === 'branding') {
       fetchBranding();
+    } else if (activeTab === 'notificaciones') {
+      fetchRoles();
     } else if (activeTab === 'usuarios') {
       fetchUsers();
       fetchCompaniesForSelect();
@@ -1235,14 +1238,14 @@ function ConfigCorreos({ user, onBack }) {
       {/* Tabs Layout */}
       <div className="flex border-b border-slate-200 gap-2 mb-4 overflow-x-auto">
         <button
-          onClick={() => setActiveTab('alertas')}
+          onClick={() => setActiveTab('notificaciones')}
           className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 whitespace-nowrap cursor-pointer ${
-            activeTab === 'alertas' 
-              ? 'border-primary text-primary' 
+            activeTab === 'notificaciones'
+              ? 'border-primary text-primary'
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
-          Alertas de Correo
+          Master de Notificaciones
         </button>
         <button
           onClick={() => setActiveTab('branding')}
@@ -1311,7 +1314,9 @@ function ConfigCorreos({ user, onBack }) {
       </div>
 
       {/* RENDER SECCIONES */}
-      {activeTab === 'alertas' ? (
+      {activeTab === 'notificaciones' ? (
+        <NotificationMaster user={user} obras={obras} roles={rolesList} />
+      ) : activeTab === 'alertas' ? (
         <>
           {/* Buscador de alertas */}
           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-sm">
