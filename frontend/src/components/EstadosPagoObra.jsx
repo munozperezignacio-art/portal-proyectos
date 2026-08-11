@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { BadgeDollarSign, CheckCircle2, Copy, FileText, Paperclip, ReceiptText, RefreshCw, Send, Trash2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { sendSystemEmail } from '../utils/emailService';
-import { canModifyOrDeleteRecords } from '../utils/userLevel';
+import { can } from '../utils/permissionsCatalog';
+import useUserPermissions from '../utils/useUserPermissions';
 import { registrarEventoBitacora } from '../utils/bitacoraService';
 import { appendAudit, auditActor } from '../utils/documentAudit';
 import DocumentAuditTrail from './DocumentAuditTrail';
@@ -33,6 +34,7 @@ const hashAccessCode = async (value) => {
 
 export default function EstadosPagoObra({ user, obraNombre, obra }) {
   const empresa = user?.empresa || null;
+  const { permissions, loading: permissionsLoading } = useUserPermissions(user);
   const [partidas, setPartidas] = useState([]);
   const [avances, setAvances] = useState([]);
   const [rdis, setRdis] = useState([]);
@@ -49,7 +51,12 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
   const [invoicePayment, setInvoicePayment] = useState(null);
   const [invoiceForm, setInvoiceForm] = useState(initialInvoiceForm);
   const [savingInvoice, setSavingInvoice] = useState(false);
-  const canPreparePayment = canModifyOrDeleteRecords(user);
+  const canViewPayments = can(user, permissions, 'obras.estados_pago.ver');
+  const canPreparePayment = can(user, permissions, 'obras.estados_pago.crear') || can(user, permissions, 'obras.estados_pago.editar');
+  const canDeletePayment = can(user, permissions, 'obras.estados_pago.eliminar');
+  const canSendPayment = can(user, permissions, 'obras.estados_pago.enviar');
+  const canReviewPayment = can(user, permissions, 'obras.estados_pago.revisar');
+  const canManageInvoice = can(user, permissions, 'obras.estados_pago.editar');
   const clientName = obra?.cliente || '';
   const clientEmail = obra?.cliente_email || '';
   const clientPhone = obra?.cliente_telefono || '';
@@ -190,7 +197,7 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
   const copyLink = async (item, type) => { await navigator.clipboard.writeText(publicUrl(item, type)); setMessage(`Enlace de ${type} copiado.`); };
   const copyAccessCode = async (code) => { await navigator.clipboard.writeText(code); setMessage('Clave de acceso copiada.'); };
   const sendExternal = async (item, type) => {
-    if (!canPreparePayment) { setMessage('Tu perfil no está autorizado para enviar estados de pago.'); return; }
+    if (!canSendPayment) { setMessage('Tu perfil no está autorizado para enviar estados de pago.'); return; }
     const email = type === 'revision'
       ? (item.revisor_email || contactos.revisor_email || clientEmail)
       : (item.aprobador_email || contactos.aprobador_email || clientEmail);
@@ -225,7 +232,7 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
     await load();
   };
   const deletePayment = async (item) => {
-    if (!canPreparePayment) { setMessage('Tu perfil no está autorizado para eliminar estados de pago.'); return; }
+    if (!canDeletePayment) { setMessage('Tu perfil no está autorizado para eliminar estados de pago.'); return; }
     if (!window.confirm(`¿Eliminar definitivamente el Estado de Pago N° ${item.numero}? Esta acción no se puede deshacer.`)) return;
     const { error } = await supabase.from('estados_pago_obra').delete().eq('id', item.id);
     if (error) { setMessage(`No se pudo eliminar el Estado de Pago: ${error.message}`); return; }
@@ -284,6 +291,7 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
   };
 
   const input = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 focus:border-emerald-600 focus:outline-none';
+  if (!permissionsLoading && !canViewPayments) return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm font-bold text-amber-900">Tu perfil no tiene permiso para ver Estados de Pago.</div>;
   return <div className="space-y-5 animate-in fade-in duration-200">
     <header className="flex flex-col gap-3 border-b border-slate-200 pb-4 lg:flex-row lg:items-center lg:justify-between">
       <div><div className="flex items-center gap-2"><BadgeDollarSign className="h-6 w-6 text-emerald-700" /><h2 className="text-xl font-black text-slate-900">Estados de Pago</h2></div><p className="mt-1 text-xs text-slate-500">Valorización contractual basada en el avance acumulado de esta obra, con retención y trazabilidad de revisión.</p></div>
@@ -309,14 +317,14 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
           {estados.length ? <div className="space-y-2">{estados.map(item => <div key={item.id} className="rounded-xl bg-slate-50 p-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div><p className="text-xs font-black text-slate-800">Estado de Pago N° {item.numero}</p><p className="text-[11px] text-slate-500">Corte {item.fecha_corte} · Neto {money(item.monto_neto)}</p></div>
-              <div className="flex items-center gap-2"><span className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-slate-600">{item.estado}</span>{canPreparePayment && <button type="button" onClick={() => openInvoice(item)} title="Factura y seguimiento" className="rounded-lg border border-emerald-200 bg-white p-1.5 text-emerald-700 hover:bg-emerald-50"><ReceiptText className="h-3.5 w-3.5" /></button>}{canPreparePayment && <button type="button" onClick={() => deletePayment(item)} title="Eliminar Estado de Pago" className="rounded-lg border border-rose-200 bg-white p-1.5 text-rose-700 hover:bg-rose-50"><Trash2 className="h-3.5 w-3.5" /></button>}</div>
+              <div className="flex items-center gap-2"><span className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-slate-600">{item.estado}</span>{canManageInvoice && <button type="button" onClick={() => openInvoice(item)} title="Factura y seguimiento" className="rounded-lg border border-emerald-200 bg-white p-1.5 text-emerald-700 hover:bg-emerald-50"><ReceiptText className="h-3.5 w-3.5" /></button>}{canDeletePayment && <button type="button" onClick={() => deletePayment(item)} title="Eliminar Estado de Pago" className="rounded-lg border border-rose-200 bg-white p-1.5 text-rose-700 hover:bg-rose-50"><Trash2 className="h-3.5 w-3.5" /></button>}</div>
             </div>
-            {item.estado === 'Observado' && (item.items || []).some(line => line.comentario_externo || Number(line.cantidad_propuesta) !== Number(line.executed)) && <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-900"><b>Propuesta externa por partidas</b>{(item.items || []).filter(line => line.comentario_externo || Number(line.cantidad_propuesta) !== Number(line.executed)).map((line, index) => <p key={index} className="mt-1">{line.partida}: propone {line.cantidad_propuesta} {line.unidad} (emitido: {line.executed} {line.unidad}){line.comentario_externo ? ` · ${line.comentario_externo}` : ''}</p>)}{canPreparePayment && <button type="button" onClick={() => startReview(item)} className="mt-3 rounded-lg bg-amber-700 px-3 py-2 text-[11px] font-black text-white">Revisar propuesta y preparar aprobación</button>}</div>}
+            {item.estado === 'Observado' && (item.items || []).some(line => line.comentario_externo || Number(line.cantidad_propuesta) !== Number(line.executed)) && <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-900"><b>Propuesta externa por partidas</b>{(item.items || []).filter(line => line.comentario_externo || Number(line.cantidad_propuesta) !== Number(line.executed)).map((line, index) => <p key={index} className="mt-1">{line.partida}: propone {line.cantidad_propuesta} {line.unidad} (emitido: {line.executed} {line.unidad}){line.comentario_externo ? ` · ${line.comentario_externo}` : ''}</p>)}{canReviewPayment && <button type="button" onClick={() => startReview(item)} className="mt-3 rounded-lg bg-amber-700 px-3 py-2 text-[11px] font-black text-white">Revisar propuesta y preparar aprobación</button>}</div>}
             {reviewingPayment?.id === item.id && <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs"><p className="font-black text-blue-950">Revisión interna de la propuesta</p><p className="mt-1 text-[11px] text-blue-900">Ajusta la cantidad final que aceptas para cada partida. Se recalculará el monto de este Estado de Pago antes de enviarlo a aprobación.</p><div className="mt-3 space-y-2">{reviewItems.map((line, index) => <div key={`${line.partida}-${index}`} className="grid gap-2 rounded-lg bg-white p-2 sm:grid-cols-[1fr_120px_auto]"><span className="font-bold text-slate-700">{line.partida}<small className="mt-1 block font-normal text-slate-500">Propuesta externa: {line.cantidad_propuesta} {line.unidad}</small></span><label className="text-[10px] font-bold text-slate-500">Cantidad final<input type="number" min="0" max={line.quantity} value={line.cantidad_final} onChange={event => setReviewItems(rows => rows.map((row, rowIndex) => rowIndex === index ? { ...row, cantidad_final: event.target.value } : row))} className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-right text-xs" /></label><span className="self-end pb-1 text-right font-bold text-slate-700">{money(Math.max(0, Number(line.cantidad_final || 0) * Number(line.unitPrice || 0) - Number(line.monto_anterior || 0)))}</span></div>)}</div><div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={prepareForApproval} className="rounded-lg bg-emerald-700 px-3 py-2 text-[11px] font-black text-white">Guardar corrección y preparar aprobación</button><button type="button" onClick={() => { setReviewingPayment(null); setReviewItems([]); }} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-[11px] font-black text-slate-700">Cancelar</button></div></div>}
             <DocumentAuditTrail records={item.trazabilidad} title={`Registro de firmas y acciones del EP N° ${item.numero}`} />
             {Object.entries(visibleAccessCodes).filter(([key]) => key.startsWith(`${item.id}-`)).map(([key, code]) => <div key={key} className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-950"><span className="font-black">Clave de {key.endsWith('-revision') ? 'revisión' : 'aprobación'}:</span><code className="rounded bg-white px-2 py-1 font-black tracking-[0.18em]">{code}</code><button type="button" onClick={() => copyAccessCode(code)} className="flex items-center gap-1 font-black text-emerald-800"><Copy className="h-3 w-3" />Copiar clave</button><span className="text-[10px] text-emerald-800">Visible solo mientras mantengas abierta esta sesión.</span></div>)}
             {item.estado === 'En aprobación' && !item.clave_aprobacion_hash && <p className="mt-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] font-semibold text-blue-900">Revisión completada. Falta enviar este Estado de Pago al aprobador contractual.</p>}
-            {item.estado !== 'Aprobado' && item.estado !== 'Pagado' && <div className="relative z-10 mt-2 flex flex-wrap gap-2 text-[11px] font-bold">{(item.estado === 'En aprobación' ? ['aprobacion'] : ['revision']).map(type => <React.Fragment key={type}><button type="button" onClick={() => sendExternal(item, type)} className="flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1.5 text-blue-700 hover:bg-blue-50"><Send className="h-3 w-3" />{type === 'revision' ? (item.clave_revision_hash ? 'Reenviar al revisor' : 'Enviar al revisor') : (item.clave_aprobacion_hash ? 'Reenviar al aprobador' : 'Enviar al aprobador')}</button><button type="button" onClick={() => copyLink(item, type)} className="flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1.5 text-slate-600 hover:bg-slate-100"><Copy className="h-3 w-3" />Copiar enlace</button></React.Fragment>)}</div>}
+            {canSendPayment && item.estado !== 'Aprobado' && item.estado !== 'Pagado' && <div className="relative z-10 mt-2 flex flex-wrap gap-2 text-[11px] font-bold">{(item.estado === 'En aprobación' ? ['aprobacion'] : ['revision']).map(type => <React.Fragment key={type}><button type="button" onClick={() => sendExternal(item, type)} className="flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1.5 text-blue-700 hover:bg-blue-50"><Send className="h-3 w-3" />{type === 'revision' ? (item.clave_revision_hash ? 'Reenviar al revisor' : 'Enviar al revisor') : (item.clave_aprobacion_hash ? 'Reenviar al aprobador' : 'Enviar al aprobador')}</button><button type="button" onClick={() => copyLink(item, type)} className="flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1.5 text-slate-600 hover:bg-slate-100"><Copy className="h-3 w-3" />Copiar enlace</button></React.Fragment>)}</div>}
           </div>)}</div> : <p className="text-xs text-slate-500">Aún no existen estados de pago para esta obra.</p>}
         </div>
       </section>

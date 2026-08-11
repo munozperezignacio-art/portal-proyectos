@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { sendSystemEmail } from '../utils/emailService';
+import PermissionsGovernancePanel from './PermissionsGovernancePanel';
 import { 
   Settings, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Check, Mail, Filter, User, Lock, Building2, ShieldAlert
 } from 'lucide-react';
@@ -1066,6 +1067,16 @@ function ConfigCorreos({ user, onBack }) {
         >
           Gestión de Roles
         </button>
+        <button
+          onClick={() => setActiveTab('permisos')}
+          className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 whitespace-nowrap cursor-pointer ${
+            activeTab === 'permisos'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          Permisos y Flujos
+        </button>
         {user.empresa === 'Obraxis' && (user?.rol_base || user?.rol || 'Inspector').toLowerCase() === 'superusuario' && (
           <button
             onClick={() => setActiveTab('empresas')}
@@ -1348,6 +1359,8 @@ function ConfigCorreos({ user, onBack }) {
             </div>
           )}
         </>
+      ) : activeTab === 'permisos' ? (
+        <PermissionsGovernancePanel user={user} />
       ) : activeTab === 'roles' ? (
         /* PANEL DE ROLES PERSONALIZADOS */
         <>
