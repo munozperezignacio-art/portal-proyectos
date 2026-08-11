@@ -1,15 +1,32 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FileCode2, LayoutDashboard, WalletCards } from 'lucide-react';
+import { supabase } from '../supabaseClient';
 import ModuleHeader from './ModuleHeader';
 import FacturacionElectronica from './FacturacionElectronica';
 import OperacionDTE from './OperacionDTE';
 
 export default function FacturacionV2({ user, companyBranding, onBack }) {
   const [workspace, setWorkspace] = useState('integrada');
+  const [sessionReady, setSessionReady] = useState(false);
   const role = String(user?.rol_base || user?.rol || '').toLowerCase();
   const isPlatformAdmin = role.includes('superusuario') || role.includes('superadmin') || (user?.empresa === 'Obraxis' && role.includes('admin'));
   const enabledSubmenus = String(companyBranding?.submenus_activos || user?.submenus || '').split(',').map(value => value.trim().toLowerCase()).filter(Boolean);
   const dteEnabled = isPlatformAdmin || enabledSubmenus.length === 0 || enabledSubmenus.includes('facturacion_operacion_dte');
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (!data.session) {
+        localStorage.removeItem('obraxis_user');
+        localStorage.removeItem('obraxis_user_login_time');
+        window.history.replaceState({}, '', '/login');
+        window.location.reload();
+        return;
+      }
+      setSessionReady(true);
+    });
+  }, []);
+
+  if (!sessionReady) return <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm font-semibold text-slate-500">Validando sesión segura…</div>;
 
   return <div className="space-y-5">
     <ModuleHeader title="Facturación Electrónica" subtitle="Gestión financiera por centros y operación tributaria DTE con trazabilidad completa." Icon={WalletCards} onBack={onBack} />
