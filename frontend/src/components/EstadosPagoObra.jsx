@@ -191,13 +191,25 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
   const copyAccessCode = async (code) => { await navigator.clipboard.writeText(code); setMessage('Clave de acceso copiada.'); };
   const sendExternal = async (item, type) => {
     if (!canPreparePayment) { setMessage('Tu perfil no está autorizado para enviar estados de pago.'); return; }
-    const email = type === 'revision' ? item.revisor_email : item.aprobador_email;
-    const name = type === 'revision' ? item.revisor_nombre : item.aprobador_nombre;
-    if (!email) { setMessage(`Configura el correo del ${type === 'revision' ? 'revisor' : 'aprobador'} contractual.`); return; }
+    const email = type === 'revision'
+      ? (item.revisor_email || contactos.revisor_email || clientEmail)
+      : (item.aprobador_email || contactos.aprobador_email || clientEmail);
+    const name = type === 'revision'
+      ? (item.revisor_nombre || contactos.revisor_nombre || obra?.admin_contrato || clientName)
+      : (item.aprobador_nombre || contactos.aprobador_nombre || clientName);
+    if (!email) {
+      const warning = `Configura el correo del ${type === 'revision' ? 'revisor' : 'aprobador'} contractual antes de enviar.`;
+      setMessage(warning);
+      window.alert(warning);
+      return;
+    }
     const link = publicUrl(item, type);
     const code = accessCode();
     const codeColumn = type === 'revision' ? 'clave_revision_hash' : 'clave_aprobacion_hash';
-    const { error: codeError } = await supabase.from('estados_pago_obra').update({ [codeColumn]: await hashAccessCode(code), trazabilidad: appendAudit(item.trazabilidad, auditActor(user, `Enviado a ${type === 'revision' ? 'revisión' : 'aprobación'} externa`, type === 'revision' ? 'En revisión' : 'En aprobación', `Destinatario: ${name || email}.`)) }).eq('id', item.id);
+    const contactUpdate = type === 'revision'
+      ? { revisor_nombre: name || null, revisor_email: email }
+      : { aprobador_nombre: name || null, aprobador_email: email };
+    const { error: codeError } = await supabase.from('estados_pago_obra').update({ ...contactUpdate, [codeColumn]: await hashAccessCode(code), trazabilidad: appendAudit(item.trazabilidad, auditActor(user, `Enviado a ${type === 'revision' ? 'revisión' : 'aprobación'} externa`, type === 'revision' ? 'En revisión' : 'En aprobación', `Destinatario: ${name || email}.`)) }).eq('id', item.id);
     if (codeError) { setMessage(`No se pudo generar la clave de acceso: ${codeError.message}`); return; }
     const result = await sendSystemEmail({ to: email, subject: `Estado de Pago N° ${item.numero} · ${obraNombre}`, htmlContent: `<p>Hola ${name || ''},</p><p>Se solicita ${type === 'revision' ? 'revisión técnica' : 'aprobación contractual'} del Estado de Pago N° ${item.numero} de <b>${obraNombre}</b>.</p><p><a href="${link}">Abrir Estado de Pago</a></p><p><b>Clave de acceso: ${code}</b></p><p>Por seguridad, necesitarás esta clave de 8 caracteres para ingresar al enlace.</p>` });
     if (!result.success) { setMessage(`No se pudo enviar el correo: ${result.error}`); return; }
@@ -304,7 +316,7 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
             <DocumentAuditTrail records={item.trazabilidad} title={`Registro de firmas y acciones del EP N° ${item.numero}`} />
             {Object.entries(visibleAccessCodes).filter(([key]) => key.startsWith(`${item.id}-`)).map(([key, code]) => <div key={key} className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-950"><span className="font-black">Clave de {key.endsWith('-revision') ? 'revisión' : 'aprobación'}:</span><code className="rounded bg-white px-2 py-1 font-black tracking-[0.18em]">{code}</code><button type="button" onClick={() => copyAccessCode(code)} className="flex items-center gap-1 font-black text-emerald-800"><Copy className="h-3 w-3" />Copiar clave</button><span className="text-[10px] text-emerald-800">Visible solo mientras mantengas abierta esta sesión.</span></div>)}
             {item.estado === 'En aprobación' && !item.clave_aprobacion_hash && <p className="mt-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] font-semibold text-blue-900">Revisión completada. Falta enviar este Estado de Pago al aprobador contractual.</p>}
-            {item.estado !== 'Aprobado' && item.estado !== 'Pagado' && <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold">{(item.estado === 'En aprobación' ? ['aprobacion'] : ['revision']).map(type => <React.Fragment key={type}><button onClick={() => sendExternal(item, type)} className="flex items-center gap-1 text-blue-700"><Send className="h-3 w-3" />{type === 'revision' ? (item.clave_revision_hash ? 'Reenviar al revisor' : 'Enviar al revisor') : (item.clave_aprobacion_hash ? 'Reenviar al aprobador' : 'Enviar al aprobador')}</button><button onClick={() => copyLink(item, type)} className="flex items-center gap-1 text-slate-600"><Copy className="h-3 w-3" />Copiar enlace</button></React.Fragment>)}</div>}
+            {item.estado !== 'Aprobado' && item.estado !== 'Pagado' && <div className="relative z-10 mt-2 flex flex-wrap gap-2 text-[11px] font-bold">{(item.estado === 'En aprobación' ? ['aprobacion'] : ['revision']).map(type => <React.Fragment key={type}><button type="button" onClick={() => sendExternal(item, type)} className="flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1.5 text-blue-700 hover:bg-blue-50"><Send className="h-3 w-3" />{type === 'revision' ? (item.clave_revision_hash ? 'Reenviar al revisor' : 'Enviar al revisor') : (item.clave_aprobacion_hash ? 'Reenviar al aprobador' : 'Enviar al aprobador')}</button><button type="button" onClick={() => copyLink(item, type)} className="flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1.5 text-slate-600 hover:bg-slate-100"><Copy className="h-3 w-3" />Copiar enlace</button></React.Fragment>)}</div>}
           </div>)}</div> : <p className="text-xs text-slate-500">Aún no existen estados de pago para esta obra.</p>}
         </div>
       </section>
