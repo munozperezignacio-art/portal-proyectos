@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { sendSystemEmail } from '../utils/emailService';
+import { formatRut } from '../utils/rutUtils';
 import PermissionsGovernancePanel from './PermissionsGovernancePanel';
+import { PERMISSIONS_CATALOG, permissionKey } from '../utils/permissionsCatalog';
 import { 
   Settings, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Check, Mail, Filter, User, Lock, Building2, ShieldAlert, Copy, Archive, ArchiveRestore, ShieldCheck
 } from 'lucide-react';
@@ -64,7 +66,10 @@ function ConfigCorreos({ user, onBack }) {
     empresa: '',
     razon_social: '',
     rut: '',
+    giro: '',
     direccion: '',
+    comuna: '',
+    telefono: '',
     administrador: '',
     correo_administrador: '',
     logo_base64: '',
@@ -628,14 +633,17 @@ function ConfigCorreos({ user, onBack }) {
       empresa: '',
       razon_social: '',
       rut: '',
+      giro: '',
       direccion: '',
+      comuna: '',
+      telefono: '',
       administrador: '',
       correo_administrador: '',
       logo_base64: '',
       color_primario: '#1e3a8a',
       color_secundario: '#1d4ed8',
-      modulos_activos: [...modulosDisponibles],
-      submenus_activos: submenusDisponibles.map(item => item.id)
+      modulos_activos: ['admin'],
+      submenus_activos: []
     });
     setSuccessMsg('');
     setErrorMsg('');
@@ -652,7 +660,10 @@ function ConfigCorreos({ user, onBack }) {
       empresa: comp.empresa,
       razon_social: comp.razon_social || '',
       rut: comp.rut || '',
+      giro: comp.giro || '',
       direccion: comp.direccion || '',
+      comuna: comp.comuna || '',
+      telefono: comp.telefono || '',
       administrador: comp.administrador || '',
       correo_administrador: comp.correo_administrador || '',
       logo_base64: comp.logo_base64 || '',
@@ -694,18 +705,38 @@ function ConfigCorreos({ user, onBack }) {
     setSuccessMsg('');
     setErrorMsg('');
 
+    const contractedModules = (companyFormData.modulos_activos || []).filter(moduleId => moduleId !== 'admin');
+    if (contractedModules.length === 0) {
+      setCompanyModalLoading(false);
+      setErrorMsg('Selecciona al menos un módulo contratado para la empresa.');
+      return;
+    }
+    const activeModules = Array.from(new Set(['admin', ...contractedModules]));
+    const validSubmenus = (companyFormData.submenus_activos || []).filter(submenuId => {
+      const submenu = submenusDisponibles.find(item => item.id === submenuId);
+      return submenu && activeModules.includes(submenu.modulo);
+    });
+
     const dataToSave = {
       empresa: companyFormData.empresa.trim(),
       razon_social: companyFormData.razon_social ? companyFormData.razon_social.trim() : '',
       rut: companyFormData.rut ? companyFormData.rut.trim() : '',
+      giro: companyFormData.giro ? companyFormData.giro.trim() : '',
       direccion: companyFormData.direccion ? companyFormData.direccion.trim() : '',
+      comuna: companyFormData.comuna ? companyFormData.comuna.trim() : '',
+      telefono: companyFormData.telefono ? companyFormData.telefono.trim() : '',
       administrador: companyFormData.administrador ? companyFormData.administrador.trim() : '',
       correo_administrador: companyFormData.correo_administrador ? companyFormData.correo_administrador.trim() : '',
       logo_base64: companyFormData.logo_base64,
       color_primario: companyFormData.color_primario,
       color_secundario: companyFormData.color_secundario,
-      modulos_activos: (companyFormData.modulos_activos || []).join(','),
-      submenus_activos: (companyFormData.submenus_activos || []).join(','),
+      modulos_activos: activeModules.join(','),
+      submenus_activos: validSubmenus.join(','),
+      pais: 'Chile',
+      zona_horaria: 'America/Santiago',
+      moneda: 'CLP',
+      configuracion_completa: true,
+      updated_at: new Date().toISOString(),
       email_api_key: companyFormData.email_api_key ? companyFormData.email_api_key.trim() : null,
       email_sender: companyFormData.email_sender ? companyFormData.email_sender.trim() : 'notificaciones@obraxis.cl'
     };
@@ -756,6 +787,7 @@ function ConfigCorreos({ user, onBack }) {
         if (error) throw error;
 
         const adminRoleName = 'Administrador de Empresa';
+        const adminPermissions = Object.fromEntries(PERMISSIONS_CATALOG.flatMap(module => module.menus.flatMap(menu => menu.actions.map(action => [permissionKey(module.id, menu.id, action), true]))));
         const initialPassword = `Ox-${Array.from(crypto.getRandomValues(new Uint8Array(6)), value => (value % 36).toString(36)).join('').toUpperCase()}`;
         const emailPrefix = dataToSave.correo_administrador.split('@')[0] || 'administrador';
         const companySlug = dataToSave.empresa.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toLowerCase();
@@ -768,12 +800,12 @@ function ConfigCorreos({ user, onBack }) {
 
         const { error: roleError } = await supabase.from('roles').insert([{
           nombre: adminRoleName,
-          rol_base: 'Administrador',
+          rol_base: 'Personalizado',
           descripcion: 'Administración general de la empresa y configuración inicial de permisos.',
           empresa: dataToSave.empresa,
           modulos: '',
           submenus: '',
-          permisos: {},
+          permisos: adminPermissions,
           archivado: false
         }]);
         if (roleError) {
@@ -789,11 +821,11 @@ function ConfigCorreos({ user, onBack }) {
           contrasena: initialPassword,
           empresa: dataToSave.empresa,
           rol: adminRoleName,
-          rol_base: 'Administrador',
+          rol_base: 'Personalizado',
           obras: 'todas',
           modulos: dataToSave.modulos_activos,
           submenus: dataToSave.submenus_activos,
-          permisos: {}
+          permisos: adminPermissions
         }]);
         if (userError) {
           await supabase.from('roles').delete().eq('empresa', dataToSave.empresa).eq('nombre', adminRoleName);
@@ -1086,7 +1118,22 @@ function ConfigCorreos({ user, onBack }) {
   });
 
   const tiposReporte = ['Produccion Diaria', 'Uso Maquinaria', 'Asistencia Personal', 'Prevencion y Seguridad'];
-  const modulosDisponibles = ['obras', 'rrhh', 'maquinaria', 'prevencion', 'acreditaciones', 'calidad', 'bodega', 'presupuestos', 'clientes', 'facturacion', 'gastos', 'admin'];
+  const moduleCatalog = [
+    { id: 'admin', label: 'Administración', description: 'Usuarios, roles, permisos y configuración base.', base: true },
+    { id: 'obras', label: 'Proyectos y Obras', description: 'Gestión diaria, planificación, costos y control de obras.' },
+    { id: 'presupuestos', label: 'Presupuestos', description: 'APU, estimaciones, recursos y cronogramas.' },
+    { id: 'rrhh', label: 'Recursos Humanos', description: 'Personal, contratos, asistencia y asignaciones.' },
+    { id: 'maquinaria', label: 'Maquinaria y Equipos', description: 'Inventario, uso, mantenciones y disponibilidad.' },
+    { id: 'bodega', label: 'Bodega e Inventario', description: 'Stock, movimientos y centros de gestión.' },
+    { id: 'prevencion', label: 'Prevención de Riesgos', description: 'Registros, procedimientos, incidentes y matrices.' },
+    { id: 'formularios_capacitaciones', label: 'Formularios y Capacitación', description: 'Formularios dinámicos, registros y cursos.' },
+    { id: 'calidad', label: 'Calidad', description: 'PAC, RDI, recepciones y no conformidades.' },
+    { id: 'acreditaciones', label: 'Acreditaciones', description: 'Empresas, personal, equipos y documentación.' },
+    { id: 'clientes', label: 'Clientes', description: 'Contactos, oportunidades y relación comercial.' },
+    { id: 'facturacion', label: 'Facturación Electrónica', description: 'Centros de gestión, DTE, compras y ventas.' },
+    { id: 'gastos', label: 'Rendición de Gastos', description: 'Rendiciones, comprobantes y aprobaciones.' }
+  ];
+  const modulosDisponibles = moduleCatalog.map(item => item.id);
   const submenusDisponibles = [
     { id: 'prevencion_formularios', label: 'Prevención: Plantillas de Formularios', modulo: 'prevencion' },
     { id: 'prevencion_cumplimiento', label: 'Prevención: Matriz de Cumplimiento', modulo: 'prevencion' },
@@ -1105,6 +1152,32 @@ function ConfigCorreos({ user, onBack }) {
     { id: 'obras_maquinaria', label: 'Obras: Reporte de Maquinaria', modulo: 'obras' },
     { id: 'obras_materiales', label: 'Obras: Ingreso/Uso de Materiales', modulo: 'obras' }
   ];
+
+  const toggleCompanyModule = (moduleId) => {
+    if (moduleId === 'admin') return;
+    const currentModules = companyFormData.modulos_activos || [];
+    const isActive = currentModules.includes(moduleId);
+    const moduleSubmenus = submenusDisponibles.filter(item => item.modulo === moduleId).map(item => item.id);
+    setCompanyFormData(current => ({
+      ...current,
+      modulos_activos: isActive
+        ? currentModules.filter(item => item !== moduleId)
+        : Array.from(new Set([...currentModules, moduleId, 'admin'])),
+      submenus_activos: isActive
+        ? (current.submenus_activos || []).filter(item => !moduleSubmenus.includes(item))
+        : Array.from(new Set([...(current.submenus_activos || []), ...moduleSubmenus]))
+    }));
+  };
+
+  const toggleCompanySubmenus = (moduleId, enabled) => {
+    const ids = submenusDisponibles.filter(item => item.modulo === moduleId).map(item => item.id);
+    setCompanyFormData(current => ({
+      ...current,
+      submenus_activos: enabled
+        ? Array.from(new Set([...(current.submenus_activos || []), ...ids]))
+        : (current.submenus_activos || []).filter(item => !ids.includes(item))
+    }));
+  };
 
   return (
     <div className="space-y-4">
@@ -1730,7 +1803,7 @@ function ConfigCorreos({ user, onBack }) {
       {/* Modal: Crear / Editar Alerta */}
       {modalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-4 sm:p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto my-auto">
+          <div className="bg-white rounded-3xl w-full max-w-5xl p-4 sm:p-7 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 max-h-[94vh] overflow-y-auto my-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-slate-800 text-sm">
                 {editingConfig ? 'Editar Alerta' : 'Configurar Nueva Alerta'}
@@ -2005,7 +2078,11 @@ function ConfigCorreos({ user, onBack }) {
             {successMsg && <div className="bg-emerald-50 text-emerald-700 p-2.5 rounded-lg text-xs font-semibold mb-3">{successMsg}</div>}
             {errorMsg && <div className="bg-red-50 text-red-700 p-2.5 rounded-lg text-xs font-semibold mb-3">{errorMsg}</div>}
 
-            <form onSubmit={handleSubmitCompany} className="space-y-4">
+            <form onSubmit={handleSubmitCompany} className="space-y-6">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <h4 className="text-sm font-black text-slate-900">Datos mínimos de la empresa</h4>
+                <p className="mt-1 text-xs text-slate-500">Se utilizarán en documentos, correos y flujos corporativos.</p>
+              </div>
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nombre corto (uso Obraxis)</label>
                 <input
@@ -2030,6 +2107,12 @@ function ConfigCorreos({ user, onBack }) {
                 />
               </div>
 
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div><label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Giro</label><input type="text" required value={companyFormData.giro || ''} onChange={(e) => setCompanyFormData({ ...companyFormData, giro: e.target.value })} placeholder="Construcción de edificios" className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary" /></div>
+                <div><label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Comuna</label><input type="text" required value={companyFormData.comuna || ''} onChange={(e) => setCompanyFormData({ ...companyFormData, comuna: e.target.value })} placeholder="Santiago" className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary" /></div>
+                <div><label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Teléfono</label><input type="tel" required value={companyFormData.telefono || ''} onChange={(e) => setCompanyFormData({ ...companyFormData, telefono: e.target.value })} placeholder="+56 2 2345 6789" className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary" /></div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">RUT</label>
@@ -2037,7 +2120,7 @@ function ConfigCorreos({ user, onBack }) {
                     type="text"
                     required
                     value={companyFormData.rut || ''}
-                    onChange={(e) => setCompanyFormData({ ...companyFormData, rut: e.target.value })}
+                    onChange={(e) => setCompanyFormData({ ...companyFormData, rut: formatRut(e.target.value) })}
                     placeholder="ej: 76.123.456-7"
                     className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
                   />
@@ -2146,45 +2229,34 @@ function ConfigCorreos({ user, onBack }) {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1.5">Módulos Habilitados para la Empresa</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {modulosDisponibles.filter(m => m !== 'admin').map((m) => {
-                    const isChecked = companyFormData.modulos_activos?.includes(m);
+              <section className="rounded-2xl border border-blue-200 bg-blue-50/50 p-4 sm:p-5">
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-3"><div><h4 className="text-sm font-black text-slate-900">Módulos contratados</h4><p className="mt-1 text-xs text-slate-500">Define las áreas que puede utilizar la empresa. Administración siempre está incluida.</p></div><span className="rounded-full bg-white px-3 py-1 text-[10px] font-black text-blue-900">{(companyFormData.modulos_activos || []).filter(id => id !== 'admin').length} contratados</span></div>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {moduleCatalog.map((module) => {
+                    const isChecked = module.base || companyFormData.modulos_activos?.includes(module.id);
                     return (
                       <button
                         type="button"
-                        key={m}
-                        onClick={() => {
-                          const activeMods = [...(companyFormData.modulos_activos || [])];
-                          if (activeMods.includes(m)) {
-                            setCompanyFormData({
-                              ...companyFormData,
-                              modulos_activos: activeMods.filter(x => x !== m)
-                            });
-                          } else {
-                            setCompanyFormData({
-                              ...companyFormData,
-                              modulos_activos: [...activeMods, m]
-                            });
-                          }
-                        }}
-                        className={`px-2 py-1 rounded-lg text-[9px] font-bold capitalize transition border cursor-pointer ${
+                        key={module.id}
+                        disabled={module.base}
+                        onClick={() => toggleCompanyModule(module.id)}
+                        className={`rounded-xl border p-3 text-left transition ${module.base ? 'cursor-default' : 'cursor-pointer'} ${
                           isChecked 
-                            ? 'bg-primary text-white border-primary' 
-                            : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                            ? 'bg-blue-950 text-white border-blue-950 shadow-sm'
+                            : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'
                         }`}
                       >
-                        {m}
+                        <span className="flex items-center justify-between gap-2"><span className="text-xs font-black">{module.label}</span><span className={`h-4 w-4 rounded-full border ${isChecked ? 'border-white bg-emerald-400' : 'border-slate-300 bg-white'}`}></span></span>
+                        <span className={`mt-1 block text-[10px] leading-relaxed ${isChecked ? 'text-blue-100' : 'text-slate-400'}`}>{module.description}</span>
                       </button>
                     );
                   })}
                 </div>
-              </div>
+              </section>
 
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1.5">Submenús Habilitados para la Empresa</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 bg-slate-50 rounded-2xl border border-slate-100 max-h-[160px] overflow-y-auto">
+              <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+                <div className="mb-4"><h4 className="text-sm font-black text-slate-900">Submódulos habilitados</h4><p className="mt-1 text-xs text-slate-500">Sólo se muestran opciones pertenecientes a módulos contratados.</p></div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 bg-slate-50 rounded-2xl border border-slate-100 max-h-[240px] overflow-y-auto">
                   {submenusDisponibles.filter(s => (companyFormData.modulos_activos || []).includes(s.modulo)).map((s) => {
                     const isChecked = companyFormData.submenus_activos?.includes(s.id);
                     return (
@@ -2213,7 +2285,7 @@ function ConfigCorreos({ user, onBack }) {
                     );
                   })}
                 </div>
-              </div>
+              </section>
 
               {companyFormData.empresa === 'Obraxis' && (
                 <div className="border-t border-slate-100 pt-4 space-y-4">
