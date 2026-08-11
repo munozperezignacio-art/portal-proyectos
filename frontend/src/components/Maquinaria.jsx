@@ -9,6 +9,8 @@ import {
   Filter, SlidersHorizontal, List, Grid, AlertTriangle
 } from 'lucide-react';
 import { formatRut, formatNumberWithDots, parseNumberFromDots } from '../utils/rutUtils';
+import useUserPermissions from '../utils/useUserPermissions';
+import { can } from '../utils/permissionsCatalog';
 
 
 // Listado de feriados nacionales en Chile (MM-DD)
@@ -64,6 +66,11 @@ const calcularDiasLaborablesArriendo = (fDesdeStr, fHastaStr, logsContrato) => {
 };
 
 export default function Maquinaria({ user, onBack }) {
+  const { permissions, loading: permissionsLoading } = useUserPermissions(user);
+  const canView = can(user, permissions, 'maquinaria.inventario.ver');
+  const canCreate = can(user, permissions, 'maquinaria.inventario.crear');
+  const canEdit = can(user, permissions, 'maquinaria.inventario.editar');
+  const canDelete = can(user, permissions, 'maquinaria.inventario.eliminar');
   const [activeSection, setActiveSection] = useState(''); // '', 'inventario', 'asignaciones', 'uso', 'reservas', 'arriendos'
   const [maquinaria, setMaquinaria] = useState([]);
   const [obras, setObras] = useState([]);
@@ -361,6 +368,7 @@ export default function Maquinaria({ user, onBack }) {
   };
 
   const handleDeleteEquip = async (equip) => {
+    if (!canDelete) { setErrorMsg('Tu perfil no está autorizado para eliminar equipos.'); return; }
     if (!window.confirm(`¿Estás seguro de eliminar el equipo ${equip.tipo} (${equip.patente})?`)) return;
 
     try {
@@ -382,6 +390,7 @@ export default function Maquinaria({ user, onBack }) {
 
   const handleSubmitEquip = async (e) => {
     e.preventDefault();
+    if (editingEquip ? !canEdit : !canCreate) { setErrorMsg('Tu perfil no está autorizado para guardar equipos.'); return; }
     setModalLoading(true);
     setSuccessMsg('');
     setErrorMsg('');
@@ -477,6 +486,7 @@ export default function Maquinaria({ user, onBack }) {
   // 2. Handler Asignación Directa de Obra (Con Validación de Fecha Hasta para no chocar con Reservas)
   const handleAssignSubmit = async (e) => {
     e.preventDefault();
+    if (!canEdit) { setErrorMsg('Tu perfil no está autorizado para asignar equipos.'); return; }
     if (!selectedEquipToAssign) return;
 
     if (assignFechaHasta) {
@@ -558,6 +568,7 @@ export default function Maquinaria({ user, onBack }) {
   // 3. Handler Registro de Uso y Horómetros
   const handleUsoSubmit = async (e) => {
     e.preventDefault();
+    if (!canCreate) { setErrorMsg('Tu perfil no está autorizado para registrar uso de equipos.'); return; }
     if (!usoForm.equipo_id) {
       alert('Seleccione un equipo.');
       return;
@@ -604,6 +615,7 @@ export default function Maquinaria({ user, onBack }) {
   // 4. Handler Reserva de Equipo Futuro (Con Soporte para Edición y Eliminación)
   const handleReservaSubmit = async (e) => {
     e.preventDefault();
+    if (editingReserva ? !canEdit : !canCreate) { setErrorMsg('Tu perfil no está autorizado para guardar reservas.'); return; }
     if (!reservaForm.equipo_id || !reservaForm.obra_destino_custom.trim()) {
       alert('Por favor especifique la obra futura o proyecto en licitación.');
       return;
@@ -654,6 +666,7 @@ export default function Maquinaria({ user, onBack }) {
   };
 
   const handleDeleteReserva = async (res) => {
+    if (!canDelete) { setErrorMsg('Tu perfil no está autorizado para eliminar reservas.'); return; }
     if (!window.confirm(`¿Deseas cancelar y eliminar la reserva para ${res.equipo_tipo} (${res.equipo_patente})?`)) return;
 
     try {
@@ -672,6 +685,7 @@ export default function Maquinaria({ user, onBack }) {
   // 5. Handler Arriendos a Terceros
   const handleArriendoSubmit = async (e) => {
     e.preventDefault();
+    if (editingArriendo ? !canEdit : !canCreate) { setErrorMsg('Tu perfil no está autorizado para guardar arriendos.'); return; }
     if (!arriendoForm.equipo_id || !arriendoForm.empresa_arrendataria.trim()) {
       alert('Por favor complete los campos obligatorios del contrato de arriendo.');
       return;
@@ -782,6 +796,7 @@ export default function Maquinaria({ user, onBack }) {
   // Handler Extender Contrato con Verificación
   const handleExtenderSubmit = async (e) => {
     e.preventDefault();
+    if (!canEdit) { setErrorMsg('Tu perfil no está autorizado para extender arriendos.'); return; }
     if (!extenderArriendo || !nuevaFechaFin) return;
 
     const nFin = new Date(nuevaFechaFin);
@@ -878,6 +893,8 @@ export default function Maquinaria({ user, onBack }) {
     'Rodillo Compactador', 'Minibuses / Camionetas', 'Generador / Torre Luz', 'Otro'
   ];
 
+  if (permissionsLoading) return <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">Cargando permisos…</div>;
+  if (!canView) return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center text-sm font-bold text-amber-900">Tu perfil no tiene permiso para ver Maquinaria y Equipos.</div>;
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 p-4 sm:p-6 font-sans">
       

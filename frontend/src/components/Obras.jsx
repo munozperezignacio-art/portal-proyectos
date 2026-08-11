@@ -234,6 +234,11 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const canPrevEdit = can(user, userPermissions, 'obras.prevencion.editar');
   const canPrevReview = can(user, userPermissions, 'obras.prevencion.revisar');
   const canPrevDownload = can(user, userPermissions, 'obras.prevencion.descargar');
+  const canObraFichaView = can(user, userPermissions, 'obras.ficha.ver');
+  const canObraAvancesView = can(user, userPermissions, 'obras.avances.ver');
+  const canObraGestionView = can(user, userPermissions, 'obras.gestion.ver');
+  const canObraPersonalView = can(user, userPermissions, 'obras.personal.ver');
+  const canObraMaquinariaView = can(user, userPermissions, 'obras.maquinaria.ver');
   const rBase = (user?.rol_base || user?.rol || 'Inspector').toLowerCase();
   const canEditGPS = ['admin', 'administrador', 'superadmin', 'superusuario', 'gerencia', 'jefe', 'supervisor'].some(r => rBase.includes(r));
 
@@ -3100,7 +3105,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           )}
 
           {/* VISTA DEDICADA 1: REPORTE DE AVANCE & VISOR DE AVANCE */}
-          {obraActiveSubmodule === 'avance' && (
+          {obraActiveSubmodule === 'avance' && canObraAvancesView && (
             <div className="space-y-6 animate-in fade-in duration-200">
               
               {/* Header con boton de ingreso y sub-pestañas */}
@@ -3465,7 +3470,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           {/* VISTA DEDICADA 2: ASISTENCIA Y LIBRO DIGITAL CON FILTROS AVANZADOS */}
           {obraActiveSubmodule === 'equipo' && <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4"><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div><p className="text-sm font-black text-emerald-950">Equipo de Obra</p><p className="mt-1 text-xs text-emerald-900">Gestiona asistencia, nómina y cuadrillas desde la misma vista.</p></div><div className="flex flex-wrap gap-2">{[['asistencia', 'Asistencia y libro'], ['personal', 'Personal asignado'], ['cuadrillas', 'Cuadrillas']].map(([id, label]) => <button key={id} onClick={() => setEquipoTab(id)} className={`rounded-xl px-3 py-2 text-xs font-black ${equipoTab === id ? 'bg-emerald-800 text-white' : 'border border-emerald-200 bg-white text-emerald-900'}`}>{label}</button>)}</div></div></div>}
 
-          {obraActiveSubmodule === 'equipo' && equipoTab === 'asistencia' && (
+          {obraActiveSubmodule === 'equipo' && canObraPersonalView && equipoTab === 'asistencia' && (
             <div className="space-y-4 animate-in fade-in duration-200">
               <div className="bg-white p-4 border border-slate-200 rounded-2xl space-y-3">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -3736,7 +3741,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           )}
 
           {/* VISTA DEDICADA 3: PERSONAL ASIGNADO (RRHH) */}
-          {obraActiveSubmodule === 'equipo' && equipoTab === 'personal' && (
+          {obraActiveSubmodule === 'equipo' && canObraPersonalView && equipoTab === 'personal' && (
             <div className="space-y-4 animate-in fade-in duration-200">
               <div className="flex justify-between items-center bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
                 <div>
@@ -3829,7 +3834,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           )}
 
           {/* VISTA DEDICADA 4: CUADRILLAS DE TRABAJO */}
-          {obraActiveSubmodule === 'equipo' && equipoTab === 'cuadrillas' && (
+          {obraActiveSubmodule === 'equipo' && canObraPersonalView && equipoTab === 'cuadrillas' && (
             <div className="space-y-4 animate-in fade-in duration-200">
               <div className="flex justify-between items-center bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
                 <div>
@@ -3907,7 +3912,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           )}
 
           {/* VISTA DEDICADA 5: EQUIPOS & MAQUINARIAS */}
-          {obraActiveSubmodule === 'maquinaria' && (
+          {obraActiveSubmodule === 'maquinaria' && canObraMaquinariaView && (
             <div className="space-y-4 animate-in fade-in duration-200">
               
               {/* BARRA DE PESTAÑAS (ARRIBA DE TODO A ANCHO COMPLETO) */}
@@ -4098,7 +4103,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           )}
 
           {/* VISTA DEDICADA 6: CONTROL MATERIALES */}
-          {obraActiveSubmodule === 'materiales' && (
+          {obraActiveSubmodule === 'materiales' && canObraFichaView && (
             <div className="space-y-4 animate-in fade-in duration-200">
               <div className="flex justify-between items-center bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
                 <div>
@@ -4117,7 +4122,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           )}
 
           {/* VISTA DEDICADA 7: BITÁCORA DE OBRA (LÍNEA DE TIEMPO VERTICAL) */}
-          {obraActiveSubmodule === 'bitacora' && (
+          {obraActiveSubmodule === 'bitacora' && canObraFichaView && (
             <div className="space-y-6 animate-in fade-in duration-200">
               <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-3">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -4401,7 +4406,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           )}
 
           {/* VISTA DEDICADA 9: PANEL DE ESTADÍSTICAS EJECUTIVAS DE OBRA */}
-          {obraActiveSubmodule === 'estadisticas' && (() => {
+          {obraActiveSubmodule === 'estadisticas' && canObraFichaView && (() => {
             const availableGroups = [];
             let currGrp = null;
             (partidasList || []).forEach(p => {
@@ -5832,7 +5837,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           {/* VISTA DEDICADA 11: PRESUPUESTO DE OBRA */}
           {obraActiveSubmodule === 'gestion_obra' && <div className="mb-5 rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4"><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div><p className="text-sm font-black text-indigo-950">Plan y Control de Obra</p><p className="mt-1 text-xs text-indigo-900">Conecta el presupuesto, la carta Gantt, el control de costos y el flujo de caja para decidir con una sola fuente de información.</p></div><div className="flex flex-wrap gap-2">{[['presupuesto', 'Presupuesto'], ['planificacion', 'Programación'], ['costos', 'Control de costos'], ['flujo_caja', 'Flujo de caja']].map(([id, label]) => <button key={id} onClick={() => setGestionObraTab(id)} className={`rounded-xl px-3 py-2 text-xs font-black ${gestionObraTab === id ? 'bg-indigo-800 text-white' : 'border border-indigo-200 bg-white text-indigo-900'}`}>{label}</button>)}</div></div></div>}
 
-          {obraActiveSubmodule === 'gestion_obra' && gestionObraTab === 'presupuesto' && (
+          {obraActiveSubmodule === 'gestion_obra' && canObraGestionView && gestionObraTab === 'presupuesto' && (
             <div className="space-y-6 animate-in fade-in duration-200">
 
 
@@ -6130,7 +6135,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           )}
 
           {/* VISTA DEDICADA 12: PLANIFICACIÓN Y CARTA GANTT DE OBRA (CONECTADO A PRESUPUESTO Y ENLACES) */}
-          {obraActiveSubmodule === 'gestion_obra' && gestionObraTab === 'planificacion' && (
+          {obraActiveSubmodule === 'gestion_obra' && canObraGestionView && gestionObraTab === 'planificacion' && (
             <div className="space-y-6 animate-in fade-in duration-200">
               {(() => {
                 const fInicioObraDefault = fechaInicioReal || getObraDateRange(selectedObra).start;
@@ -6624,10 +6629,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
             </div>
           )}
 
-          {obraActiveSubmodule === 'gestion_obra' && gestionObraTab === 'flujo_caja' && <FlujoCajaObra obra={selectedObra} user={user} partidas={partidasList} costos={costosList} liquidaciones={liquidacionesList} avances={reportesAvanceList} />}
+          {obraActiveSubmodule === 'gestion_obra' && canObraGestionView && gestionObraTab === 'flujo_caja' && <FlujoCajaObra obra={selectedObra} user={user} partidas={partidasList} costos={costosList} liquidaciones={liquidacionesList} avances={reportesAvanceList} />}
 
           {/* VISTA DEDICADA 13: CONTROL DE COSTOS DE OBRA */}
-          {obraActiveSubmodule === 'gestion_obra' && gestionObraTab === 'costos' && (
+          {obraActiveSubmodule === 'gestion_obra' && canObraGestionView && gestionObraTab === 'costos' && (
             <div className="space-y-6 animate-in fade-in duration-200">
               <div className="space-y-4">
                 <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">

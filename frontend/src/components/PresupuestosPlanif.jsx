@@ -9,6 +9,8 @@ import {
 import { comunasChile } from '../utils/comunas';
 import ContextualEmailConfigModal from './ContextualEmailConfigModal';
 import { canConfigureEmails, canEditItem, getUserLevel } from '../utils/userLevel';
+import useUserPermissions from '../utils/useUserPermissions';
+import { can } from '../utils/permissionsCatalog';
 
 // Helpers para compatibilidad de metadatos en columnas existentes
 const parseResourceUnitAndCurrency = (unidadStr) => {
@@ -146,6 +148,13 @@ const parsePredecesora = (predStr) => {
 };
 
 export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
+  const { permissions, loading: permissionsLoading } = useUserPermissions(user);
+  const canView = can(user, permissions, 'presupuestos.presupuestos.ver');
+  const canCreate = can(user, permissions, 'presupuestos.presupuestos.crear');
+  const canEdit = can(user, permissions, 'presupuestos.presupuestos.editar');
+  const canDelete = can(user, permissions, 'presupuestos.presupuestos.eliminar');
+  const canDownload = can(user, permissions, 'presupuestos.presupuestos.descargar');
+  const canConfigure = can(user, permissions, 'presupuestos.presupuestos.configurar');
   const isSubmenuEnabled = (submenuId) => {
     const rBase = (user?.rol_base || user?.rol || 'Inspector').toLowerCase();
     if (user && rBase === 'superusuario') return true;
@@ -452,6 +461,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
   };
 
   const handleProcessAIImport = async () => {
+    if (!canCreate) { setErrorMsg('Tu perfil no está autorizado para importar presupuestos.'); return; }
     if (!importAIFile) {
       setImportAIError("Por favor selecciona un archivo.");
       return;
@@ -614,6 +624,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
   };
 
   const handleSaveIAConfig = async () => {
+    if (!canConfigure) { setErrorMsg('Tu perfil no está autorizado para configurar la importación inteligente.'); return; }
     try {
       localStorage.setItem('gemini_api_key', geminiApiKey);
       localStorage.setItem('gemini_model', geminiModel);
@@ -646,6 +657,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
 
 
   const handleConfirmAIImport = async () => {
+    if (!canCreate) { setErrorMsg('Tu perfil no está autorizado para confirmar importaciones.'); return; }
     if (!parsedAIBudget) return;
     setImportAILoading(true);
     setImportAIError("");
@@ -1036,6 +1048,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
   // --- CREAR NUEVO PROYECTO ---
   const handleCreateProject = async (e) => {
     e.preventDefault();
+    if (!canCreate) { setErrorMsg('Tu perfil no está autorizado para crear presupuestos.'); return; }
     if (!newProjectData.nombre.trim()) return;
     setLoadingProyectos(true);
     try {
@@ -1231,6 +1244,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
   };
 
   const handleSaveBudget = async () => {
+    if (!canEdit) { setErrorMsg('Tu perfil no está autorizado para modificar presupuestos.'); return; }
     if (!selectedProyectoId) return;
     setBudgetLoading(true);
     setErrorMsg('');
@@ -1348,6 +1362,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
 
   // --- EXPORTAR PRESUPUESTO EN EXCEL (CON MONEDA SELECCIONADA) ---
   const handleExportExcel = async () => {
+    if (!canDownload) { setErrorMsg('Tu perfil no está autorizado para exportar presupuestos.'); return; }
     if (!selectedProyectoId || itemsPresupuesto.length === 0) {
       alert("No hay partidas registradas en el presupuesto actual para exportar.");
       return;
@@ -1679,6 +1694,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
 
   // --- IMPORTADOR MASIVO ---
   const handleImportCSV = async () => {
+    if (!canCreate) { setErrorMsg('Tu perfil no está autorizado para importar partidas.'); return; }
     if (!selectedProyectoId || !importText.trim()) return;
     setBudgetLoading(true);
     setErrorMsg('');
@@ -1852,6 +1868,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
   };
 
   const handleSaveCalendarConfig = async (newConfig) => {
+    if (!canConfigure) { setErrorMsg('Tu perfil no está autorizado para configurar calendarios.'); return; }
     if (!selectedProyectoId || !currentProyecto) return;
     setTasksLoading(true);
     try {
@@ -1896,6 +1913,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
   };
 
   const handleSaveCronograma = async () => {
+    if (!canEdit) { setErrorMsg('Tu perfil no está autorizado para modificar la programación.'); return; }
     if (!selectedProyectoId) return;
     setTasksLoading(true);
     setErrorMsg('');
@@ -2053,6 +2071,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
   };
 
   const handleSaveResources = async () => {
+    if (!canEdit) { setErrorMsg('Tu perfil no está autorizado para modificar recursos.'); return; }
     if (!selectedProyectoId) return;
     setResourcesLoading(true);
     setErrorMsg('');
@@ -2145,6 +2164,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
   };
 
   const handleSaveIndirectCosts = async () => {
+    if (!canEdit) { setErrorMsg('Tu perfil no está autorizado para modificar costos indirectos.'); return; }
     if (!selectedProyectoId) return;
     setIndirectLoading(true);
     try {
@@ -2404,6 +2424,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
 
   const handleCreateAndLinkNewResource = async (e) => {
     e.preventDefault();
+    if (!canCreate) { setErrorMsg('Tu perfil no está autorizado para crear recursos.'); return; }
     if (!newResourceForm.recurso.trim() || !selectedProyectoId) return;
     setApuLoading(true);
 
@@ -2618,6 +2639,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
   };
 
   const handleSaveApu = async () => {
+    if (!canEdit) { setErrorMsg('Tu perfil no está autorizado para modificar análisis de precios unitarios.'); return; }
     if (!apuItem) return;
     setApuLoading(true);
     try {
@@ -2726,6 +2748,8 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
   const isWorkspaceActive = activeSection !== '' && activeSection !== 'mis_presupuestos';
   const showBlockerGate = isWorkspaceActive && !selectedProyectoId;
 
+  if (permissionsLoading) return <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">Cargando permisos…</div>;
+  if (!canView) return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center text-sm font-bold text-amber-900">Tu perfil no tiene permiso para ver Presupuestos.</div>;
   return (
     <div className="space-y-6">
       

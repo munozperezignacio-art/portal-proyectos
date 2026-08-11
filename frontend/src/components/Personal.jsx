@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import ModuleHeader from './ModuleHeader';
 import { formatRut } from '../utils/rutUtils';
+import useUserPermissions from '../utils/useUserPermissions';
+import { can } from '../utils/permissionsCatalog';
 import { 
   Users, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Check, Building2, UserPlus, 
   FileText, DollarSign, Upload, FileCheck, RefreshCw, Calculator, BookOpen, Download, Building, Printer
@@ -25,6 +27,11 @@ export const getAFPDetails = (afpName) => {
 };
 
 function Personal({ user, onBack }) {
+  const { permissions, loading: permissionsLoading } = useUserPermissions(user);
+  const canView = can(user, permissions, 'rrhh.personal.ver');
+  const canCreate = can(user, permissions, 'rrhh.personal.crear');
+  const canEdit = can(user, permissions, 'rrhh.personal.editar');
+  const canDelete = can(user, permissions, 'rrhh.personal.eliminar');
   // Submódulo activo: null (Menú de Rectángulos), 'personal_empresa', 'asignar_obra', 'remuneraciones'
   const [activeSubmodule, setActiveSubmodule] = useState(null);
 
@@ -246,6 +253,7 @@ function Personal({ user, onBack }) {
   };
 
   const handleDeleteWorker = async (worker) => {
+    if (!canDelete) { setErrorMsg('Tu perfil no está autorizado para eliminar trabajadores.'); return; }
     if (!window.confirm(`¿Estás seguro de eliminar a ${worker.nombre} del Máster de Personal Empresa?`)) return;
     try {
       const { error } = await supabase.from('maestro_personal').delete().eq('id', worker.id);
@@ -268,6 +276,7 @@ function Personal({ user, onBack }) {
   };
 
   const handleSaveObraAssignment = async () => {
+    if (!canEdit) { setErrorMsg('Tu perfil no está autorizado para asignar personal a obras.'); return; }
     if (!assignModalData.workerId) return;
     try {
       const payload = {
@@ -309,6 +318,7 @@ function Personal({ user, onBack }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (editingWorker ? !canEdit : !canCreate) { setErrorMsg('Tu perfil no está autorizado para guardar trabajadores.'); return; }
     setModalLoading(true);
     setSuccessMsg('');
     setErrorMsg('');
@@ -441,6 +451,8 @@ function Personal({ user, onBack }) {
     return matchesSearch && matchesObra;
   });
 
+  if (permissionsLoading) return <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">Cargando permisos…</div>;
+  if (!canView) return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center text-sm font-bold text-amber-900">Tu perfil no tiene permiso para ver Recursos Humanos.</div>;
   return (
     <div className="space-y-6">
       
