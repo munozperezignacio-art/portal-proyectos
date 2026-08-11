@@ -2066,8 +2066,8 @@ function ConfigCorreos({ user, onBack }) {
 
       {/* Modal: Crear / Editar Empresa */}
       {companyModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-4 sm:p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto my-auto">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto bg-slate-900/60 p-2 backdrop-blur-sm sm:p-5">
+          <div className="my-auto w-full max-w-6xl overflow-y-auto rounded-3xl border border-slate-100 bg-white p-4 shadow-2xl animate-in fade-in zoom-in duration-200 max-h-[94vh] sm:p-8">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-slate-800 text-sm">
                 {companyEditing ? 'Editar Empresa' : 'Registrar Nueva Empresa'}
@@ -2231,7 +2231,7 @@ function ConfigCorreos({ user, onBack }) {
 
               <section className="rounded-2xl border border-blue-200 bg-blue-50/50 p-4 sm:p-5">
                 <div className="mb-4 flex flex-wrap items-start justify-between gap-3"><div><h4 className="text-sm font-black text-slate-900">Módulos contratados</h4><p className="mt-1 text-xs text-slate-500">Define las áreas que puede utilizar la empresa. Administración siempre está incluida.</p></div><span className="rounded-full bg-white px-3 py-1 text-[10px] font-black text-blue-900">{(companyFormData.modulos_activos || []).filter(id => id !== 'admin').length} contratados</span></div>
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {moduleCatalog.map((module) => {
                     const isChecked = module.base || companyFormData.modulos_activos?.includes(module.id);
                     return (
