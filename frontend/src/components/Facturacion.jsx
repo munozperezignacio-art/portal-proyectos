@@ -4,7 +4,7 @@ import {
   Building2, Receipt, Plus, Trash2, Check, AlertCircle, RefreshCw, FileText, 
   ChevronRight, ArrowLeft, Printer, Search, Settings, Save, Sparkles, FolderPlus, 
   Coins, ShoppingBag, Eye, Percent, FileCode, CheckCircle, HelpCircle, HardDrive,
-  Users, Boxes, FileCheck, Ban, Lock, Unlock
+  Users, Boxes, FileCheck, Ban, Lock, Unlock, WalletCards, LayoutDashboard
 } from 'lucide-react';
 import { comunasChile } from '../utils/comunas';
 import ContextualEmailConfigModal from './ContextualEmailConfigModal';
@@ -12,6 +12,7 @@ import { canConfigureEmails } from '../utils/userLevel';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
 import FacturacionElectronica from './FacturacionElectronica';
+import ModuleHeader from './ModuleHeader';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -48,7 +49,7 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-function FacturacionLegacy({ user, companyBranding, onBack }) {
+function FacturacionLegacy({ user, companyBranding, onBack, embedded = false }) {
   const { permissions, loading: permissionsLoading } = useUserPermissions(user);
   const canView = can(user, permissions, 'facturacion.documentos.ver');
   const canCreate = can(user, permissions, 'facturacion.documentos.crear');
@@ -861,7 +862,9 @@ ${detalleXml}  </Documento>
         .update({ estado_acuse: 'Aceptado', estado_sii: 'Aceptado' })
         .eq('id', dteId);
       if (error) throw error;
-      setSuccessMsg("Documento tributario aceptado comercialmente ante el SII.");
+      setSuccessMsg(configSii?.proveedor_integracion
+        ? "Aceptación registrada y enviada al conector DTE. Revisa su estado de confirmación."
+        : "Aceptación registrada en Obraxis. Pendiente de informar y confirmar ante el SII.");
       fetchDocumentos();
     } catch (err) { alert(err.message); }
   };
@@ -888,7 +891,9 @@ ${detalleXml}  </Documento>
         })
         .eq('id', reclamoDteId);
       if (error) throw error;
-      setSuccessMsg("DTE rechazado/reclamado formalmente ante el SII.");
+      setSuccessMsg(configSii?.proveedor_integracion
+        ? "Reclamo registrado y enviado al conector DTE. Revisa su estado de confirmación."
+        : "Reclamo registrado en Obraxis. Pendiente de informar y confirmar ante el SII.");
       setShowReclamoModal(false);
       fetchDocumentos();
     } catch (err) { alert(err.message); }
@@ -1062,13 +1067,13 @@ ${detalleXml}  </Documento>
       
       {/* BARRA SUPERIOR DE CONTEXTO */}
       <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center bg-white p-4 border border-slate-200 rounded-2xl shadow-xs gap-3">
-        <button
+        {!embedded && <button
           onClick={onBack}
           className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-slate-850 font-bold cursor-pointer transition mr-auto"
         >
           <ArrowLeft className="w-4 h-4" />
           Volver a Módulos
-        </button>
+        </button>}
         
         <div className="flex flex-wrap items-center gap-2">
           {configSii.rechazo_sin_oc && (
@@ -1085,6 +1090,12 @@ ${detalleXml}  </Documento>
       </div>
 
       {/* MENSAJES */}
+      {!configSii?.proveedor_integracion && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-950">
+          <p className="font-black">Operación tributaria en modo interno</p>
+          <p className="mt-1 leading-relaxed">Puedes preparar, asignar, revisar y controlar DTE en Obraxis. La emisión, aceptación, reclamo, cesión y consulta con validez tributaria quedarán confirmadas sólo cuando se conecte un proveedor DTE certificado o el servicio correspondiente del SII.</p>
+        </div>
+      )}
       {errorMsg && (
         <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-shake">
           <AlertCircle className="w-4 h-4 shrink-0" />
@@ -2561,4 +2572,37 @@ ${detalleXml}  </Documento>
   );
 }
 
-export default FacturacionElectronica;
+function Facturacion({ user, companyBranding, onBack }) {
+  const [workspace, setWorkspace] = useState('integrada');
+  const role = String(user?.rol_base || user?.rol || '').toLowerCase();
+  const isPlatformAdmin = role.includes('superusuario') || role.includes('superadmin') || (user?.empresa === 'Obraxis' && role.includes('admin'));
+  const configuredSubmenus = String(companyBranding?.submenus_activos || user?.submenus || '')
+    .split(',').map(item => item.trim().toLowerCase()).filter(Boolean);
+  const fullDteEnabled = isPlatformAdmin || configuredSubmenus.length === 0 || configuredSubmenus.includes('facturacion_operacion_dte');
+
+  return <div className="space-y-5">
+    <ModuleHeader
+      title="Facturación Electrónica"
+      subtitle="Gestión financiera por centros y operación completa de documentos tributarios electrónicos."
+      Icon={WalletCards}
+      onBack={onBack}
+    />
+    <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="grid gap-2 md:grid-cols-2">
+        <button type="button" onClick={() => setWorkspace('integrada')} className={`flex items-start gap-3 rounded-xl border p-4 text-left transition ${workspace === 'integrada' ? 'border-blue-900 bg-blue-950 text-white shadow-md' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-white'}`}>
+          <LayoutDashboard className="mt-0.5 h-5 w-5 shrink-0" />
+          <span><span className="block text-sm font-black">Gestión integrada</span><span className={`mt-1 block text-xs ${workspace === 'integrada' ? 'text-blue-100' : 'text-slate-500'}`}>Centros de gestión, obras, gastos reales y facturación de Estados de Pago.</span></span>
+        </button>
+        {fullDteEnabled ? <button type="button" onClick={() => setWorkspace('dte')} className={`flex items-start gap-3 rounded-xl border p-4 text-left transition ${workspace === 'dte' ? 'border-emerald-800 bg-emerald-800 text-white shadow-md' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-white'}`}>
+          <FileCode className="mt-0.5 h-5 w-5 shrink-0" />
+          <span><span className="block text-sm font-black">Operación DTE completa</span><span className={`mt-1 block text-xs ${workspace === 'dte' ? 'text-emerald-100' : 'text-slate-500'}`}>Emisión, recepción, revisión, aceptación o reclamo, OC, bodegas, CAF y RCV.</span></span>
+        </button> : <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-xs text-slate-500"><b className="block text-slate-700">Operación DTE no habilitada</b>Puede activarse para esta empresa desde Panel de control → módulos y menús.</div>}
+      </div>
+    </section>
+    {workspace === 'dte' && fullDteEnabled
+      ? <FacturacionLegacy user={user} companyBranding={companyBranding} onBack={() => setWorkspace('integrada')} embedded />
+      : <FacturacionElectronica user={user} onBack={onBack} embedded />}
+  </div>;
+}
+
+export default Facturacion;

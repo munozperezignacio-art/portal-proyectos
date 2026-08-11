@@ -45,8 +45,12 @@ export const PERMISSIONS_CATALOG = [
     { id: 'formularios', label: 'Formularios y respuestas', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'revisar', 'descargar', 'configurar'] },
   ]},
   { id: 'facturacion', label: 'Facturación', menus: [
-    { id: 'documentos', label: 'Documentos tributarios', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'revisar', 'descargar', 'configurar'] },
-  ]},
+      { id: 'documentos', label: 'Documentos tributarios', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'revisar', 'descargar', 'configurar'] },
+      { id: 'compras', label: 'Recepción, revisión y reclamo de compras', actions: ['ver', 'crear', 'editar', 'enviar', 'revisar', 'aprobar', 'descargar'] },
+      { id: 'ventas', label: 'Emisión y seguimiento de ventas', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'descargar'] },
+      { id: 'maestros', label: 'Clientes, proveedores y centros de gestión', actions: ['ver', 'crear', 'editar', 'eliminar', 'configurar'] },
+      { id: 'tributario', label: 'CAF, RCV y configuración tributaria', actions: ['ver', 'crear', 'editar', 'enviar', 'revisar', 'descargar', 'configurar'] },
+    ]},
   { id: 'gastos', label: 'Rendición de Gastos', menus: [
     { id: 'rendiciones', label: 'Rendiciones, comprobantes y aprobación', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'revisar', 'aprobar', 'descargar', 'configurar'] },
   ]},

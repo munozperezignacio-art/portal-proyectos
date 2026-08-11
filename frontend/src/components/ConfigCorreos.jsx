@@ -1099,6 +1099,7 @@ function ConfigCorreos({ user, onBack }) {
     { id: 'facturacion_emitidos', label: 'Facturación: Historial DTE', modulo: 'facturacion' },
     { id: 'facturacion_clientes', label: 'Facturación: Directorio de Clientes', modulo: 'facturacion' },
     { id: 'facturacion_configuracion', label: 'Facturación: Ajustes de Factura', modulo: 'facturacion' },
+    { id: 'facturacion_operacion_dte', label: 'Facturación: Operación DTE completa', modulo: 'facturacion' },
     { id: 'obras_produccion', label: 'Obras: Avance de Producción', modulo: 'obras' },
     { id: 'obras_asistencia', label: 'Obras: Asistencia Diaria', modulo: 'obras' },
     { id: 'obras_maquinaria', label: 'Obras: Reporte de Maquinaria', modulo: 'obras' },

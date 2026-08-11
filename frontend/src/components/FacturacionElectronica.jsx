@@ -15,7 +15,7 @@ const emptyCentro = { codigo: '', nombre: '', tipo: 'Obra', descripcion: '' };
 const emptyPurchase = { tipo_dte: 33, folio: '', fecha_emision: today(), rut_emisor: '', nombre_emisor: '', centro_gestion_id: '', monto_neto: '', monto_iva: '', monto_total: '', estado_acuse: 'Pendiente' };
 const emptySale = { tipo_dte: 33, folio: '', fecha_emision: today(), estado_pago_id: '', estado_sii: 'Aceptado', estado_pago: 'Pendiente' };
 
-export default function FacturacionElectronica({ user, onBack }) {
+export default function FacturacionElectronica({ user, onBack, embedded = false }) {
   const { permissions, loading: permissionsLoading } = useUserPermissions(user);
   const canView = can(user, permissions, 'facturacion.documentos.ver');
   const canCreate = can(user, permissions, 'facturacion.documentos.crear');
@@ -163,7 +163,7 @@ export default function FacturacionElectronica({ user, onBack }) {
   const input = 'w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs font-semibold text-slate-800 outline-none focus:border-blue-600';
   const tabs = [['resumen', 'Resumen'], ['centros', 'Centros de gestión'], ['compras', 'Facturas recibidas'], ['ventas', 'Facturas emitidas'], ['configuracion', 'Configuración']];
   return <div className="space-y-5">
-    <ModuleHeader title="Facturación Electrónica" subtitle="Centros de gestión, documentos recibidos, facturación de Estados de Pago y gasto real por obra." Icon={WalletCards} onBack={onBack} actions={<button onClick={load} className="flex items-center gap-2 rounded-xl border border-slate-300 px-3 py-2 text-xs font-black"><RefreshCw className="h-4 w-4" />Actualizar</button>} />
+    {!embedded && <ModuleHeader title="Facturación Electrónica" subtitle="Centros de gestión, documentos recibidos, facturación de Estados de Pago y gasto real por obra." Icon={WalletCards} onBack={onBack} actions={<button onClick={load} className="flex items-center gap-2 rounded-xl border border-slate-300 px-3 py-2 text-xs font-black"><RefreshCw className="h-4 w-4" />Actualizar</button>} />}
     {message && <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs font-bold text-blue-950">{message}</div>}
     <div className={`rounded-2xl border p-4 ${config.facturacion_habilitada ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
       <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-black text-slate-900">Facturación {config.facturacion_habilitada ? 'habilitada' : 'pendiente de habilitación'}</p><p className="mt-1 text-xs text-slate-600">{config.facturacion_habilitada ? `${obras.length - obrasWithoutCenter.length} de ${obras.length} obras tienen centro asignado.` : 'Actívala en Configuración y asigna un centro a cada obra.'}</p></div><span className="rounded-full bg-white px-3 py-1.5 text-[10px] font-black uppercase text-slate-700">{config.proveedor_integracion || 'Carga manual / API pendiente'}</span></div>
