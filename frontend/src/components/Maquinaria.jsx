@@ -6,7 +6,7 @@ import {
   Truck, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Check, QrCode, 
   Building2, Eye, Camera, Image, Calendar, Clock, Gauge, Fuel, CheckCircle2, 
   ChevronRight, Wrench, ShieldCheck, MapPin, CalendarDays, RefreshCw, Send, Handshake, DollarSign,
-  Filter, SlidersHorizontal, List, Grid, AlertTriangle
+  Filter, SlidersHorizontal, List, Grid, AlertTriangle, ChevronLeft, ChevronDown
 } from 'lucide-react';
 import { formatRut, formatNumberWithDots, parseNumberFromDots } from '../utils/rutUtils';
 import useUserPermissions from '../utils/useUserPermissions';
@@ -65,6 +65,10 @@ const calcularDiasLaborablesArriendo = (fDesdeStr, fHastaStr, logsContrato) => {
   };
 };
 
+const EQUIPMENT_COLORS = ['#2563EB', '#7C3AED', '#DC2626', '#EA580C', '#059669', '#0891B2', '#DB2777', '#4F46E5', '#65A30D', '#D97706'];
+const dateToISO = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+const colorForEquipment = (equipment, index = 0) => equipment?.color_calendario || EQUIPMENT_COLORS[index % EQUIPMENT_COLORS.length];
+
 export default function Maquinaria({ user, onBack }) {
   const { permissions, loading: permissionsLoading } = useUserPermissions(user);
   const canView = can(user, permissions, 'maquinaria.inventario.ver');
@@ -101,6 +105,7 @@ export default function Maquinaria({ user, onBack }) {
     foto_izquierda: '',
     foto_derecha: '',
     foto_posterior: ''
+    ,color_calendario: EQUIPMENT_COLORS[0]
   });
   const [maintenanceDraft, setMaintenanceDraft] = useState({ nombre: '', intervalo: '', unidad: 'horas', ultima_lectura: '', ultima_fecha: '' });
 
@@ -130,7 +135,10 @@ export default function Maquinaria({ user, onBack }) {
   const [reservasList, setReservasList] = useState([]);
   const [reservaModalOpen, setReservaModalOpen] = useState(false);
   const [editingReserva, setEditingReserva] = useState(null);
-  const [reservaViewMode, setReservaViewMode] = useState('tabla'); // 'tabla' o 'matriz'
+  const [reservaViewMode, setReservaViewMode] = useState('calendario'); // calendario, tabla o matriz
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [calendarSelectionStart, setCalendarSelectionStart] = useState(null);
+  const [calendarLegendOpen, setCalendarLegendOpen] = useState(true);
   const [reservaForm, setReservaForm] = useState({
     equipo_id: '',
     obra_destino_custom: '',
@@ -334,6 +342,7 @@ export default function Maquinaria({ user, onBack }) {
       foto_izquierda: '',
       foto_derecha: '',
       foto_posterior: ''
+      ,color_calendario: EQUIPMENT_COLORS[maquinaria.length % EQUIPMENT_COLORS.length]
     });
     setSuccessMsg('');
     setErrorMsg('');
@@ -361,6 +370,7 @@ export default function Maquinaria({ user, onBack }) {
       foto_izquierda: equip.foto_izquierda || '',
       foto_derecha: equip.foto_derecha || '',
       foto_posterior: equip.foto_posterior || ''
+      ,color_calendario: equip.color_calendario || colorForEquipment(equip, maquinaria.findIndex(m => m.id === equip.id))
     });
     setSuccessMsg('');
     setErrorMsg('');
@@ -416,6 +426,7 @@ export default function Maquinaria({ user, onBack }) {
       foto_izquierda: formData.foto_izquierda || null,
       foto_derecha: formData.foto_derecha || null,
       foto_posterior: formData.foto_posterior || null,
+      color_calendario: formData.color_calendario || EQUIPMENT_COLORS[0],
       registrado_por: user.usuario,
       empresa: user.empresa
     };
@@ -620,6 +631,18 @@ export default function Maquinaria({ user, onBack }) {
       alert('Por favor especifique la obra futura o proyecto en licitación.');
       return;
     }
+    if (!reservaForm.fecha_inicio || !reservaForm.fecha_fin || reservaForm.fecha_fin < reservaForm.fecha_inicio) {
+      setErrorMsg('La fecha de término debe ser igual o posterior a la fecha de inicio.');
+      return;
+    }
+
+    const overlap = reservasList.find(r => String(r.equipo_id) === String(reservaForm.equipo_id)
+      && (!editingReserva || r.id !== editingReserva.id)
+      && r.fecha_inicio <= reservaForm.fecha_fin && r.fecha_fin >= reservaForm.fecha_inicio);
+    if (overlap) {
+      setErrorMsg(`El equipo ya está reservado para ${overlap.obra_destino}, entre ${overlap.fecha_inicio} y ${overlap.fecha_fin}.`);
+      return;
+    }
 
     const eq = maquinaria.find(m => m.id.toString() === reservaForm.equipo_id.toString());
 
@@ -680,6 +703,43 @@ export default function Maquinaria({ user, onBack }) {
     } catch (e) {
       alert('Error al eliminar reserva: ' + e.message);
     }
+  };
+
+  const handleEquipmentColorChange = async (equipment, color) => {
+    if (!canEdit) { setErrorMsg('Tu perfil no está autorizado para modificar equipos.'); return; }
+    setMaquinaria(prev => prev.map(item => item.id === equipment.id ? { ...item, color_calendario: color } : item));
+    try {
+      const { error } = await supabase.from('inventario_maquinaria').update({ color_calendario: color }).eq('id', equipment.id);
+      if (error) throw error;
+      setSuccessMsg(`Color de ${equipment.patente} actualizado.`);
+    } catch (err) {
+      setErrorMsg('No fue posible guardar el color del equipo. Verifica que la actualización de Supabase esté aplicada.');
+    }
+  };
+
+  const calendarDays = (() => {
+    const first = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+    const mondayOffset = (first.getDay() + 6) % 7;
+    const gridStart = new Date(first);
+    gridStart.setDate(first.getDate() - mondayOffset);
+    return Array.from({ length: 42 }, (_, index) => {
+      const day = new Date(gridStart);
+      day.setDate(gridStart.getDate() + index);
+      return day;
+    });
+  })();
+
+  const selectCalendarDate = (day) => {
+    const iso = dateToISO(day);
+    if (!calendarSelectionStart || iso < calendarSelectionStart) {
+      setCalendarSelectionStart(iso);
+      setReservaForm(prev => ({ ...prev, fecha_inicio: iso, fecha_fin: iso }));
+      return;
+    }
+    setReservaForm(prev => ({ ...prev, fecha_inicio: calendarSelectionStart, fecha_fin: iso }));
+    setCalendarSelectionStart(null);
+    setEditingReserva(null);
+    setReservaModalOpen(true);
   };
 
   // 5. Handler Arriendos a Terceros
@@ -1306,6 +1366,13 @@ export default function Maquinaria({ user, onBack }) {
             <div className="flex items-center gap-2">
               <div className="bg-slate-100 p-1 rounded-xl flex text-xs font-bold border border-slate-200">
                 <button
+                  onClick={() => setReservaViewMode('calendario')}
+                  className={`px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1 ${reservaViewMode === 'calendario' ? 'bg-white text-purple-950 shadow-2xs font-extrabold' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  <CalendarDays className="w-3.5 h-3.5" />
+                  <span>Calendario</span>
+                </button>
+                <button
                   onClick={() => setReservaViewMode('tabla')}
                   className={`px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1 ${reservaViewMode === 'tabla' ? 'bg-white text-purple-950 shadow-2xs font-extrabold' : 'text-slate-600 hover:text-slate-900'}`}
                 >
@@ -1341,6 +1408,67 @@ export default function Maquinaria({ user, onBack }) {
               </button>
             </div>
           </div>
+
+          {reservaViewMode === 'calendario' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_280px] gap-4">
+                <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-slate-200 bg-slate-50">
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setCalendarMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))} className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-100" title="Mes anterior"><ChevronLeft className="w-4 h-4" /></button>
+                      <button onClick={() => setCalendarMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1))} className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-[11px] font-black">Hoy</button>
+                      <button onClick={() => setCalendarMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))} className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-100" title="Mes siguiente"><ChevronRight className="w-4 h-4" /></button>
+                    </div>
+                    <h4 className="text-sm font-black text-slate-900 capitalize">{calendarMonth.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })}</h4>
+                    <p className="text-[10px] font-semibold text-slate-500">Haz clic en inicio y término para crear una reserva</p>
+                  </div>
+                  <div className="grid grid-cols-7 bg-slate-100 border-b border-slate-200">
+                    {['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map(day => <div key={day} className="px-2 py-2 text-center text-[10px] font-black uppercase text-slate-500">{day}</div>)}
+                  </div>
+                  <div className="grid grid-cols-7">
+                    {calendarDays.map(day => {
+                      const iso = dateToISO(day);
+                      const dayReservations = reservasList.filter(res => res.fecha_inicio <= iso && res.fecha_fin >= iso);
+                      const inCurrentMonth = day.getMonth() === calendarMonth.getMonth();
+                      const isToday = iso === dateToISO(new Date());
+                      const isDraft = calendarSelectionStart && iso === calendarSelectionStart;
+                      return (
+                        <button type="button" key={iso} onClick={() => selectCalendarDate(day)} className={`min-h-[112px] p-1.5 border-r border-b border-slate-100 text-left align-top hover:bg-purple-50 transition ${inCurrentMonth ? 'bg-white' : 'bg-slate-50/70'} ${isDraft ? 'ring-2 ring-inset ring-purple-500' : ''}`}>
+                          <span className={`inline-flex w-6 h-6 items-center justify-center rounded-full text-[10px] font-black ${isToday ? 'bg-purple-700 text-white' : inCurrentMonth ? 'text-slate-800' : 'text-slate-400'}`}>{day.getDate()}</span>
+                          <div className="space-y-1 mt-1">
+                            {dayReservations.slice(0, 3).map((res, index) => {
+                              const equipmentIndex = maquinaria.findIndex(m => String(m.id) === String(res.equipo_id));
+                              const equipment = maquinaria[equipmentIndex];
+                              const color = colorForEquipment(equipment, equipmentIndex < 0 ? index : equipmentIndex);
+                              return <div key={`${res.id || res.created_at}-${iso}`} className="rounded px-1.5 py-1 text-[9px] leading-tight font-extrabold text-white truncate shadow-xs" style={{ backgroundColor: color }} title={`${res.equipo_tipo} ${res.equipo_patente} · ${res.obra_destino} · ${res.fecha_inicio} al ${res.fecha_fin}`}>{res.equipo_patente} · {res.obra_destino}</div>;
+                            })}
+                            {dayReservations.length > 3 && <span className="block text-[9px] font-bold text-slate-500 px-1">+{dayReservations.length - 3} reservas</span>}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <aside className="rounded-2xl border border-slate-200 bg-slate-50 p-4 h-fit">
+                  <button type="button" onClick={() => setCalendarLegendOpen(prev => !prev)} className="w-full flex items-center justify-between text-left">
+                    <span><b className="block text-xs text-slate-900 uppercase">Colores por equipo</b><span className="text-[10px] text-slate-500">Se conservan en todas sus reservas</span></span>
+                    <ChevronDown className={`w-4 h-4 transition ${calendarLegendOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {calendarLegendOpen && <div className="mt-3 space-y-2 max-h-[510px] overflow-y-auto pr-1">
+                    {maquinaria.map((equipment, index) => {
+                      const color = colorForEquipment(equipment, index);
+                      return <div key={equipment.id} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-2">
+                        <input type="color" value={color} onChange={e => handleEquipmentColorChange(equipment, e.target.value.toUpperCase())} className="w-8 h-8 rounded-lg cursor-pointer border-0 bg-transparent p-0" title="Elegir color" />
+                        <div className="min-w-0"><p className="text-[10px] font-black text-slate-900 truncate">{equipment.tipo}</p><p className="text-[9px] font-semibold text-slate-500 truncate">{equipment.patente} · {equipment.marca || 'Sin modelo'}</p></div>
+                      </div>;
+                    })}
+                  </div>}
+                </aside>
+              </div>
+              {calendarSelectionStart && <div className="rounded-xl border border-purple-200 bg-purple-50 px-4 py-2 text-xs font-bold text-purple-900">Inicio seleccionado: {calendarSelectionStart}. Ahora selecciona la fecha de término.</div>}
+            </div>
+          )}
 
           {/* VISTA 1: TABLA CONSOLIDADA PARA GRANDES FLOTAS */}
           {reservaViewMode === 'tabla' && (
@@ -2714,6 +2842,17 @@ export default function Maquinaria({ user, onBack }) {
                     <option value="Propio">Propio (Empresa)</option>
                     <option value="Arrendado">Arrendado / Proveedor</option>
                   </select>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-purple-200 bg-purple-50/70 p-3 flex items-center justify-between gap-4">
+                <div>
+                  <label className="block text-[10px] font-black uppercase text-purple-950">Color en calendario de reservas</label>
+                  <p className="text-[10px] text-slate-500 mt-0.5">Identifica este equipo en toda la planificación.</p>
+                </div>
+                <div className="flex items-center gap-2 rounded-xl bg-white border border-purple-200 px-2 py-1.5">
+                  <input type="color" value={formData.color_calendario || EQUIPMENT_COLORS[0]} onChange={(e) => setFormData(prev => ({ ...prev, color_calendario: e.target.value.toUpperCase() }))} className="w-9 h-9 border-0 p-0 bg-transparent cursor-pointer" />
+                  <span className="text-[10px] font-mono font-bold text-slate-600">{formData.color_calendario || EQUIPMENT_COLORS[0]}</span>
                 </div>
               </div>
 
