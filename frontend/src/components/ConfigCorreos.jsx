@@ -6,7 +6,7 @@ import PermissionsGovernancePanel from './PermissionsGovernancePanel';
 import NotificationMaster from './NotificationMaster';
 import { PERMISSIONS_CATALOG, permissionKey } from '../utils/permissionsCatalog';
 import { 
-  Settings, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Check, Mail, Filter, User, Lock, Building2, ShieldAlert, Copy, Archive, ArchiveRestore, ShieldCheck
+  Settings, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Check, Mail, Filter, User, Lock, Building2, ShieldAlert, Copy, Archive, ArchiveRestore, ShieldCheck, Bell, Palette, Users, Workflow
 } from 'lucide-react';
 
 function ConfigCorreos({ user, onBack }) {
@@ -1186,13 +1186,19 @@ function ConfigCorreos({ user, onBack }) {
     <div className="space-y-4">
       
       {/* Encabezado */}
-      <div className="flex justify-between items-center mb-4">
-        <div className="flex items-center gap-3">
-          <button onClick={onBack} className="p-1.5 hover:bg-slate-200 rounded-lg transition cursor-pointer">
-            <ArrowLeft className="w-5 h-5 text-slate-600" />
-          </button>
-          <h2 className="text-base font-bold text-slate-800 uppercase tracking-wide">Panel de Configuración General</h2>
-        </div>
+      <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xs">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <button type="button" onClick={onBack} className="shrink-0 rounded-xl p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900" title="Volver" aria-label="Volver">
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <div className="shrink-0 rounded-xl bg-slate-50 p-2.5 text-primary"><Settings className="h-6 w-6" /></div>
+            <div className="min-w-0">
+              <h1 className="text-lg font-black leading-tight tracking-tight text-slate-900 sm:text-xl">Panel de Configuración General</h1>
+              <p className="mt-1 text-xs font-normal leading-relaxed text-slate-500 sm:text-[13px]">Administra notificaciones, identidad corporativa, usuarios, roles, permisos y empresas desde un solo lugar.</p>
+            </div>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
         
         {activeTab === 'alertas' && (
           <button
@@ -1233,82 +1239,91 @@ function ConfigCorreos({ user, onBack }) {
             <span>Agregar Empresa</span>
           </button>
         )}
+          </div>
+        </div>
       </div>
 
       {/* Tabs Layout */}
-      <div className="flex border-b border-slate-200 gap-2 mb-4 overflow-x-auto">
+      <div className="flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-xs">
         <button
           onClick={() => setActiveTab('notificaciones')}
-          className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 whitespace-nowrap cursor-pointer ${
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
             activeTab === 'notificaciones'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
+              ? 'bg-slate-950 text-white shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
           }`}
         >
+          <Bell className="h-4 w-4" />
           Control de Notificaciones
         </button>
         <button
           onClick={() => setActiveTab('branding')}
-          className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 whitespace-nowrap cursor-pointer ${
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
             activeTab === 'branding' 
-              ? 'border-primary text-primary' 
-              : 'border-transparent text-slate-500 hover:text-slate-700'
+              ? 'bg-slate-950 text-white shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
           }`}
         >
+          <Palette className="h-4 w-4" />
           Marca Corporativa
         </button>
         <button
           onClick={() => setActiveTab('usuarios')}
-          className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 whitespace-nowrap cursor-pointer ${
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
             activeTab === 'usuarios' 
-              ? 'border-primary text-primary' 
-              : 'border-transparent text-slate-500 hover:text-slate-700'
+              ? 'bg-slate-950 text-white shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
           }`}
         >
+          <Users className="h-4 w-4" />
           Gestión de Usuarios
         </button>
         <button
           onClick={() => setActiveTab('roles')}
-          className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 whitespace-nowrap cursor-pointer ${
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
             activeTab === 'roles' 
-              ? 'border-primary text-primary' 
-              : 'border-transparent text-slate-500 hover:text-slate-700'
+              ? 'bg-slate-950 text-white shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
           }`}
         >
+          <ShieldCheck className="h-4 w-4" />
           Roles
         </button>
         <button
           onClick={() => setActiveTab('permisos')}
-          className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 whitespace-nowrap cursor-pointer ${
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
             activeTab === 'permisos'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
+              ? 'bg-slate-950 text-white shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
           }`}
         >
+          <Workflow className="h-4 w-4" />
           Permisos y Flujos
         </button>
         {isObraxisGlobalAdmin && (
           <button
             onClick={() => setActiveTab('empresas')}
-            className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 whitespace-nowrap cursor-pointer ${
+            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
               activeTab === 'empresas' 
-                ? 'border-primary text-primary' 
-                : 'border-transparent text-slate-500 hover:text-slate-700'
+                ? 'bg-slate-950 text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
             }`}
           >
+            <Building2 className="h-4 w-4" />
             Gestión de Empresas
           </button>
         )}
         {isObraxisGlobalAdmin && (
           <button
             onClick={() => setActiveTab('plataforma')}
-            className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 whitespace-nowrap cursor-pointer ${
+            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
               activeTab === 'plataforma' 
-                ? 'border-primary text-primary' 
-                : 'border-transparent text-slate-500 hover:text-slate-700'
+                ? 'bg-slate-950 text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
             }`}
           >
-            ⚙️ Ajustes Globales Obraxis
+            <Settings className="h-4 w-4" />
+            Ajustes Globales Obraxis
           </button>
         )}
       </div>
