@@ -1245,7 +1245,7 @@ function ConfigCorreos({ user, onBack }) {
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
-          Master de Notificaciones
+          Control de Notificaciones
         </button>
         <button
           onClick={() => setActiveTab('branding')}

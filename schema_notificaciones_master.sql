@@ -1,4 +1,4 @@
--- Master de notificaciones Obraxis
+-- Control de notificaciones Obraxis
 create extension if not exists pgcrypto;
 
 create table if not exists public.notificaciones_reglas (
