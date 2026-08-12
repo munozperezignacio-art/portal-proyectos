@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import {
-  Bell, CalendarClock, CheckCircle2, ChevronDown, Clock3, Edit3, Mail,
+  BarChart3, Bell, CalendarClock, CheckCircle2, ChevronDown, Clock3, Edit3, Mail,
   Plus, Search, Send, Settings2, Trash2, Users, X, Zap
 } from 'lucide-react';
+import ExecutiveReportScheduler from './ExecutiveReportScheduler';
 
 const CATALOG = [
   { code: 'avance_registrado', module: 'Obras', name: 'Avance registrado', description: 'Informa cada nuevo reporte de avance físico.', frequency: 'Inmediata' },
@@ -63,6 +64,7 @@ const scopeLabel = rule => {
 };
 
 export default function NotificationMaster({ user, obras = [], roles = [] }) {
+  const [section, setSection] = useState('alertas');
   const [rules, setRules] = useState([]);
   const [deliveries, setDeliveries] = useState([]);
   const [users, setUsers] = useState([]);
@@ -192,6 +194,11 @@ export default function NotificationMaster({ user, obras = [], roles = [] }) {
 
   return (
     <div className="space-y-4">
+      <div className="flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2">
+        <button onClick={() => setSection('alertas')} className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black ${section === 'alertas' ? 'bg-slate-950 text-white' : 'text-slate-600'}`}><Bell className="h-4 w-4"/>Alertas y notificaciones</button>
+        <button onClick={() => setSection('informes')} className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black ${section === 'informes' ? 'bg-slate-950 text-white' : 'text-slate-600'}`}><BarChart3 className="h-4 w-4"/>Informes gerenciales</button>
+      </div>
+      {section === 'informes' ? <ExecutiveReportScheduler user={user} obras={obras} roles={roles}/> : <>
       <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-950 to-blue-950 p-5 text-white shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex gap-3"><div className="rounded-xl bg-white/10 p-3"><Bell className="h-6 w-6" /></div><div>
@@ -252,6 +259,7 @@ export default function NotificationMaster({ user, obras = [], roles = [] }) {
         </div>
         <div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setModal(false)} className="rounded-xl bg-slate-100 px-4 py-3 text-xs font-bold text-slate-700">Cancelar</button><button type="submit" className="flex items-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-xs font-black text-white"><Send className="h-4 w-4" /> Guardar regla</button></div>
       </form></div>}
+      </>}
     </div>
   );
 }
