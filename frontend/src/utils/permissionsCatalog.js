@@ -28,6 +28,7 @@ export const PERMISSIONS_CATALOG = [
   ]},
   { id: 'rrhh', label: 'Recursos Humanos', menus: [
     { id: 'personal', label: 'Personal y contratos', actions: ['ver', 'crear', 'editar', 'eliminar', 'descargar', 'configurar'] },
+    { id: 'proyeccion', label: 'Proyección de personal', actions: ['ver', 'crear', 'editar', 'eliminar', 'descargar', 'configurar'] },
     { id: 'estadisticas', label: 'Estadísticas de Recursos Humanos', actions: ['ver', 'descargar', 'configurar'] },
   ]},
   { id: 'maquinaria', label: 'Maquinaria y Equipos', menus: [

@@ -6,9 +6,10 @@ import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
 import { 
   Users, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Check, Building2, UserPlus, 
-  FileText, DollarSign, Upload, FileCheck, RefreshCw, Calculator, BookOpen, Download, Building, Printer, BarChart3
+  FileText, DollarSign, Upload, FileCheck, RefreshCw, Calculator, BookOpen, Download, Building, Printer, BarChart3, CalendarRange
 } from 'lucide-react';
 import { HrStatistics } from './OperationalStatistics';
+import WorkforceProjection from './WorkforceProjection';
 
 export const afpCommissionRates = {
   'Habitat': { fondo: 10.00, comision: 1.27, total: 11.27 },
@@ -34,6 +35,10 @@ function Personal({ user, onBack }) {
   const canEdit = can(user, permissions, 'rrhh.personal.editar');
   const canDelete = can(user, permissions, 'rrhh.personal.eliminar');
   const canViewStatistics = can(user, permissions, 'rrhh.estadisticas.ver');
+  const canViewProjection = can(user, permissions, 'rrhh.proyeccion.ver');
+  const canCreateProjection = can(user, permissions, 'rrhh.proyeccion.crear');
+  const canEditProjection = can(user, permissions, 'rrhh.proyeccion.editar');
+  const canDeleteProjection = can(user, permissions, 'rrhh.proyeccion.eliminar');
   // Submódulo activo: null (Menú de Rectángulos), 'personal_empresa', 'asignar_obra', 'remuneraciones'
   const [activeSubmodule, setActiveSubmodule] = useState(null);
 
@@ -558,6 +563,14 @@ function Personal({ user, onBack }) {
             >
               <div className="flex justify-between items-start"><div className="p-3.5 bg-cyan-50 text-cyan-900 rounded-2xl group-hover:bg-cyan-900 group-hover:text-white transition"><BarChart3 className="w-7 h-7" /></div><span className="text-[10px] font-bold uppercase tracking-wider text-cyan-900 bg-cyan-50 px-2.5 py-1 rounded-md border border-cyan-200">Gestión</span></div>
               <div><h4 className="font-extrabold text-slate-800 text-sm group-hover:text-cyan-950">Estadísticas de RR.HH.</h4><p className="text-xs text-slate-500 mt-1 leading-relaxed">Dotación, asignaciones, vencimientos, estructura contractual y costo mensual estimado por obra.</p></div>
+            </button>}
+
+            {canViewProjection && <button
+              onClick={() => setActiveSubmodule('proyeccion')}
+              className="p-6 bg-white border border-slate-200 hover:border-indigo-700 rounded-2xl shadow-xs hover:shadow-md transition text-left cursor-pointer group flex flex-col justify-between space-y-4"
+            >
+              <div className="flex justify-between items-start"><div className="p-3.5 bg-indigo-50 text-indigo-900 rounded-2xl group-hover:bg-indigo-900 group-hover:text-white transition"><CalendarRange className="w-7 h-7" /></div><span className="text-[10px] font-bold uppercase tracking-wider text-indigo-900 bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-200">Planificación</span></div>
+              <div><h4 className="font-extrabold text-slate-800 text-sm group-hover:text-indigo-950">Proyección de personal</h4><p className="text-xs text-slate-500 mt-1 leading-relaxed">Planifica dotación futura por obra y cargo, identifica brechas y estima su costo mensual.</p></div>
             </button>}
 
           </div>
@@ -1964,6 +1977,7 @@ function Personal({ user, onBack }) {
       )}
 
       {activeSubmodule === 'estadisticas' && <HrStatistics personal={personal} obras={obras} />}
+      {activeSubmodule === 'proyeccion' && <WorkforceProjection user={user} personal={personal} obras={obras} canCreate={canCreateProjection} canEdit={canEditProjection} canDelete={canDeleteProjection} />}
 
       {/* MODAL PARA ASIGNACIÓN DE OBRA Y FECHA DESDE RRHH */}
       {showAssignObraModal && (
