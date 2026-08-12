@@ -21,6 +21,7 @@ export const PERMISSIONS_CATALOG = [
     { id: 'prevencion', label: 'Prevención de obra', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'revisar', 'aprobar', 'descargar', 'configurar'] },
     { id: 'personal', label: 'Personal, asistencia y cuadrillas', actions: ['ver', 'crear', 'editar', 'eliminar', 'descargar', 'configurar'] },
     { id: 'maquinaria', label: 'Maquinaria de obra', actions: ['ver', 'crear', 'editar', 'eliminar', 'descargar', 'configurar'] },
+    { id: 'subcontratos', label: 'Subcontratos de obra y sus estados de pago', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'revisar', 'aprobar', 'descargar', 'configurar'] },
   ]},
   { id: 'presupuestos', label: 'Presupuestos', menus: [
     { id: 'presupuestos', label: 'Presupuestos y APU', actions: ['ver', 'crear', 'editar', 'eliminar', 'revisar', 'aprobar', 'descargar', 'configurar'] },

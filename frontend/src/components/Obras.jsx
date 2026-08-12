@@ -14,6 +14,7 @@ import LastPlannerLookahead from './LastPlannerLookahead';
 import CalidadObras from './CalidadObras';
 import LibroObrasDigital from './LibroObrasDigital';
 import EstadosPagoObra from './EstadosPagoObra';
+import SubcontratosObra from './SubcontratosObra';
 import FlujoCajaObra from './FlujoCajaObra';
 import { registrarEventoBitacora } from '../utils/bitacoraService';
 import FormAnswerDisplay from './FormAnswerDisplay';
@@ -396,7 +397,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [errorMsg, setErrorMsg] = useState('');
 
   // Submódulo activo de la Obra (null = Vista Principal de Tarjetas / Rectángulos)
-  const [obraActiveSubmodule, setObraActiveSubmodule] = useState(null); // null | 'avance' | 'equipo' | 'maquinaria' | 'materiales' | 'bitacora' | 'libro_obra' | 'estados_pago' | 'estadisticas' | 'calidad' | 'prevencion' | 'gestion_obra'
+  const [obraActiveSubmodule, setObraActiveSubmodule] = useState(null); // incluye subcontratos
   const [equipoTab, setEquipoTab] = useState('asistencia'); // asistencia | personal | cuadrillas
   const [gestionObraTab, setGestionObraTab] = useState('presupuesto'); // presupuesto | planificacion | costos | flujo_caja
 
@@ -3012,6 +3013,11 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   </div>
                 </button>
 
+                <button onClick={() => setObraActiveSubmodule('subcontratos')} className="p-5 bg-white border border-slate-200 hover:border-violet-700 rounded-2xl shadow-xs hover:shadow-md transition text-left cursor-pointer group flex flex-col justify-between space-y-3">
+                  <div className="flex justify-between items-start"><div className="p-3 bg-violet-50 text-violet-900 rounded-xl group-hover:bg-violet-900 group-hover:text-white transition"><Building2 className="w-6 h-6" /></div><span className="text-[10px] font-bold uppercase tracking-wider text-violet-900 bg-violet-50 px-2 py-1 rounded-md border border-violet-200">Empresas colaboradoras</span></div>
+                  <div><h4 className="font-extrabold text-slate-800 text-sm group-hover:text-violet-950">Subcontratos</h4><p className="text-xs text-slate-500 mt-1 leading-relaxed">Avances, asistencia, acreditación y estados de pago presentados por subcontratistas.</p></div>
+                </button>
+
                 {/* 9. Estadísticas */}
                 <button
                   onClick={() => setObraActiveSubmodule('estadisticas')}
@@ -4434,6 +4440,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
           {obraActiveSubmodule === 'estados_pago' && (
             <EstadosPagoObra user={user} obraNombre={selectedObra?.nombre || ''} obra={selectedObra} />
+          )}
+
+          {obraActiveSubmodule === 'subcontratos' && (
+            <SubcontratosObra user={user} obra={selectedObra} />
           )}
 
           {/* VISTA DEDICADA 9: PANEL DE ESTADÍSTICAS EJECUTIVAS DE OBRA */}
