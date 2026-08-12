@@ -240,6 +240,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const canObraGestionView = can(user, userPermissions, 'obras.gestion.ver');
   const canObraPersonalView = can(user, userPermissions, 'obras.personal.ver');
   const canObraMaquinariaView = can(user, userPermissions, 'obras.maquinaria.ver');
+  const canObraMaquinariaCreate = can(user, userPermissions, 'obras.maquinaria.crear');
   const rBase = (user?.rol_base || user?.rol || 'Inspector').toLowerCase();
   const canEditGPS = ['admin', 'administrador', 'superadmin', 'superusuario', 'gerencia', 'jefe', 'supervisor'].some(r => rBase.includes(r));
 
@@ -830,50 +831,52 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const handleSaveMantencion = async (e) => {
     e.preventDefault();
     if (!mantencionFormData.equipo_nombre) return;
+    const equipo = (maquinariaList || []).find(item => String(item.id) === String(mantencionFormData.equipo_nombre));
+    if (!equipo) { setErrorMsg('Selecciona un equipo propio asignado a esta obra.'); return; }
     const newMant = {
-      id: Date.now(),
-      equipo_nombre: mantencionFormData.equipo_nombre,
+      equipo_id: equipo.id,
+      equipo_nombre: equipo.nombre || equipo.tipo || equipo.equipo || 'Equipo',
+      equipo_patente: equipo.patente || '',
+      equipo_tipo: equipo.tipo || equipo.nombre || 'Equipo',
       fecha: mantencionFormData.fecha,
       tipo: mantencionFormData.tipo,
       costo: parseFloat(mantencionFormData.costo) || 0,
       descripcion: mantencionFormData.descripcion.trim(),
-      obra_nombre: selectedObra?.nombre || ''
+      obra_nombre: selectedObra?.nombre || '',
+      empresa: user?.empresa || 'OBRAXIS',
+      registrado_por: user?.nombre || user?.usuario || ''
     };
-    const updated = [...mantencionesMaquinariaList, newMant];
-    setMantencionesMaquinariaList(updated);
-    try {
-      const key = selectedObra?.nombre || 'default';
-      localStorage.setItem(`obraxis_mantenciones_${key}`, JSON.stringify(updated));
-    } catch(eErr) {}
-    try {
-      await supabase.from('mantenciones_maquinaria').insert([newMant]);
-    } catch(err) {}
+    const dbPayload = { equipo_id: newMant.equipo_id, equipo_patente: newMant.equipo_patente, equipo_tipo: newMant.equipo_tipo, fecha: newMant.fecha, tipo: newMant.tipo, horometro: null, descripcion: newMant.descripcion, costo: newMant.costo, proveedor: '', responsable: newMant.registrado_por, registrado_por: newMant.registrado_por, empresa: newMant.empresa };
+    const { data, error } = await supabase.from('maquinaria_mantenciones').insert([dbPayload]).select().single();
+    if (error) { setErrorMsg(`No fue posible registrar la mantención: ${error.message}`); return; }
+    setMantencionesMaquinariaList(current => [{ ...newMant, ...data }, ...current]);
     setShowMantencionModal(false);
-    alert('Mantención registrada con éxito.');
+    setSuccessMsg('Mantención registrada en la obra y en el historial corporativo del equipo.');
   };
 
   const handleSaveParalizacion = async (e) => {
     e.preventDefault();
     if (!paralizacionFormData.equipo_nombre) return;
+    const equipo = (maquinariaList || []).find(item => String(item.id) === String(paralizacionFormData.equipo_nombre));
+    if (!equipo) { setErrorMsg('Selecciona un equipo propio asignado a esta obra.'); return; }
     const newPara = {
-      id: Date.now(),
-      equipo_nombre: paralizacionFormData.equipo_nombre,
+      equipo_id: equipo.id,
+      equipo_nombre: equipo.nombre || equipo.tipo || equipo.equipo || 'Equipo',
+      equipo_patente: equipo.patente || '',
+      equipo_tipo: equipo.tipo || equipo.nombre || 'Equipo',
       fecha_inicio: paralizacionFormData.fecha_inicio,
       horas_parada: parseFloat(paralizacionFormData.horas_parada) || 0,
       motivo: paralizacionFormData.motivo.trim(),
-      obra_nombre: selectedObra?.nombre || ''
+      obra_nombre: selectedObra?.nombre || '',
+      empresa: user?.empresa || 'OBRAXIS',
+      registrado_por: user?.nombre || user?.usuario || ''
     };
-    const updated = [...paralizacionesMaquinariaList, newPara];
-    setParalizacionesMaquinariaList(updated);
-    try {
-      const key = selectedObra?.nombre || 'default';
-      localStorage.setItem(`obraxis_paralizaciones_${key}`, JSON.stringify(updated));
-    } catch(eErr) {}
-    try {
-      await supabase.from('paralizaciones_maquinaria').insert([newPara]);
-    } catch(err) {}
+    const payload = { equipo_id: equipo.id, equipo_patente: equipo.patente || '', equipo_tipo: equipo.tipo || equipo.nombre || 'Equipo', fecha: newPara.fecha_inicio, severidad: newPara.horas_parada >= 24 ? 'Alta' : 'Media', detuvo_equipo: true, horas_fuera_servicio: newPara.horas_parada, descripcion: newPara.motivo, causa: newPara.motivo, solucion: '', responsable: newPara.registrado_por, registrado_por: newPara.registrado_por, empresa: newPara.empresa };
+    const { data, error } = await supabase.from('maquinaria_fallas').insert([payload]).select().single();
+    if (error) { setErrorMsg(`No fue posible reportar la falla: ${error.message}`); return; }
+    setParalizacionesMaquinariaList(current => [{ ...newPara, ...data }, ...current]);
     setShowParalizacionModal(false);
-    alert('Paralización técnica registrada con éxito.');
+    setSuccessMsg('Falla reportada desde la obra y registrada en el historial corporativo del equipo.');
   };
 
   const handleSaveAccidente = async (e) => {
@@ -1647,6 +1650,20 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       const finalMaqObra = combinedFleet.filter(item => isMatchObra(item.obra_nombre, obraNombre));
       setMaquinariaCount(finalMaqObra.length);
       setMaquinariaList(finalMaqObra);
+
+      const equipmentIds = finalMaqObra.map(item => item.id).filter(Boolean);
+      if (equipmentIds.length > 0) {
+        const [{ data: mantenciones }, { data: fallas }] = await Promise.all([
+          supabase.from('maquinaria_mantenciones').select('*').eq('empresa', user?.empresa || 'OBRAXIS').in('equipo_id', equipmentIds).order('fecha', { ascending: false }),
+          supabase.from('maquinaria_fallas').select('*').eq('empresa', user?.empresa || 'OBRAXIS').in('equipo_id', equipmentIds).order('fecha', { ascending: false })
+        ]);
+        const equipmentById = new window.Map(finalMaqObra.map(item => [String(item.id), item]));
+        setMantencionesMaquinariaList((mantenciones || []).map(item => ({ ...item, equipo_nombre: equipmentById.get(String(item.equipo_id))?.nombre || item.equipo_tipo, obra_nombre: obraNombre })));
+        setParalizacionesMaquinariaList((fallas || []).map(item => ({ ...item, equipo_nombre: equipmentById.get(String(item.equipo_id))?.nombre || item.equipo_tipo, fecha_inicio: item.fecha, horas_parada: item.horas_fuera_servicio, motivo: item.descripcion, obra_nombre: obraNombre })));
+      } else {
+        setMantencionesMaquinariaList([]);
+        setParalizacionesMaquinariaList([]);
+      }
     } catch (eMaq) {
       console.error('Error en módulo Maquinaria:', eMaq);
     }
@@ -3973,6 +3990,12 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   >
                     Registros de uso ({maquinariaUsoObra.length})
                   </button>
+                  <button
+                    onClick={() => setMaqSubTab('confiabilidad')}
+                    className={`px-4 py-2 rounded-xl transition cursor-pointer ${maqSubTab === 'confiabilidad' ? 'bg-white text-blue-950 shadow-xs font-extrabold' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    Fallas y mantenciones ({paralizacionesMaquinariaList.length + mantencionesMaquinariaList.length})
+                  </button>
                 </div>
 
                 {maqSubTab === 'arriendos' && (
@@ -4065,6 +4088,19 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
                   <div className="flex flex-col gap-2 border-b border-slate-100 pb-3 sm:flex-row sm:items-center sm:justify-between"><div><h4 className="font-extrabold text-slate-850 text-xs uppercase tracking-wider">Registros operacionales de maquinaria</h4><p className="mt-1 text-[11px] text-slate-500">Horómetros, combustible y operador registrados desde el dashboard de Maquinarias.</p></div><span className="w-fit rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-800">{maquinariaUsoObra.length} registro(s)</span></div>
                   {maquinariaUsoObra.length ? <div className="overflow-x-auto rounded-xl border border-slate-200"><table className="w-full min-w-[760px] text-left text-xs"><thead className="bg-slate-50 text-[10px] font-black uppercase text-slate-600"><tr><th className="p-3">Fecha</th><th className="p-3">Equipo / patente</th><th className="p-3">Medición inicial</th><th className="p-3">Medición final</th><th className="p-3">Uso</th><th className="p-3">Combustible</th><th className="p-3">Operador</th><th className="p-3">Observaciones</th></tr></thead><tbody className="divide-y divide-slate-100">{maquinariaUsoObra.map((registro, index) => <tr key={registro.id || `${registro.equipo_id}-${registro.fecha}-${index}`} className="hover:bg-slate-50"><td className="p-3 font-bold text-slate-700">{registro.fecha || 'Sin fecha'}</td><td className="p-3 font-bold text-slate-800">{registro.equipo_tipo || 'Equipo'}<span className="ml-1 font-mono text-slate-500">({registro.equipo_patente || 'S/P'})</span></td><td className="p-3">{registro.horometro_inicial ?? 0}</td><td className="p-3">{registro.horometro_final ?? 0}</td><td className="p-3 font-black text-emerald-700">{registro.horas_trabajadas ?? 0} h</td><td className="p-3">{registro.combustible_cargado ?? 0} L</td><td className="p-3">{registro.operador || 'Sin informar'}</td><td className="max-w-[260px] p-3 text-slate-600">{registro.observaciones || '—'}</td></tr>)}</tbody></table></div> : <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-xs text-slate-500"><p className="font-bold text-slate-700">Aún no hay registros de uso para esta obra.</p><p className="mt-1">Regístralos desde Maquinarias → Uso de Equipos. Aquí se muestran automáticamente según la obra imputada.</p></div>}
+                </div>
+              )}
+
+              {maqSubTab === 'confiabilidad' && (
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-xs sm:flex-row sm:items-center sm:justify-between">
+                    <div><h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-850">Confiabilidad de equipos en obra</h4><p className="mt-1 text-[11px] text-slate-500">Los reportes quedan visibles aquí y en el historial corporativo de Maquinarias.</p></div>
+                    {canObraMaquinariaCreate && <div className="flex flex-wrap gap-2"><button onClick={() => { setParalizacionFormData({ equipo_nombre: maquinariaList[0]?.id || '', fecha_inicio: new Date().toISOString().substring(0, 10), horas_parada: 1, motivo: '' }); setShowParalizacionModal(true); }} disabled={!maquinariaList.length} className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-black text-white disabled:opacity-40"><AlertTriangle className="mr-1.5 inline h-4 w-4"/>Reportar falla</button><button onClick={() => { setMantencionFormData({ equipo_nombre: maquinariaList[0]?.id || '', fecha: new Date().toISOString().substring(0, 10), tipo: 'Preventiva', costo: '', descripcion: '' }); setShowMantencionModal(true); }} disabled={!maquinariaList.length} className="rounded-xl bg-amber-600 px-4 py-2 text-xs font-black text-white disabled:opacity-40"><Wrench className="mr-1.5 inline h-4 w-4"/>Registrar mantención</button></div>}
+                  </div>
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    <div className="rounded-2xl border border-rose-200 bg-white p-5"><div className="mb-3 flex items-center justify-between"><h5 className="text-xs font-black uppercase text-rose-900">Fallas reportadas</h5><span className="rounded-lg bg-rose-50 px-2.5 py-1 text-[10px] font-black text-rose-700">{paralizacionesMaquinariaList.length}</span></div>{paralizacionesMaquinariaList.length ? <div className="space-y-2">{paralizacionesMaquinariaList.map((item, index) => <div key={item.id || index} className="rounded-xl border border-slate-200 p-3 text-xs"><div className="flex justify-between gap-3"><b>{item.equipo_nombre || item.equipo_tipo}</b><span className="font-mono text-slate-500">{item.fecha_inicio || item.fecha}</span></div><p className="mt-1 text-slate-600">{item.motivo || item.descripcion}</p><p className="mt-1 text-[10px] font-bold text-rose-700">{item.horas_parada ?? item.horas_fuera_servicio ?? 0} h fuera de servicio · {item.severidad || 'Media'}</p></div>)}</div> : <p className="rounded-xl bg-slate-50 p-6 text-center text-xs text-slate-500">No hay fallas reportadas en esta obra.</p>}</div>
+                    <div className="rounded-2xl border border-amber-200 bg-white p-5"><div className="mb-3 flex items-center justify-between"><h5 className="text-xs font-black uppercase text-amber-900">Mantenciones realizadas</h5><span className="rounded-lg bg-amber-50 px-2.5 py-1 text-[10px] font-black text-amber-800">{mantencionesMaquinariaList.length}</span></div>{mantencionesMaquinariaList.length ? <div className="space-y-2">{mantencionesMaquinariaList.map((item, index) => <div key={item.id || index} className="rounded-xl border border-slate-200 p-3 text-xs"><div className="flex justify-between gap-3"><b>{item.equipo_nombre || item.equipo_tipo}</b><span className="font-mono text-slate-500">{item.fecha}</span></div><p className="mt-1 text-slate-600">{item.descripcion}</p><p className="mt-1 text-[10px] font-bold text-amber-800">{item.tipo} · ${Number(item.costo || 0).toLocaleString('es-CL')}</p></div>)}</div> : <p className="rounded-xl bg-slate-50 p-6 text-center text-xs text-slate-500">No hay mantenciones registradas en esta obra.</p>}</div>
+                  </div>
                 </div>
               )}
 
@@ -11196,10 +11232,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 >
                   <option value="">(Seleccionar Equipo de Flota)</option>
                   {(maquinariaList || []).map((m, idx) => (
-                    <option key={`m-${idx}`} value={m.nombre || m.equipo}>{m.nombre || m.equipo} ({m.patente || 'Propio'})</option>
-                  ))}
-                  {(arriendosList || []).map((a, idx) => (
-                    <option key={`a-${idx}`} value={a.equipo}>[Arriendo] {a.equipo} ({a.patente || 'S/P'})</option>
+                    <option key={`m-${idx}`} value={m.id}>{m.nombre || m.tipo || m.equipo} ({m.patente || 'Propio'})</option>
                   ))}
                 </select>
               </div>
@@ -11224,7 +11257,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   >
                     <option value="Preventiva">🔧 Preventiva Programada</option>
                     <option value="Correctiva">🚨 Correctiva por Falla</option>
-                    <option value="Overhaul">⚙️ Overhaul / Cambio Piezas</option>
+                    <option value="Predictiva">📈 Predictiva</option>
+                    <option value="Inspección">🔎 Inspección</option>
                   </select>
                 </div>
               </div>
@@ -11284,10 +11318,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 >
                   <option value="">(Seleccionar Equipo de Flota)</option>
                   {(maquinariaList || []).map((m, idx) => (
-                    <option key={`m-${idx}`} value={m.nombre || m.equipo}>{m.nombre || m.equipo} ({m.patente || 'Propio'})</option>
-                  ))}
-                  {(arriendosList || []).map((a, idx) => (
-                    <option key={`a-${idx}`} value={a.equipo}>[Arriendo] {a.equipo} ({a.patente || 'S/P'})</option>
+                    <option key={`m-${idx}`} value={m.id}>{m.nombre || m.tipo || m.equipo} ({m.patente || 'Propio'})</option>
                   ))}
                 </select>
               </div>
@@ -11332,7 +11363,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 type="submit"
                 className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 rounded-xl text-xs cursor-pointer shadow-xs"
               >
-                Registrar Paralización de Equipo
+                Reportar falla del equipo
               </button>
             </form>
           </div>
