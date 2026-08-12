@@ -6,8 +6,9 @@ import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
 import { 
   Users, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Check, Building2, UserPlus, 
-  FileText, DollarSign, Upload, FileCheck, RefreshCw, Calculator, BookOpen, Download, Building, Printer
+  FileText, DollarSign, Upload, FileCheck, RefreshCw, Calculator, BookOpen, Download, Building, Printer, BarChart3
 } from 'lucide-react';
+import { HrStatistics } from './OperationalStatistics';
 
 export const afpCommissionRates = {
   'Habitat': { fondo: 10.00, comision: 1.27, total: 11.27 },
@@ -32,6 +33,7 @@ function Personal({ user, onBack }) {
   const canCreate = can(user, permissions, 'rrhh.personal.crear');
   const canEdit = can(user, permissions, 'rrhh.personal.editar');
   const canDelete = can(user, permissions, 'rrhh.personal.eliminar');
+  const canViewStatistics = can(user, permissions, 'rrhh.estadisticas.ver');
   // Submódulo activo: null (Menú de Rectángulos), 'personal_empresa', 'asignar_obra', 'remuneraciones'
   const [activeSubmodule, setActiveSubmodule] = useState(null);
 
@@ -549,6 +551,14 @@ function Personal({ user, onBack }) {
                 </p>
               </div>
             </button>
+
+            {canViewStatistics && <button
+              onClick={() => setActiveSubmodule('estadisticas')}
+              className="p-6 bg-white border border-slate-200 hover:border-cyan-700 rounded-2xl shadow-xs hover:shadow-md transition text-left cursor-pointer group flex flex-col justify-between space-y-4"
+            >
+              <div className="flex justify-between items-start"><div className="p-3.5 bg-cyan-50 text-cyan-900 rounded-2xl group-hover:bg-cyan-900 group-hover:text-white transition"><BarChart3 className="w-7 h-7" /></div><span className="text-[10px] font-bold uppercase tracking-wider text-cyan-900 bg-cyan-50 px-2.5 py-1 rounded-md border border-cyan-200">Gestión</span></div>
+              <div><h4 className="font-extrabold text-slate-800 text-sm group-hover:text-cyan-950">Estadísticas de RR.HH.</h4><p className="text-xs text-slate-500 mt-1 leading-relaxed">Dotación, asignaciones, vencimientos, estructura contractual y costo mensual estimado por obra.</p></div>
+            </button>}
 
           </div>
         </div>
@@ -1952,6 +1962,8 @@ function Personal({ user, onBack }) {
           </div>
         </div>
       )}
+
+      {activeSubmodule === 'estadisticas' && <HrStatistics personal={personal} obras={obras} />}
 
       {/* MODAL PARA ASIGNACIÓN DE OBRA Y FECHA DESDE RRHH */}
       {showAssignObraModal && (

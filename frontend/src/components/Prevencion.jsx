@@ -12,8 +12,9 @@ import {
   Share2, Copy, Eye, Edit, ChevronLeft, ChevronRight, Search, QrCode, AlertTriangle, 
   Type, AlignLeft, Hash, Calendar, CheckSquare, Radio, ToggleLeft, 
   PenTool, Camera, Sparkles, Send, Check, Download, Layers, Building2, User, BoxSelect, Layers3,
-  Award, BookOpen, GraduationCap, Video, HelpCircle, ExternalLink, FileSpreadsheet, Loader2
+  Award, BookOpen, GraduationCap, Video, HelpCircle, ExternalLink, FileSpreadsheet, Loader2, BarChart3
 } from 'lucide-react';
+import { PreventionStatistics } from './OperationalStatistics';
 
 export default function Prevencion({ user, onBack, companyBranding }) {
   const { permissions, loading: permissionsLoading } = useUserPermissions(user);
@@ -24,6 +25,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
   const canReview = can(user, permissions, 'prevencion.registros.revisar');
   const canDownload = can(user, permissions, 'prevencion.registros.descargar');
   const canConfigure = can(user, permissions, 'prevencion.registros.configurar');
+  const canViewStatistics = can(user, permissions, 'prevencion.estadisticas.ver');
   // Apartado activo: '' (Menú), 'builder' (Creador), 'mis_formularios', 'completar', 'respuestas', 'capacitaciones', 'evaluaciones'
   const [activeSection, setActiveSection] = useState('');
 
@@ -2437,6 +2439,8 @@ export default function Prevencion({ user, onBack, companyBranding }) {
       )}
 
       {/* ================= APARTADO 4: REGISTRO DE RESPUESTAS E INSPECCIONES ================= */}
+      {activeSection === 'estadisticas' && <PreventionStatistics respuestas={respuestas} formularios={formularios} cumplimiento={registrosCumplimientoLog} asignaciones={asignacionesCumplimiento} obras={obrasList} />}
+
       {activeSection === 'respuestas' && (
         <div className="space-y-4 animate-in fade-in duration-200">
           <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs">
@@ -4228,6 +4232,14 @@ export default function Prevencion({ user, onBack, companyBranding }) {
               </div>
             </div>
           </div>
+
+          {canViewStatistics && <div
+            onClick={() => { setActiveSection('estadisticas'); setErrorMsg(''); setSuccessMsg(''); }}
+            className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-cyan-700 hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[160px]"
+          >
+            <div className="p-4 bg-cyan-50 text-cyan-800 rounded-2xl group-hover:bg-cyan-800 group-hover:text-white transition-all duration-300 w-fit"><BarChart3 className="w-6 h-6" /></div>
+            <div className="space-y-1 mt-4"><h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-cyan-800 transition">Estadísticas de Prevención</h3><p className="text-xs text-slate-500 leading-normal">Tendencias, incidentes, hallazgos, cumplimiento y concentración preventiva por obra.</p></div>
+          </div>}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[

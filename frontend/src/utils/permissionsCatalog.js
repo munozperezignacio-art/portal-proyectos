@@ -28,16 +28,19 @@ export const PERMISSIONS_CATALOG = [
   ]},
   { id: 'rrhh', label: 'Recursos Humanos', menus: [
     { id: 'personal', label: 'Personal y contratos', actions: ['ver', 'crear', 'editar', 'eliminar', 'descargar', 'configurar'] },
+    { id: 'estadisticas', label: 'Estadísticas de Recursos Humanos', actions: ['ver', 'descargar', 'configurar'] },
   ]},
   { id: 'maquinaria', label: 'Maquinaria y Equipos', menus: [
     { id: 'inventario', label: 'Inventario, asignaciones y mantenimiento', actions: ['ver', 'crear', 'editar', 'eliminar', 'revisar', 'descargar', 'configurar'] },
   ]},
   { id: 'bodega', label: 'Bodega e Inventario', menus: [
     { id: 'inventario', label: 'Bodegas, productos y movimientos', actions: ['ver', 'crear', 'editar', 'eliminar', 'revisar', 'descargar', 'configurar'] },
+    { id: 'estadisticas', label: 'Estadísticas de Bodega', actions: ['ver', 'descargar', 'configurar'] },
   ]},
   { id: 'prevencion', label: 'Prevención de Riesgos', menus: [
     { id: 'registros', label: 'Registros e inspecciones', actions: ['ver', 'crear', 'editar', 'eliminar', 'revisar', 'aprobar', 'descargar', 'configurar'] },
     { id: 'procedimientos', label: 'Procedimientos', actions: ['ver', 'crear', 'editar', 'eliminar', 'revisar', 'aprobar', 'descargar', 'configurar'] },
+    { id: 'estadisticas', label: 'Estadísticas de Prevención', actions: ['ver', 'descargar', 'configurar'] },
   ]},
   { id: 'acreditaciones', label: 'Acreditaciones', menus: [
     { id: 'subcontratos', label: 'Subcontratos y proveedores', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'revisar', 'aprobar', 'descargar', 'configurar'] },
