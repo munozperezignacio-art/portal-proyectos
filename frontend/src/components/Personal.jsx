@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { HrStatistics } from './OperationalStatistics';
 import WorkforceProjection from './WorkforceProjection';
+import PayrollAutomation from './PayrollAutomation';
 
 export const afpCommissionRates = {
   'Habitat': { fondo: 10.00, comision: 1.27, total: 11.27 },
@@ -812,7 +813,7 @@ function Personal({ user, onBack }) {
 
           {/* SUB-PESTAÑA 1: LIQUIDACIONES DE SUELDO */}
           {remunSubTab === 'liquidaciones' && (
-            <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+            <><PayrollAutomation user={user} personal={personal} indicadores={indicadores} onEmit={(worker) => { setSelectedWorkerLiquidacion(worker); setShowLiquidacionPDFModal(true); }} /><div className="hidden bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
               <div className="flex justify-between items-center border-b pb-2">
                 <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-800">💵 Planilla de Sueldos y Liquidaciones</h4>
                 <button className="bg-emerald-900 hover:bg-emerald-800 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 cursor-pointer">
@@ -897,7 +898,7 @@ function Personal({ user, onBack }) {
                   </tbody>
                 </table>
               </div>
-            </div>
+            </div></>
           )}
 
           {/* SUB-PESTAÑA 2: ARCHIVO / PLANILLAS PREVIRED */}
@@ -1743,23 +1744,26 @@ function Personal({ user, onBack }) {
 
               {/* Ficha e Info del Trabajador */}
               {(() => {
-                const sBase = parseFloat(selectedWorkerLiquidacion.sueldo_base) || 600000;
+                const payroll = selectedWorkerLiquidacion.payroll;
+                const sBase = payroll?.base ?? (parseFloat(selectedWorkerLiquidacion.sueldo_base) || 600000);
                 const topeGratif = Math.round((4.75 * (indicadores.salarioMinimo || 520000)) / 12);
                 const tieneGratif = selectedWorkerLiquidacion.gratificacion !== 'Sin Gratificación';
-                const gratifMonto = tieneGratif ? Math.min(Math.round(sBase * 0.25), topeGratif) : 0;
-                const imponible = sBase + gratifMonto;
+                const gratifMonto = payroll?.gratification ?? (tieneGratif ? Math.min(Math.round(sBase * 0.25), topeGratif) : 0);
+                const imponible = payroll?.taxableGross ?? (sBase + gratifMonto);
 
-                const colacion = parseFloat(selectedWorkerLiquidacion.colacion) || 0;
-                const movilizacion = parseFloat(selectedWorkerLiquidacion.movilizacion) || 0;
-                const totalHaberes = imponible + colacion + movilizacion;
+                const colacion = payroll?.collation ?? (parseFloat(selectedWorkerLiquidacion.colacion) || 0);
+                const movilizacion = payroll?.transport ?? (parseFloat(selectedWorkerLiquidacion.movilizacion) || 0);
+                const totalHaberes = payroll?.totalAssets ?? (imponible + colacion + movilizacion);
 
                 const afpInfo = getAFPDetails(selectedWorkerLiquidacion.afp);
-                const afpMonto = Math.round(imponible * (afpInfo.total / 100));
-                const saludMonto = Math.round(imponible * 0.07);
+                const afpMonto = payroll?.afp ?? Math.round(imponible * (afpInfo.total / 100));
+                const saludMonto = payroll?.health ?? Math.round(imponible * 0.07);
                 const isIndef = (selectedWorkerLiquidacion.tipo_contrato || 'Indefinido') === 'Indefinido';
-                const afcMonto = isIndef ? Math.round(imponible * 0.006) : 0;
-                const totalDescuentos = afpMonto + saludMonto + afcMonto;
-                const sueldoLiquido = totalHaberes - totalDescuentos;
+                const afcMonto = payroll?.afc ?? (isIndef ? Math.round(imponible * 0.006) : 0);
+                const impuestoMonto = payroll?.tax ?? 0;
+                const otrosDescuentos = payroll?.otherDiscounts ?? 0;
+                const totalDescuentos = payroll?.legalDiscounts ? payroll.legalDiscounts + otrosDescuentos : afpMonto + saludMonto + afcMonto;
+                const sueldoLiquido = payroll?.net ?? (totalHaberes - totalDescuentos);
 
                 return (
                   <>
@@ -1833,6 +1837,8 @@ function Personal({ user, onBack }) {
                               <td className="p-1.5">Seguro Cesantía AFC ({isIndef ? '0.6%' : '0.0%'})</td>
                               <td className="p-1.5 text-right font-mono text-red-600 font-bold">-${afcMonto.toLocaleString('es-CL')}</td>
                             </tr>
+                            {impuestoMonto > 0 && <tr><td className="p-1.5">Impuesto Único de Segunda Categoría</td><td className="p-1.5 text-right font-mono text-red-600 font-bold">-${impuestoMonto.toLocaleString('es-CL')}</td></tr>}
+                            {otrosDescuentos > 0 && <tr><td className="p-1.5">Otros descuentos autorizados</td><td className="p-1.5 text-right font-mono text-red-600 font-bold">-${otrosDescuentos.toLocaleString('es-CL')}</td></tr>}
                             <tr className="border-t-2 border-slate-300 font-bold bg-slate-50">
                               <td className="p-1.5 text-red-950">TOTAL DESCUENTOS LEY</td>
                               <td className="p-1.5 text-right font-mono text-red-700 font-black">-${totalDescuentos.toLocaleString('es-CL')}</td>
