@@ -6,7 +6,7 @@ import {
   Truck, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Check, QrCode, 
   Building2, Eye, Camera, Image, Calendar, Clock, Gauge, Fuel, CheckCircle2, 
   ChevronRight, Wrench, ShieldCheck, MapPin, CalendarDays, RefreshCw, Send, Handshake, DollarSign,
-  Filter, SlidersHorizontal, List, Grid, AlertTriangle, ChevronLeft, ChevronDown
+  Filter, SlidersHorizontal, List, Grid, AlertTriangle, ChevronLeft, ChevronDown, BarChart3, Activity
 } from 'lucide-react';
 import { formatRut, formatNumberWithDots, parseNumberFromDots } from '../utils/rutUtils';
 import useUserPermissions from '../utils/useUserPermissions';
@@ -148,6 +148,15 @@ export default function Maquinaria({ user, onBack }) {
     proposito: ''
   });
 
+  // 4.b Confiabilidad: fallas y mantenciones efectivamente ejecutadas.
+  const [fallasList, setFallasList] = useState([]);
+  const [mantencionesList, setMantencionesList] = useState([]);
+  const [fallaModalOpen, setFallaModalOpen] = useState(false);
+  const [mantencionModalOpen, setMantencionModalOpen] = useState(false);
+  const [statsEquipmentFilter, setStatsEquipmentFilter] = useState('');
+  const [fallaForm, setFallaForm] = useState({ equipo_id: '', fecha: dateToISO(new Date()), severidad: 'Media', detuvo_equipo: true, horas_fuera_servicio: '', descripcion: '', causa: '', solucion: '', responsable: '' });
+  const [mantencionForm, setMantencionForm] = useState({ equipo_id: '', fecha: dateToISO(new Date()), tipo: 'Preventiva', horometro: '', descripcion: '', costo: '', proveedor: '', responsable: '' });
+
   // 5. Estados Arriendos a Terceros
   const [arriendosList, setArriendosList] = useState([]);
   const [arriendoModalOpen, setArriendoModalOpen] = useState(false);
@@ -187,7 +196,17 @@ export default function Maquinaria({ user, onBack }) {
     fetchUsoLogs();
     fetchReservasLogs();
     fetchArriendosLogs();
+    fetchReliabilityLogs();
   }, []);
+
+  const fetchReliabilityLogs = async () => {
+    const [{ data: fallas }, { data: mantenciones }] = await Promise.all([
+      supabase.from('maquinaria_fallas').select('*').eq('empresa', user.empresa).order('fecha', { ascending: false }),
+      supabase.from('maquinaria_mantenciones').select('*').eq('empresa', user.empresa).order('fecha', { ascending: false })
+    ]);
+    setFallasList(fallas || []);
+    setMantencionesList(mantenciones || []);
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -717,6 +736,24 @@ export default function Maquinaria({ user, onBack }) {
     }
   };
 
+  const handleFallaSubmit = async (e) => {
+    e.preventDefault();
+    const equipment = maquinaria.find(m => String(m.id) === String(fallaForm.equipo_id));
+    const payload = { ...fallaForm, horas_fuera_servicio: Number(fallaForm.horas_fuera_servicio) || 0, equipo_patente: equipment?.patente || '', equipo_tipo: equipment?.tipo || '', empresa: user.empresa, registrado_por: user?.nombre || user?.usuario || '' };
+    const { error } = await supabase.from('maquinaria_fallas').insert([payload]);
+    if (error) { setErrorMsg(`No fue posible registrar la falla: ${error.message}`); return; }
+    setFallaModalOpen(false); setSuccessMsg('Falla registrada y considerada en los indicadores.'); fetchReliabilityLogs();
+  };
+
+  const handleMantencionSubmit = async (e) => {
+    e.preventDefault();
+    const equipment = maquinaria.find(m => String(m.id) === String(mantencionForm.equipo_id));
+    const payload = { ...mantencionForm, horometro: Number(mantencionForm.horometro) || null, costo: Number(mantencionForm.costo) || 0, equipo_patente: equipment?.patente || '', equipo_tipo: equipment?.tipo || '', empresa: user.empresa, registrado_por: user?.nombre || user?.usuario || '' };
+    const { error } = await supabase.from('maquinaria_mantenciones').insert([payload]);
+    if (error) { setErrorMsg(`No fue posible registrar la mantención: ${error.message}`); return; }
+    setMantencionModalOpen(false); setSuccessMsg('Mantención incorporada al historial del equipo.'); fetchReliabilityLogs();
+  };
+
   const calendarDays = (() => {
     const first = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
     const mondayOffset = (first.getDay() + 6) % 7;
@@ -955,6 +992,24 @@ export default function Maquinaria({ user, onBack }) {
 
   if (permissionsLoading) return <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">Cargando permisos…</div>;
   if (!canView) return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center text-sm font-bold text-amber-900">Tu perfil no tiene permiso para ver Maquinaria y Equipos.</div>;
+  const filteredStatsEquipment = statsEquipmentFilter ? maquinaria.filter(m => String(m.id) === statsEquipmentFilter) : maquinaria;
+  const filteredEquipmentIds = new Set(filteredStatsEquipment.map(m => String(m.id)));
+  const statsUso = usoList.filter(log => filteredEquipmentIds.has(String(log.equipo_id)));
+  const statsFallas = fallasList.filter(log => filteredEquipmentIds.has(String(log.equipo_id)));
+  const statsMantenciones = mantencionesList.filter(log => filteredEquipmentIds.has(String(log.equipo_id)));
+  const totalHours = statsUso.reduce((sum, log) => sum + (Number(log.horas_trabajadas) || Math.max(0, (Number(log.horometro_final) || 0) - (Number(log.horometro_inicial) || 0))), 0);
+  const totalFuel = statsUso.reduce((sum, log) => sum + (Number(log.combustible_cargado) || 0), 0);
+  const downtimeHours = statsFallas.reduce((sum, item) => sum + (Number(item.horas_fuera_servicio) || 0), 0);
+  const failureRate = totalHours > 0 ? (statsFallas.length / totalHours) * 1000 : 0;
+  const mtbf = statsFallas.length > 0 ? totalHours / statsFallas.length : totalHours;
+  const usageByEquipment = filteredStatsEquipment.map((equipment, index) => ({
+    equipment,
+    color: colorForEquipment(equipment, index),
+    hours: statsUso.filter(log => String(log.equipo_id) === String(equipment.id)).reduce((sum, log) => sum + (Number(log.horas_trabajadas) || Math.max(0, (Number(log.horometro_final) || 0) - (Number(log.horometro_inicial) || 0))), 0),
+    failures: statsFallas.filter(log => String(log.equipo_id) === String(equipment.id)).length
+  })).sort((a, b) => b.hours - a.hours);
+  const maxUsageHours = Math.max(1, ...usageByEquipment.map(item => item.hours));
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 p-4 sm:p-6 font-sans">
       
@@ -972,7 +1027,7 @@ export default function Maquinaria({ user, onBack }) {
             SUBMÓDULOS DE MAQUINARIA Y EQUIPOS
           </h3>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 animate-in fade-in duration-200">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-in fade-in duration-200">
             
             {/* Tarjeta 1: Maquinarias y Equipos */}
             <div 
@@ -997,6 +1052,12 @@ export default function Maquinaria({ user, onBack }) {
                 <span>Ver Inventario</span>
                 <ChevronRight className="w-3.5 h-3.5 text-primary group-hover:translate-x-1 transition-transform shrink-0" />
               </div>
+            </div>
+
+            <div onClick={() => setActiveSection('estadisticas')} className="group bg-white border border-slate-200 rounded-3xl p-5 shadow-xs hover:shadow-md hover:border-cyan-600 hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[190px]">
+              <div className="flex items-start justify-between"><div className="p-3.5 bg-cyan-50 text-cyan-700 rounded-2xl group-hover:bg-cyan-700 group-hover:text-white transition"><BarChart3 className="w-5 h-5" /></div><span className="text-[9px] font-extrabold px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 uppercase">{fallasList.length} fallas</span></div>
+              <div className="space-y-1 mt-3"><h3 className="font-extrabold text-slate-850 text-xs uppercase tracking-wider group-hover:text-cyan-700">Estadísticas y confiabilidad</h3><p className="text-[11px] text-slate-500 leading-snug">Utilización, consumo, mantenciones, fallas, detenciones y desempeño por equipo.</p></div>
+              <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] font-extrabold text-cyan-700"><span>Analizar Flota</span><ChevronRight className="w-3.5 h-3.5" /></div>
             </div>
 
             {/* Tarjeta 2: Asignación de Equipos */}
@@ -1351,6 +1412,34 @@ export default function Maquinaria({ user, onBack }) {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {activeSection === 'estadisticas' && (
+        <div className="space-y-5 animate-in fade-in duration-200">
+          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div><h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Estadísticas y confiabilidad de flota</h3><p className="text-xs text-slate-500">Indicadores de uso, consumo, mantenibilidad y disponibilidad operacional.</p></div>
+              <div className="flex flex-wrap gap-2">
+                <select value={statsEquipmentFilter} onChange={e => setStatsEquipmentFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold"><option value="">Toda la flota</option>{maquinaria.map(m => <option key={m.id} value={m.id}>{m.tipo} · {m.patente}</option>)}</select>
+                <button onClick={() => { setFallaForm({ equipo_id: statsEquipmentFilter || (maquinaria[0]?.id ?? ''), fecha: dateToISO(new Date()), severidad: 'Media', detuvo_equipo: true, horas_fuera_servicio: '', descripcion: '', causa: '', solucion: '', responsable: user?.nombre || '' }); setFallaModalOpen(true); }} className="rounded-xl bg-rose-700 px-4 py-2 text-xs font-black text-white flex items-center gap-1.5"><AlertTriangle className="w-4 h-4" /> Reportar falla</button>
+                <button onClick={() => { setMantencionForm({ equipo_id: statsEquipmentFilter || (maquinaria[0]?.id ?? ''), fecha: dateToISO(new Date()), tipo: 'Preventiva', horometro: '', descripcion: '', costo: '', proveedor: '', responsable: user?.nombre || '' }); setMantencionModalOpen(true); }} className="rounded-xl bg-indigo-700 px-4 py-2 text-xs font-black text-white flex items-center gap-1.5"><Wrench className="w-4 h-4" /> Registrar mantención</button>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mt-5">
+              {[['Horas de uso', `${totalHours.toLocaleString('es-CL')} h`, Gauge, 'text-emerald-700 bg-emerald-50'], ['Consumo', `${totalFuel.toLocaleString('es-CL')} L`, Fuel, 'text-amber-700 bg-amber-50'], ['Índice de fallas', `${failureRate.toFixed(2)} / 1.000 h`, AlertTriangle, 'text-rose-700 bg-rose-50'], ['MTBF', `${mtbf.toFixed(1)} h`, Activity, 'text-cyan-700 bg-cyan-50'], ['Horas detenidas', `${downtimeHours.toLocaleString('es-CL')} h`, Clock, 'text-indigo-700 bg-indigo-50']].map(([label,value,Icon,style]) => <div key={label} className="rounded-2xl border border-slate-200 p-4"><div className={`inline-flex p-2 rounded-xl ${style}`}><Icon className="w-4 h-4" /></div><p className="mt-3 text-[10px] font-black uppercase text-slate-500">{label}</p><p className="text-lg font-black text-slate-900">{value}</p></div>)}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            <div className="bg-white p-5 rounded-3xl border border-slate-200"><h4 className="text-xs font-black uppercase text-slate-900">Uso acumulado por equipo</h4><p className="text-[10px] text-slate-500 mb-4">Horas registradas en terreno.</p><div className="space-y-3 max-h-[390px] overflow-y-auto">{usageByEquipment.map(item => <div key={item.equipment.id}><div className="flex justify-between text-[10px] font-bold mb-1"><span>{item.equipment.tipo} · {item.equipment.patente}</span><span>{item.hours.toLocaleString('es-CL')} h</span></div><div className="h-3 rounded-full bg-slate-100 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${Math.max(item.hours > 0 ? 3 : 0, (item.hours / maxUsageHours) * 100)}%`, backgroundColor: item.color }} /></div></div>)}</div></div>
+            <div className="bg-white p-5 rounded-3xl border border-slate-200"><h4 className="text-xs font-black uppercase text-slate-900">Confiabilidad por equipo</h4><p className="text-[10px] text-slate-500 mb-4">Cantidad de fallas registradas y horas de operación.</p><div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="text-left uppercase text-[9px] text-slate-500 border-b"><th className="py-2">Equipo</th><th>Uso</th><th>Fallas</th><th>Índice / 1.000 h</th></tr></thead><tbody>{usageByEquipment.map(item => <tr key={item.equipment.id} className="border-b border-slate-100"><td className="py-3 font-bold">{item.equipment.patente}</td><td>{item.hours.toFixed(1)} h</td><td className={item.failures ? 'font-black text-rose-700' : 'text-emerald-700'}>{item.failures}</td><td>{item.hours ? ((item.failures / item.hours) * 1000).toFixed(2) : '—'}</td></tr>)}</tbody></table></div></div>
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            <div className="bg-white p-5 rounded-3xl border border-slate-200"><h4 className="text-xs font-black uppercase text-slate-900 mb-3">Historial de mantenciones</h4>{statsMantenciones.length === 0 ? <p className="text-xs text-slate-400 py-6">Aún no existen mantenciones ejecutadas.</p> : <div className="space-y-2">{statsMantenciones.map(item => <div key={item.id} className="rounded-xl bg-slate-50 border border-slate-200 p-3"><div className="flex justify-between"><b className="text-xs">{item.equipo_tipo} · {item.equipo_patente}</b><span className="text-[10px] font-bold text-indigo-700">{item.tipo}</span></div><p className="text-[11px] text-slate-600 mt-1">{item.fecha} · {item.descripcion}</p><p className="text-[10px] text-slate-400">{item.horometro ? `${item.horometro} h · ` : ''}{item.proveedor || item.responsable || 'Sin responsable informado'}</p></div>)}</div>}</div>
+            <div className="bg-white p-5 rounded-3xl border border-slate-200"><h4 className="text-xs font-black uppercase text-slate-900 mb-3">Historial de fallas</h4>{statsFallas.length === 0 ? <p className="text-xs text-slate-400 py-6">No hay fallas registradas en el alcance.</p> : <div className="space-y-2">{statsFallas.map(item => <div key={item.id} className="rounded-xl bg-rose-50/60 border border-rose-200 p-3"><div className="flex justify-between"><b className="text-xs">{item.equipo_tipo} · {item.equipo_patente}</b><span className="text-[10px] font-black text-rose-700">{item.severidad}</span></div><p className="text-[11px] text-slate-700 mt-1">{item.fecha} · {item.descripcion}</p><p className="text-[10px] text-slate-500">{item.horas_fuera_servicio || 0} h fuera de servicio · {item.detuvo_equipo ? 'Con detención' : 'Sin detención'}</p>{item.causa && <p className="text-[10px] text-slate-500 mt-1">Causa: {item.causa}</p>}</div>)}</div>}</div>
+          </div>
         </div>
       )}
 
@@ -2341,6 +2430,10 @@ export default function Maquinaria({ user, onBack }) {
       })()}
 
       {/* MODAL RESERVA DE EQUIPO FUTURO (CON CREACIÓN Y EDICIÓN) */}
+      {fallaModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4"><div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-xl"><h3 className="flex items-center gap-2 text-sm font-black uppercase text-rose-800"><AlertTriangle className="w-5 h-5" /> Reportar falla de equipo</h3><form onSubmit={handleFallaSubmit} className="mt-4 space-y-3 text-xs"><div className="grid grid-cols-2 gap-3"><select required value={fallaForm.equipo_id} onChange={e=>setFallaForm(p=>({...p,equipo_id:e.target.value}))} className="rounded-xl border p-2.5 font-bold"><option value="">Seleccionar equipo</option>{maquinaria.map(m=><option key={m.id} value={m.id}>{m.tipo} · {m.patente}</option>)}</select><input required type="date" value={fallaForm.fecha} onChange={e=>setFallaForm(p=>({...p,fecha:e.target.value}))} className="rounded-xl border p-2.5 font-bold"/><select value={fallaForm.severidad} onChange={e=>setFallaForm(p=>({...p,severidad:e.target.value}))} className="rounded-xl border p-2.5 font-bold"><option>Baja</option><option>Media</option><option>Alta</option><option>Crítica</option></select><input type="number" min="0" step="0.5" placeholder="Horas fuera de servicio" value={fallaForm.horas_fuera_servicio} onChange={e=>setFallaForm(p=>({...p,horas_fuera_servicio:e.target.value}))} className="rounded-xl border p-2.5"/></div><label className="flex items-center gap-2 rounded-xl bg-rose-50 p-3 font-bold"><input type="checkbox" checked={fallaForm.detuvo_equipo} onChange={e=>setFallaForm(p=>({...p,detuvo_equipo:e.target.checked}))}/> La falla detuvo el equipo</label><textarea required placeholder="Descripción de la falla *" value={fallaForm.descripcion} onChange={e=>setFallaForm(p=>({...p,descripcion:e.target.value}))} className="w-full rounded-xl border p-2.5"/><input placeholder="Causa identificada o probable" value={fallaForm.causa} onChange={e=>setFallaForm(p=>({...p,causa:e.target.value}))} className="w-full rounded-xl border p-2.5"/><input placeholder="Solución o acción correctiva" value={fallaForm.solucion} onChange={e=>setFallaForm(p=>({...p,solucion:e.target.value}))} className="w-full rounded-xl border p-2.5"/><input placeholder="Responsable" value={fallaForm.responsable} onChange={e=>setFallaForm(p=>({...p,responsable:e.target.value}))} className="w-full rounded-xl border p-2.5"/><div className="flex justify-end gap-2"><button type="button" onClick={()=>setFallaModalOpen(false)} className="rounded-xl bg-slate-100 px-4 py-2 font-bold">Cancelar</button><button className="rounded-xl bg-rose-700 px-4 py-2 font-black text-white">Registrar falla</button></div></form></div></div>}
+
+      {mantencionModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4"><div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-xl"><h3 className="flex items-center gap-2 text-sm font-black uppercase text-indigo-800"><Wrench className="w-5 h-5" /> Registrar mantención ejecutada</h3><form onSubmit={handleMantencionSubmit} className="mt-4 space-y-3 text-xs"><div className="grid grid-cols-2 gap-3"><select required value={mantencionForm.equipo_id} onChange={e=>setMantencionForm(p=>({...p,equipo_id:e.target.value}))} className="rounded-xl border p-2.5 font-bold"><option value="">Seleccionar equipo</option>{maquinaria.map(m=><option key={m.id} value={m.id}>{m.tipo} · {m.patente}</option>)}</select><input required type="date" value={mantencionForm.fecha} onChange={e=>setMantencionForm(p=>({...p,fecha:e.target.value}))} className="rounded-xl border p-2.5 font-bold"/><select value={mantencionForm.tipo} onChange={e=>setMantencionForm(p=>({...p,tipo:e.target.value}))} className="rounded-xl border p-2.5 font-bold"><option>Preventiva</option><option>Correctiva</option><option>Predictiva</option><option>Inspección</option></select><input type="number" min="0" step="0.1" placeholder="Horómetro al ejecutar" value={mantencionForm.horometro} onChange={e=>setMantencionForm(p=>({...p,horometro:e.target.value}))} className="rounded-xl border p-2.5"/></div><textarea required placeholder="Trabajo realizado *" value={mantencionForm.descripcion} onChange={e=>setMantencionForm(p=>({...p,descripcion:e.target.value}))} className="w-full rounded-xl border p-2.5"/><div className="grid grid-cols-2 gap-3"><input type="number" min="0" placeholder="Costo ($)" value={mantencionForm.costo} onChange={e=>setMantencionForm(p=>({...p,costo:e.target.value}))} className="rounded-xl border p-2.5"/><input placeholder="Proveedor / taller" value={mantencionForm.proveedor} onChange={e=>setMantencionForm(p=>({...p,proveedor:e.target.value}))} className="rounded-xl border p-2.5"/></div><input placeholder="Responsable" value={mantencionForm.responsable} onChange={e=>setMantencionForm(p=>({...p,responsable:e.target.value}))} className="w-full rounded-xl border p-2.5"/><div className="flex justify-end gap-2"><button type="button" onClick={()=>setMantencionModalOpen(false)} className="rounded-xl bg-slate-100 px-4 py-2 font-bold">Cancelar</button><button className="rounded-xl bg-indigo-700 px-4 py-2 font-black text-white">Guardar mantención</button></div></form></div></div>}
+
       {reservaModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
           <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-md w-full space-y-4 shadow-xl">
