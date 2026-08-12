@@ -7,22 +7,19 @@ import {
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import { getAuthenticatedProfile } from './utils/auth';
+import { recoverFromStaleChunk } from './utils/staleChunkRecovery';
 
 // Cada módulo operativo se descarga solo cuando el usuario lo abre. Esto acelera el ingreso al portal y al dashboard.
 // Si Vercel publica una versión nueva mientras el portal está abierto, los archivos con hash de la versión anterior pueden dejar de existir.
 // Ante ese caso se recarga una sola vez para obtener los módulos vigentes.
 const lazyWithRetry = (importModule, moduleName) => React.lazy(async () => {
-  const retryKey = `obraxis_module_reload_${moduleName}`;
   try {
-    const module = await importModule();
-    sessionStorage.removeItem(retryKey);
-    return module;
+    return await importModule();
   } catch (error) {
-    if (!sessionStorage.getItem(retryKey)) {
-      sessionStorage.setItem(retryKey, 'true');
-      window.location.reload();
+    if (recoverFromStaleChunk(error)) {
       return new Promise(() => {});
     }
+    console.error(`No fue posible cargar el módulo ${moduleName}:`, error);
     throw error;
   }
 });

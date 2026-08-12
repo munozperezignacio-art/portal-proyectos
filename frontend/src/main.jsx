@@ -2,35 +2,18 @@ import React, { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App.jsx';
+import { recoverFromStaleChunk } from './utils/staleChunkRecovery';
 
-// Vite da a cada despliegue nombres nuevos a los archivos JS. Si una pestaña
-// abierta conserva la versión anterior, el import dinámico puede pedir un
-// archivo que ya no existe. Recargamos una sola vez para obtener el index
-// vigente, evitando dejar la obra bloqueada en una pantalla de error.
-const RECENT_CHUNK_RELOAD_KEY = 'obraxis:last-stale-chunk-reload';
-const STALE_CHUNK_PATTERN = /failed to fetch dynamically imported module|importing a module script failed/i;
-
-const recoverFromStaleChunk = (reason) => {
-  const message = reason instanceof Error
-    ? reason.message
-    : String(reason?.message || reason || '');
-
-  if (!STALE_CHUNK_PATTERN.test(message)) return;
-
-  try {
-    const lastReload = Number(window.sessionStorage.getItem(RECENT_CHUNK_RELOAD_KEY) || 0);
-    // Evita un ciclo de recargas si el problema no es una versión desactualizada.
-    if (Date.now() - lastReload < 15_000) return;
-    window.sessionStorage.setItem(RECENT_CHUNK_RELOAD_KEY, String(Date.now()));
-  } catch {
-    // Si el almacenamiento no está disponible, igualmente intentamos recuperar la página.
-  }
-
-  window.location.reload();
-};
-
+// Los nombres de los archivos JS cambian en cada despliegue. Si una pestaña
+// conserva una versión anterior, se solicita una sola vez el index vigente.
 window.addEventListener('unhandledrejection', (event) => recoverFromStaleChunk(event.reason));
 window.addEventListener('error', (event) => recoverFromStaleChunk(event.error || event.message));
+
+const forceFreshReload = () => {
+  const url = new URL(window.location.href);
+  url.searchParams.set('__obraxis_reload', String(Date.now()));
+  window.location.replace(url.toString());
+};
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -43,7 +26,7 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error("Error no capturado:", error, errorInfo);
+    console.error('Error no capturado:', error, errorInfo);
   }
 
   render() {
@@ -53,7 +36,7 @@ class ErrorBoundary extends React.Component {
           <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#f87171' }}>⚠️ Error en la Aplicación</h2>
           <p style={{ fontSize: '0.875rem', marginTop: '0.5rem', color: '#94a3b8' }}>{this.state.error?.toString() || 'Ocurrió un error inesperado al cargar los datos.'}</p>
           <button
-            onClick={() => window.location.reload()}
+            onClick={forceFreshReload}
             style={{ marginTop: '1.5rem', backgroundColor: '#2563eb', color: '#ffffff', padding: '0.75rem 1.5rem', borderRadius: '0.5rem', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}
           >
             Reintentar / Cargar de Nuevo
