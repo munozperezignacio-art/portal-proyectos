@@ -8,8 +8,8 @@ La IA asiste. Los cálculos, permisos, aprobaciones y registros oficiales contin
 |---|---|---:|
 | 1. Gobierno y control de IA | Cerrada | 100% |
 | 2. IA documental | Cerrada | 100% |
-| 3. Informes asistidos | Interpretación IA integrada en generación manual revisable | 60% |
-| 4. Copiloto contextual por obra | Pendiente | 0% |
+| 3. Informes asistidos | Cerrada | 100% |
+| 4. Copiloto contextual por obra | Primera versión funcional | 70% |
 | 5. Asistencia especializada | Iniciada solo en lectura de maquinaria | 10% |
 | 6. Predicción y optimización | Pendiente de historial confiable | 0% |
 
@@ -72,11 +72,11 @@ La IA asiste. Los cálculos, permisos, aprobaciones y registros oficiales contin
 
 ## Fase 4 — Copiloto contextual por obra
 
-- [ ] Aislamiento estricto por empresa y obras autorizadas.
-- [ ] Consultas de todos los módulos contratados.
-- [ ] Citas y enlaces a registros originales.
-- [ ] Separación visible entre hechos, cálculos y sugerencias.
-- [ ] Modo solo lectura e historial de consultas.
+- [x] Aislamiento estricto por empresa y obras autorizadas.
+- [ ] Consultas de todos los módulos contratados (primera versión: programación, avances, costos, calidad, prevención y estados de pago).
+- [x] Citas al módulo y tabla de origen; enlaces profundos quedan para el siguiente bloque.
+- [x] Separación visible entre hechos, cálculos y sugerencias.
+- [x] Modo solo lectura e historial de consultas.
 
 ## Fase 5 — Asistencia especializada
 

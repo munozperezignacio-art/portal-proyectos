@@ -4,7 +4,7 @@ import {
   Building2, ArrowLeft, Users, Truck, Wrench, FileSpreadsheet, 
   ExternalLink, Calendar, Plus, Info, Check, UserCheck, Play, ArrowRightLeft, FileText, AlertCircle, AlertTriangle, Camera,
   QrCode, MapPin, Printer, Navigation, RotateCcw, CheckCircle2, MapIcon as Map, ShieldAlert, Settings, Edit, Trash2, Download,
-  History, BarChart3, ShieldCheck, ClipboardCheck, Clock, DollarSign, CalendarRange, CalendarDays, FileUp, Loader2, FolderPlus, Send, Filter, TrendingUp, BookOpenCheck, ReceiptText, Search
+  History, BarChart3, ShieldCheck, ClipboardCheck, Clock, DollarSign, CalendarRange, CalendarDays, FileUp, Loader2, FolderPlus, Send, Filter, TrendingUp, BookOpenCheck, ReceiptText, Search, Bot
 } from 'lucide-react';
 import ContextualEmailConfigModal from './ContextualEmailConfigModal';
 import { canConfigureEmails, canCreateObras, canModifyOrDeleteRecords } from '../utils/userLevel';
@@ -16,6 +16,7 @@ import LibroObrasDigital from './LibroObrasDigital';
 import EstadosPagoObra from './EstadosPagoObra';
 import SubcontratosObra from './SubcontratosObra';
 import FlujoCajaObra from './FlujoCajaObra';
+import CopilotoObra from './CopilotoObra';
 import { registrarEventoBitacora } from '../utils/bitacoraService';
 import FormAnswerDisplay from './FormAnswerDisplay';
 import { generateFormPdf } from '../utils/pdfGenerator';
@@ -3035,6 +3036,17 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   <div><h4 className="font-extrabold text-slate-800 text-sm group-hover:text-violet-950">Subcontratos</h4><p className="text-xs text-slate-500 mt-1 leading-relaxed">Avances, asistencia, acreditación y estados de pago presentados por subcontratistas.</p></div>
                 </button>
 
+                <button
+                  onClick={() => setObraActiveSubmodule('copiloto')}
+                  className="p-5 bg-white border border-violet-200 hover:border-violet-700 rounded-2xl shadow-xs hover:shadow-md transition text-left cursor-pointer group flex flex-col justify-between space-y-3"
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="p-3 bg-violet-50 text-violet-900 rounded-xl group-hover:bg-violet-900 group-hover:text-white transition"><Bot className="w-6 h-6" /></div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-violet-900 bg-violet-50 px-2 py-1 rounded-md border border-violet-200">IA · Solo lectura</span>
+                  </div>
+                  <div><h4 className="font-extrabold text-slate-800 text-sm group-hover:text-violet-950">Copiloto de Obra</h4><p className="text-xs text-slate-500 mt-1 leading-relaxed">Consulta datos autorizados con hechos trazables, cálculos visibles y sugerencias separadas.</p></div>
+                </button>
+
                 {/* 9. Estadísticas */}
                 <button
                   onClick={() => setObraActiveSubmodule('estadisticas')}
@@ -4480,6 +4492,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
           {obraActiveSubmodule === 'subcontratos' && (
             <SubcontratosObra user={user} obra={selectedObra} />
+          )}
+
+          {obraActiveSubmodule === 'copiloto' && (
+            <CopilotoObra user={user} obra={selectedObra} />
           )}
 
           {/* VISTA DEDICADA 9: PANEL DE ESTADÍSTICAS EJECUTIVAS DE OBRA */}
