@@ -10,7 +10,7 @@ La IA asiste. Los cálculos, permisos, aprobaciones y registros oficiales contin
 | 2. IA documental | Cerrada | 100% |
 | 3. Informes asistidos | Cerrada | 100% |
 | 4. Copiloto contextual por obra | Primera versión funcional | 70% |
-| 5. Asistencia especializada | Last Planner operativo y lectura de maquinaria | 25% |
+| 5. Asistencia especializada | Last Planner y mejora continua de Calidad operativos | 40% |
 | 6. Predicción y optimización | Pendiente de historial confiable | 0% |
 
 ## Fase 1 — Gobierno y control de IA
@@ -82,7 +82,8 @@ La IA asiste. Los cálculos, permisos, aprobaciones y registros oficiales contin
 
 - [x] Base determinística de Planificación y Last Planner: semáforo por partida, restricciones, responsables, compromisos, criticidad y sugerencias de recuperación sin consumo de tokens.
 - [ ] Interpretación IA opcional de Planificación y Last Planner, sujeta a autorización específica para enviar restricciones y recursos a OpenAI.
-- [ ] Calidad.
+- [x] Base determinística de Calidad: contención, análisis causal, recurrencia, acción correctiva, verificación de eficacia y cierre por etapas.
+- [ ] Asistencia IA opcional de Calidad para borradores de protocolos, síntesis de recurrencias y propuestas de causa/acción, sujeta a autorización específica.
 - [ ] Prevención.
 - [x] Lectura asistida de horómetro/kilometraje con revisión humana.
 - [ ] Anomalías, fallas recurrentes, mantenimiento y redistribución de maquinaria.
@@ -100,4 +101,4 @@ No se inicia hasta disponer de volumen, calidad y continuidad histórica suficie
 
 ## Próximo bloque obligatorio
 
-Continuar Fase 5 con Calidad: recurrencia de no conformidades, causa raíz y acciones correctivas; mantener cálculos y decisiones como procesos determinísticos y usar IA solo como asistencia autorizada y revisable.
+Continuar Fase 5 con Prevención: asociación con matriz de riesgos y procedimientos, clasificación de recurrencias y seguimiento de medidas correctivas; mantener decisiones como procesos determinísticos.
