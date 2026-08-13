@@ -9,6 +9,8 @@ create table if not exists public.ia_config_empresas (
   alerta_porcentaje smallint not null default 80 check (alerta_porcentaje between 1 and 100),
   modelo text not null default 'gpt-4.1-mini',
   funciones jsonb not null default '{"lectura_documental":true,"maquinaria":false,"rrhh":false,"informes":false,"copiloto":false,"revision_legal":false}'::jsonb,
+  limites_funcion jsonb not null default '{}'::jsonb,
+  limites_usuario jsonb not null default '{}'::jsonb,
   actualizado_por text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -54,6 +56,10 @@ alter table public.ia_config_empresas alter column habilitada set default false;
 alter table public.ia_config_empresas alter column funciones set default '{"lectura_documental":true,"maquinaria":false,"rrhh":false,"informes":false,"copiloto":false,"revision_legal":false}'::jsonb;
 update public.ia_config_empresas set funciones=jsonb_set(coalesce(funciones,'{}'::jsonb),'{maquinaria}','false'::jsonb,true) where not (coalesce(funciones,'{}'::jsonb) ? 'maquinaria');
 update public.ia_config_empresas set funciones=jsonb_set(coalesce(funciones,'{}'::jsonb),'{rrhh}','false'::jsonb,true) where not (coalesce(funciones,'{}'::jsonb) ? 'rrhh');
+
+alter table public.ia_config_empresas
+  add column if not exists limites_funcion jsonb not null default '{}'::jsonb,
+  add column if not exists limites_usuario jsonb not null default '{}'::jsonb;
 
 create or replace function public.ia_reservar_consumo(p_empresa text,p_obra_nombre text,p_auth_user_id uuid,p_usuario text,p_funcion text,p_modelo text,p_reserva_usd numeric default 0.02)
 returns uuid language plpgsql security invoker set search_path=public as $$
