@@ -6,7 +6,7 @@ import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
 import { 
   Users, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Check, Building2, UserPlus, 
-  FileText, DollarSign, Upload, FileCheck, RefreshCw, Calculator, BookOpen, Download, Building, Printer, BarChart3, CalendarRange
+  FileText, DollarSign, Upload, FileUp, Sparkles, FileCheck, RefreshCw, Calculator, BookOpen, Download, Building, Printer, BarChart3, CalendarRange
 } from 'lucide-react';
 import { HrStatistics } from './OperationalStatistics';
 import WorkforceProjection from './WorkforceProjection';
@@ -152,7 +152,9 @@ function Personal({ user, onBack }) {
   ]);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState(null);
-  const [templateForm, setTemplateForm] = useState({ titulo: '', tipo: 'Contrato Indefinido', contenido: '' });
+  const [templateForm, setTemplateForm] = useState({ titulo: '', tipo: 'Contrato Indefinido', contenido: '', archivo_nombre: '', variables: [], advertencias: [] });
+  const [templateBusy, setTemplateBusy] = useState(false);
+  const [templateMessage, setTemplateMessage] = useState('');
 
   const [selectedWorkerForContract, setSelectedWorkerForContract] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState('1');
@@ -164,7 +166,93 @@ function Personal({ user, onBack }) {
 
   useEffect(() => {
     fetchData();
+    fetchContractTemplates();
   }, []);
+
+  const fetchContractTemplates = async () => {
+    const { data, error } = await supabase.from('rrhh_formatos_documentos').select('*').eq('empresa', user?.empresa || 'Obraxis').order('titulo');
+    if (!error && data?.length) {
+      setPlantillasContrato(data);
+      setSelectedTemplateId(String(data[0].id));
+    } else if (error && !String(error.message).includes('rrhh_formatos_documentos')) {
+      console.warn('No fue posible cargar formatos laborales:', error.message);
+    }
+  };
+
+  const fileToBase64 = file => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  const analyzeContractFile = async file => {
+    if (!file) return;
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    if (!['pdf', 'docx', 'txt'].includes(extension)) {
+      setTemplateMessage('Usa un archivo PDF, DOCX o TXT. Los archivos DOC antiguos deben guardarse primero como DOCX.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) { setTemplateMessage('El archivo supera el máximo de 10 MB.'); return; }
+    setTemplateBusy(true);
+    setTemplateMessage('La IA está leyendo el documento y detectando las variables reutilizables…');
+    try {
+      let body;
+      if (extension === 'docx') {
+        const mammoth = await import('mammoth/mammoth.browser');
+        const extracted = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+        if (!extracted.value.trim()) throw new Error('El documento Word no contiene texto legible.');
+        body = { text: extracted.value, file_name: file.name, mime_type: file.type || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' };
+      } else if (extension === 'txt') {
+        body = { text: await file.text(), file_name: file.name, mime_type: 'text/plain' };
+      } else {
+        body = { file_base64: await fileToBase64(file), file_name: file.name, mime_type: file.type || 'application/pdf' };
+      }
+      const { data, error } = await supabase.functions.invoke('analizar-formato-laboral-ia', { body });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const analyzed = data?.data;
+      setTemplateForm(current => ({ ...current, titulo: current.titulo || analyzed.titulo || file.name.replace(/\.[^.]+$/, ''), tipo: analyzed.tipo || current.tipo, contenido: analyzed.contenido || '', archivo_nombre: file.name, variables: analyzed.variables || [], advertencias: analyzed.advertencias || [] }));
+      setTemplateMessage(`Documento procesado. Se detectaron ${(analyzed.variables || []).length} variables. Revisa el texto antes de guardarlo.`);
+    } catch (error) {
+      setTemplateMessage(`No fue posible analizar el documento: ${error.message}`);
+    } finally { setTemplateBusy(false); }
+  };
+
+  const saveContractTemplate = async event => {
+    event.preventDefault();
+    if (!templateForm.titulo.trim() || !templateForm.contenido.trim()) return;
+    setTemplateBusy(true);
+    const payload = { empresa: user?.empresa || 'Obraxis', titulo: templateForm.titulo.trim(), tipo: templateForm.tipo, contenido: templateForm.contenido, archivo_nombre: templateForm.archivo_nombre || null, variables: templateForm.variables || [], advertencias: templateForm.advertencias || [], actualizado_por: user?.nombre || user?.email || user?.usuario || 'Usuario' };
+    const response = editingTemplate?.created_at
+      ? await supabase.from('rrhh_formatos_documentos').update(payload).eq('id', editingTemplate.id).select().single()
+      : await supabase.from('rrhh_formatos_documentos').insert(payload).select().single();
+    setTemplateBusy(false);
+    if (response.error) { setTemplateMessage(`No fue posible guardar: ${response.error.message}`); return; }
+    await fetchContractTemplates();
+    setShowTemplateModal(false);
+  };
+
+  const deleteContractTemplate = async template => {
+    if (!window.confirm(`¿Eliminar el formato “${template.titulo}”?`)) return;
+    if (!template.created_at) { setPlantillasContrato(current => current.filter(item => item.id !== template.id)); return; }
+    const { error } = await supabase.from('rrhh_formatos_documentos').delete().eq('id', template.id);
+    if (error) { alert(`No fue posible eliminar el formato: ${error.message}`); return; }
+    await fetchContractTemplates();
+  };
+
+  const renderContractTemplate = (template, worker) => {
+    if (!template || !worker) return '';
+    const values = {
+      nombre_trabajador: worker.nombre || '', rut: worker.rut || '', cargo: worker.cargo || '',
+      sueldo_base: Number(worker.sueldo_base || 0).toLocaleString('es-CL'), obra_nombre: worker.obra_nombre || 'Sin obra asignada',
+      fecha_inicio: worker.fecha_inicio_contrato || worker.inicio || new Date().toISOString().slice(0, 10),
+      fecha_termino: worker.fecha_vencimiento_contrato || worker.termino || '', email: worker.email || '', fono: worker.fono || '',
+      centro_trabajo: worker.centro_trabajo || '', area: worker.area || '', empresa: user?.empresa || 'Obraxis',
+      ciudad: 'Santiago', fecha_documento: new Date().toLocaleDateString('es-CL')
+    };
+    return String(template.contenido || '').replace(/{{\s*([a-z_]+)\s*}}/gi, (match, key) => Object.prototype.hasOwnProperty.call(values, key) ? values[key] : match);
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -1073,14 +1161,7 @@ function Personal({ user, onBack }) {
                         const w = personal.find(p => String(p.id) === e.target.value);
                         const t = plantillasContrato.find(p => String(p.id) === selectedTemplateId);
                         if (w && t) {
-                          let text = t.contenido;
-                          text = text.replace(/{{nombre_trabajador}}/g, w.nombre);
-                          text = text.replace(/{{rut}}/g, w.rut || 'Sin RUT');
-                          text = text.replace(/{{cargo}}/g, w.cargo || 'Operario');
-                          text = text.replace(/{{sueldo_base}}/g, (w.sueldo_base || 600000).toLocaleString('es-CL'));
-                          text = text.replace(/{{obra_nombre}}/g, w.obra_nombre || 'Obra Principal');
-                          text = text.replace(/{{fecha_inicio}}/g, new Date().toLocaleDateString('es-CL'));
-                          setGeneratedContractText(text);
+                          setGeneratedContractText(renderContractTemplate(t, w));
                         }
                       }}
                       className="w-full border border-slate-300 rounded-xl p-2.5 text-xs font-bold text-slate-800 bg-white"
@@ -1099,14 +1180,7 @@ function Personal({ user, onBack }) {
                         const w = personal.find(p => String(p.id) === selectedWorkerForContract);
                         const t = plantillasContrato.find(p => String(p.id) === e.target.value);
                         if (w && t) {
-                          let text = t.contenido;
-                          text = text.replace(/{{nombre_trabajador}}/g, w.nombre);
-                          text = text.replace(/{{rut}}/g, w.rut || 'Sin RUT');
-                          text = text.replace(/{{cargo}}/g, w.cargo || 'Operario');
-                          text = text.replace(/{{sueldo_base}}/g, (w.sueldo_base || 600000).toLocaleString('es-CL'));
-                          text = text.replace(/{{obra_nombre}}/g, w.obra_nombre || 'Obra Principal');
-                          text = text.replace(/{{fecha_inicio}}/g, new Date().toLocaleDateString('es-CL'));
-                          setGeneratedContractText(text);
+                          setGeneratedContractText(renderContractTemplate(t, w));
                         }
                       }}
                       className="w-full border border-slate-300 rounded-xl p-2.5 text-xs font-bold text-slate-800 bg-white"
@@ -1147,7 +1221,8 @@ function Personal({ user, onBack }) {
                 <button
                   onClick={() => {
                     setEditingTemplate(null);
-                    setTemplateForm({ titulo: '', tipo: 'Contrato Indefinido', contenido: 'En la ciudad de Santiago, entre la empresa Obraxis y Don(a) {{nombre_trabajador}}, RUT {{rut}}...' });
+                    setTemplateForm({ titulo: '', tipo: 'Contrato Indefinido', contenido: '', archivo_nombre: '', variables: [], advertencias: [] });
+                    setTemplateMessage('Sube un contrato existente para convertirlo en formato reutilizable, o créalo manualmente.');
                     setShowTemplateModal(true);
                   }}
                   className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1 cursor-pointer"
@@ -1165,16 +1240,7 @@ function Personal({ user, onBack }) {
                         <span className="text-[9px] font-bold uppercase bg-blue-100 text-blue-900 px-2 py-0.5 rounded">{t.tipo}</span>
                         <h5 className="font-extrabold text-slate-800 text-xs mt-1">{t.titulo}</h5>
                       </div>
-                      <button
-                        onClick={() => {
-                          setEditingTemplate(t);
-                          setTemplateForm({ titulo: t.titulo, tipo: t.tipo, contenido: t.contenido });
-                          setShowTemplateModal(true);
-                        }}
-                        className="text-blue-900 hover:text-blue-950 text-xs font-bold cursor-pointer"
-                      >
-                        Editar Formato
-                      </button>
+                      <div className="flex gap-2"><button onClick={() => { setEditingTemplate(t); setTemplateForm({ titulo: t.titulo, tipo: t.tipo, contenido: t.contenido, archivo_nombre: t.archivo_nombre || '', variables: t.variables || [], advertencias: t.advertencias || [] }); setTemplateMessage(''); setShowTemplateModal(true); }} className="text-blue-900 hover:text-blue-950 text-xs font-bold cursor-pointer">Editar</button><button onClick={() => deleteContractTemplate(t)} className="text-red-600 hover:text-red-800 text-xs font-bold cursor-pointer">Eliminar</button></div>
                     </div>
                     <p className="text-[11px] text-slate-600 line-clamp-3 italic">"{t.contenido}"</p>
                   </div>
@@ -1542,71 +1608,29 @@ function Personal({ user, onBack }) {
               <button onClick={() => setShowTemplateModal(false)} className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer">✕</button>
             </div>
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!templateForm.titulo.trim() || !templateForm.contenido.trim()) return;
-                if (editingTemplate) {
-                  setPlantillasContrato(prev => prev.map(t => t.id === editingTemplate.id ? { ...t, ...templateForm } : t));
-                } else {
-                  setPlantillasContrato(prev => [...prev, { id: Date.now(), ...templateForm }]);
-                }
-                setShowTemplateModal(false);
-                alert('Formato de contrato guardado con éxito.');
-              }}
-              className="space-y-4 text-xs"
-            >
+            <form onSubmit={saveContractTemplate} className="space-y-4 text-xs">
               {/* Opción de Carga Automática desde Archivo */}
               <div className="bg-blue-50/60 border border-dashed border-blue-200 rounded-xl p-3 space-y-1.5">
                 <div className="flex justify-between items-center">
                   <span className="text-[10px] font-bold uppercase text-blue-950 flex items-center gap-1">
                     <FileUp className="w-3.5 h-3.5 text-blue-900" />
-                    <span>Subir Documento / Contrato Existente (.txt, .pdf, .docx)</span>
+                    <span>Convertir contrato existente con IA (.PDF, .DOCX, .TXT)</span>
                   </span>
                 </div>
-                <p className="text-[10px] text-slate-500">Selecciona un archivo en tu equipo para extraer su texto automáticamente como formato</p>
+                <p className="text-[10px] text-slate-500">La IA conserva la estructura y reemplaza los datos variables por etiquetas de Obraxis. El resultado siempre debe revisarse antes de guardarlo.</p>
                 <input
                   type="file"
-                  accept=".txt,.pdf,.docx,.doc,.csv"
-                  onChange={(e) => {
-                    const file = e.target.files[0];
-                    if (!file) return;
-
-                    const fileNameWithoutExt = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-                    const cleanTitle = fileNameWithoutExt.replace(/_/g, ' ').replace(/-/g, ' ');
-
-                    const reader = new FileReader();
-                    reader.onload = (event) => {
-                      let extractedText = event.target.result;
-                      if (typeof extractedText !== 'string') {
-                        extractedText = `En la ciudad de Santiago, se celebra el contrato de trabajo contenido en ${file.name}.\n\nEntre Obraxis S.A. y Don(a) {{nombre_trabajador}}, RUT {{rut}}, para desempeñarse en el cargo de {{cargo}} en la obra {{obra_nombre}}, con fecha de ingreso {{fecha_inicio}} y sueldo base de ${{sueldo_base}}.`;
-                      }
-                      
-                      setTemplateForm(prev => ({
-                        ...prev,
-                        titulo: prev.titulo || cleanTitle,
-                        contenido: extractedText
-                      }));
-                      alert(`¡Documento "${file.name}" leído con éxito! El contenido ha sido extraído al formato.`);
-                    };
-
-                    if (file.name.endsWith('.txt') || file.name.endsWith('.csv')) {
-                      reader.readAsText(file);
-                    } else {
-                      reader.readAsArrayBuffer(file);
-                      setTimeout(() => {
-                        setTemplateForm(prev => ({
-                          ...prev,
-                          titulo: prev.titulo || cleanTitle,
-                          contenido: `En la ciudad de Santiago de Chile, se suscribe el presente contrato de trabajo extraído de ${file.name}.\n\nPRIMERO: La empresa contrata a Don(a) {{nombre_trabajador}}, RUT N° {{rut}}, para desempeñar la función de {{cargo}} en la faena {{obra_nombre}}.\n\nSEGUNDO: El trabajador iniciará sus labores con fecha {{fecha_inicio}}, percibiendo una remuneración líquida base de ${{sueldo_base}}.`
-                        }));
-                        alert(`¡Documento "${file.name}" leído y procesado! El texto ha sido extraído al formulario para su revisión.`);
-                      }, 300);
-                    }
-                  }}
+                  accept=".txt,.pdf,.docx"
+                  disabled={templateBusy}
+                  onChange={(e) => { analyzeContractFile(e.target.files?.[0]); e.target.value = ''; }}
                   className="w-full text-xs text-slate-800 cursor-pointer"
                 />
+                {templateBusy && <div className="flex items-center gap-2 rounded-lg bg-white p-2 text-[10px] font-bold text-violet-800"><Loader2 className="h-3.5 w-3.5 animate-spin"/>Analizando documento…</div>}
+                {templateMessage && <p className="rounded-lg bg-white p-2 text-[10px] font-semibold text-slate-700">{templateMessage}</p>}
               </div>
+
+              {templateForm.variables?.length > 0 && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3"><p className="text-[10px] font-black uppercase text-emerald-900">Variables detectadas</p><div className="mt-2 flex flex-wrap gap-1.5">{templateForm.variables.map(variable => <span key={variable} className="rounded-md bg-white px-2 py-1 font-mono text-[10px] font-bold text-emerald-800">{`{{${variable}}}`}</span>)}</div></div>}
+              {templateForm.advertencias?.length > 0 && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[10px] text-amber-900"><b>Revisión necesaria:</b> {templateForm.advertencias.join(' ')}</div>}
 
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Título del Formato</label>
@@ -1650,9 +1674,10 @@ function Personal({ user, onBack }) {
 
               <button
                 type="submit"
-                className="w-full bg-blue-900 hover:bg-blue-800 text-white font-bold py-3 rounded-xl text-xs shadow-xs cursor-pointer"
+                disabled={templateBusy}
+                className="w-full bg-blue-900 hover:bg-blue-800 text-white font-bold py-3 rounded-xl text-xs shadow-xs cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                Guardar Formato de Contrato
+                {templateBusy ? <Loader2 className="h-4 w-4 animate-spin"/> : <Sparkles className="h-4 w-4"/>}Guardar Formato para la Empresa
               </button>
             </form>
           </div>
