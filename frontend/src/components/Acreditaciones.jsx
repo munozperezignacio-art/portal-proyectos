@@ -5,6 +5,7 @@ import { formatRut } from '../utils/rutUtils';
 import { sendSystemEmail } from '../utils/emailService';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
+import AccreditationAIReview from './AccreditationAIReview';
 import { 
   ArrowLeft, PackageCheck, Store, ShieldCheck, Plus, Send, CheckCircle2, AlertCircle, FileText, 
   Trash2, Eye, Download, Copy, ExternalLink, Building2, User, Truck, Pencil, Archive, RotateCcw,
@@ -2039,6 +2040,8 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                               </div>
                             )}
 
+                            <AccreditationAIReview file={uploaded} empresa={user?.empresa || companyBranding?.empresa} obra={selectedSubDetail.obra_asociada} subcontratista={selectedSubDetail} categoria="empresa" entidad={selectedSubDetail.empresa_nombre} documentKey={item.key} documentName={item.label} canDecide={canReview} user={user} />
+
                             <div className="flex gap-1.5 pt-1">
                               <button
                                 onClick={() => handleUpdateDocStatus('empresa', item.key, 'Aprobado')}
@@ -2148,6 +2151,8 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                                       </div>
                                     )}
 
+                                    <AccreditationAIReview file={file} empresa={user?.empresa || companyBranding?.empresa} obra={selectedSubDetail.obra_asociada} subcontratista={selectedSubDetail} categoria="personal" entidad={`${p.nombre} · ${p.rut}`} documentKey={doc.key} documentName={doc.label} canDecide={canReview} user={user} />
+
                                     <div className="flex gap-1 pt-0.5">
                                       <button
                                         onClick={() => handleUpdateDocStatus('personal', doc.key, 'Aprobado', pIdx)}
@@ -2250,6 +2255,8 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                                         <strong>Motivo:</strong> {file.motivo_rechazo}
                                       </div>
                                     )}
+
+                                    <AccreditationAIReview file={file} empresa={user?.empresa || companyBranding?.empresa} obra={selectedSubDetail.obra_asociada} subcontratista={selectedSubDetail} categoria="equipos" entidad={`${eq.tipo_equipo} · ${eq.patente_codigo}`} documentKey={doc.key} documentName={doc.label} canDecide={canReview} user={user} />
 
                                     <div className="flex gap-1 pt-0.5">
                                       <button
