@@ -196,7 +196,7 @@ export default function NotificationMaster({ user, obras = [], roles = [] }) {
     <div className="space-y-4">
       <div className="flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2">
         <button onClick={() => setSection('alertas')} className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black ${section === 'alertas' ? 'bg-slate-950 text-white' : 'text-slate-600'}`}><Bell className="h-4 w-4"/>Alertas y notificaciones</button>
-        <button onClick={() => setSection('informes')} className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black ${section === 'informes' ? 'bg-slate-950 text-white' : 'text-slate-600'}`}><BarChart3 className="h-4 w-4"/>Informes gerenciales</button>
+        <button onClick={() => setSection('informes')} className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black ${section === 'informes' ? 'bg-slate-950 text-white' : 'text-slate-600'}`}><BarChart3 className="h-4 w-4"/>Informes</button>
       </div>
       {section === 'informes' ? <ExecutiveReportScheduler user={user} obras={obras} roles={roles}/> : <>
       <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-950 to-blue-950 p-5 text-white shadow-sm">
