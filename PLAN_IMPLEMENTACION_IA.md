@@ -7,7 +7,7 @@ La IA asiste. Los cálculos, permisos, aprobaciones y registros oficiales contin
 | Fase | Estado | Avance estimado |
 |---|---|---:|
 | 1. Gobierno y control de IA | Cerrada | 100% |
-| 2. IA documental | En ejecución | 95% |
+| 2. IA documental | Cerrada | 100% |
 | 3. Informes asistidos | Base determinística existente; interpretación IA pendiente | 35% |
 | 4. Copiloto contextual por obra | Pendiente | 0% |
 | 5. Asistencia especializada | Iniciada solo en lectura de maquinaria | 10% |
@@ -45,7 +45,7 @@ La IA asiste. Los cálculos, permisos, aprobaciones y registros oficiales contin
 - [x] Conciliación OC ↔ guía ↔ recepción ↔ factura/nota de crédito.
 - [x] Alertas de diferencias de RUT, cantidades y montos.
 - [x] Inventario cambia solo después de validación humana.
-- [ ] Incorporar referencia tributaria explícita de notas de crédito/débito al DTE original.
+- [x] Referencia tributaria explícita de notas de crédito/débito al DTE original, extraída y confirmada antes de guardar.
 
 ### Acreditaciones
 
@@ -97,4 +97,4 @@ No se inicia hasta disponer de volumen, calidad y continuidad histórica suficie
 
 ## Próximo bloque obligatorio
 
-Cerrar Fase 2 incorporando referencias tributarias de notas de crédito/débito y luego continuar Fase 3 con interpretación IA revisable de informes. No iniciar el Copiloto ni predicciones antes de cerrar las fases anteriores.
+Continuar Fase 3 con interpretación IA revisable de informes, comenzando por informe semanal y mensual de obra. No iniciar el Copiloto ni predicciones antes de cerrar las fases anteriores.
