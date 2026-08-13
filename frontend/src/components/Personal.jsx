@@ -12,6 +12,7 @@ import { HrStatistics } from './OperationalStatistics';
 import WorkforceProjection from './WorkforceProjection';
 import PayrollAutomation from './PayrollAutomation';
 import WorkerBulkImport from './WorkerBulkImport';
+import WorkerDocumentsPanel from './WorkerDocumentsPanel';
 
 export const afpCommissionRates = {
   'Habitat': { fondo: 10.00, comision: 1.27, total: 11.27 },
@@ -94,6 +95,7 @@ function Personal({ user, onBack }) {
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [showBulkImport, setShowBulkImport] = useState(false);
+  const [rrhhAIEnabled, setRrhhAIEnabled] = useState(false);
 
   // Estado para Modal de Asignación de Obra con Fecha desde RRHH
   const [showAssignObraModal, setShowAssignObraModal] = useState(false);
@@ -191,7 +193,13 @@ function Personal({ user, onBack }) {
   useEffect(() => {
     fetchData();
     fetchContractTemplates();
+    fetchAIConfiguration();
   }, []);
+
+  const fetchAIConfiguration = async () => {
+    const { data } = await supabase.from('ia_config_empresas').select('habilitada,funciones').eq('empresa', user?.empresa).maybeSingle();
+    setRrhhAIEnabled(Boolean(data?.habilitada && data?.funciones?.rrhh));
+  };
 
   const fetchContractTemplates = async () => {
     const { data, error } = await supabase.from('rrhh_formatos_documentos').select('*').eq('empresa', user?.empresa || 'Obraxis').order('titulo');
@@ -1494,7 +1502,7 @@ function Personal({ user, onBack }) {
       {/* MODAL: ADJUNTAR / VER DOCUMENTACIÓN DEL TRABAJADOR */}
       {showDocModal && selectedWorkerDoc && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4 border border-slate-100 animate-in fade-in zoom-in duration-150">
+          <div className="bg-white rounded-2xl w-full max-w-2xl p-6 shadow-2xl space-y-4 border border-slate-100 animate-in fade-in zoom-in duration-150 max-h-[92vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b pb-3">
               <div>
                 <h3 className="font-extrabold text-slate-800 text-sm">Documentación del Trabajador</h3>
@@ -1503,7 +1511,9 @@ function Personal({ user, onBack }) {
               <button onClick={() => setShowDocModal(false)} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
             </div>
 
-            <div className="space-y-3">
+            <WorkerDocumentsPanel user={user} worker={selectedWorkerDoc} documentTypes={docTypes} aiEnabled={rrhhAIEnabled} />
+
+            <div className="hidden space-y-3">
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Tipo de Documento</label>
                 {!isAddingCustomDocType ? (
