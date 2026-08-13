@@ -6,8 +6,16 @@ import PermissionsGovernancePanel from './PermissionsGovernancePanel';
 import NotificationMaster from './NotificationMaster';
 import { PERMISSIONS_CATALOG, permissionKey } from '../utils/permissionsCatalog';
 import { 
-  Settings, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Check, Mail, Filter, User, Lock, Building2, ShieldAlert, Copy, Archive, ArchiveRestore, ShieldCheck, Bell, Palette, Users, Workflow, AtSign, BriefcaseBusiness, Layers3
+  Settings, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Check, Mail, Filter, User, Lock, Building2, ShieldAlert, Copy, Archive, ArchiveRestore, ShieldCheck, Bell, Palette, Users, Workflow, AtSign, BriefcaseBusiness, Layers3, Globe2, Database, Sparkles, HardDrive, Clock3, Save, RefreshCw, Server, CircleCheck, CircleX
 } from 'lucide-react';
+
+function PlatformField({ label, value, onChange, type = 'text', min, max }) {
+  return <label className="block"><span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-slate-500">{label}</span><input required type={type} min={min} max={max} value={value ?? ''} onChange={event => onChange(event.target.value)} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10" /></label>;
+}
+
+function ToggleSetting({ label, description, checked, onChange }) {
+  return <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-slate-200 p-4 transition hover:bg-slate-50"><span><span className="block text-xs font-black text-slate-800">{label}</span><span className="mt-1 block text-[11px] leading-relaxed text-slate-500">{description}</span></span><input type="checkbox" checked={Boolean(checked)} onChange={event => onChange(event.target.checked)} className="h-5 w-5 shrink-0 accent-primary" /></label>;
+}
 
 function ConfigCorreos({ user, onBack }) {
   const platformSessionUser = (() => {
@@ -104,11 +112,18 @@ function ConfigCorreos({ user, onBack }) {
     empresa: ''
   });
 
-  // Estados de Configuración de la Plataforma Global (Obraxis)
-  const [platApiKey, setPlatApiKey] = useState('');
-  const [platSender, setPlatSender] = useState('notificaciones@obraxis.cl');
-  const [platGeminiKey, setPlatGeminiKey] = useState('');
-  const [platGeminiModel, setPlatGeminiModel] = useState('gemini-3.5-flash');
+  // Configuración operativa global (sin secretos en el navegador)
+  const [globalSettings, setGlobalSettings] = useState({
+    id: 1, nombre_plataforma: 'Obraxis', url_publica: 'https://www.obraxis.cl', correo_soporte: 'soporte@obraxis.cl',
+    pais: 'Chile', zona_horaria: 'America/Santiago', idioma: 'es-CL', moneda: 'CLP',
+    correo_habilitado: true, correo_remitente: 'notificaciones@obraxis.cl', correo_respuesta: 'soporte@obraxis.cl', hora_resumen_diario: '18:00',
+    ia_habilitada: true, ia_proveedor: 'OpenAI', ia_modelo: 'gpt-4.1-mini', ia_confianza_minima: 75, ia_archivo_max_mb: 10,
+    archivo_max_mb: 25, retencion_documentos_anos: 10, retencion_auditoria_anos: 10,
+    modulos_empresa_nueva: 'admin,obras', submenus_empresa_nueva: '', mantenimiento_activo: false,
+    mensaje_mantenimiento: 'Estamos realizando mejoras programadas. Intenta nuevamente en unos minutos.'
+  });
+  const [platformSection, setPlatformSection] = useState('general');
+  const [serviceStatus, setServiceStatus] = useState({ database: false, auth: false, email: false, ai: false });
   const [platSuccess, setPlatSuccess] = useState('');
   const [platError, setPlatError] = useState('');
   const [platLoading, setPlatLoading] = useState(false);
@@ -638,6 +653,8 @@ function ConfigCorreos({ user, onBack }) {
       return;
     }
     setCompanyEditing(null);
+    const defaultModules = String(globalSettings.modulos_empresa_nueva || 'admin,obras').split(',').map(item => item.trim()).filter(Boolean);
+    const defaultSubmenus = String(globalSettings.submenus_empresa_nueva || '').split(',').map(item => item.trim()).filter(Boolean);
     setCompanyFormData({
       empresa: '',
       razon_social: '',
@@ -651,8 +668,10 @@ function ConfigCorreos({ user, onBack }) {
       logo_base64: '',
       color_primario: '#1e3a8a',
       color_secundario: '#1d4ed8',
-      modulos_activos: ['admin'],
-      submenus_activos: []
+      modulos_activos: Array.from(new Set(['admin', ...defaultModules])),
+      submenus_activos: defaultSubmenus,
+      email_api_key: '',
+      email_sender: globalSettings.correo_remitente
     });
     setSuccessMsg('');
     setErrorMsg('');
@@ -741,9 +760,9 @@ function ConfigCorreos({ user, onBack }) {
       color_secundario: companyFormData.color_secundario,
       modulos_activos: activeModules.join(','),
       submenus_activos: validSubmenus.join(','),
-      pais: 'Chile',
-      zona_horaria: 'America/Santiago',
-      moneda: 'CLP',
+      pais: globalSettings.pais,
+      zona_horaria: globalSettings.zona_horaria,
+      moneda: globalSettings.moneda,
       configuracion_completa: true,
       updated_at: new Date().toISOString(),
       email_api_key: companyFormData.email_api_key ? companyFormData.email_api_key.trim() : null,
@@ -936,21 +955,23 @@ function ConfigCorreos({ user, onBack }) {
     setPlatSuccess('');
     setPlatError('');
     try {
-      const { data, error } = await supabase
-        .from('config_empresa')
-        .select('*')
-        .eq('empresa', 'Obraxis')
-        .maybeSingle();
-
+      const [{ data, error }, { data: legacy, error: legacyError }, { data: sessionData }, aiProbe] = await Promise.all([
+        supabase.from('config_global_obraxis').select('*').eq('id', 1).maybeSingle(),
+        supabase.from('config_empresa').select('email_api_key').eq('empresa', 'Obraxis').maybeSingle(),
+        supabase.auth.getSession(),
+        supabase.functions.invoke('leer-boleta-ia', { body: {} })
+      ]);
       if (error) throw error;
-
-      if (data) {
-        setPlatApiKey(data.email_api_key || '');
-        setPlatSender(data.email_sender || 'notificaciones@obraxis.cl');
-        setPlatGeminiKey(data.gemini_api_key || '');
-        setPlatGeminiModel(data.gemini_model || 'gemini-3.5-flash');
-      }
+      if (legacyError) throw legacyError;
+      if (data) setGlobalSettings(current => ({ ...current, ...data, hora_resumen_diario: String(data.hora_resumen_diario || '18:00').slice(0, 5) }));
+      setServiceStatus({
+        database: true,
+        auth: Boolean(sessionData?.session?.user),
+        email: Boolean(legacy?.email_api_key),
+        ai: !aiProbe?.error || ![401, 503].includes(Number(aiProbe?.error?.context?.status || 0))
+      });
     } catch (err) {
+      setServiceStatus(current => ({ ...current, database: false }));
       setPlatError(err.message);
     } finally {
       setPlatLoading(false);
@@ -964,16 +985,15 @@ function ConfigCorreos({ user, onBack }) {
     setPlatError('');
     try {
       const { error } = await supabase
-        .from('config_empresa')
-        .update({
-          email_api_key: platApiKey ? platApiKey.trim() : null,
-          email_sender: platSender ? platSender.trim() : 'notificaciones@obraxis.cl',
-          gemini_api_key: platGeminiKey ? platGeminiKey.trim() : null,
-          gemini_model: platGeminiModel ? platGeminiModel.trim() : 'gemini-3.5-flash'
-        })
-        .eq('empresa', 'Obraxis');
-
+        .from('config_global_obraxis')
+        .upsert({ ...globalSettings, id: 1, actualizado_por: user?.usuario || user?.correo || 'Obraxis', updated_at: new Date().toISOString() }, { onConflict: 'id' });
       if (error) throw error;
+      const { error: compatibilityError } = await supabase.from('config_empresa').update({
+        email_sender: globalSettings.correo_remitente,
+        gemini_model: globalSettings.ia_modelo,
+        updated_at: new Date().toISOString()
+      }).eq('empresa', 'Obraxis');
+      if (compatibilityError) throw compatibilityError;
       setPlatSuccess('Configuración global de Obraxis actualizada correctamente.');
     } catch (err) {
       setPlatError(err.message);
@@ -983,12 +1003,7 @@ function ConfigCorreos({ user, onBack }) {
   };
 
   const handleSendPlatformTestEmail = async () => {
-    const keyToUse = platApiKey.trim();
-    const senderToUse = platSender.trim();
-    if (!keyToUse) {
-      alert("Por favor ingrese la API Key de Resend primero.");
-      return;
-    }
+    const senderToUse = globalSettings.correo_remitente.trim();
     setPlatTestMailLoading(true);
     try {
       const testHtml = `
@@ -1007,7 +1022,8 @@ function ConfigCorreos({ user, onBack }) {
       const res = await sendSystemEmail({
         to: recipient,
         subject: '🧪 Prueba de Envío de Correo Global - Obraxis',
-        htmlContent: testHtml
+        htmlContent: testHtml,
+        customSender: senderToUse
       });
 
       if (res.success) {
@@ -1712,87 +1728,34 @@ function ConfigCorreos({ user, onBack }) {
         </>
       ) : (
         /* PANEL DE PLATAFORMA GLOBAL (Ajustes Obraxis) */
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm max-w-lg space-y-6">
-          <div>
-            <h3 className="font-bold text-slate-800 text-sm">Ajustes Globales de la Plataforma (Obraxis)</h3>
-            <p className="text-xs text-slate-500 mt-1">Configura las credenciales generales de correo (Resend) y el motor de inteligencia artificial (Gemini) para toda la plataforma.</p>
+        <div className="space-y-4">
+          <div className="rounded-3xl border border-slate-200 bg-slate-950 p-5 text-white shadow-sm sm:p-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div className="flex items-center gap-3"><span className="rounded-2xl bg-white/10 p-3"><Server className="h-6 w-6" /></span><div><h3 className="text-lg font-black">Operación global de Obraxis</h3><p className="mt-1 text-xs text-slate-300">Gobierna servicios, parámetros, límites y valores predeterminados para todas las empresas.</p></div></div><button type="button" onClick={fetchPlatformSettings} disabled={platLoading} className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 px-4 py-2 text-xs font-bold transition hover:bg-white/10 disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${platLoading ? 'animate-spin' : ''}`} />Verificar servicios</button></div>
+            <div className="mt-5 grid grid-cols-2 gap-2 lg:grid-cols-4">{[
+              ['Base de datos', serviceStatus.database, Database], ['Supabase Auth', serviceStatus.auth, ShieldCheck], ['Correo Resend', serviceStatus.email, Mail], ['Inteligencia artificial', serviceStatus.ai, Sparkles]
+            ].map(([label, ok, Icon]) => <div key={label} className="rounded-xl border border-white/10 bg-white/5 p-3"><div className="flex items-center justify-between gap-2"><Icon className="h-4 w-4 text-slate-300" />{ok ? <CircleCheck className="h-4 w-4 text-emerald-400" /> : <CircleX className="h-4 w-4 text-amber-400" />}</div><p className="mt-2 text-xs font-bold">{label}</p><p className={`mt-0.5 text-[10px] ${ok ? 'text-emerald-300' : 'text-amber-300'}`}>{ok ? 'Operativo / configurado' : 'Requiere configuración segura'}</p></div>)}</div>
           </div>
 
-          {platSuccess && <div className="bg-emerald-50 text-emerald-700 p-3 rounded-lg text-xs font-semibold">{platSuccess}</div>}
-          {platError && <div className="bg-red-50 text-red-700 p-3 rounded-lg text-xs font-semibold">{platError}</div>}
+          {platSuccess && <div className="rounded-xl bg-emerald-50 p-3 text-xs font-semibold text-emerald-700">{platSuccess}</div>}
+          {platError && <div className="rounded-xl bg-red-50 p-3 text-xs font-semibold text-red-700">{platError}</div>}
 
-          {platLoading && !platApiKey ? (
-            <p className="text-xs text-slate-500">⏳ Cargando configuraciones globales...</p>
-          ) : (
-            <form onSubmit={handleSavePlatformSettings} className="space-y-6">
-              
-              {/* Sección Resend */}
-              <div className="space-y-3 pt-2">
-                <h4 className="font-bold text-xs text-primary border-b border-slate-100 pb-1 uppercase tracking-wide">Servicio de Correos (Resend API)</h4>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Resend API Key</label>
-                  <input
-                    type="password"
-                    value={platApiKey}
-                    onChange={(e) => setPlatApiKey(e.target.value)}
-                    placeholder="re_xxxxxxxxxxxxxxxx"
-                    className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Correo Remitente Autorizado</label>
-                  <input
-                    type="email"
-                    value={platSender}
-                    onChange={(e) => setPlatSender(e.target.value)}
-                    placeholder="notificaciones@obraxis.cl"
-                    className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSendPlatformTestEmail}
-                  disabled={platTestMailLoading}
-                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-lg text-xs transition disabled:opacity-70 flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  {platTestMailLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span>Enviar Correo de Prueba</span>}
-                </button>
-              </div>
+          <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+            <nav className="h-fit rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">{[
+              ['general','General',Globe2], ['comunicaciones','Comunicaciones',Mail], ['ia','Inteligencia artificial',Sparkles], ['archivos','Archivos y conservación',HardDrive], ['empresas','Empresas nuevas',Building2], ['mantenimiento','Mantenimiento',Settings]
+            ].map(([id,label,Icon]) => <button key={id} type="button" onClick={() => setPlatformSection(id)} className={`flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold transition ${platformSection === id ? 'bg-primary text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}><Icon className="h-4 w-4" />{label}</button>)}</nav>
 
-              {/* Sección Gemini AI */}
-              <div className="space-y-3 pt-2">
-                <h4 className="font-bold text-xs text-primary border-b border-slate-100 pb-1 uppercase tracking-wide">Motor de Inteligencia Artificial (Gemini AI)</h4>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Gemini API Key</label>
-                  <input
-                    type="password"
-                    value={platGeminiKey}
-                    onChange={(e) => setPlatGeminiKey(e.target.value)}
-                    placeholder="AIzaSyxxxxxxxxxxxx"
-                    className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Modelo de IA Activo</label>
-                  <input
-                    type="password"
-                    value={platGeminiModel}
-                    onChange={(e) => setPlatGeminiModel(e.target.value)}
-                    placeholder="gemini-3.5-flash"
-                    className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={platLoading}
-                className="w-full bg-primary hover:bg-primary-hover text-white font-bold py-3 rounded-lg text-xs shadow-sm transition disabled:opacity-75"
-              >
-                Guardar Ajustes Globales
-              </button>
+            <form onSubmit={handleSavePlatformSettings} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+              {platLoading ? <div className="flex min-h-64 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div> : <>
+                {platformSection === 'general' && <div className="space-y-5"><div><h4 className="text-base font-black text-slate-900">Identidad y operación</h4><p className="mt-1 text-xs text-slate-500">Parámetros utilizados como referencia por todos los módulos.</p></div><div className="grid gap-4 sm:grid-cols-2"><PlatformField label="Nombre de la plataforma" value={globalSettings.nombre_plataforma} onChange={value => setGlobalSettings({...globalSettings,nombre_plataforma:value})} /><PlatformField label="URL pública" type="url" value={globalSettings.url_publica} onChange={value => setGlobalSettings({...globalSettings,url_publica:value})} /><PlatformField label="Correo de soporte" type="email" value={globalSettings.correo_soporte} onChange={value => setGlobalSettings({...globalSettings,correo_soporte:value})} /><PlatformField label="País" value={globalSettings.pais} onChange={value => setGlobalSettings({...globalSettings,pais:value})} /><PlatformField label="Zona horaria" value={globalSettings.zona_horaria} onChange={value => setGlobalSettings({...globalSettings,zona_horaria:value})} /><PlatformField label="Idioma" value={globalSettings.idioma} onChange={value => setGlobalSettings({...globalSettings,idioma:value})} /><PlatformField label="Moneda" value={globalSettings.moneda} onChange={value => setGlobalSettings({...globalSettings,moneda:value})} /></div></div>}
+                {platformSection === 'comunicaciones' && <div className="space-y-5"><div><h4 className="text-base font-black text-slate-900">Correo y comunicaciones</h4><p className="mt-1 text-xs text-slate-500">Controla el remitente institucional y la hora de procesos diarios.</p></div><ToggleSetting label="Habilitar correos transaccionales" description="Permite notificaciones, invitaciones e informes automáticos." checked={globalSettings.correo_habilitado} onChange={checked => setGlobalSettings({...globalSettings,correo_habilitado:checked})} /><div className="grid gap-4 sm:grid-cols-2"><PlatformField label="Correo remitente" type="email" value={globalSettings.correo_remitente} onChange={value => setGlobalSettings({...globalSettings,correo_remitente:value})} /><PlatformField label="Responder a" type="email" value={globalSettings.correo_respuesta} onChange={value => setGlobalSettings({...globalSettings,correo_respuesta:value})} /><PlatformField label="Hora de resumen diario" type="time" value={globalSettings.hora_resumen_diario} onChange={value => setGlobalSettings({...globalSettings,hora_resumen_diario:value})} /></div><div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-xs text-blue-800"><p className="font-bold">Credenciales protegidas</p><p className="mt-1 leading-relaxed">Las claves no se muestran ni se editan aquí. Deben administrarse como secretos del servidor. Estado Resend: <strong>{serviceStatus.email ? 'configurado' : 'pendiente'}</strong>.</p></div><button type="button" onClick={handleSendPlatformTestEmail} disabled={platTestMailLoading || !globalSettings.correo_habilitado} className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-200 disabled:opacity-50">{platTestMailLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}Enviar correo de prueba</button></div>}
+                {platformSection === 'ia' && <div className="space-y-5"><div><h4 className="text-base font-black text-slate-900">Inteligencia artificial</h4><p className="mt-1 text-xs text-slate-500">Define el comportamiento común de lectura y asistencia inteligente.</p></div><ToggleSetting label="Habilitar funciones de IA" description="Activa lectura documental y asistentes donde estén disponibles." checked={globalSettings.ia_habilitada} onChange={checked => setGlobalSettings({...globalSettings,ia_habilitada:checked})} /><div className="grid gap-4 sm:grid-cols-2"><PlatformField label="Proveedor" value={globalSettings.ia_proveedor} onChange={value => setGlobalSettings({...globalSettings,ia_proveedor:value})} /><PlatformField label="Modelo predeterminado" value={globalSettings.ia_modelo} onChange={value => setGlobalSettings({...globalSettings,ia_modelo:value})} /><PlatformField label="Confianza mínima (%)" type="number" min="0" max="100" value={globalSettings.ia_confianza_minima} onChange={value => setGlobalSettings({...globalSettings,ia_confianza_minima:Number(value)})} /><PlatformField label="Imagen máxima (MB)" type="number" min="1" max="50" value={globalSettings.ia_archivo_max_mb} onChange={value => setGlobalSettings({...globalSettings,ia_archivo_max_mb:Number(value)})} /></div><div className="rounded-xl border border-violet-100 bg-violet-50 p-4 text-xs text-violet-800">La clave del proveedor permanece fuera del navegador. Estado: <strong>{serviceStatus.ai ? 'configurada' : 'pendiente de secreto del servidor'}</strong>.</div></div>}
+                {platformSection === 'archivos' && <div className="space-y-5"><div><h4 className="text-base font-black text-slate-900">Archivos y conservación</h4><p className="mt-1 text-xs text-slate-500">Límites comunes para documentos y trazabilidad.</p></div><div className="grid gap-4 sm:grid-cols-2"><PlatformField label="Archivo máximo (MB)" type="number" min="1" max="100" value={globalSettings.archivo_max_mb} onChange={value => setGlobalSettings({...globalSettings,archivo_max_mb:Number(value)})} /><PlatformField label="Conservar documentos (años)" type="number" min="1" max="50" value={globalSettings.retencion_documentos_anos} onChange={value => setGlobalSettings({...globalSettings,retencion_documentos_anos:Number(value)})} /><PlatformField label="Conservar auditoría (años)" type="number" min="1" max="50" value={globalSettings.retencion_auditoria_anos} onChange={value => setGlobalSettings({...globalSettings,retencion_auditoria_anos:Number(value)})} /></div><p className="rounded-xl bg-amber-50 p-4 text-xs leading-relaxed text-amber-800">Estos valores definen la política. La eliminación automática requerirá una tarea programada separada y nunca eliminará documentación contractual sin trazabilidad.</p></div>}
+                {platformSection === 'empresas' && <div className="space-y-5"><div><h4 className="text-base font-black text-slate-900">Valores para empresas nuevas</h4><p className="mt-1 text-xs text-slate-500">Se aplican automáticamente al abrir la ficha de una nueva empresa.</p></div><div><p className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">Módulos incluidos inicialmente</p><div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{moduleCatalog.map(module => { const selected=String(globalSettings.modulos_empresa_nueva).split(',').includes(module.id); return <button key={module.id} type="button" onClick={() => { const current=String(globalSettings.modulos_empresa_nueva).split(',').filter(Boolean); const next=selected ? current.filter(id=>id!==module.id) : [...current,module.id]; setGlobalSettings({...globalSettings,modulos_empresa_nueva:Array.from(new Set(['admin',...next])).join(',')}); }} className={`rounded-xl border p-3 text-left transition ${selected ? 'border-primary bg-blue-50 text-primary' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}><p className="text-xs font-black">{module.label}</p><p className="mt-1 text-[10px] leading-relaxed opacity-75">{module.description}</p></button>})}</div></div></div>}
+                {platformSection === 'mantenimiento' && <div className="space-y-5"><div><h4 className="text-base font-black text-slate-900">Modo de mantenimiento</h4><p className="mt-1 text-xs text-slate-500">Controla las ventanas de intervención de toda la plataforma.</p></div><ToggleSetting label="Activar modo de mantenimiento" description="Bloquea temporalmente el portal para las empresas y mantiene el acceso de emergencia para administradores globales de Obraxis." checked={globalSettings.mantenimiento_activo} onChange={checked => setGlobalSettings({...globalSettings,mantenimiento_activo:checked})} /><div><label className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-slate-500">Mensaje para usuarios</label><textarea rows="4" value={globalSettings.mensaje_mantenimiento} onChange={e=>setGlobalSettings({...globalSettings,mensaje_mantenimiento:e.target.value})} className="w-full rounded-xl border border-slate-200 p-3 text-xs text-slate-800 outline-none focus:border-primary" /></div></div>}
+                <div className="mt-7 flex justify-end border-t border-slate-100 pt-5"><button type="submit" disabled={platLoading} className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-xs font-black text-white shadow-sm transition hover:bg-primary-hover disabled:opacity-50"><Save className="h-4 w-4" />Guardar ajustes globales</button></div>
+              </>}
             </form>
-          )}
+          </div>
         </div>
       )}
 

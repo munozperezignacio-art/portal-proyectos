@@ -137,6 +137,15 @@ function App() {
     return saved ? JSON.parse(saved) : [];
   });
   const [moduleSearch, setModuleSearch] = useState('');
+  const [runtimeConfig, setRuntimeConfig] = useState({ mantenimiento_activo: false, mensaje_mantenimiento: '' });
+
+  useEffect(() => {
+    let active = true;
+    supabase.functions.invoke('runtime-config', { body: {} }).then(({ data }) => {
+      if (active && data?.data) setRuntimeConfig(data.data);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   // Restaurar y validar la sesión administrada por Supabase Auth.
   useEffect(() => {
@@ -392,6 +401,11 @@ function App() {
   // Si el usuario intenta acceder al dashboard sin iniciar sesión, ir a /login
   if (!user) {
     return <React.Suspense fallback={<ModuleLoader />}><Login onLoginSuccess={handleLoginSuccess} onBackHome={() => navigateTo('/')} /></React.Suspense>;
+  }
+
+  const isGlobalObraxisAdmin = user.empresa === 'Obraxis' && ['superusuario', 'superadmin'].includes(String(user.rol_base || user.rol || '').toLowerCase());
+  if (runtimeConfig.mantenimiento_activo && !isGlobalObraxisAdmin) {
+    return <div className="flex min-h-screen items-center justify-center bg-slate-950 p-6"><div className="w-full max-w-lg rounded-3xl bg-white p-8 text-center shadow-2xl"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50 text-amber-600"><Hammer className="h-8 w-8" /></div><h1 className="mt-5 text-2xl font-black text-slate-900">Mejoras programadas</h1><p className="mt-3 text-sm leading-relaxed text-slate-600">{runtimeConfig.mensaje_mantenimiento || 'Estamos realizando mejoras programadas. Intenta nuevamente en unos minutos.'}</p><p className="mt-5 text-xs text-slate-400">{runtimeConfig.correo_soporte ? `Soporte: ${runtimeConfig.correo_soporte}` : 'Equipo Obraxis'}</p><button type="button" onClick={handleLogout} className="mt-6 rounded-xl bg-slate-950 px-5 py-3 text-xs font-black text-white">Cerrar sesión</button></div></div>;
   }
 
   // Parsear módulos permitidos del usuario
