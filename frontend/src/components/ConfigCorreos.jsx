@@ -6,7 +6,7 @@ import PermissionsGovernancePanel from './PermissionsGovernancePanel';
 import NotificationMaster from './NotificationMaster';
 import { PERMISSIONS_CATALOG, permissionKey } from '../utils/permissionsCatalog';
 import { 
-  Settings, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Check, Mail, Filter, User, Lock, Building2, ShieldAlert, Copy, Archive, ArchiveRestore, ShieldCheck, Bell, Palette, Users, Workflow
+  Settings, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Check, Mail, Filter, User, Lock, Building2, ShieldAlert, Copy, Archive, ArchiveRestore, ShieldCheck, Bell, Palette, Users, Workflow, AtSign, BriefcaseBusiness, Layers3
 } from 'lucide-react';
 
 function ConfigCorreos({ user, onBack }) {
@@ -83,6 +83,8 @@ function ConfigCorreos({ user, onBack }) {
   });
 
   const [searchUserQuery, setSearchUserQuery] = useState('');
+  const [userCompanyFilter, setUserCompanyFilter] = useState('todas');
+  const [userRoleFilter, setUserRoleFilter] = useState('todos');
   const [searchCompanyQuery, setSearchCompanyQuery] = useState('');
   const [userModalLoading, setUserModalLoading] = useState(false);
   const [companyModalLoading, setCompanyModalLoading] = useState(false);
@@ -242,7 +244,8 @@ function ConfigCorreos({ user, onBack }) {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      let query = supabase.from('usuarios').select('*').eq('empresa', user.empresa);
+      let query = supabase.from('usuarios').select('*');
+      if (!isObraxisGlobalAdmin) query = query.eq('empresa', user.empresa);
       const { data, error } = await query.order('usuario', { ascending: true });
       if (error) throw error;
       setUsersList(data || []);
@@ -272,7 +275,8 @@ function ConfigCorreos({ user, onBack }) {
 
   const fetchRoles = async () => {
     try {
-      let query = supabase.from('roles').select('*').eq('empresa', user.empresa);
+      let query = supabase.from('roles').select('*');
+      if (!isObraxisGlobalAdmin) query = query.eq('empresa', user.empresa);
       const { data, error } = await query.order('nombre', { ascending: true });
       if (error) throw error;
       setRolesList(data || []);
@@ -421,6 +425,7 @@ function ConfigCorreos({ user, onBack }) {
   const handleOpenAddUserModal = () => {
     setUserEditing(null);
     const defaultEmpresa = user?.empresa || 'Obraxis';
+    const defaultRole = rolesList.find(role => role.empresa === defaultEmpresa && !role.archivado);
     setUserFormData({
       usuario: '',
       nombre: '',
@@ -428,9 +433,9 @@ function ConfigCorreos({ user, onBack }) {
       cargo: '',
       contrasena: '',
       empresa: defaultEmpresa,
-      rol: 'Inspector',
-      modulos: [],
-      submenus: []
+      rol: defaultRole?.nombre || 'Inspector',
+      modulos: defaultRole?.modulos ? defaultRole.modulos.split(',').map(item => item.trim()).filter(Boolean) : [],
+      submenus: defaultRole?.submenus ? defaultRole.submenus.split(',').map(item => item.trim()).filter(Boolean) : []
     });
     setSuccessMsg('');
     setErrorMsg('');
@@ -444,7 +449,7 @@ function ConfigCorreos({ user, onBack }) {
       nombre: usr.nombre || '',
       correo: usr.correo || '',
       cargo: usr.cargo || '',
-      contrasena: usr.contrasena || '',
+      contrasena: '',
       empresa: usr.empresa || 'Obraxis',
       rol: usr.rol || 'Inspector',
       modulos: usr.modulos ? usr.modulos.split(',').map(m => m.trim()) : [],
@@ -491,7 +496,7 @@ function ConfigCorreos({ user, onBack }) {
     setSuccessMsg('');
     setErrorMsg('');
 
-    const selectedRole = rolesList.find(r => r.nombre === userFormData.rol);
+    const selectedRole = rolesList.find(r => r.nombre === userFormData.rol && r.empresa === userFormData.empresa);
     const rolBase = selectedRole ? 'Personalizado' : (userFormData.rol_base || 'Personalizado');
 
     const dataToSave = {
@@ -512,7 +517,8 @@ function ConfigCorreos({ user, onBack }) {
         const { error } = await supabase
           .from('usuarios')
           .update(dataToSave)
-          .eq('id', userEditing.id);
+          .eq('id', userEditing.id)
+          .eq('empresa', userEditing.empresa);
         if (error) throw error;
         setSuccessMsg('Usuario actualizado con éxito.');
       } else {
@@ -596,7 +602,7 @@ function ConfigCorreos({ user, onBack }) {
     if (!window.confirm(`¿Estás seguro de que deseas eliminar al usuario ${usr.usuario}?`)) return;
 
     try {
-      const { error } = await supabase.from('usuarios').delete().eq('id', usr.id);
+      const { error } = await supabase.from('usuarios').delete().eq('id', usr.id).eq('empresa', usr.empresa);
       if (error) throw error;
       fetchUsers();
     } catch (err) {
@@ -1109,12 +1115,19 @@ function ConfigCorreos({ user, onBack }) {
   });
 
   const filteredUsers = usersList.filter(u => {
-    return (
-      (u.usuario && u.usuario.toLowerCase().includes(searchUserQuery.toLowerCase())) ||
-      (u.empresa && u.empresa.toLowerCase().includes(searchUserQuery.toLowerCase())) ||
-      (u.rol && u.rol.toLowerCase().includes(searchUserQuery.toLowerCase()))
-    );
+    const needle = searchUserQuery.trim().toLowerCase();
+    const matchesSearch = !needle || [u.usuario, u.nombre, u.correo, u.cargo, u.empresa, u.rol]
+      .some(value => String(value || '').toLowerCase().includes(needle));
+    const matchesCompany = userCompanyFilter === 'todas' || u.empresa === userCompanyFilter;
+    const matchesRole = userRoleFilter === 'todos' || u.rol === userRoleFilter;
+    return matchesSearch && matchesCompany && matchesRole;
   });
+
+  const userCompanies = [...new Set(usersList.map(u => u.empresa).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const userRoles = [...new Set(usersList.map(u => u.rol).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const usersWithAuth = usersList.filter(u => u.auth_user_id).length;
+  const usersWithoutEmail = usersList.filter(u => !u.correo).length;
+  const moduleLabel = (moduleId) => moduleCatalog.find(item => item.id === moduleId)?.label || moduleId;
 
   const filteredCompanies = allCompaniesList.filter(c => {
     return c.empresa && c.empresa.toLowerCase().includes(searchCompanyQuery.toLowerCase());
@@ -1507,82 +1520,45 @@ function ConfigCorreos({ user, onBack }) {
       ) : activeTab === 'usuarios' ? (
         /* PANEL DE USUARIOS */
         <>
-          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-sm">
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
-                <Search className="w-4 h-4" />
-              </span>
-              <input
-                type="text"
-                placeholder="Buscar por usuario, empresa, rol..."
-                value={searchUserQuery}
-                onChange={(e) => setSearchUserQuery(e.target.value)}
-                className="pl-9 text-slate-800 font-medium w-full px-3 py-2 border rounded-lg border-slate-200 focus:outline-none focus:border-primary transition text-xs"
-              />
-            </div>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[
+              { label: 'Usuarios', value: usersList.length, detail: isObraxisGlobalAdmin ? 'En todas las empresas' : `En ${user?.empresa}`, icon: Users, tone: 'text-primary bg-blue-50' },
+              { label: 'Con acceso seguro', value: usersWithAuth, detail: `${usersList.length ? Math.round((usersWithAuth / usersList.length) * 100) : 0}% vinculados a Auth`, icon: ShieldCheck, tone: 'text-emerald-700 bg-emerald-50' },
+              { label: 'Roles en uso', value: userRoles.length, detail: 'Perfiles asignados', icon: BriefcaseBusiness, tone: 'text-violet-700 bg-violet-50' },
+              { label: 'Datos incompletos', value: usersWithoutEmail, detail: 'Usuarios sin correo', icon: AlertCircle, tone: usersWithoutEmail ? 'text-amber-700 bg-amber-50' : 'text-slate-600 bg-slate-50' }
+            ].map(({ label, value, detail, icon: Icon, tone }) => (
+              <div key={label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</p><p className="mt-1 text-2xl font-black text-slate-900">{value}</p></div><span className={`rounded-xl p-2 ${tone}`}><Icon className="h-4 w-4" /></span></div>
+                <p className="mt-2 text-[11px] text-slate-500">{detail}</p>
+              </div>
+            ))}
           </div>
 
-          {loading ? (
-            <p className="text-sm text-slate-500 p-2">⏳ Cargando usuarios...</p>
-          ) : filteredUsers.length === 0 ? (
-            <p className="text-xs text-slate-400 text-center py-8">No se encontraron usuarios.</p>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className={`grid gap-3 ${isObraxisGlobalAdmin ? 'lg:grid-cols-[minmax(260px,1fr)_220px_220px]' : 'lg:grid-cols-[minmax(260px,1fr)_240px]'}`}>
+              <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input type="search" placeholder="Buscar nombre, usuario, correo, cargo..." value={searchUserQuery} onChange={(e) => setSearchUserQuery(e.target.value)} className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-xs font-medium text-slate-800 outline-none transition focus:border-primary focus:bg-white" /></div>
+              {isObraxisGlobalAdmin && <select value={userCompanyFilter} onChange={(e) => setUserCompanyFilter(e.target.value)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none focus:border-primary"><option value="todas">Todas las empresas</option>{userCompanies.map(company => <option key={company} value={company}>{company}</option>)}</select>}
+              <select value={userRoleFilter} onChange={(e) => setUserRoleFilter(e.target.value)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none focus:border-primary"><option value="todos">Todos los roles</option>{userRoles.map(role => <option key={role} value={role}>{role}</option>)}</select>
+            </div>
+            <div className="mt-3 flex items-center justify-between text-[11px] text-slate-500"><span>{filteredUsers.length} de {usersList.length} usuarios</span>{(searchUserQuery || userCompanyFilter !== 'todas' || userRoleFilter !== 'todos') && <button type="button" onClick={() => { setSearchUserQuery(''); setUserCompanyFilter('todas'); setUserRoleFilter('todos'); }} className="font-bold text-primary hover:underline">Limpiar filtros</button>}</div>
+          </div>
+
+          {loading ? <p className="p-2 text-sm text-slate-500">Cargando usuarios...</p> : filteredUsers.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-12 text-center"><Users className="mx-auto h-7 w-7 text-slate-300" /><p className="mt-3 text-sm font-bold text-slate-700">No encontramos usuarios</p><p className="mt-1 text-xs text-slate-400">Prueba cambiando los filtros o crea un nuevo usuario.</p></div>
           ) : (
-            <div className="space-y-4">
-              {filteredUsers.map((usr) => (
-                <div 
-                  key={usr.id} 
-                  className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3 hover:border-slate-300 transition duration-200"
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="space-y-1">
-                      <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-                        <User className="w-4 h-4 text-primary" />
-                        <span>{usr.usuario}</span>
-                      </h3>
-                      <div className="flex flex-wrap gap-1.5 mt-1">
-                        <span className="text-[9px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full inline-flex items-center">
-                          Rol: {usr.rol}
-                        </span>
-                        <span className="text-[9px] font-bold bg-blue-50 text-primary border border-blue-100 px-2 py-0.5 rounded-full inline-flex items-center">
-                          Empresa: {usr.empresa || 'N/A'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-1.5">
-                      <button
-                        onClick={() => handleOpenEditUserModal(usr)}
-                        className="p-1.5 hover:bg-slate-100 text-primary rounded-lg transition cursor-pointer"
-                        title="Editar"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteUser(usr)}
-                        className="p-1.5 hover:bg-red-50 text-red-600 rounded-lg transition cursor-pointer"
-                        title="Eliminar"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="text-xs space-y-1 font-medium text-slate-600 border-t border-slate-100 pt-2">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Módulos Asignados</p>
-                    <div className="flex flex-wrap gap-1.5 mt-1">
-                      {usr.modulos ? (
-                        usr.modulos.split(',').map((m, idx) => (
-                          <span key={idx} className="bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded text-[9px] font-bold capitalize">
-                            {m.trim()}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-slate-400 text-[10px] italic">Sin módulos asignados</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="hidden grid-cols-[minmax(260px,1.5fr)_minmax(170px,.8fr)_minmax(170px,.8fr)_minmax(220px,1fr)_88px] gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-[10px] font-black uppercase tracking-wider text-slate-400 lg:grid"><span>Usuario</span><span>Empresa</span><span>Rol y cargo</span><span>Accesos</span><span className="text-right">Acciones</span></div>
+              {filteredUsers.map((usr) => {
+                const modules = String(usr.modulos || '').split(',').map(m => m.trim()).filter(Boolean);
+                const initials = String(usr.nombre || usr.usuario || 'U').split(/\s+/).slice(0, 2).map(part => part[0]).join('');
+                return <div key={usr.id} className="grid gap-4 border-b border-slate-100 px-5 py-4 transition last:border-b-0 hover:bg-slate-50/70 lg:grid-cols-[minmax(260px,1.5fr)_minmax(170px,.8fr)_minmax(170px,.8fr)_minmax(220px,1fr)_88px] lg:items-center">
+                  <div className="flex min-w-0 items-center gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-xs font-black uppercase text-primary">{initials}</div><div className="min-w-0"><p className="truncate text-sm font-black text-slate-900">{usr.nombre || usr.usuario}</p><p className="mt-0.5 flex items-center gap-1 truncate text-[11px] font-semibold text-slate-500"><AtSign className="h-3 w-3" />{usr.usuario}{usr.correo ? ` · ${usr.correo}` : ''}</p></div></div>
+                  <div><p className="text-xs font-bold text-slate-700 lg:hidden">Empresa</p><p className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-slate-600"><Building2 className="h-3.5 w-3.5 text-slate-400" />{usr.empresa || 'Sin empresa'}</p></div>
+                  <div><p className="text-xs font-bold text-slate-700 lg:hidden">Rol y cargo</p><p className="mt-1 text-xs font-bold text-slate-800">{usr.rol || 'Sin rol'}</p><p className="mt-0.5 text-[11px] text-slate-500">{usr.cargo || 'Cargo no informado'}</p></div>
+                  <div><p className="text-xs font-bold text-slate-700 lg:hidden">Accesos</p><div className="mt-1 flex flex-wrap gap-1.5">{modules.length ? <>{modules.slice(0, 3).map(m => <span key={m} className="rounded-md border border-emerald-100 bg-emerald-50 px-2 py-0.5 text-[9px] font-bold text-emerald-700">{moduleLabel(m)}</span>)}{modules.length > 3 && <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-600">+{modules.length - 3}</span>}</> : <span className="text-[10px] italic text-slate-400">Sin módulos</span>}</div><p className="mt-1.5 flex items-center gap-1 text-[10px] text-slate-400"><ShieldCheck className="h-3 w-3" />{usr.auth_user_id ? 'Acceso seguro activo' : 'Pendiente de vincular a Auth'}</p></div>
+                  <div className="flex justify-end gap-1.5"><button onClick={() => handleOpenEditUserModal(usr)} className="rounded-lg p-2 text-primary transition hover:bg-blue-50" title="Editar usuario"><Edit className="h-4 w-4" /></button><button onClick={() => handleDeleteUser(usr)} disabled={usr.usuario === user.usuario} className="rounded-lg p-2 text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-30" title={usr.usuario === user.usuario ? 'No puedes eliminar tu usuario actual' : 'Eliminar usuario'}><Trash2 className="h-4 w-4" /></button></div>
+                </div>;
+              })}
             </div>
           )}
         </>
@@ -1799,7 +1775,7 @@ function ConfigCorreos({ user, onBack }) {
                 <div>
                   <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Modelo de IA Activo</label>
                   <input
-                    type="text"
+                    type="password"
                     value={platGeminiModel}
                     onChange={(e) => setPlatGeminiModel(e.target.value)}
                     placeholder="gemini-3.5-flash"
@@ -1885,7 +1861,7 @@ function ConfigCorreos({ user, onBack }) {
       {/* Modal: Crear / Editar Usuario */}
       {userModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-4 sm:p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto my-auto">
+          <div className="bg-white rounded-3xl w-full max-w-3xl p-5 sm:p-7 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 max-h-[92vh] overflow-y-auto my-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-slate-800 text-sm">
                 {userEditing ? 'Editar Usuario' : 'Agregar Nuevo Usuario'}
@@ -1965,7 +1941,17 @@ function ConfigCorreos({ user, onBack }) {
                 {(user?.rol_base || user?.rol || 'Inspector').toLowerCase() === 'superusuario' ? (
                   <select
                     value={userFormData.empresa}
-                    onChange={(e) => setUserFormData({ ...userFormData, empresa: e.target.value })}
+                    onChange={(e) => {
+                      const empresa = e.target.value;
+                      const nextRole = rolesList.find(role => role.empresa === empresa && !role.archivado);
+                      setUserFormData({
+                        ...userFormData,
+                        empresa,
+                        rol: nextRole?.nombre || '',
+                        modulos: nextRole?.modulos ? nextRole.modulos.split(',').map(item => item.trim()).filter(Boolean) : [],
+                        submenus: nextRole?.submenus ? nextRole.submenus.split(',').map(item => item.trim()).filter(Boolean) : []
+                      });
+                    }}
                     className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none bg-white cursor-pointer"
                   >
                     {allCompaniesList.map(c => <option key={c.empresa} value={c.empresa}>{c.empresa}</option>)}
