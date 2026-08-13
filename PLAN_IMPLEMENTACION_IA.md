@@ -10,7 +10,7 @@ La IA asiste. Los cálculos, permisos, aprobaciones y registros oficiales contin
 | 2. IA documental | Cerrada | 100% |
 | 3. Informes asistidos | Cerrada | 100% |
 | 4. Copiloto contextual por obra | Primera versión funcional | 70% |
-| 5. Asistencia especializada | Iniciada solo en lectura de maquinaria | 10% |
+| 5. Asistencia especializada | Last Planner operativo y lectura de maquinaria | 25% |
 | 6. Predicción y optimización | Pendiente de historial confiable | 0% |
 
 ## Fase 1 — Gobierno y control de IA
@@ -80,7 +80,8 @@ La IA asiste. Los cálculos, permisos, aprobaciones y registros oficiales contin
 
 ## Fase 5 — Asistencia especializada
 
-- [ ] Planificación y Last Planner.
+- [x] Base determinística de Planificación y Last Planner: semáforo por partida, restricciones, responsables, compromisos, criticidad y sugerencias de recuperación sin consumo de tokens.
+- [ ] Interpretación IA opcional de Planificación y Last Planner, sujeta a autorización específica para enviar restricciones y recursos a OpenAI.
 - [ ] Calidad.
 - [ ] Prevención.
 - [x] Lectura asistida de horómetro/kilometraje con revisión humana.
@@ -99,4 +100,4 @@ No se inicia hasta disponer de volumen, calidad y continuidad histórica suficie
 
 ## Próximo bloque obligatorio
 
-Continuar Fase 3 con interpretación IA revisable de informes, comenzando por informe semanal y mensual de obra. No iniciar el Copiloto ni predicciones antes de cerrar las fases anteriores.
+Continuar Fase 5 con Calidad: recurrencia de no conformidades, causa raíz y acciones correctivas; mantener cálculos y decisiones como procesos determinísticos y usar IA solo como asistencia autorizada y revisable.

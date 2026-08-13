@@ -5039,6 +5039,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                         partidas={targetPartidas}
                         fechaCorte={fCorteStr}
                         getStartDate={(partida) => getPartidaScheduledStart(partida, fInicioObraDefault)}
+                        user={user}
                       />
                     )}
 
