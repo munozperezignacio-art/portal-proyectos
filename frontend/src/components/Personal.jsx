@@ -254,6 +254,44 @@ function Personal({ user, onBack }) {
     return String(template.contenido || '').replace(/{{\s*([a-z_]+)\s*}}/gi, (match, key) => Object.prototype.hasOwnProperty.call(values, key) ? values[key] : match);
   };
 
+  const printPayrollSlip = worker => {
+    const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
+    const money = value => `$${Math.round(Number(value || 0)).toLocaleString('es-CL')}`;
+    const payroll = worker.payroll || {};
+    const base = payroll.base ?? (parseFloat(worker.sueldo_base) || 0);
+    const gratuityCap = Math.round((4.75 * (indicadores.salarioMinimo || 520000)) / 12);
+    const hasGratuity = worker.gratificacion !== 'Sin Gratificación';
+    const gratuity = payroll.gratification ?? (hasGratuity ? Math.min(Math.round(base * .25), gratuityCap) : 0);
+    const taxable = payroll.taxableGross ?? (base + gratuity);
+    const collation = payroll.collation ?? (parseFloat(worker.colacion) || 0);
+    const transport = payroll.transport ?? (parseFloat(worker.movilizacion) || 0);
+    const assets = payroll.totalAssets ?? (taxable + collation + transport);
+    const afp = getAFPDetails(worker.afp);
+    const afpAmount = payroll.afp ?? Math.round(taxable * afp.total / 100);
+    const health = payroll.health ?? Math.round(taxable * .07);
+    const indefinite = (worker.tipo_contrato || 'Indefinido') === 'Indefinido';
+    const afc = payroll.afc ?? (indefinite ? Math.round(taxable * .006) : 0);
+    const tax = payroll.tax ?? 0;
+    const otherDiscounts = payroll.otherDiscounts ?? 0;
+    const discounts = payroll.legalDiscounts ? payroll.legalDiscounts + otherDiscounts : afpAmount + health + afc + tax + otherDiscounts;
+    const net = payroll.net ?? (assets - discounts);
+    const periodValue = worker.periodo || new Date().toISOString().slice(0, 7);
+    const [year, month] = periodValue.split('-');
+    const period = month ? new Intl.DateTimeFormat('es-CL', { month: 'long', year: 'numeric' }).format(new Date(Number(year), Number(month) - 1, 1)) : periodValue;
+    const rows = (items, totalLabel, total) => `${items.filter(item => item[1] !== 0 || item[2]).map(item => `<tr><td>${escape(item[0])}</td><td class="amount">${item[3] ? '-' : ''}${money(item[1])}</td></tr>`).join('')}<tr class="total"><td>${totalLabel}</td><td class="amount">${totalLabel.includes('DESCUENTOS') ? '-' : ''}${money(total)}</td></tr>`;
+    const employerRut = user?.empresa_rut || user?.rut_empresa || 'No informado';
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer');
+    if (!printWindow) { alert('El navegador bloqueó la ventana de impresión. Habilita las ventanas emergentes para Obraxis.'); return; }
+    printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Liquidación ${escape(worker.nombre)} · ${escape(period)}</title><style>
+      @page{size:letter portrait;margin:12mm}*{box-sizing:border-box}body{margin:0;color:#172033;font-family:Arial,Helvetica,sans-serif;font-size:10.5px;line-height:1.35}.sheet{width:100%;max-width:190mm;margin:auto}.top{display:grid;grid-template-columns:1.3fr .7fr;border:1.4px solid #172033}.brand{padding:14px}.brand h1{margin:0;font-size:17px;text-transform:uppercase;letter-spacing:.5px}.brand p{margin:4px 0 0;color:#536176}.control{border-left:1px solid #172033;padding:12px}.control div{display:flex;justify-content:space-between;gap:8px;margin:3px 0}.title{text-align:center;font-weight:800;font-size:15px;letter-spacing:1px;margin:18px 0 10px;text-transform:uppercase}.worker{width:100%;border-collapse:collapse;border:1px solid #9aa5b5;margin-bottom:14px}.worker th{width:18%;background:#eef1f5;text-align:left;color:#39465b}.worker th,.worker td{border:1px solid #c8ced8;padding:6px 8px}.columns{display:grid;grid-template-columns:1fr 1fr;gap:12px}.block{border:1px solid #9aa5b5}.block h2{margin:0;padding:7px 9px;background:#172033;color:white;font-size:10px;letter-spacing:.4px;text-transform:uppercase}.block table{width:100%;border-collapse:collapse}.block td{padding:6px 9px;border-bottom:1px solid #e2e6eb}.amount{text-align:right;font-family:'Courier New',monospace;font-weight:700;white-space:nowrap}.total td{border-top:1.5px solid #172033;border-bottom:0;background:#eef1f5;font-weight:800}.bases{display:flex;gap:18px;margin:12px 0;padding:7px 9px;border:1px solid #c8ced8;background:#f7f8fa}.bases b{margin-right:4px}.net{display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding:12px 14px;border:2px solid #172033}.net span{font-size:12px;font-weight:800;text-transform:uppercase}.net strong{font-family:'Courier New',monospace;font-size:20px}.legal{margin-top:10px;color:#536176;font-size:9px;text-align:justify}.signatures{display:grid;grid-template-columns:1fr 1fr;gap:65px;margin-top:60px}.signature{border-top:1px solid #172033;text-align:center;padding-top:6px;font-weight:700}.signature small{display:block;color:#68758a;font-weight:400;margin-top:2px}.footer{display:flex;justify-content:space-between;border-top:1px solid #c8ced8;margin-top:22px;padding-top:6px;color:#68758a;font-size:8.5px}.actions{text-align:center;margin:18px}.actions button{background:#172033;color:white;border:0;border-radius:7px;padding:11px 20px;font-weight:700;cursor:pointer}@media print{.actions{display:none}.sheet{max-width:none}}
+    </style></head><body><div class="sheet"><section class="top"><div class="brand"><h1>${escape(user?.empresa || 'Empresa')}</h1><p>RUT empresa: ${escape(employerRut)}</p></div><div class="control"><div><b>Documento</b><span>Liquidación de remuneraciones</span></div><div><b>Período</b><span>${escape(period)}</span></div><div><b>Folio</b><span>LIQ-${escape(periodValue)}-${escape(worker.id || worker.rut || '')}</span></div></div></section><div class="title">Liquidación de sueldo</div>
+      <table class="worker"><tr><th>Trabajador</th><td>${escape(worker.nombre)}</td><th>RUT</th><td>${escape(worker.rut || 'No informado')}</td></tr><tr><th>Cargo</th><td>${escape(worker.cargo || '')}</td><th>Obra / centro</th><td>${escape(worker.centro_trabajo || worker.obra_nombre || 'Sin asignar')}</td></tr><tr><th>Contrato</th><td>${escape(worker.tipo_contrato || 'Indefinido')}</td><th>Fecha ingreso</th><td>${escape(worker.fecha_inicio_contrato || worker.inicio || 'No informada')}</td></tr><tr><th>AFP</th><td>${escape(worker.afp || 'No informada')} (${afp.total}%)</td><th>Salud</th><td>${escape(worker.prevision_salud || 'No informada')} (7%)</td></tr></table>
+      <div class="columns"><section class="block"><h2>Haberes</h2><table>${rows([['Sueldo base',base,true],['Gratificación legal',gratuity,hasGratuity],['Colación (no imponible)',collation],['Movilización (no imponible)',transport]],'TOTAL HABERES',assets)}</table></section><section class="block"><h2>Descuentos</h2><table>${rows([[`AFP ${worker.afp || ''} (${afp.total}%)`,afpAmount,true,true],[`Salud ${worker.prevision_salud || ''} (7%)`,health,true,true],[`Seguro de cesantía (${indefinite ? '0,6%' : '0%'})`,afc,true,true],['Impuesto único',tax,false,true],['Otros descuentos',otherDiscounts,false,true]],'TOTAL DESCUENTOS',discounts)}</table></section></div>
+      <div class="bases"><span><b>Total imponible:</b>${money(taxable)}</span><span><b>Total no imponible:</b>${money(collation + transport)}</span></div><div class="net"><span>Líquido a pagar</span><strong>${money(net)}</strong></div><p class="legal">Declaro recibir conforme la presente liquidación de remuneraciones, sin perjuicio de los derechos que legalmente me correspondan. Este documento fue generado por Obraxis con los antecedentes registrados por la empresa.</p><div class="signatures"><div class="signature">Firma del trabajador<small>${escape(worker.nombre)} · ${escape(worker.rut || '')}</small></div><div class="signature">Firma del empleador<small>${escape(user?.empresa || 'Empresa')}</small></div></div><footer class="footer"><span>Generado mediante sistema Obraxis</span><span>${new Date().toLocaleString('es-CL')}</span></footer></div><div class="actions"><button onclick="window.print()">Imprimir / Guardar como PDF</button></div></body></html>`);
+    printWindow.document.close();
+    printWindow.focus();
+  };
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -1701,41 +1739,7 @@ function Personal({ user, onBack }) {
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => {
-                    const printWindow = window.open('', '_blank');
-                    const content = document.getElementById('liquidacion-pdf-content').innerHTML;
-                    printWindow.document.write(`
-                      <!DOCTYPE html>
-                      <html>
-                        <head>
-                          <title>Liquidacion_${selectedWorkerLiquidacion.nombre.replace(/\s+/g, '_')}</title>
-                          <style>
-                            body { font-family: Arial, sans-serif; margin: 30px; color: #0f172a; font-size: 12px; line-height: 1.4; }
-                            .header { border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
-                            .company-name { font-size: 16px; font-weight: bold; text-transform: uppercase; color: #0f172a; }
-                            .doc-title { font-size: 14px; font-weight: bold; text-align: center; text-transform: uppercase; margin: 16px 0; letter-spacing: 1px; color: #1e3a8a; }
-                            .grid-info { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: #f8fafc; border: 1px solid #cbd5e1; padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 11px; }
-                            table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 11px; }
-                            th { background-color: #0f172a; color: white; padding: 8px; text-align: left; font-size: 10px; text-transform: uppercase; }
-                            td { border-bottom: 1px solid #e2e8f0; padding: 8px; }
-                            .text-right { text-align: right; }
-                            .bold { font-weight: bold; }
-                            .total-box { background: #ecfdf5; border: 2px solid #059669; padding: 12px; border-radius: 8px; text-align: right; font-size: 14px; font-weight: bold; color: #065f46; margin-bottom: 30px; }
-                            .signatures { margin-top: 50px; display: flex; justify-content: space-between; }
-                            .sig-box { border-top: 1px solid #64748b; width: 42%; text-align: center; padding-top: 6px; font-size: 11px; color: #334155; }
-                            @media print { .no-print { display: none !important; } }
-                          </style>
-                        </head>
-                        <body>
-                          ${content}
-                          <div style="text-align: center; margin-top: 24px;" class="no-print">
-                            <button onclick="window.print()" style="background:#0f172a; color:#fff; font-weight:bold; border:none; padding:12px 24px; border-radius:8px; cursor:pointer; font-size:13px;">🖨️ Guardar como PDF / Imprimir</button>
-                          </div>
-                        </body>
-                      </html>
-                    `);
-                    printWindow.document.close();
-                  }}
+                  onClick={() => printPayrollSlip(selectedWorkerLiquidacion)}
                   className="bg-emerald-900 hover:bg-emerald-800 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <Printer className="w-3.5 h-3.5" />
@@ -1753,14 +1757,14 @@ function Personal({ user, onBack }) {
               <div className="border-b-2 border-slate-900 pb-3 flex justify-between items-start">
                 <div>
                   <h2 className="font-black text-slate-900 text-base uppercase tracking-wide">{user?.empresa || 'OBRAXIS CHILE S.A.'}</h2>
-                  <p className="text-[11px] text-slate-600 font-semibold">RUT: 76.890.123-K | Giro: Construcción y Obras de Ingeniería</p>
-                  <p className="text-[10px] text-slate-500">Casa Matriz / Oficina Central</p>
+                  <p className="text-[11px] text-slate-600 font-semibold">RUT empresa: {user?.empresa_rut || user?.rut_empresa || 'No informado'}</p>
+                  <p className="text-[10px] text-slate-500">Documento laboral emitido mediante Obraxis</p>
                 </div>
                 <div className="text-right">
                   <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 px-2.5 py-1 rounded border border-slate-200 block text-slate-700">
-                    PERÍODO: JULIO 2026
+                    PERÍODO: {selectedWorkerLiquidacion.periodo ? new Intl.DateTimeFormat('es-CL', { month: 'long', year: 'numeric' }).format(new Date(`${selectedWorkerLiquidacion.periodo}-01T12:00:00`)) : new Intl.DateTimeFormat('es-CL', { month: 'long', year: 'numeric' }).format(new Date())}
                   </span>
-                  <span className="text-[9px] text-slate-400 font-mono mt-1 block">Folio N° LIQ-2026-07-{selectedWorkerLiquidacion.id || '01'}</span>
+                  <span className="text-[9px] text-slate-400 font-mono mt-1 block">Folio N° LIQ-{selectedWorkerLiquidacion.periodo || new Date().toISOString().slice(0, 7)}-{selectedWorkerLiquidacion.id || '01'}</span>
                 </div>
               </div>
 
