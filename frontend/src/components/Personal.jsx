@@ -48,6 +48,7 @@ function Personal({ user, onBack }) {
 
   const [personal, setPersonal] = useState([]);
   const [obras, setObras] = useState([]);
+  const [centrosGestion, setCentrosGestion] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedObraFilter, setSelectedObraFilter] = useState('');
@@ -99,6 +100,7 @@ function Personal({ user, onBack }) {
     obra_nombre: '',
     fecha_asig: new Date().toISOString().substring(0, 10),
     centro_trabajo: 'Oficina Central / Obra',
+    centro_gestion_id: '',
     area: 'Operaciones',
     sueldo_base: '600000',
     gratificacion: 'Art. 50 (25% tope)',
@@ -285,7 +287,7 @@ function Personal({ user, onBack }) {
     printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Liquidación ${escape(worker.nombre)} · ${escape(period)}</title><style>
       @page{size:letter portrait;margin:12mm}*{box-sizing:border-box}body{margin:0;color:#172033;font-family:Arial,Helvetica,sans-serif;font-size:10.5px;line-height:1.35}.sheet{width:100%;max-width:190mm;margin:auto}.top{display:grid;grid-template-columns:1.3fr .7fr;border:1.4px solid #172033}.brand{padding:14px}.brand h1{margin:0;font-size:17px;text-transform:uppercase;letter-spacing:.5px}.brand p{margin:4px 0 0;color:#536176}.control{border-left:1px solid #172033;padding:12px}.control div{display:flex;justify-content:space-between;gap:8px;margin:3px 0}.title{text-align:center;font-weight:800;font-size:15px;letter-spacing:1px;margin:18px 0 10px;text-transform:uppercase}.worker{width:100%;border-collapse:collapse;border:1px solid #9aa5b5;margin-bottom:14px}.worker th{width:18%;background:#eef1f5;text-align:left;color:#39465b}.worker th,.worker td{border:1px solid #c8ced8;padding:6px 8px}.columns{display:grid;grid-template-columns:1fr 1fr;gap:12px}.block{border:1px solid #9aa5b5}.block h2{margin:0;padding:7px 9px;background:#172033;color:white;font-size:10px;letter-spacing:.4px;text-transform:uppercase}.block table{width:100%;border-collapse:collapse}.block td{padding:6px 9px;border-bottom:1px solid #e2e6eb}.amount{text-align:right;font-family:'Courier New',monospace;font-weight:700;white-space:nowrap}.total td{border-top:1.5px solid #172033;border-bottom:0;background:#eef1f5;font-weight:800}.bases{display:flex;gap:18px;margin:12px 0;padding:7px 9px;border:1px solid #c8ced8;background:#f7f8fa}.bases b{margin-right:4px}.net{display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding:12px 14px;border:2px solid #172033}.net span{font-size:12px;font-weight:800;text-transform:uppercase}.net strong{font-family:'Courier New',monospace;font-size:20px}.legal{margin-top:10px;color:#536176;font-size:9px;text-align:justify}.signatures{display:grid;grid-template-columns:1fr 1fr;gap:65px;margin-top:60px}.signature{border-top:1px solid #172033;text-align:center;padding-top:6px;font-weight:700}.signature small{display:block;color:#68758a;font-weight:400;margin-top:2px}.footer{display:flex;justify-content:space-between;border-top:1px solid #c8ced8;margin-top:22px;padding-top:6px;color:#68758a;font-size:8.5px}.actions{text-align:center;margin:18px}.actions button{background:#172033;color:white;border:0;border-radius:7px;padding:11px 20px;font-weight:700;cursor:pointer}@media print{.actions{display:none}.sheet{max-width:none}}
     </style></head><body><div class="sheet"><section class="top"><div class="brand"><h1>${escape(user?.empresa || 'Empresa')}</h1><p>RUT empresa: ${escape(employerRut)}</p></div><div class="control"><div><b>Documento</b><span>Liquidación de remuneraciones</span></div><div><b>Período</b><span>${escape(period)}</span></div><div><b>Folio</b><span>LIQ-${escape(periodValue)}-${escape(worker.id || worker.rut || '')}</span></div></div></section><div class="title">Liquidación de sueldo</div>
-      <table class="worker"><tr><th>Trabajador</th><td>${escape(worker.nombre)}</td><th>RUT</th><td>${escape(worker.rut || 'No informado')}</td></tr><tr><th>Cargo</th><td>${escape(worker.cargo || '')}</td><th>Obra / centro</th><td>${escape(worker.centro_trabajo || worker.obra_nombre || 'Sin asignar')}</td></tr><tr><th>Contrato</th><td>${escape(worker.tipo_contrato || 'Indefinido')}</td><th>Fecha ingreso</th><td>${escape(worker.fecha_inicio_contrato || worker.inicio || 'No informada')}</td></tr><tr><th>AFP</th><td>${escape(worker.afp || 'No informada')} (${afp.total}%)</td><th>Salud</th><td>${escape(worker.prevision_salud || 'No informada')} (7%)</td></tr></table>
+      <table class="worker"><tr><th>Trabajador</th><td>${escape(worker.nombre)}</td><th>RUT</th><td>${escape(worker.rut || 'No informado')}</td></tr><tr><th>Cargo</th><td>${escape(worker.cargo || '')}</td><th>Centro de gestión</th><td>${escape(worker.payroll?.centroGestion || worker.centro_gestion_nombre || worker.centro_trabajo || worker.obra_nombre || 'Sin asignar')}</td></tr><tr><th>Contrato</th><td>${escape(worker.tipo_contrato || 'Indefinido')}</td><th>Fecha ingreso</th><td>${escape(worker.fecha_inicio_contrato || worker.inicio || 'No informada')}</td></tr><tr><th>AFP</th><td>${escape(worker.afp || 'No informada')} (${afp.total}%)</td><th>Salud</th><td>${escape(worker.prevision_salud || 'No informada')} (7%)</td></tr></table>
       <div class="columns"><section class="block"><h2>Haberes</h2><table>${rows([['Sueldo base',base,true],['Gratificación legal',gratuity,hasGratuity],['Colación (no imponible)',collation],['Movilización (no imponible)',transport]],'TOTAL HABERES',assets)}</table></section><section class="block"><h2>Descuentos</h2><table>${rows([[`AFP ${worker.afp || ''} (${afp.total}%)`,afpAmount,true,true],[`Salud ${worker.prevision_salud || ''} (7%)`,health,true,true],[`Seguro de cesantía (${indefinite ? '0,6%' : '0%'})`,afc,true,true],['Impuesto único',tax,false,true],['Otros descuentos',otherDiscounts,false,true]],'TOTAL DESCUENTOS',discounts)}</table></section></div>
       <div class="bases"><span><b>Total imponible:</b>${money(taxable)}</span><span><b>Total no imponible:</b>${money(collation + transport)}</span></div><div class="net"><span>Líquido a pagar</span><strong>${money(net)}</strong></div><p class="legal">Declaro recibir conforme la presente liquidación de remuneraciones, sin perjuicio de los derechos que legalmente me correspondan. Este documento fue generado por Obraxis con los antecedentes registrados por la empresa.</p><div class="signatures"><div class="signature">Firma del trabajador<small>${escape(worker.nombre)} · ${escape(worker.rut || '')}</small></div><div class="signature">Firma del empleador<small>${escape(user?.empresa || 'Empresa')}</small></div></div><footer class="footer"><span>Generado mediante sistema Obraxis</span><span>${new Date().toLocaleString('es-CL')}</span></footer></div><div class="actions"><button onclick="window.print()">Imprimir / Guardar como PDF</button></div></body></html>`);
     printWindow.document.close();
@@ -317,12 +319,14 @@ function Personal({ user, onBack }) {
       setPersonal(mergedPersonal);
 
       // 2. Cargar obras
-      const { data: dataObras, error: errObras } = await supabase
-        .from('obras')
-        .select('nombre')
-        .order('nombre', { ascending: true });
+      const [{ data: dataObras, error: errObras }, { data: dataCentros, error: errCentros }] = await Promise.all([
+        supabase.from('obras').select('id,nombre,centro_gestion_id').eq('empresa', user?.empresa || 'Obraxis').order('nombre', { ascending: true }),
+        supabase.from('facturacion_centros_gestion').select('id,codigo,nombre,tipo,activo').eq('empresa', user?.empresa || 'Obraxis').eq('activo', true).order('codigo', { ascending: true })
+      ]);
       if (errObras) throw errObras;
+      if (errCentros) throw errCentros;
       setObras(dataObras || []);
+      setCentrosGestion(dataCentros || []);
     } catch (err) {
       console.error('Error cargando personal/obras:', err.message);
     } finally {
@@ -341,6 +345,7 @@ function Personal({ user, onBack }) {
       obra_nombre: obras.length > 0 ? obras[0].nombre : '',
       fecha_asig: new Date().toISOString().substring(0, 10),
       centro_trabajo: 'Obra Principal',
+      centro_gestion_id: obras[0]?.centro_gestion_id || centrosGestion[0]?.id || '',
       area: 'Construcción',
       sueldo_base: '600000',
       gratificacion: 'Art. 50 (25% tope)',
@@ -371,6 +376,7 @@ function Personal({ user, onBack }) {
       obra_nombre: worker.obra_nombre || '',
       fecha_asig: worker.fecha_asig ? String(worker.fecha_asig).substring(0, 10) : new Date().toISOString().substring(0, 10),
       centro_trabajo: worker.centro_trabajo || 'Obra Principal',
+      centro_gestion_id: worker.centro_gestion_id || '',
       area: worker.area || 'Construcción',
       sueldo_base: worker.sueldo_base ? worker.sueldo_base.toString() : '600000',
       gratificacion: worker.gratificacion || 'Art. 50 (25% tope)',
@@ -417,8 +423,10 @@ function Personal({ user, onBack }) {
     if (!canEdit) { setErrorMsg('Tu perfil no está autorizado para asignar personal a obras.'); return; }
     if (!assignModalData.workerId) return;
     try {
+      const assignedWork = obras.find(obra => obra.nombre === assignModalData.obraNombre);
       const payload = {
         obra_nombre: assignModalData.obraNombre,
+        centro_gestion_id: assignedWork?.centro_gestion_id || null,
         fecha_asig: assignModalData.fechaAsig
       };
       const { error } = await supabase
@@ -470,6 +478,7 @@ function Personal({ user, onBack }) {
       obra_nombre: formData.obra_nombre,
       fecha_asig: formData.fecha_asig || new Date().toISOString().substring(0, 10),
       centro_trabajo: formData.centro_trabajo,
+      centro_gestion_id: formData.centro_gestion_id ? Number(formData.centro_gestion_id) : null,
       area: formData.area,
       sueldo_base: parseFloat(formData.sueldo_base) || 0,
       gratificacion: formData.gratificacion || 'Art. 50 (25% tope)',
@@ -940,7 +949,7 @@ function Personal({ user, onBack }) {
 
           {/* SUB-PESTAÑA 1: LIQUIDACIONES DE SUELDO */}
           {remunSubTab === 'liquidaciones' && (
-            <><PayrollAutomation user={user} personal={personal} indicadores={indicadores} onEmit={(worker) => { setSelectedWorkerLiquidacion(worker); setShowLiquidacionPDFModal(true); }} /><div className="hidden bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+            <><PayrollAutomation user={user} personal={personal} centrosGestion={centrosGestion} indicadores={indicadores} onEmit={(worker) => { setSelectedWorkerLiquidacion(worker); setShowLiquidacionPDFModal(true); }} /><div className="hidden bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
               <div className="flex justify-between items-center border-b pb-2">
                 <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-800">💵 Planilla de Sueldos y Liquidaciones</h4>
                 <button className="bg-emerald-900 hover:bg-emerald-800 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 cursor-pointer">
@@ -1431,14 +1440,19 @@ function Personal({ user, onBack }) {
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Centro de Trabajo</label>
-                    <input
-                      type="text"
-                      value={formData.centro_trabajo}
-                      onChange={(e) => setFormData({ ...formData, centro_trabajo: e.target.value })}
-                      placeholder="Ej. Obra Talcahuano Módulo 1 / Oficina Central"
-                      className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 font-medium"
-                    />
+                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Centro de Gestión</label>
+                    <select
+                      value={formData.centro_gestion_id || ''}
+                      onChange={(e) => {
+                        const center = centrosGestion.find(item => String(item.id) === e.target.value);
+                        const linkedWork = obras.find(item => String(item.centro_gestion_id) === e.target.value);
+                        setFormData({ ...formData, centro_gestion_id: e.target.value, centro_trabajo: center ? `${center.codigo} · ${center.nombre}` : '', obra_nombre: linkedWork?.nombre || formData.obra_nombre });
+                      }}
+                      className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 font-medium bg-white"
+                    >
+                      <option value="">Sin centro asignado</option>
+                      {centrosGestion.map(center => <option key={center.id} value={center.id}>{center.codigo} · {center.nombre}</option>)}
+                    </select>
                   </div>
                 </div>
 
@@ -1447,7 +1461,11 @@ function Personal({ user, onBack }) {
                     <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Obra Asignada</label>
                     <select
                       value={formData.obra_nombre}
-                      onChange={(e) => setFormData({ ...formData, obra_nombre: e.target.value })}
+                      onChange={(e) => {
+                        const work = obras.find(item => item.nombre === e.target.value);
+                        const center = centrosGestion.find(item => item.id === work?.centro_gestion_id);
+                        setFormData({ ...formData, obra_nombre: e.target.value, centro_gestion_id: work?.centro_gestion_id || formData.centro_gestion_id, centro_trabajo: center ? `${center.codigo} · ${center.nombre}` : formData.centro_trabajo });
+                      }}
                       className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 bg-white"
                     >
                       <option value="">-- Sin Obra (Oficina) --</option>
@@ -1801,7 +1819,7 @@ function Personal({ user, onBack }) {
                       <div><strong>Nombre Trabajador:</strong> {selectedWorkerLiquidacion.nombre}</div>
                       <div><strong>RUT:</strong> {selectedWorkerLiquidacion.rut || 'Sin RUT'}</div>
                       <div><strong>Cargo / Función:</strong> {selectedWorkerLiquidacion.cargo}</div>
-                      <div><strong>Centro de Trabajo / Obra:</strong> {selectedWorkerLiquidacion.centro_trabajo || selectedWorkerLiquidacion.obra_nombre || 'Oficina Central'}</div>
+                      <div><strong>Centro de Gestión:</strong> {selectedWorkerLiquidacion.payroll?.centroGestion || selectedWorkerLiquidacion.centro_gestion_nombre || selectedWorkerLiquidacion.centro_trabajo || selectedWorkerLiquidacion.obra_nombre || 'Sin asignar'}</div>
                       <div><strong>Tipo de Contrato:</strong> {selectedWorkerLiquidacion.tipo_contrato || 'Indefinido'}</div>
                       <div><strong>Fecha de Ingreso:</strong> {selectedWorkerLiquidacion.fecha_inicio_contrato || selectedWorkerLiquidacion.inicio || '01/03/2026'}</div>
                       <div><strong>AFP Previsión:</strong> {selectedWorkerLiquidacion.afp || 'Habitat'} ({afpInfo.total}%)</div>
