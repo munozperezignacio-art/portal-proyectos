@@ -6,6 +6,7 @@ import {
   Eye,
   Mail,
   Plus,
+  Printer,
   Send,
   Trash2,
   X,
@@ -342,11 +343,24 @@ export default function ExecutiveReportScheduler({
       ),
     ];
   };
-  const run = async (schedule, send = false, preparedResult = null) => {
+  const run = async (
+    schedule,
+    send = false,
+    preparedResult = null,
+    recordExecution = true,
+    useAI = true,
+  ) => {
     setBusy(true);
     try {
-      const result = preparedResult || await interpret(schedule, await buildEvm(schedule));
+      const baseResult = preparedResult || (await buildEvm(schedule));
+      const result = preparedResult || !useAI
+        ? baseResult
+        : await interpret(schedule, baseResult);
       setPreview(result.html);
+      if (!recordExecution) {
+        setPreviewData(null);
+        return;
+      }
       const to = recipients(schedule);
       let state = "Pendiente de aprobación",
         error = null;
@@ -452,6 +466,15 @@ export default function ExecutiveReportScheduler({
     );
     load();
   };
+  const printReport = (execution) => {
+    const reportWindow = window.open("", "_blank", "noopener,noreferrer");
+    if (!reportWindow) {
+      setMessage("El navegador bloqueó la ventana de impresión.");
+      return;
+    }
+    reportWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${execution.nombre || "Informe Obraxis"}</title><style>@page{size:A4;margin:12mm}body{margin:0;background:#fff} @media print{button{display:none!important}}</style></head><body>${execution.contenido_html || ""}<script>window.onload=()=>window.print()<\/script></body></html>`);
+    reportWindow.document.close();
+  };
   return (
     <div className="space-y-4">
       <div className="rounded-2xl bg-gradient-to-r from-blue-950 to-indigo-800 p-5 text-white">
@@ -524,7 +547,7 @@ export default function ExecutiveReportScheduler({
             <div className="mt-4 flex gap-2">
               <button
                 disabled={busy}
-                onClick={() => run(s, false)}
+                onClick={() => run(s, false, null, false, false)}
                 className="flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-2 text-[10px] font-black"
               >
                 <Eye className="h-3 w-3" />
@@ -542,6 +565,92 @@ export default function ExecutiveReportScheduler({
           </div>
         ))}
       </div>
+      <section className="rounded-2xl border bg-white p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
+          <div>
+            <h4 className="flex items-center gap-2 text-sm font-black text-slate-900">
+              <CalendarClock className="h-4 w-4 text-indigo-700" />
+              Historial de informes
+            </h4>
+            <p className="text-[10px] text-slate-500">
+              Versiones generadas, aprobadas y enviadas por la empresa.
+            </p>
+          </div>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-[9px] font-black text-slate-600">
+            {runs.length} registros recientes
+          </span>
+        </div>
+        {runs.length ? (
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[820px] text-left text-[10px]">
+              <thead className="bg-slate-50 uppercase text-slate-500">
+                <tr>
+                  <th className="p-3">Informe</th>
+                  <th className="p-3">Período / obras</th>
+                  <th className="p-3">Destinatarios</th>
+                  <th className="p-3">Estado</th>
+                  <th className="p-3">Responsable</th>
+                  <th className="p-3 text-right">Documento</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {runs.map((execution) => (
+                  <tr key={execution.id} className="hover:bg-slate-50">
+                    <td className="p-3">
+                      <b className="block text-xs text-slate-900">{execution.nombre}</b>
+                      <span className="text-slate-500">
+                        {execution.interpretacion_ia ? "Con interpretación IA" : "Cálculo Obraxis"}
+                      </span>
+                    </td>
+                    <td className="p-3 text-slate-600">
+                      <b>{execution.periodo_desde || "—"}</b> a <b>{execution.periodo_hasta || "—"}</b>
+                      <span className="block">{(execution.obras || []).length} obra(s)</span>
+                    </td>
+                    <td className="p-3 text-slate-600">
+                      <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{(execution.destinatarios || []).length}</span>
+                    </td>
+                    <td className="p-3">
+                      <span className={`rounded-full px-2.5 py-1 font-black ${execution.estado === "Enviado" ? "bg-emerald-100 text-emerald-700" : execution.estado === "Error" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-800"}`}>
+                        {execution.estado}
+                      </span>
+                    </td>
+                    <td className="p-3 text-slate-600">
+                      <b className="block">{execution.aprobado_por || execution.ejecutado_por || "Sistema Obraxis"}</b>
+                      <span>{new Date(execution.enviada_at || execution.created_at).toLocaleString("es-CL")}</span>
+                    </td>
+                    <td className="p-3 text-right">
+                      {execution.contenido_html ? (
+                        <div className="flex justify-end gap-1">
+                          <button
+                            onClick={() => {
+                              setPreview(execution.contenido_html);
+                              setPreviewData(null);
+                            }}
+                            className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 px-3 py-2 font-black text-indigo-700"
+                          >
+                            <Eye className="h-3 w-3" /> Ver
+                          </button>
+                          <button
+                            onClick={() => printReport(execution)}
+                            className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-2 font-black text-slate-700"
+                            title="Imprimir o guardar como PDF"
+                          >
+                            <Printer className="h-3 w-3" /> PDF
+                          </button>
+                        </div>
+                      ) : <span className="text-slate-400">Sin documento</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="mt-3 rounded-xl bg-slate-50 p-5 text-center text-xs text-slate-500">
+            Aún no existen informes generados para esta empresa.
+          </p>
+        )}
+      </section>
       {preview && (
         <div className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/70 p-4">
           <div className="mx-auto max-w-4xl">
