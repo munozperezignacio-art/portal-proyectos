@@ -8,7 +8,7 @@ La IA asiste. Los cálculos, permisos, aprobaciones y registros oficiales contin
 |---|---|---:|
 | 1. Gobierno y control de IA | Cerrada | 100% |
 | 2. IA documental | Cerrada | 100% |
-| 3. Informes asistidos | Base determinística existente; interpretación IA pendiente | 35% |
+| 3. Informes asistidos | Interpretación IA integrada en generación manual revisable | 60% |
 | 4. Copiloto contextual por obra | Pendiente | 0% |
 | 5. Asistencia especializada | Iniciada solo en lectura de maquinaria | 10% |
 | 6. Predicción y optimización | Pendiente de historial confiable | 0% |
@@ -63,10 +63,12 @@ La IA asiste. Los cálculos, permisos, aprobaciones y registros oficiales contin
 
 - [x] Programación, destinatarios y base gráfica determinística.
 - [x] Indicadores EVM, Curva S y días de atraso/adelanto disponibles en la base de informes.
-- [ ] Generar interpretación IA revisable para cada tipo de informe.
+- [x] Generar interpretación IA estructurada y revisable desde indicadores determinísticos.
 - [ ] Informe semanal y mensual de obra.
 - [ ] Informe corporativo, prevención, calidad, maquinaria y RR. HH.
-- [ ] Registrar aprobación previa al envío y consumo IA asociado.
+- [x] Registrar aprobación previa al envío manual y consumo IA asociado.
+- [ ] Integrar interpretación IA en el despachador automático sin omitir control presupuestario.
+- [ ] Completar fuentes específicas de maquinaria y RR. HH. en sus informes.
 
 ## Fase 4 — Copiloto contextual por obra
 
