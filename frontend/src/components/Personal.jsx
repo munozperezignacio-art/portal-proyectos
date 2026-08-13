@@ -209,6 +209,12 @@ function Personal({ user, onBack }) {
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+  const [assignmentReport, setAssignmentReport] = useState({
+    desde: `${new Date().getFullYear()}-01-01`,
+    hasta: new Date().toISOString().substring(0, 10),
+    trabajadorId: ''
+  });
+  const [downloadingAssignments, setDownloadingAssignments] = useState(false);
 
   const analyzeContractFile = async file => {
     if (!file) return;
@@ -441,6 +447,51 @@ function Personal({ user, onBack }) {
     setShowAssignObraModal(true);
   };
 
+  const recordAssignmentPeriod = async ({ workerId, nombre, rut, cargo, obraNombre, centroGestionId, fechaInicio }) => {
+    const assignedCenter = centrosGestion.find(center => String(center.id) === String(centroGestionId));
+    const { data: activeHistory, error: historyReadError } = await supabase
+      .from('rrhh_asignaciones_personal')
+      .select('id,fecha_inicio,obra_nombre,centro_gestion_id')
+      .eq('empresa', user?.empresa || 'Obraxis')
+      .eq('trabajador_id', workerId)
+      .is('fecha_termino', null)
+      .maybeSingle();
+    if (historyReadError) throw historyReadError;
+
+    const sameDestination = activeHistory
+      && (activeHistory.obra_nombre || '') === (obraNombre || '')
+      && String(activeHistory.centro_gestion_id || '') === String(centroGestionId || '');
+
+    if (activeHistory && sameDestination) {
+      const { error } = await supabase.from('rrhh_asignaciones_personal')
+        .update({ fecha_inicio: fechaInicio, trabajador_nombre: nombre, trabajador_rut: rut || null, cargo: cargo || null, updated_at: new Date().toISOString() })
+        .eq('id', activeHistory.id);
+      if (error) throw error;
+      return;
+    }
+
+    if (activeHistory) {
+      const previousStart = new Date(`${activeHistory.fecha_inicio}T12:00:00`);
+      const nextStart = new Date(`${fechaInicio}T12:00:00`);
+      if (nextStart <= previousStart) throw new Error(`La nueva asignación debe comenzar después del ${activeHistory.fecha_inicio}, fecha de inicio del destino vigente.`);
+      const previousEnd = new Date(nextStart);
+      previousEnd.setDate(previousEnd.getDate() - 1);
+      const { error } = await supabase.from('rrhh_asignaciones_personal')
+        .update({ fecha_termino: previousEnd.toISOString().substring(0, 10), updated_at: new Date().toISOString() })
+        .eq('id', activeHistory.id);
+      if (error) throw error;
+    }
+
+    const { error: insertError } = await supabase.from('rrhh_asignaciones_personal').insert({
+      empresa: user?.empresa || 'Obraxis', trabajador_id: workerId, trabajador_nombre: nombre,
+      trabajador_rut: rut || null, cargo: cargo || null, obra_nombre: obraNombre || null,
+      centro_gestion_id: centroGestionId || null,
+      destino_nombre: assignedCenter ? `${assignedCenter.codigo} · ${assignedCenter.nombre}` : (obraNombre || 'Sin asignar'),
+      fecha_inicio: fechaInicio, creado_por: user?.nombre || user?.usuario || user?.correo || 'Usuario Obraxis'
+    });
+    if (insertError) throw insertError;
+  };
+
   const handleSaveObraAssignment = async () => {
     if (!canEdit) { setErrorMsg('Tu perfil no está autorizado para asignar personal a obras.'); return; }
     if (!assignModalData.workerId) return;
@@ -451,6 +502,14 @@ function Personal({ user, onBack }) {
         centro_gestion_id: assignedWork?.centro_gestion_id || null,
         fecha_asig: assignModalData.fechaAsig
       };
+
+      const worker = personal.find(item => item.id === assignModalData.workerId);
+      await recordAssignmentPeriod({
+        workerId: assignModalData.workerId, nombre: worker?.nombre || assignModalData.workerNombre,
+        rut: worker?.rut, cargo: worker?.cargo, obraNombre: payload.obra_nombre,
+        centroGestionId: payload.centro_gestion_id, fechaInicio: payload.fecha_asig
+      });
+
       const { error } = await supabase
         .from('maestro_personal')
         .update(payload)
@@ -470,6 +529,75 @@ function Personal({ user, onBack }) {
       setShowAssignObraModal(false);
     } catch (err) {
       alert('Error asignando trabajador a obra: ' + err.message);
+    }
+  };
+
+  const handleDownloadAssignmentHistory = async () => {
+    if (!assignmentReport.desde || !assignmentReport.hasta) return alert('Selecciona el inicio y término del período.');
+    if (assignmentReport.desde > assignmentReport.hasta) return alert('La fecha de inicio no puede ser posterior a la fecha de término.');
+    setDownloadingAssignments(true);
+    try {
+      let query = supabase
+        .from('rrhh_asignaciones_personal')
+        .select('trabajador_id,trabajador_nombre,trabajador_rut,cargo,obra_nombre,destino_nombre,fecha_inicio,fecha_termino,centro_gestion_id')
+        .eq('empresa', user?.empresa || 'Obraxis')
+        .lte('fecha_inicio', assignmentReport.hasta)
+        .or(`fecha_termino.is.null,fecha_termino.gte.${assignmentReport.desde}`)
+        .order('trabajador_nombre')
+        .order('fecha_inicio');
+      if (assignmentReport.trabajadorId) query = query.eq('trabajador_id', Number(assignmentReport.trabajadorId));
+      const { data, error } = await query;
+      if (error) throw error;
+      if (!data?.length) return alert('No existen asignaciones dentro del período seleccionado.');
+
+      const reportStart = new Date(`${assignmentReport.desde}T12:00:00`);
+      const reportEnd = new Date(`${assignmentReport.hasta}T12:00:00`);
+      const daysInclusive = (start, end) => Math.floor((end - start) / 86400000) + 1;
+      const rows = data.map(item => {
+        const originalStart = new Date(`${item.fecha_inicio}T12:00:00`);
+        const originalEnd = item.fecha_termino ? new Date(`${item.fecha_termino}T12:00:00`) : reportEnd;
+        const effectiveStart = originalStart > reportStart ? originalStart : reportStart;
+        const effectiveEnd = originalEnd < reportEnd ? originalEnd : reportEnd;
+        const center = centrosGestion.find(entry => String(entry.id) === String(item.centro_gestion_id));
+        return {
+          'Trabajador': item.trabajador_nombre,
+          'RUT': item.trabajador_rut || '',
+          'Cargo': item.cargo || '',
+          'Centro de gestión': center ? `${center.codigo} · ${center.nombre}` : item.destino_nombre,
+          'Obra': item.obra_nombre || 'Sin obra / administración',
+          'Inicio asignación': item.fecha_inicio,
+          'Término asignación': item.fecha_termino || 'Vigente',
+          'Inicio dentro del período': effectiveStart.toISOString().substring(0, 10),
+          'Término dentro del período': effectiveEnd.toISOString().substring(0, 10),
+          'Días en el período': daysInclusive(effectiveStart, effectiveEnd)
+        };
+      });
+
+      const XLSX = await import('xlsx');
+      const workbook = XLSX.utils.book_new();
+      const summary = XLSX.utils.aoa_to_sheet([
+        ['HISTORIAL DE ASIGNACIONES DE PERSONAL'],
+        ['Empresa', user?.empresa || 'Obraxis'],
+        ['Período', `${assignmentReport.desde} al ${assignmentReport.hasta}`],
+        ['Trabajadores incluidos', new Set(rows.map(item => item.RUT || item.Trabajador)).size],
+        ['Períodos de asignación', rows.length],
+        ['Generado', new Date().toLocaleString('es-CL')]
+      ]);
+      summary['!cols'] = [{ wch: 28 }, { wch: 42 }];
+      const detail = XLSX.utils.json_to_sheet(rows);
+      detail['!cols'] = [
+        { wch: 32 }, { wch: 16 }, { wch: 25 }, { wch: 34 }, { wch: 34 },
+        { wch: 18 }, { wch: 20 }, { wch: 23 }, { wch: 24 }, { wch: 18 }
+      ];
+      detail['!autofilter'] = { ref: detail['!ref'] };
+      XLSX.utils.book_append_sheet(workbook, summary, 'Resumen');
+      XLSX.utils.book_append_sheet(workbook, detail, 'Asignaciones');
+      const safeCompany = String(user?.empresa || 'Obraxis').replace(/[^a-z0-9]+/gi, '_');
+      XLSX.writeFile(workbook, `Historial_Asignaciones_${safeCompany}_${assignmentReport.desde}_${assignmentReport.hasta}.xlsx`);
+    } catch (err) {
+      alert(`No fue posible generar el historial: ${err.message}`);
+    } finally {
+      setDownloadingAssignments(false);
     }
   };
 
@@ -554,6 +682,16 @@ function Personal({ user, onBack }) {
         }
         setSuccessMsg('Trabajador registrado en la Ficha Empresa con éxito.');
       }
+
+      await recordAssignmentPeriod({
+        workerId: savedResult.id,
+        nombre: fullDataToSave.nombre,
+        rut: fullDataToSave.rut,
+        cargo: fullDataToSave.cargo,
+        obraNombre: fullDataToSave.obra_nombre,
+        centroGestionId: fullDataToSave.centro_gestion_id,
+        fechaInicio: fullDataToSave.fecha_asig
+      });
 
       // Guardar perfil extendido en localStorage para persistencia inmediata sin errores
       const keyId = savedResult?.id || savedResult?.rut || savedResult?.nombre;
@@ -857,12 +995,36 @@ function Personal({ user, onBack }) {
       {/* SUBMÓDULO 2: ASIGNAR PERSONAL A OBRA */}
       {activeSubmodule === 'asignar_obra' && (
         <div className="space-y-4 animate-in fade-in duration-200">
-          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
-            <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
-              <UserPlus className="w-4 h-4 text-purple-900" />
-              <span>Asignar Personal a Obras Activas</span>
-            </h3>
-            <p className="text-[11px] text-slate-500">Selecciona trabajadores del Máster de Empresa y asigna su ficha directamente a la obra correspondiente</p>
+          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-4">
+            <div>
+              <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
+                <UserPlus className="w-4 h-4 text-purple-900" />
+                <span>Asignar Personal a Obras Activas</span>
+              </h3>
+              <p className="text-[11px] text-slate-500">Selecciona trabajadores del Máster de Empresa y asigna su ficha directamente a la obra o centro de gestión correspondiente.</p>
+            </div>
+
+            <div className="grid gap-3 border-t border-slate-100 pt-4 lg:grid-cols-[1fr_1fr_1.2fr_auto] lg:items-end">
+              <label className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                Período desde
+                <input type="date" value={assignmentReport.desde} onChange={e => setAssignmentReport({ ...assignmentReport, desde: e.target.value })} className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold text-slate-800" />
+              </label>
+              <label className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                Período hasta
+                <input type="date" value={assignmentReport.hasta} onChange={e => setAssignmentReport({ ...assignmentReport, hasta: e.target.value })} className="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold text-slate-800" />
+              </label>
+              <label className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                Trabajador
+                <select value={assignmentReport.trabajadorId} onChange={e => setAssignmentReport({ ...assignmentReport, trabajadorId: e.target.value })} className="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-800">
+                  <option value="">Todos los trabajadores</option>
+                  {personal.slice().sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es')).map(item => <option key={item.id} value={item.id}>{item.nombre} · {item.rut || 'Sin RUT'}</option>)}
+                </select>
+              </label>
+              <button onClick={handleDownloadAssignmentHistory} disabled={!canDownloadStatistics || downloadingAssignments} className="flex min-h-10 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50" title={!canDownloadStatistics ? 'Tu perfil no puede descargar informes de RR.HH.' : 'Descargar historial en Excel'}>
+                {downloadingAssignments ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Descargar historial
+              </button>
+            </div>
           </div>
 
           <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
