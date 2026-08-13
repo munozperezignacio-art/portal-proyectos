@@ -30,6 +30,20 @@ export const getAFPDetails = (afpName) => {
   return afpCommissionRates[clean] || afpCommissionRates['Habitat'];
 };
 
+const INDICADORES_OFICIALES_CHILE = {
+  version: '2026-08-13',
+  uf: 40850.06,
+  utm: 71649,
+  topeAfpUf: 90,
+  topeCesantiaUf: 135.2,
+  apvMaxUf: 50,
+  salarioMinimo: 553553,
+  salarioMinimoMenorMayor: 412938,
+  ingresoMinimoNoRemuneracional: 356815,
+  vigenciaSalarioMinimo: '01-05-2026',
+  fuentes: 'SII · Dirección del Trabajo · Superintendencia de Pensiones'
+};
+
 function Personal({ user, onBack }) {
   const { permissions, loading: permissionsLoading } = useUserPermissions(user);
   const canView = can(user, permissions, 'rrhh.personal.ver');
@@ -116,20 +130,28 @@ function Personal({ user, onBack }) {
     movilizacion: '0'
   });
 
-  // Indicadores Previsionales Actuales (Chile 2026 - Previred & SII)
+  // Indicadores previsionales oficiales vigentes en Chile.
   const [indicadores, setIndicadores] = useState(() => {
     const saved = localStorage.getItem('indicadores_previsionales_chile');
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
+      try {
+        const parsed = JSON.parse(saved);
+        // Migra los valores legales antiguos que hayan quedado guardados en el navegador.
+        if (parsed.version !== INDICADORES_OFICIALES_CHILE.version) {
+          const migrated = {
+            ...parsed,
+            ...INDICADORES_OFICIALES_CHILE,
+            ultimaActualizacion: '13-08-2026 (fuentes oficiales)'
+          };
+          localStorage.setItem('indicadores_previsionales_chile', JSON.stringify(migrated));
+          return migrated;
+        }
+        return { ...INDICADORES_OFICIALES_CHILE, ...parsed };
+      } catch (e) {}
     }
     return {
-      uf: 40844.79,
-      utm: 71649,
-      topeAfpUf: 85.1,
-      topeCesantiaUf: 127.8,
-      apvMaxUf: 50,
-      salarioMinimo: 520000,
-      ultimaActualizacion: new Date().toLocaleDateString('es-CL') + ' (SII)'
+      ...INDICADORES_OFICIALES_CHILE,
+      ultimaActualizacion: '13-08-2026 (fuentes oficiales)'
     };
   });
   const [updatingIndicadores, setUpdatingIndicadores] = useState(false);
@@ -261,7 +283,7 @@ function Personal({ user, onBack }) {
     const money = value => `$${Math.round(Number(value || 0)).toLocaleString('es-CL')}`;
     const payroll = worker.payroll || {};
     const base = payroll.base ?? (parseFloat(worker.sueldo_base) || 0);
-    const gratuityCap = Math.round((4.75 * (indicadores.salarioMinimo || 520000)) / 12);
+    const gratuityCap = Math.round((4.75 * (indicadores.salarioMinimo || INDICADORES_OFICIALES_CHILE.salarioMinimo)) / 12);
     const hasGratuity = worker.gratificacion !== 'Sin Gratificación';
     const gratuity = payroll.gratification ?? (hasGratuity ? Math.min(Math.round(base * .25), gratuityCap) : 0);
     const taxable = payroll.taxableGross ?? (base + gratuity);
@@ -551,8 +573,8 @@ function Personal({ user, onBack }) {
   const handleUpdateIndicadoresAuto = async () => {
     setUpdatingIndicadores(true);
     try {
-      let ufVal = 40844.79;
-      let utmVal = 71649;
+      let ufVal = INDICADORES_OFICIALES_CHILE.uf;
+      let utmVal = INDICADORES_OFICIALES_CHILE.utm;
 
       try {
         const res = await fetch('https://mindicador.cl/api');
@@ -566,18 +588,15 @@ function Personal({ user, onBack }) {
       }
 
       const updated = {
+        ...INDICADORES_OFICIALES_CHILE,
         uf: ufVal,
         utm: utmVal,
-        topeAfpUf: 85.1,
-        topeCesantiaUf: 127.8,
-        apvMaxUf: 50,
-        salarioMinimo: 520000,
-        ultimaActualizacion: new Date().toLocaleDateString('es-CL') + ' (SII)'
+        ultimaActualizacion: new Date().toLocaleDateString('es-CL') + ' (fuentes oficiales)'
       };
 
       setIndicadores(updated);
       localStorage.setItem('indicadores_previsionales_chile', JSON.stringify(updated));
-      alert(`¡Indicadores Previsionales Sincronizados!\n\n• UF (SII): $${ufVal.toLocaleString('es-CL')}\n• UTM (Julio): $${utmVal.toLocaleString('es-CL')}\n• Sueldo Mínimo: $520.000\n• Tope Imponible AFP: 85.1 UF`);
+      alert(`¡Indicadores previsionales actualizados!\n\n• UF: $${ufVal.toLocaleString('es-CL')}\n• UTM (agosto): $${utmVal.toLocaleString('es-CL')}\n• Ingreso mínimo general: $${INDICADORES_OFICIALES_CHILE.salarioMinimo.toLocaleString('es-CL')}\n• Tope imponible AFP: ${INDICADORES_OFICIALES_CHILE.topeAfpUf.toLocaleString('es-CL')} UF\n• Tope seguro de cesantía: ${INDICADORES_OFICIALES_CHILE.topeCesantiaUf.toLocaleString('es-CL')} UF`);
     } catch (e) {
       console.warn("Error en actualización de indicadores:", e);
     } finally {
@@ -975,7 +994,7 @@ function Personal({ user, onBack }) {
                   <tbody className="divide-y divide-slate-150 text-[11px]">
                     {personal.map((p) => {
                       const sBase = parseFloat(p.sueldo_base) || 600000;
-                      const topeGratif = Math.round((4.75 * (indicadores.salarioMinimo || 520000)) / 12);
+                      const topeGratif = Math.round((4.75 * (indicadores.salarioMinimo || INDICADORES_OFICIALES_CHILE.salarioMinimo)) / 12);
                       const tieneGratif = p.gratificacion !== 'Sin Gratificación';
                       const gratifMonto = tieneGratif ? Math.min(Math.round(sBase * 0.25), topeGratif) : 0;
                       const imponible = sBase + gratifMonto;
@@ -1058,8 +1077,9 @@ function Personal({ user, onBack }) {
             <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4 shadow-xs">
               <div className="flex justify-between items-center border-b pb-2">
                 <div>
-                  <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-800">📈 Indicadores Previsionales (SII / Previred Chile)</h4>
+                  <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-800">📈 Indicadores previsionales oficiales de Chile</h4>
                   <p className="text-[10px] text-slate-500">Última actualización: {indicadores.ultimaActualizacion}</p>
+                  <p className="text-[10px] text-slate-400">Fuentes: {indicadores.fuentes || INDICADORES_OFICIALES_CHILE.fuentes}</p>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -1095,8 +1115,9 @@ function Personal({ user, onBack }) {
                   <p className="text-lg font-black text-slate-800 mt-0.5">${indicadores.utm.toLocaleString('es-CL')}</p>
                 </div>
                 <div className="bg-slate-50 p-3 border border-slate-200 rounded-xl">
-                  <span className="text-[10px] font-bold uppercase text-slate-400">Sueldo Mínimo</span>
+                  <span className="text-[10px] font-bold uppercase text-slate-400">Ingreso mínimo general</span>
                   <p className="text-lg font-black text-slate-800 mt-0.5">${indicadores.salarioMinimo.toLocaleString('es-CL')}</p>
+                  <p className="text-[10px] text-slate-500 mt-1">Vigente desde {indicadores.vigenciaSalarioMinimo || '01-05-2026'}</p>
                 </div>
                 <div className="bg-slate-50 p-3 border border-slate-200 rounded-xl">
                   <span className="text-[10px] font-bold uppercase text-slate-400">Tope Imponible AFP</span>
@@ -1109,6 +1130,16 @@ function Personal({ user, onBack }) {
                 <div className="bg-slate-50 p-3 border border-slate-200 rounded-xl">
                   <span className="text-[10px] font-bold uppercase text-slate-400">Tope APV Mensual</span>
                   <p className="text-lg font-black text-blue-900 mt-0.5">{indicadores.apvMaxUf} UF</p>
+                </div>
+                <div className="bg-slate-50 p-3 border border-slate-200 rounded-xl">
+                  <span className="text-[10px] font-bold uppercase text-slate-400">Ingreso mínimo menor de 18 / mayor de 65</span>
+                  <p className="text-lg font-black text-slate-800 mt-0.5">${(indicadores.salarioMinimoMenorMayor || INDICADORES_OFICIALES_CHILE.salarioMinimoMenorMayor).toLocaleString('es-CL')}</p>
+                  <p className="text-[10px] text-slate-500 mt-1">Vigente desde 01-05-2026</p>
+                </div>
+                <div className="bg-slate-50 p-3 border border-slate-200 rounded-xl">
+                  <span className="text-[10px] font-bold uppercase text-slate-400">Ingreso mínimo no remuneracional</span>
+                  <p className="text-lg font-black text-slate-800 mt-0.5">${(indicadores.ingresoMinimoNoRemuneracional || INDICADORES_OFICIALES_CHILE.ingresoMinimoNoRemuneracional).toLocaleString('es-CL')}</p>
+                  <p className="text-[10px] text-slate-500 mt-1">Vigente desde 01-05-2026</p>
                 </div>
               </div>
 
@@ -1794,7 +1825,7 @@ function Personal({ user, onBack }) {
               {(() => {
                 const payroll = selectedWorkerLiquidacion.payroll;
                 const sBase = payroll?.base ?? (parseFloat(selectedWorkerLiquidacion.sueldo_base) || 600000);
-                const topeGratif = Math.round((4.75 * (indicadores.salarioMinimo || 520000)) / 12);
+                const topeGratif = Math.round((4.75 * (indicadores.salarioMinimo || INDICADORES_OFICIALES_CHILE.salarioMinimo)) / 12);
                 const tieneGratif = selectedWorkerLiquidacion.gratificacion !== 'Sin Gratificación';
                 const gratifMonto = payroll?.gratification ?? (tieneGratif ? Math.min(Math.round(sBase * 0.25), topeGratif) : 0);
                 const imponible = payroll?.taxableGross ?? (sBase + gratifMonto);
@@ -1945,13 +1976,13 @@ function Personal({ user, onBack }) {
                 e.preventDefault();
                 const updated = {
                   ...editIndicadoresForm,
-                  uf: parseFloat(editIndicadoresForm.uf) || 40844.79,
-                  utm: parseFloat(editIndicadoresForm.utm) || 71649,
-                  salarioMinimo: parseFloat(editIndicadoresForm.salarioMinimo) || 520000,
-                  topeAfpUf: parseFloat(editIndicadoresForm.topeAfpUf) || 85.1,
-                  topeCesantiaUf: parseFloat(editIndicadoresForm.topeCesantiaUf) || 127.8,
-                  apvMaxUf: parseFloat(editIndicadoresForm.apvMaxUf) || 50,
-                  ultimaActualizacion: new Date().toLocaleDateString('es-CL') + ' (Ajuste Manual SII)'
+                  uf: parseFloat(editIndicadoresForm.uf) || INDICADORES_OFICIALES_CHILE.uf,
+                  utm: parseFloat(editIndicadoresForm.utm) || INDICADORES_OFICIALES_CHILE.utm,
+                  salarioMinimo: parseFloat(editIndicadoresForm.salarioMinimo) || INDICADORES_OFICIALES_CHILE.salarioMinimo,
+                  topeAfpUf: parseFloat(editIndicadoresForm.topeAfpUf) || INDICADORES_OFICIALES_CHILE.topeAfpUf,
+                  topeCesantiaUf: parseFloat(editIndicadoresForm.topeCesantiaUf) || INDICADORES_OFICIALES_CHILE.topeCesantiaUf,
+                  apvMaxUf: parseFloat(editIndicadoresForm.apvMaxUf) || INDICADORES_OFICIALES_CHILE.apvMaxUf,
+                  ultimaActualizacion: new Date().toLocaleDateString('es-CL') + ' (ajuste manual)'
                 };
                 setIndicadores(updated);
                 localStorage.setItem('indicadores_previsionales_chile', JSON.stringify(updated));
