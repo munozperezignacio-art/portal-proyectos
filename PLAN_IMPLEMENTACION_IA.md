@@ -7,7 +7,7 @@ La IA asiste. Los cálculos, permisos, aprobaciones y registros oficiales contin
 | Fase | Estado | Avance estimado |
 |---|---|---:|
 | 1. Gobierno y control de IA | Cerrada | 100% |
-| 2. IA documental | En ejecución | 75% |
+| 2. IA documental | En ejecución | 95% |
 | 3. Informes asistidos | Base determinística existente; interpretación IA pendiente | 35% |
 | 4. Copiloto contextual por obra | Pendiente | 0% |
 | 5. Asistencia especializada | Iniciada solo en lectura de maquinaria | 10% |
@@ -40,11 +40,12 @@ La IA asiste. Los cálculos, permisos, aprobaciones y registros oficiales contin
 ### Facturación y Bodega
 
 - [x] Lector inicial de DTE.
-- [ ] Completar lectura uniforme de facturas, notas de crédito y guías.
-- [ ] Asociación sugerida con proveedor, obra y centro de gestión.
-- [ ] Conciliación OC ↔ guía ↔ recepción ↔ factura.
-- [ ] Alertas de diferencias de cantidades y montos.
-- [ ] Asegurar que inventario solo cambie después de validación humana.
+- [x] Lectura uniforme de facturas, notas de crédito y guías.
+- [x] Asociación sugerida con proveedor, obra y centro de gestión usando historial del proveedor.
+- [x] Conciliación OC ↔ guía ↔ recepción ↔ factura/nota de crédito.
+- [x] Alertas de diferencias de RUT, cantidades y montos.
+- [x] Inventario cambia solo después de validación humana.
+- [ ] Incorporar referencia tributaria explícita de notas de crédito/débito al DTE original.
 
 ### Acreditaciones
 
@@ -96,4 +97,4 @@ No se inicia hasta disponer de volumen, calidad y continuidad histórica suficie
 
 ## Próximo bloque obligatorio
 
-Continuar Fase 2 en **Facturación y Bodega**, empezando por la conciliación documental y la validación humana previa a movimientos de inventario. No iniciar el Copiloto ni predicciones antes de cerrar las fases anteriores.
+Cerrar Fase 2 incorporando referencias tributarias de notas de crédito/débito y luego continuar Fase 3 con interpretación IA revisable de informes. No iniciar el Copiloto ni predicciones antes de cerrar las fases anteriores.
