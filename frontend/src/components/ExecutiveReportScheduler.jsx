@@ -16,6 +16,18 @@ import { buildExecutiveReportHtml } from "../utils/executiveReportHtml";
 
 const TEMPLATES = [
   [
+    "maquinaria_general",
+    "Informe general de maquinaria",
+    "Maquinaria",
+    "Utilización, fallas, mantenciones y disponibilidad de equipos por obra.",
+  ],
+  [
+    "rrhh_general",
+    "Informe general de recursos humanos",
+    "Recursos humanos",
+    "Dotación asignada y personal disponible o sin asignación.",
+  ],
+  [
     "semanal_obra",
     "Informe semanal de obra",
     "Obras",
@@ -153,6 +165,8 @@ export default function ExecutiveReportScheduler({
         "prevencion_general",
         "costos_corporativo",
         "calidad_general",
+        "maquinaria_general",
+        "rrhh_general",
       ].includes(code)
         ? "Todas"
         : x.alcance_tipo,
@@ -201,7 +215,7 @@ export default function ExecutiveReportScheduler({
     since.setDate(
       since.getDate() - (schedule.frecuencia === "Mensual" ? 30 : 7),
     );
-    const [adv, attendance, cost, nc, prevention, parts] = await Promise.all([
+    const [adv, attendance, cost, nc, prevention, parts, equipmentUse, failures, maintenance, personnel] = await Promise.all([
       supabase
         .from("avances_produccion_partidas")
         .select("obra_nombre,partida,cantidad,created_at")
@@ -232,6 +246,10 @@ export default function ExecutiveReportScheduler({
           "obra_nombre,partida,cantidad_presupuestada,costo_por_dia,rendimiento_meta,fecha_inicio,fecha_termino",
         )
         .in("obra_nombre", selected),
+      supabase.from("maquinaria_uso_diario").select("obra_nombre,equipo_id,equipo_patente,horas_trabajadas,created_at").eq("empresa", user.empresa).in("obra_nombre", selected).gte("created_at", since.toISOString()),
+      supabase.from("maquinaria_fallas").select("equipo_id,fecha,solucion,created_at").eq("empresa", user.empresa),
+      supabase.from("maquinaria_mantenciones").select("equipo_id,fecha,created_at").eq("empresa", user.empresa).gte("created_at", since.toISOString()),
+      supabase.from("maestro_personal").select("id,obra_nombre").eq("empresa", user.empresa),
     ]);
     return {
       selected,
@@ -242,6 +260,10 @@ export default function ExecutiveReportScheduler({
       nc: nc.data || [],
       prevention: prevention.data || [],
       parts: parts.data || [],
+      equipmentUse: equipmentUse.data || [],
+      failures: failures.data || [],
+      maintenance: maintenance.data || [],
+      personnel: personnel.data || [],
     };
   };
   const buildEvm = async (schedule) => {
@@ -256,6 +278,10 @@ export default function ExecutiveReportScheduler({
       nonConformities: d.nc,
       prevention: d.prevention,
       parts: d.parts,
+      equipmentUse: d.equipmentUse,
+      failures: d.failures,
+      maintenance: d.maintenance,
+      personnel: d.personnel,
       periodDays: schedule.frecuencia === "Mensual" ? 30 : 7,
     });
     return {
