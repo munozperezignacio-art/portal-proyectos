@@ -11,6 +11,7 @@ import {
 import { formatRut, formatNumberWithDots, parseNumberFromDots } from '../utils/rutUtils';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
+import MachineryMeterAI from './MachineryMeterAI';
 
 
 // Listado de feriados nacionales en Chile (MM-DD)
@@ -85,6 +86,7 @@ export default function Maquinaria({ user, onBack }) {
   const [selectedEstadoFilter, setSelectedEstadoFilter] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [machineryAIEnabled, setMachineryAIEnabled] = useState(false);
 
   // 1. Estados Modal Registro / Edición Equipo
   const [modalOpen, setModalOpen] = useState(false);
@@ -197,7 +199,13 @@ export default function Maquinaria({ user, onBack }) {
     fetchReservasLogs();
     fetchArriendosLogs();
     fetchReliabilityLogs();
+    fetchAIConfiguration();
   }, []);
+
+  const fetchAIConfiguration = async () => {
+    const { data } = await supabase.from('ia_config_empresas').select('habilitada,funciones').eq('empresa', user?.empresa).maybeSingle();
+    setMachineryAIEnabled(Boolean(data?.habilitada && data?.funciones?.maquinaria));
+  };
 
   const fetchReliabilityLogs = async () => {
     const [{ data: fallas }, { data: mantenciones }] = await Promise.all([
@@ -606,6 +614,7 @@ export default function Maquinaria({ user, onBack }) {
 
     const hIni = parseFloat(usoForm.horometro_inicial) || 0;
     const hFin = parseFloat(usoForm.horometro_final) || 0;
+    if (hFin < hIni) { setErrorMsg('La lectura final no puede ser inferior a la lectura inicial registrada.'); return; }
     const hrsTrabajadas = Math.max(0, hFin - hIni);
 
     const eq = maquinaria.find(m => m.id.toString() === usoForm.equipo_id.toString());
@@ -629,6 +638,7 @@ export default function Maquinaria({ user, onBack }) {
     try {
       const { error } = await supabase.from('maquinaria_uso_diario').insert([newLog]);
       if (error) throw error;
+      await supabase.from('inventario_maquinaria').update({ horometro_inicial: hFin }).eq('id', usoForm.equipo_id).eq('empresa', user?.empresa);
       setSuccessMsg('Registro de uso y horómetro guardado.');
       fetchUsoLogs();
     } catch (err) {
@@ -2797,6 +2807,18 @@ export default function Maquinaria({ user, onBack }) {
               <Gauge className="w-5 h-5 text-emerald-600" />
               <span>Registrar Horómetro y Uso</span>
             </h3>
+
+            {machineryAIEnabled && <MachineryMeterAI
+              empresa={user?.empresa}
+              equipment={maquinaria.find(item => String(item.id) === String(usoForm.equipo_id))}
+              previousValue={usoForm.horometro_inicial}
+              expectedUnit={(maquinaria.find(item => String(item.id) === String(usoForm.equipo_id))?.planes_mantencion || []).some(plan => plan.unidad === 'kilometros') ? 'kilometros' : 'horas'}
+              onRead={reading => {
+                if (!reading.es_legible) { setErrorMsg('La fotografía no permite confirmar una lectura. Ingresa el valor manualmente o toma otra foto.'); return; }
+                setUsoForm(previous => ({ ...previous, horometro_final: String(reading.lectura), observaciones: `${previous.observaciones || ''}${previous.observaciones ? ' · ' : ''}Lectura IA ${Math.round(Number(reading.confianza || 0) * 100)}%${reading.es_anomalia ? ' (requiere revisión)' : ''}` }));
+                if (reading.es_anomalia) setErrorMsg(`Revisa la lectura antes de guardar: ${reading.observacion}`);
+              }}
+            />}
 
             <form onSubmit={handleUsoSubmit} className="space-y-3 text-xs">
               <div>

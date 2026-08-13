@@ -1,0 +1,29 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+
+const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type"};
+const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json"}});
+const schema={type:"object",additionalProperties:false,properties:{lectura:{type:"number"},unidad:{type:"string",enum:["horas","kilometros","ciclos","desconocida"]},confianza:{type:"number"},equipo_visible:{type:"string"},es_legible:{type:"boolean"},es_anomalia:{type:"boolean"},observacion:{type:"string"}},required:["lectura","unidad","confianza","equipo_visible","es_legible","es_anomalia","observacion"]};
+
+Deno.serve(async(req)=>{
+ if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
+ const started=Date.now();let reservationId:string|undefined;let db:any;
+ try{
+  const serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),openAIKey=Deno.env.get("OPENAI_API_KEY");
+  if(!serviceKey||!openAIKey)return json({error:"La lectura inteligente no está configurada en el servidor."},503);
+  db=createClient(Deno.env.get("SUPABASE_URL")!,serviceKey,{auth:{persistSession:false}});
+  const token=(req.headers.get("Authorization")||"").replace(/^Bearer\s+/i,"");const{data:authData,error:authError}=await db.auth.getUser(token);if(authError||!authData?.user)return json({error:"Debes iniciar sesión para leer medidores."},401);
+  const body=await req.json();const{file_base64,mime_type,empresa:requestedCompany,equipo_patente,equipo_tipo,lectura_anterior,unidad_esperada}=body||{};
+  if(!file_base64||!["image/jpeg","image/png","image/webp"].includes(mime_type))return json({error:"Adjunta una fotografía JPG, PNG o WEBP."},400);
+  let profileQuery=db.from("usuarios").select("usuario,nombre,correo,empresa").eq("auth_user_id",authData.user.id);if(requestedCompany)profileQuery=profileQuery.eq("empresa",requestedCompany);const{data:profiles,error:profileError}=await profileQuery.limit(2);if(profileError)throw profileError;if(!profiles?.length)return json({error:"La cuenta no está autorizada para esta empresa."},403);const profile=profiles[0];
+  const[{data:globalConfig},{data:companyConfig}]=await Promise.all([db.from("config_global_obraxis").select("ia_habilitada,ia_proveedor,ia_modelo,ia_archivo_max_mb").eq("id",1).maybeSingle(),db.from("ia_config_empresas").select("*").eq("empresa",profile.empresa).maybeSingle()]);if(globalConfig?.ia_habilitada===false)return json({error:"Las funciones de IA están deshabilitadas globalmente."},503);
+  const bytes=Math.ceil(String(file_base64).length*.75),maxMb=Math.min(8,Number(globalConfig?.ia_archivo_max_mb||8));if(bytes>maxMb*1024*1024)return json({error:`La fotografía supera el máximo de ${maxMb} MB.`},413);
+  const model=companyConfig?.modelo||globalConfig?.ia_modelo||"gpt-4.1-mini";const{data:reserved,error:reserveError}=await db.rpc("ia_reservar_consumo",{p_empresa:profile.empresa,p_obra_nombre:"",p_auth_user_id:authData.user.id,p_usuario:profile.nombre||profile.usuario||profile.correo,p_funcion:"maquinaria",p_modelo:model,p_reserva_usd:.025});if(reserveError)return json({error:reserveError.message},403);reservationId=reserved;
+  const prompt=`Lee exclusivamente el medidor visible de una maquinaria. Equipo esperado: ${equipo_tipo||"equipo"}, patente/código ${equipo_patente||"no informado"}. Unidad esperada: ${unidad_esperada||"horas"}. Lectura anterior registrada: ${Number(lectura_anterior||0)}. Transcribe los dígitos sin estimar los que no sean visibles. Marca es_legible=false si no hay lectura segura. Marca es_anomalia=true si la lectura es menor que la anterior, la unidad no coincide o el salto parece inverosímil para un registro operativo. Explica brevemente la observación. No inventes identidad del equipo.`;
+  const response=await fetch("https://api.openai.com/v1/responses",{method:"POST",headers:{Authorization:`Bearer ${openAIKey}`,"Content-Type":"application/json"},body:JSON.stringify({model,input:[{role:"user",content:[{type:"input_text",text:prompt},{type:"input_image",image_url:`data:${mime_type};base64,${file_base64}`,detail:"high"}]}],text:{format:{type:"json_schema",name:"lectura_medidor_maquinaria",strict:true,schema}}})});
+  const apiData=await response.json();if(!response.ok)throw new Error(apiData?.error?.message||"No fue posible leer el medidor.");const raw=apiData.output_text||apiData.output?.flatMap((x:any)=>x.content||[]).find((x:any)=>x.type==="output_text")?.text;if(!raw)throw new Error("La IA no devolvió una lectura utilizable.");const result=JSON.parse(raw);
+  const previous=Number(lectura_anterior||0),reading=Number(result.lectura||0),expected=String(unidad_esperada||"horas");if(reading<previous||result.unidad!==expected)result.es_anomalia=true;if(!result.es_legible)result.es_anomalia=true;
+  const inputTokens=Number(apiData.usage?.input_tokens||0),outputTokens=Number(apiData.usage?.output_tokens||0),cost=(inputTokens*.40+outputTokens*1.60)/1_000_000;await db.rpc("ia_finalizar_consumo",{p_id:reservationId,p_estado:"Completado",p_tokens_entrada:inputTokens,p_tokens_salida:outputTokens,p_costo_usd:cost,p_confianza:Number(result.confianza||0),p_duracion_ms:Date.now()-started,p_error_detalle:"",p_metadatos:{mime_type,bytes,equipo_patente,lectura_anterior,unidad_esperada}});
+  return json({data:result,usage:{tokens_total:inputTokens+outputTokens,costo_usd:cost}});
+ }catch(error){if(reservationId&&db)await db.rpc("ia_finalizar_consumo",{p_id:reservationId,p_estado:"Error",p_tokens_entrada:0,p_tokens_salida:0,p_costo_usd:0,p_confianza:null,p_duracion_ms:Date.now()-started,p_error_detalle:error instanceof Error?error.message:String(error),p_metadatos:{}});return json({error:error instanceof Error?error.message:String(error)},400)}
+});
