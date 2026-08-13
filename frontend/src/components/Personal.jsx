@@ -36,6 +36,7 @@ function Personal({ user, onBack }) {
   const canEdit = can(user, permissions, 'rrhh.personal.editar');
   const canDelete = can(user, permissions, 'rrhh.personal.eliminar');
   const canViewStatistics = can(user, permissions, 'rrhh.estadisticas.ver');
+  const canDownloadStatistics = can(user, permissions, 'rrhh.estadisticas.descargar');
   const canViewProjection = can(user, permissions, 'rrhh.proyeccion.ver');
   const canCreateProjection = can(user, permissions, 'rrhh.proyeccion.crear');
   const canEditProjection = can(user, permissions, 'rrhh.proyeccion.editar');
@@ -1982,7 +1983,7 @@ function Personal({ user, onBack }) {
         </div>
       )}
 
-      {activeSubmodule === 'estadisticas' && <HrStatistics personal={personal} obras={obras} />}
+      {activeSubmodule === 'estadisticas' && <HrStatistics personal={personal} obras={obras} canDownload={canDownloadStatistics} companyName={user?.empresa || 'Empresa'} />}
       {activeSubmodule === 'proyeccion' && <WorkforceProjection user={user} personal={personal} obras={obras} canCreate={canCreateProjection} canEdit={canEditProjection} canDelete={canDeleteProjection} />}
 
       {/* MODAL PARA ASIGNACIÓN DE OBRA Y FECHA DESDE RRHH */}

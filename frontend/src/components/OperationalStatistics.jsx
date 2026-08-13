@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, Boxes, CalendarClock, CheckCircle2, CircleDollarSign, ClipboardCheck, PackageMinus, ShieldAlert, TrendingUp, UserCheck, Users, Warehouse } from 'lucide-react';
+import { AlertTriangle, Boxes, CalendarClock, CheckCircle2, CircleDollarSign, ClipboardCheck, Download, PackageMinus, ShieldAlert, TrendingUp, UserCheck, Users, Warehouse } from 'lucide-react';
 
 const number = value => Number(value || 0);
 const money = value => `$${Math.round(number(value)).toLocaleString('es-CL')}`;
@@ -65,7 +65,7 @@ export function WarehouseStatistics({ stockRows = [], movimientos = [], bodegas 
   </AnalyticsShell>;
 }
 
-export function HrStatistics({ personal = [], obras = [] }) {
+export function HrStatistics({ personal = [], obras = [], canDownload = false, companyName = 'Empresa' }) {
   const [work, setWork] = useState('');
   const [assignment, setAssignment] = useState('all');
   const filtered = personal.filter(worker => {
@@ -88,7 +88,43 @@ export function HrStatistics({ personal = [], obras = [] }) {
   const health = grouped(active, worker => worker.prevision_salud || 'Sin información').slice(0, 6);
   const unassignedByRole = grouped(unassignedWorkers, worker => worker.cargo || 'Sin cargo').slice(0, 8);
   const unassignedByContract = grouped(unassignedWorkers, worker => worker.tipo_contrato || 'Sin información').slice(0, 6);
-  return <AnalyticsShell title="Estadísticas de Recursos Humanos" subtitle="Dotación, disponibilidad, asignaciones, vencimientos contractuales y estructura del costo mensual." filters={<><select value={assignment} onChange={e => { setAssignment(e.target.value); if (e.target.value === 'unassigned') setWork(''); }} className="stat-filter"><option value="all">Toda la dotación</option><option value="assigned">Solo asignados</option><option value="unassigned">Solo sin asignación</option></select><select value={work} disabled={assignment === 'unassigned'} onChange={e => setWork(e.target.value)} className="stat-filter disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"><option value="">Toda la empresa</option>{obras.map(item => <option key={item.nombre} value={item.nombre}>{item.nombre}</option>)}</select></>}>
+  const downloadStatistics = async () => {
+    const XLSX = await import('xlsx');
+    const workbook = XLSX.utils.book_new();
+    const date = new Date().toISOString().slice(0, 10);
+    const summary = [
+      ['ESTADÍSTICAS DE RECURSOS HUMANOS'],
+      ['Empresa', companyName], ['Fecha de emisión', date], ['Alcance', assignment === 'assigned' ? 'Solo asignados' : assignment === 'unassigned' ? 'Solo sin asignación' : 'Toda la dotación'], ['Obra', work || 'Toda la empresa'], [],
+      ['Indicador', 'Valor'], ['Dotación activa', active.length], ['Asignados a obra', assigned.length], ['Sin asignación', unassigned], ['Tasa de asignación', allocationRate / 100], ['Costo base mensual', monthlyCost], ['Costo mensual sin asignar', unassignedMonthlyCost], ['Contratos por vencer (30 días)', expiring.length], ['Contratos vencidos', expired.length]
+    ];
+    const summarySheet = XLSX.utils.aoa_to_sheet(summary);
+    summarySheet['!cols'] = [{ wch: 34 }, { wch: 26 }];
+    if (summarySheet.B11) summarySheet.B11.z = '0.0%';
+    ['B12', 'B13'].forEach(cell => { if (summarySheet[cell]) summarySheet[cell].z = '$#,##0'; });
+    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Resumen');
+
+    const detailRows = active.map(worker => ({
+      RUT: worker.rut || '', Nombre: worker.nombre || '', Cargo: worker.cargo || '', Obra: worker.obra_nombre || 'Sin asignación', Estado: worker.estado || 'Activo',
+      'Tipo de contrato': worker.tipo_contrato || '', 'Fecha de ingreso': worker.fecha_inicio_contrato || worker.inicio || '', 'Vencimiento contrato': worker.fecha_vencimiento_contrato || '',
+      'Sueldo base': number(worker.sueldo_base), Colación: number(worker.colacion), Movilización: number(worker.movilizacion), 'Costo mensual': number(worker.sueldo_base) + number(worker.colacion) + number(worker.movilizacion),
+      AFP: worker.afp || '', Salud: worker.prevision_salud || ''
+    }));
+    const detailSheet = XLSX.utils.json_to_sheet(detailRows);
+    detailSheet['!cols'] = [14, 28, 28, 28, 14, 20, 16, 20, 16, 14, 14, 16, 18, 18].map(wch => ({ wch }));
+    XLSX.utils.book_append_sheet(workbook, detailSheet, 'Dotación filtrada');
+
+    const compositionRows = [
+      ...byWork.map(item => ({ Categoría: 'Dotación por obra', Grupo: item.label, Personas: item.value })),
+      ...byRole.map(item => ({ Categoría: 'Dotación por cargo', Grupo: item.label, Personas: item.value })),
+      ...byContract.map(item => ({ Categoría: 'Tipos de contrato', Grupo: item.label, Personas: item.value })),
+      ...unassignedByRole.map(item => ({ Categoría: 'Sin asignación por cargo', Grupo: item.label, Personas: item.value }))
+    ];
+    const compositionSheet = XLSX.utils.json_to_sheet(compositionRows);
+    compositionSheet['!cols'] = [{ wch: 30 }, { wch: 36 }, { wch: 12 }];
+    XLSX.utils.book_append_sheet(workbook, compositionSheet, 'Composición');
+    XLSX.writeFile(workbook, `Estadisticas_RRHH_${String(companyName).replace(/[^a-z0-9]+/gi, '_')}_${date}.xlsx`);
+  };
+  return <AnalyticsShell title="Estadísticas de Recursos Humanos" subtitle="Dotación, disponibilidad, asignaciones, vencimientos contractuales y estructura del costo mensual." filters={<><select value={assignment} onChange={e => { setAssignment(e.target.value); if (e.target.value === 'unassigned') setWork(''); }} className="stat-filter"><option value="all">Toda la dotación</option><option value="assigned">Solo asignados</option><option value="unassigned">Solo sin asignación</option></select><select value={work} disabled={assignment === 'unassigned'} onChange={e => setWork(e.target.value)} className="stat-filter disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"><option value="">Toda la empresa</option>{obras.map(item => <option key={item.nombre} value={item.nombre}>{item.nombre}</option>)}</select>{canDownload && <button type="button" onClick={downloadStatistics} className="stat-filter flex items-center justify-center gap-2 border-emerald-700 bg-emerald-700 text-white hover:bg-emerald-800"><Download className="h-4 w-4"/>Descargar Excel</button>}</>}>
     <KpiGrid items={[[Users,'Dotación activa',active.length,'blue'],[UserCheck,'Asignados a obra',assigned.length,'green'],[TrendingUp,'Tasa de asignación',`${allocationRate.toFixed(1)}%`,allocationRate >= 90 ? 'green' : allocationRate >= 75 ? 'amber' : 'rose'],[Warehouse,'Sin asignación',unassigned,unassigned ? 'amber' : 'green'],[CircleDollarSign,'Costo sin asignar',money(unassignedMonthlyCost),unassignedMonthlyCost ? 'amber' : 'green'],[CircleDollarSign,'Costo base mensual',money(monthlyCost),'blue']]}/>
     <div className="grid gap-4 xl:grid-cols-2"><RankCard title="Dotación por obra" data={byWork}/><RankCard title="Dotación por cargo" data={byRole}/><DonutLikeCard title="Tipos de contrato" data={byContract}/><DonutLikeCard title="Sistema de salud" data={health}/></div>
     <div className="grid gap-4 xl:grid-cols-2"><RankCard title="Personal sin asignación por cargo" data={unassignedByRole}/><DonutLikeCard title="Contratos del personal sin asignación" data={unassignedByContract}/></div>
