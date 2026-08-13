@@ -8,11 +8,14 @@ import ExecutiveReportScheduler from './ExecutiveReportScheduler';
 
 const CATALOG = [
   { code: 'avance_registrado', module: 'Obras', name: 'Avance registrado', description: 'Informa cada nuevo reporte de avance físico.', frequency: 'Inmediata' },
+  { code: 'avance_reporte_pendiente', module: 'Obras', name: 'Reporte de avance diario pendiente', description: 'Avisa las obras activas que no han enviado su reporte diario. Un reporte con avance 0 se considera correctamente informado.', frequency: 'Diaria' },
+  { code: 'reportes_diarios_pendientes', module: 'Obras', name: 'Resumen diario de informes pendientes', description: 'Consolida cada día las obras que aún deben informar avance o uso de maquinaria.', frequency: 'Diaria' },
   { code: 'resumen_diario_obra', module: 'Obras', name: 'Resumen diario de obra', description: 'Consolida avances, asistencia, incidencias y pendientes del día.', frequency: 'Diaria' },
   { code: 'desviacion_programacion', module: 'Obras', name: 'Desviación de programación', description: 'Alerta cuando el avance real queda bajo el plan.', frequency: 'Diaria' },
   { code: 'partida_proxima_inicio', module: 'Obras', name: 'Partida próxima a iniciar', description: 'Anticipa partidas y recursos que deben quedar liberados.', frequency: 'Anticipada' },
   { code: 'restriccion_last_planner', module: 'Obras', name: 'Restricción Last Planner pendiente', description: 'Alerta compromisos que podrían impedir el inicio de una partida.', frequency: 'Diaria' },
   { code: 'mantenimiento_proximo', module: 'Maquinaria', name: 'Próximo mantenimiento', description: 'Avisa antes de alcanzar la fecha, horómetro o kilometraje de mantención.', frequency: 'Anticipada' },
+  { code: 'maquinaria_reporte_pendiente', module: 'Maquinaria', name: 'Reporte diario de maquinaria pendiente', description: 'Avisa cuando una obra con equipos asignados no ha registrado su reporte diario de uso, incluso si el equipo no trabajó.', frequency: 'Diaria' },
   { code: 'mantenimiento_vencido', module: 'Maquinaria', name: 'Mantenimiento vencido', description: 'Escala equipos con mantenimiento pendiente.', frequency: 'Diaria' },
   { code: 'maquinaria_falla_reportada', module: 'Maquinaria', name: 'Falla de equipo reportada', description: 'Informa fallas, detenciones y horas fuera de servicio.', frequency: 'Inmediata' },
   { code: 'maquinaria_reserva_conflicto', module: 'Maquinaria', name: 'Conflicto o vencimiento de reserva', description: 'Advierte conflictos de disponibilidad y reservas próximas.', frequency: 'Anticipada' },
