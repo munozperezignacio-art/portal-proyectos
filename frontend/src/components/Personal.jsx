@@ -11,6 +11,7 @@ import {
 import { HrStatistics } from './OperationalStatistics';
 import WorkforceProjection from './WorkforceProjection';
 import PayrollAutomation from './PayrollAutomation';
+import WorkerBulkImport from './WorkerBulkImport';
 
 export const afpCommissionRates = {
   'Habitat': { fondo: 10.00, comision: 1.27, total: 11.27 },
@@ -35,6 +36,7 @@ function Personal({ user, onBack }) {
   const canCreate = can(user, permissions, 'rrhh.personal.crear');
   const canEdit = can(user, permissions, 'rrhh.personal.editar');
   const canDelete = can(user, permissions, 'rrhh.personal.eliminar');
+  const canImport = can(user, permissions, 'rrhh.personal.importar');
   const canViewStatistics = can(user, permissions, 'rrhh.estadisticas.ver');
   const canDownloadStatistics = can(user, permissions, 'rrhh.estadisticas.descargar');
   const canViewProjection = can(user, permissions, 'rrhh.proyeccion.ver');
@@ -76,6 +78,7 @@ function Personal({ user, onBack }) {
   const [editingWorker, setEditingWorker] = useState(null);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [showBulkImport, setShowBulkImport] = useState(false);
 
   // Estado para Modal de Asignación de Obra con Fecha desde RRHH
   const [showAssignObraModal, setShowAssignObraModal] = useState(false);
@@ -467,13 +470,10 @@ function Personal({ user, onBack }) {
       
       {/* Encabezado */}
       <ModuleHeader title="Recursos Humanos (RRHH)" subtitle="Gestión de personal, asignaciones a obra y planillas de remuneraciones." Icon={Users} onBack={activeSubmodule !== null ? () => setActiveSubmodule(null) : onBack} actions={activeSubmodule === 'personal_empresa' && (
-          <button
-            onClick={handleOpenAddModal}
-            className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Crear Ficha Trabajador</span>
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {canImport && <button onClick={() => setShowBulkImport(true)} className="flex items-center gap-1.5 rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-xs font-bold text-blue-950 transition hover:bg-blue-50"><Upload className="h-4 w-4"/><span>Importar Excel</span></button>}
+            {canCreate && <button onClick={handleOpenAddModal} className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition"><Plus className="w-4 h-4"/><span>Crear Ficha Trabajador</span></button>}
+          </div>
         )} />
 
       {/* VISTA PRINCIPAL: MENÚ DE RECTÁNGULOS OPERATIVOS DE RRHH */}
@@ -2056,6 +2056,7 @@ function Personal({ user, onBack }) {
         </div>
       )}
 
+      {showBulkImport && <WorkerBulkImport companyName={user?.empresa || 'Obraxis'} personal={personal} obras={obras} onClose={() => setShowBulkImport(false)} onImported={fetchData}/>}
     </div>
   );
 }

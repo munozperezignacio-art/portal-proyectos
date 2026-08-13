@@ -7,6 +7,7 @@ export const PERMISSION_ACTIONS = [
   { id: 'revisar', label: 'Revisar' },
   { id: 'aprobar', label: 'Aprobar' },
   { id: 'descargar', label: 'Descargar' },
+  { id: 'importar', label: 'Importar' },
   { id: 'configurar', label: 'Configurar' },
 ];
 
@@ -27,7 +28,7 @@ export const PERMISSIONS_CATALOG = [
     { id: 'presupuestos', label: 'Presupuestos y APU', actions: ['ver', 'crear', 'editar', 'eliminar', 'revisar', 'aprobar', 'descargar', 'configurar'] },
   ]},
   { id: 'rrhh', label: 'Recursos Humanos', menus: [
-    { id: 'personal', label: 'Personal y contratos', actions: ['ver', 'crear', 'editar', 'eliminar', 'descargar', 'configurar'] },
+    { id: 'personal', label: 'Personal y contratos', actions: ['ver', 'crear', 'editar', 'eliminar', 'importar', 'descargar', 'configurar'] },
     { id: 'proyeccion', label: 'Proyección de personal', actions: ['ver', 'crear', 'editar', 'eliminar', 'descargar', 'configurar'] },
     { id: 'estadisticas', label: 'Estadísticas de Recursos Humanos', actions: ['ver', 'descargar', 'configurar'] },
   ]},
