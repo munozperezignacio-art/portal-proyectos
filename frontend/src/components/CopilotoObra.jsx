@@ -2,7 +2,7 @@ import React,{useEffect,useState}from'react';
 import{Bot,Calculator,ExternalLink,History,Lightbulb,Loader2,Send,ShieldCheck,Sparkles}from'lucide-react';
 import{supabase}from'../supabaseClient';
 
-const STARTERS=['¿Cuáles son las partidas con menor avance?','¿Qué desviaciones de costo requieren atención?','Resume los principales riesgos de esta obra.','¿Cuál es el estado de calidad y prevención?'];
+const STARTERS=['¿Cuáles son las partidas con menor avance?','¿Qué restricciones Last Planner están pendientes?','¿Cuál es el estado de la maquinaria y sus fallas?','¿Cuántas personas están asignadas a esta obra?','¿Qué desviaciones de costo requieren atención?','¿Cuál es el estado de calidad y prevención?'];
 
 export default function CopilotoObra({user,obra,onNavigate}){
  const[pregunta,setPregunta]=useState(''),[answer,setAnswer]=useState(null),[loading,setLoading]=useState(false),[error,setError]=useState(''),[history,setHistory]=useState([]);
