@@ -10,6 +10,15 @@ import {
   GraduationCap, Users, Calendar, Award, CheckSquare, Layers, Building2, Send, Sparkles
 } from 'lucide-react';
 
+const MACHINERY_SOURCE_COLUMNS = [
+  { key: 'equipo', label: 'Equipo / patente' },
+  { key: 'tipo', label: 'Tipo de equipo' },
+  { key: 'patente', label: 'Patente / código' },
+  { key: 'marca', label: 'Marca / modelo' },
+  { key: 'estado_equipo', label: 'Estado del equipo' },
+  { key: 'horometro_inicial', label: 'Lectura inicial' }
+];
+
 export default function FormulariosCapacitaciones({ user, onBack, companyBranding }) {
   const { permissions, loading: permissionsLoading } = useUserPermissions(user);
   const canView = can(user, permissions, 'formularios.formularios.ver');
@@ -51,6 +60,9 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   const [formEmails, setFormEmails] = useState(['']);
   const [formAllowedCargos, setFormAllowedCargos] = useState([]);
   const [availableCargos, setAvailableCargos] = useState([]);
+  const [availableCenters, setAvailableCenters] = useState([]);
+  const [formCenterIds, setFormCenterIds] = useState([]);
+  const [riskMatrices, setRiskMatrices] = useState([]);
   const [editingForm, setEditingForm] = useState(null);
   const [formFields, setFormFields] = useState([
     { id: Date.now(), type: 'text', label: 'Nombre o Título', required: true, options: [] }
@@ -82,7 +94,19 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     fetchRespuestas();
     fetchCapacitaciones();
     fetchAvailableCargos();
+    fetchAvailableCenters();
+    fetchRiskMatrices();
   }, [user?.empresa]);
+
+  const fetchRiskMatrices = async () => {
+    const { data, error } = await supabase.from('prevencion_matrices_riesgo').select('id,nombre,codigo,version,columnas,obra_id').eq('empresa', user?.empresa || 'EMIN').in('estado', ['Borrador', 'Vigente']).order('updated_at', { ascending: false });
+    if (!error) setRiskMatrices(data || []);
+  };
+
+  const fetchAvailableCenters = async () => {
+    const { data, error } = await supabase.from('facturacion_centros_gestion').select('id,codigo,nombre,tipo').eq('empresa', user?.empresa || 'EMIN').eq('activo', true).order('codigo');
+    if (!error) setAvailableCenters(data || []);
+  };
 
   const fetchAvailableCargos = async () => {
     try {
@@ -190,6 +214,23 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     if (field && isProtectedField(field) && ['label', 'required', 'type'].includes(key)) return;
     setFormFields(formFields.map(f => f.id === id ? { ...f, [key]: value } : f));
   };
+
+  const addLinkedDataField = (source) => {
+    const matrix = riskMatrices[0];
+    const sourceColumns = source === 'risk_matrix' ? (matrix?.columnas || []) : MACHINERY_SOURCE_COLUMNS;
+    const selectorKey = source === 'risk_matrix' ? (sourceColumns.find(column => column.key === 'tarea')?.key || sourceColumns[0]?.key || '') : 'equipo';
+    setFormFields(current => [...current, {
+      id: `linked_${Date.now()}`,
+      type: 'data_lookup',
+      label: source === 'risk_matrix' ? 'Datos de matriz de riesgos' : 'Equipo / maquinaria',
+      required: false,
+      source,
+      matrixId: source === 'risk_matrix' ? (matrix?.id || '') : undefined,
+      selectorKey,
+      autofillKeys: source === 'risk_matrix' ? [] : ['tipo', 'patente', 'marca', 'estado_equipo'],
+      sourceColumns
+    }]);
+  };
   const handleUpdateOption = (fieldId, optionIndex, value) => {
     setFormFields(formFields.map(field => field.id === fieldId ? { ...field, options: (field.options || []).map((option, index) => index === optionIndex ? value : option) } : field));
   };
@@ -224,6 +265,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     setFormTitle(form.titulo || ''); setFormDesc(form.descripcion || ''); setFormModulo(form.categoria || form.modulo_asignado || 'general');
     setFormCodigo(control.codigo || ''); setFormRevision(control.revision || '0'); setFormFechaRevision(control.fecha_revision || new Date().toISOString().slice(0, 10)); setFormEmails((form.correos_notificacion || '').split(',').map(email => email.trim()).filter(Boolean).concat((form.correos_notificacion || '').trim() ? [] : ['']));
     setFormAllowedCargos((form.cargos_obligados || '').split(',').map(cargo => cargo.trim()).filter(Boolean));
+    setFormCenterIds((control.centros_gestion_ids || []).map(Number).filter(Number.isFinite));
     const requiredIds = protectedBaseFields[formRegistrationType(form)] || [];
     setFormFields((Array.isArray(stored) ? stored : (stored?.items || [])).map(field => (field.systemRequired || requiredIds.includes(field.id)) ? { ...field, systemRequired: true, required: true } : field));
     setActiveTab('designer');
@@ -282,6 +324,10 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       setErrorMsg('Ingrese el título del formulario.');
       return;
     }
+    if (!formCenterIds.length) {
+      setErrorMsg('Selecciona al menos un centro de gestión para publicar y registrar este formulario.');
+      return;
+    }
 
     setLoading(true);
     const token = 'FORM_' + Math.random().toString(36).substring(2, 9).toUpperCase();
@@ -295,7 +341,8 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
         control_documental: {
           codigo: formCodigo.trim(),
           revision: formRevision.trim(),
-          fecha_revision: formFechaRevision
+          fecha_revision: formFechaRevision,
+          centros_gestion_ids: formCenterIds
         }
       },
       publico_token: editingForm?.publico_token || token,
@@ -329,6 +376,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       setFormFechaRevision(new Date().toISOString().slice(0, 10));
       setFormEmails(['']);
       setFormAllowedCargos([]);
+      setFormCenterIds([]);
       setEditingForm(null);
       setFormFields([{ id: Date.now(), type: 'text', label: 'Nombre o Título', required: true, options: [] }]);
       setActiveTab('forms_list');
@@ -490,6 +538,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       return <div className="mt-2 divide-y divide-slate-200 rounded-lg border border-slate-200">{value.map((instance, index) => <div key={index} className="space-y-3 p-3">{Object.entries(instance || {}).map(([subId, subValue]) => { const subField = field.subFields?.find(sub => sub.id === subId) || { label: subId, type: 'text' }; return <div key={subId}><p className="text-[10px] font-black uppercase text-slate-500">{subField.label}</p>{(subField.type === 'signature' || subField.type === 'photo') && subValue ? <img src={subValue} alt={subField.label} className={subField.type === 'photo' ? 'mt-1 max-h-64 rounded-lg border border-slate-200' : 'mt-1 max-h-24'} /> : <p className="mt-1 text-sm text-slate-800 whitespace-pre-wrap">{Array.isArray(subValue) ? subValue.join(', ') : (subValue || 'Sin respuesta')}</p>}</div>; })}</div>)}</div>;
     }
     if ((field.type === 'photo' || field.type === 'signature') && value) return <img src={value} alt={field.label} className={field.type === 'photo' ? 'mt-2 max-h-64 rounded-lg border border-slate-200' : 'mt-2 max-h-24'} />;
+    if (field.type === 'data_lookup' && value && typeof value === 'object') return <div className="mt-2 grid gap-2 sm:grid-cols-2">{Object.entries(value).filter(([key]) => !key.startsWith('_')).map(([key, itemValue]) => <div key={key} className="rounded-lg bg-slate-50 p-2"><p className="text-[9px] font-black uppercase text-slate-400">{field.sourceColumns?.find(column => column.key === key)?.label || key}</p><p className="mt-1 text-xs font-bold text-slate-700">{String(itemValue || 'Sin información')}</p></div>)}</div>;
     return <p className="mt-1 text-sm text-slate-800 whitespace-pre-wrap">{Array.isArray(value) ? value.join(', ') : (typeof value === 'object' && value ? JSON.stringify(value) : (value || 'Sin respuesta'))}</p>;
   };
 
@@ -686,6 +735,14 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
               </div>
               <div className="md:col-span-3 space-y-2 rounded-xl border border-slate-200 bg-white p-3">
                 <div>
+                  <label className="block text-[10.5px] font-extrabold uppercase text-slate-600">Centros de gestión autorizados *</label>
+                  <p className="mt-1 text-[10px] text-slate-400">El enlace público solo podrá consultar y registrar información de los centros seleccionados.</p>
+                </div>
+                {availableCenters.length ? <div className="flex flex-wrap gap-2">{availableCenters.map(center => <label key={center.id} className={`cursor-pointer rounded-lg border px-2.5 py-1.5 text-[10px] font-bold transition ${formCenterIds.includes(center.id) ? 'border-primary bg-primary text-white' : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-primary/50'}`}><input type="checkbox" className="sr-only" checked={formCenterIds.includes(center.id)} onChange={() => setFormCenterIds(current => current.includes(center.id) ? current.filter(id => id !== center.id) : [...current, center.id])} />{center.codigo} · {center.nombre}</label>)}</div> : <p className="text-[10px] text-amber-700">Crea primero un centro de gestión activo para poder publicar el formulario.</p>}
+              </div>
+
+              <div className="md:col-span-3 space-y-2 rounded-xl border border-slate-200 bg-white p-3">
+                <div>
                   <label className="block text-[10.5px] font-extrabold uppercase text-slate-600">Cargos autorizados para responder</label>
                   <p className="mt-1 text-[10px] text-slate-400">Selecciona uno o más cargos. Sin selección, el formulario estará disponible para todo el personal.</p>
                 </div>
@@ -696,9 +753,11 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
             {/* Barra de herramientas para agregar campos */}
             <div className="space-y-3">
               <label className="block text-xs font-extrabold uppercase text-slate-700">Diseño de Campos y Preguntas</label>
-              <p className="text-[11px] text-slate-500">Cada respuesta registra obra y usuario responsable desde el encabezado del formulario.</p>
+              <p className="text-[11px] text-slate-500">Cada respuesta registra centro de gestión, obra vinculada y usuario responsable desde el encabezado.</p>
               <div className="flex flex-wrap gap-2">
                 {[['text','Texto corto'],['textarea','Texto largo'],['date','Fecha'],['time','Hora'],['select','Lista desplegable'],['radio','Selección múltiple · una respuesta'],['checkbox','Checkbox · varias respuestas'],['rating','Nivel de valoración'],['photo','Subir imágenes'],['signature','Dibujar firma'],['repeater','Grupo repetible']].map(([type,label]) => <button key={type} type="button" onClick={() => handleAddField(type)} className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">+ {label}</button>)}
+                <button type="button" onClick={() => addLinkedDataField('risk_matrix')} className="rounded-xl bg-rose-50 px-3.5 py-2 text-xs font-black text-rose-800 hover:bg-rose-100">+ Usar matriz de riesgo</button>
+                <button type="button" onClick={() => addLinkedDataField('machinery')} className="rounded-xl bg-blue-50 px-3.5 py-2 text-xs font-black text-blue-800 hover:bg-blue-100">+ Usar datos de maquinaria</button>
               </div>
             </div>
 
@@ -738,6 +797,27 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                   </div>
                   {['select', 'radio', 'checkbox'].includes(field.type) && <div className="space-y-2"><label className="block text-[9.5px] font-bold text-slate-500 uppercase">Alternativas</label>{(field.options || []).map((option, optionIndex) => <div key={optionIndex} className="flex gap-2"><input value={option} onChange={e => handleUpdateOption(field.id, optionIndex, e.target.value)} className="h-9 flex-1 rounded-lg border border-slate-200 px-3 text-xs font-medium"/><button type="button" onClick={() => removeOption(field.id, optionIndex)} className="rounded-lg px-2 text-[10px] font-black text-rose-700 hover:bg-rose-50">Quitar</button></div>)}<button type="button" onClick={() => addOption(field.id)} className="rounded-lg border border-primary/25 bg-primary/5 px-3 py-2 text-[11px] font-black text-primary">+ Agregar opción</button></div>}
                   {field.type === 'rating' && <div className="space-y-1"><label className="block text-[9.5px] font-bold text-slate-500 uppercase">Máximo de la escala</label><select value={field.maxRating || 5} onChange={e => handleUpdateField(field.id, 'maxRating', Number(e.target.value))} className="h-9 rounded-lg border border-slate-200 px-3 text-xs font-bold"><option value="3">1 a 3</option><option value="5">1 a 5</option><option value="10">1 a 10</option></select></div>}
+                  {field.type === 'data_lookup' && (() => {
+                    const selectedMatrix = riskMatrices.find(matrix => matrix.id === field.matrixId);
+                    const sourceColumns = field.source === 'risk_matrix' ? (selectedMatrix?.columnas || field.sourceColumns || []) : MACHINERY_SOURCE_COLUMNS;
+                    const updateSource = source => {
+                      const matrix = riskMatrices[0];
+                      const nextColumns = source === 'risk_matrix' ? (matrix?.columnas || []) : MACHINERY_SOURCE_COLUMNS;
+                      setFormFields(current => current.map(item => item.id === field.id ? { ...item, source, matrixId: source === 'risk_matrix' ? matrix?.id || '' : undefined, sourceColumns: nextColumns, selectorKey: source === 'risk_matrix' ? nextColumns[0]?.key || '' : 'equipo', autofillKeys: [] } : item));
+                    };
+                    const updateMatrix = matrixId => {
+                      const matrix = riskMatrices.find(item => item.id === matrixId);
+                      setFormFields(current => current.map(item => item.id === field.id ? { ...item, matrixId, sourceColumns: matrix?.columnas || [], selectorKey: matrix?.columnas?.[0]?.key || '', autofillKeys: [] } : item));
+                    };
+                    return <div className="space-y-3 rounded-xl border border-blue-100 bg-blue-50/50 p-3">
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <label className="text-[10px] font-black uppercase text-slate-600">Fuente de datos<select value={field.source || 'machinery'} onChange={e => updateSource(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs"><option value="risk_matrix">Matriz de riesgos</option><option value="machinery">Maquinaria y equipos</option></select></label>
+                        {field.source === 'risk_matrix' && <label className="text-[10px] font-black uppercase text-slate-600">Matriz<select value={field.matrixId || ''} onChange={e => updateMatrix(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs"><option value="">Seleccionar matriz</option>{riskMatrices.map(matrix => <option key={matrix.id} value={matrix.id}>{matrix.codigo} · {matrix.nombre} · v{matrix.version}</option>)}</select></label>}
+                      </div>
+                      <label className="block text-[10px] font-black uppercase text-slate-600">Campo que seleccionará el usuario<select value={field.selectorKey || ''} onChange={e => handleUpdateField(field.id, 'selectorKey', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs">{sourceColumns.map(column => <option key={column.key} value={column.key}>{column.label}</option>)}</select></label>
+                      <div><p className="text-[10px] font-black uppercase text-slate-600">Campos que se completarán automáticamente</p><div className="mt-2 flex flex-wrap gap-2">{sourceColumns.filter(column => column.key !== field.selectorKey).map(column => <label key={column.key} className={`cursor-pointer rounded-lg border px-2 py-1 text-[10px] font-bold ${field.autofillKeys?.includes(column.key) ? 'border-blue-700 bg-blue-700 text-white' : 'border-slate-200 bg-white text-slate-600'}`}><input type="checkbox" className="sr-only" checked={field.autofillKeys?.includes(column.key) || false} onChange={() => handleUpdateField(field.id, 'autofillKeys', field.autofillKeys?.includes(column.key) ? field.autofillKeys.filter(key => key !== column.key) : [...(field.autofillKeys || []), column.key])} />{column.label}</label>)}</div></div>
+                    </div>;
+                  })()}
                   {field.type === 'repeater' && <div className="space-y-2 rounded-xl bg-amber-50 p-3"><p className="text-[11px] font-semibold text-amber-900">Campos dentro del grupo. Arrastra ⠿ para ordenar:</p><div className="flex flex-wrap gap-2">{[['text','Texto corto'],['select','Lista'],['radio','Selección múltiple · una respuesta'],['checkbox','Checkbox · varias respuestas'],['photo','Imagen'],['signature','Firma']].map(([type,label])=><button key={type} type="button" onClick={()=>addRepeaterField(field.id,type)} className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[10px] font-black text-amber-900">+ {label}</button>)}</div>{(field.subFields || []).map((sub, subIndex)=><div key={sub.id} draggable onDragStart={event=>event.dataTransfer.setData('text/plain', String(subIndex))} onDragOver={event=>event.preventDefault()} onDrop={event=>{ event.preventDefault(); moveRepeaterField(field.id, Number(event.dataTransfer.getData('text/plain')), subIndex); }} className="cursor-grab rounded-lg bg-white p-3 text-xs active:cursor-grabbing"><div className="flex items-center justify-between gap-2"><span className="flex items-center gap-2"><b className="text-slate-400">⠿</b><b className="text-slate-400">({sub.type})</b></span><button type="button" onClick={()=>removeRepeaterField(field.id,sub.id)} className="text-[10px] font-black text-rose-700">Quitar</button></div><input value={sub.label} onChange={e=>updateRepeaterSubField(field.id,sub.id,'label',e.target.value)} className="mt-2 h-9 w-full rounded-lg border border-slate-200 px-3 text-xs font-semibold"/>{['select','radio','checkbox'].includes(sub.type) && <div className="mt-2 space-y-1">{(sub.options || []).map((option, index)=><input key={index} value={option} onChange={e=>updateRepeaterOption(field.id,sub.id,index,e.target.value)} className="h-8 w-full rounded-lg border border-slate-200 px-2 text-[11px]"/>)}<button type="button" onClick={()=>addRepeaterOption(field.id,sub.id)} className="text-[10px] font-black text-primary">+ Agregar opción</button></div>}</div>)}</div>}
                 </div>
               ))}
@@ -950,7 +1030,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
           )}
         </div>
       )}
-      {viewingResponse && (() => { const form = responseForm(viewingResponse); return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"><div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl"><div className="mb-5 flex items-start justify-between gap-4 border-b border-slate-100 pb-4"><div><h3 className="text-sm font-black uppercase text-slate-850">{form.titulo || 'Formulario'}</h3><p className="mt-1 text-xs text-slate-500">{viewingResponse.inspector || 'Anónimo'} · {viewingResponse.proyecto_nombre || 'Sin obra'} · {new Date(viewingResponse.created_at || Date.now()).toLocaleString('es-CL')}</p></div><button onClick={() => setViewingResponse(null)} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700">Cerrar</button></div><div className="space-y-4">{(form.campos || []).map(field => <div key={field.id} className="rounded-xl border border-slate-200 p-3"><p className="text-[10px] font-black uppercase text-slate-500">{field.label}</p>{field.type === 'photo' && viewingResponse.respuestas?.[field.id] ? <img src={viewingResponse.respuestas[field.id]} alt="Evidencia" className="mt-2 max-h-64 rounded-lg border border-slate-200" /> : field.type === 'signature' && viewingResponse.respuestas?.[field.id] ? <img src={viewingResponse.respuestas[field.id]} alt="Firma" className="mt-2 max-h-24" /> : <p className="mt-1 text-sm text-slate-800 whitespace-pre-wrap">{Array.isArray(viewingResponse.respuestas?.[field.id]) ? viewingResponse.respuestas[field.id].join(', ') : (typeof viewingResponse.respuestas?.[field.id] === 'object' ? JSON.stringify(viewingResponse.respuestas?.[field.id]) : (viewingResponse.respuestas?.[field.id] || 'Sin respuesta'))}</p>}</div>)}</div></div></div>; })()}
+      {viewingResponse && (() => { const form = responseForm(viewingResponse); return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"><div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl"><div className="mb-5 flex items-start justify-between gap-4 border-b border-slate-100 pb-4"><div><h3 className="text-sm font-black uppercase text-slate-850">{form.titulo || 'Formulario'}</h3><p className="mt-1 text-xs text-slate-500">{viewingResponse.inspector || 'Anónimo'} · {viewingResponse.proyecto_nombre || 'Sin centro'} · {new Date(viewingResponse.created_at || Date.now()).toLocaleString('es-CL')}</p></div><button onClick={() => setViewingResponse(null)} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700">Cerrar</button></div><div className="space-y-4">{(form.campos || []).map(field => <div key={field.id} className="rounded-xl border border-slate-200 p-3"><p className="text-[10px] font-black uppercase text-slate-500">{field.label}</p>{renderResponseAnswer(field, viewingResponse)}</div>)}</div></div></div>; })()}
     </div>
   );
 }

@@ -210,6 +210,12 @@ export function generateFormPdf({ form, metadata, answers, mainSignature, compan
     } else if (field.type === 'checkbox') {
       doc.text(Array.isArray(val) && val.length ? val.join(', ') : 'Sin alternativas marcadas', margin, y);
       y += 5;
+    } else if (field.type === 'data_lookup' && val && typeof val === 'object') {
+      Object.entries(val).filter(([key]) => !key.startsWith('_')).forEach(([key, itemValue]) => {
+        const label = field.sourceColumns?.find(column => column.key === key)?.label || key;
+        const lines = doc.splitTextToSize(`${label}: ${itemValue || 'N/R'}`, contentWidth - 5);
+        lines.forEach(line => { checkPage(5); doc.text(line, margin + 5, y); y += 5; });
+      });
     } else {
       const textVal = String(val || 'N/R');
       // Ajustar texto largo en múltiples líneas

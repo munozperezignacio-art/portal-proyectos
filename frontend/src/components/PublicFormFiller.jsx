@@ -13,6 +13,8 @@ export default function PublicFormFiller({ formToken }) {
 
   const [fillAnswers, setFillAnswers] = useState({});
   const [fillMetadata, setFillMetadata] = useState({
+    centro_gestion_id: '',
+    obra_id: '',
     proyecto_nombre: '',
     inspector: ''
   });
@@ -27,9 +29,11 @@ export default function PublicFormFiller({ formToken }) {
   const [repeaterSignatures, setRepeaterSignatures] = useState({});
 
   const [obrasList, setObrasList] = useState([]);
+  const [centrosGestion, setCentrosGestion] = useState([]);
   const [maquinariaList, setMaquinariaList] = useState([]);
   const [formCompanyBranding, setFormCompanyBranding] = useState(null);
   const [personalMaestro, setPersonalMaestro] = useState([]);
+  const [linkedCatalogs, setLinkedCatalogs] = useState({});
 
   // Formularios anteriores guardan un arreglo; los nuevos guardan además el
   // control documental dentro del mismo JSON. Ambos formatos siguen vigentes.
@@ -98,7 +102,8 @@ export default function PublicFormFiller({ formToken }) {
         const normalizedForm = normalizeForm(data);
         setForm(normalizedForm);
         
-        // Cargar marca de la empresa propietaria y listado de obras activas
+        // Cargar marca de la empresa propietaria y catálogos vinculados.
+        let loadedWorks = [];
         try {
           const { data: config } = await supabase
             .from('config_empresa')
@@ -107,24 +112,30 @@ export default function PublicFormFiller({ formToken }) {
             .maybeSingle();
           if (config) setFormCompanyBranding(config);
 
-          const { data: activeObras } = await supabase
-            .from('obras')
-            .select('nombre')
-            .order('nombre');
-          if (activeObras) setObrasList(activeObras);
-
-          const { data: equipment } = await supabase
-            .from('inventario_maquinaria')
-            .select('id, patente, tipo, marca, obra_nombre, horometro_inicial')
-            .eq('empresa', data.empresa || 'Obraxis')
-            .order('patente');
-          if (equipment) setMaquinariaList(equipment);
+          const { data: centerCatalog, error: centerError } = await supabase.rpc('formulario_centros_gestion', { p_token: String(formToken) });
+          if (centerError) throw centerError;
+          const centers = Array.isArray(centerCatalog) ? centerCatalog : [];
+          setCentrosGestion(centers);
+          loadedWorks = centers.filter(center => center.obra_id).map(center => ({ id: center.obra_id, nombre: center.obra_nombre, centro_gestion_id: center.id }));
+          setObrasList(loadedWorks);
 
           const { data: personal } = await supabase
             .from('maestro_personal')
             .select('nombre, rut, cargo')
+            .eq('empresa', data.empresa || 'Obraxis')
             .order('nombre');
           if (personal) setPersonalMaestro(personal);
+
+          const linkedFields = (normalizedForm.campos || []).filter(field => field.type === 'data_lookup');
+          const catalogs = await Promise.all(linkedFields.map(async field => {
+            const { data: catalog, error: catalogError } = await supabase.rpc('formulario_catalogo_vinculado', { p_token: String(formToken), p_campo_id: String(field.id) });
+            if (catalogError) console.warn(`No se pudo cargar el catálogo ${field.label}:`, catalogError.message);
+            return [field.id, Array.isArray(catalog) ? catalog : []];
+          }));
+          const linkedCatalogMap = Object.fromEntries(catalogs);
+          setLinkedCatalogs(linkedCatalogMap);
+          const machineryCatalog = linkedFields.filter(field => field.source === 'machinery').flatMap(field => linkedCatalogMap[field.id] || []);
+          setMaquinariaList(machineryCatalog.map(item => ({ id: item._id, patente: item.patente, tipo: item.tipo, marca: item.marca, obra_nombre: loadedWorks.find(work => work.id === item.obra_id)?.nombre || '', horometro_inicial: item.horometro_inicial })));
         } catch (errMeta) {
           console.error('Error al cargar datos auxiliares:', errMeta.message);
         }
@@ -138,7 +149,10 @@ export default function PublicFormFiller({ formToken }) {
         });
         setFillAnswers(initial);
         const obraPreseleccionada = new URLSearchParams(window.location.search).get('obra');
-        if (obraPreseleccionada) setFillMetadata(current => ({ ...current, proyecto_nombre: obraPreseleccionada }));
+        if (obraPreseleccionada) {
+          const selectedWork = loadedWorks.find(work => work.nombre === obraPreseleccionada);
+          setFillMetadata(current => ({ ...current, proyecto_nombre: obraPreseleccionada, obra_id: selectedWork?.id || '', centro_gestion_id: selectedWork?.centro_gestion_id || '' }));
+        }
       }
     } catch (err) {
       setError('Error cargando formulario: ' + err.message);
@@ -177,6 +191,15 @@ export default function PublicFormFiller({ formToken }) {
   const isWarehouseEquipment = (equipment) => {
     const assignedWork = String(equipment.obra_nombre || '').trim().toLowerCase();
     return !assignedWork || assignedWork.includes('bodega') || assignedWork.includes('sin asignar') || assignedWork === 'libre';
+  };
+
+  const selectLinkedRecord = (field, recordId) => {
+    const record = (linkedCatalogs[field.id] || []).find(item => String(item._id) === String(recordId));
+    if (!record) { setFillAnswers(previous => ({ ...previous, [field.id]: null })); return; }
+    const selectedKeys = [field.selectorKey, ...(field.autofillKeys || [])];
+    const answer = { _id: record._id, _display: record._display };
+    selectedKeys.forEach(key => { answer[key] = record[key] ?? ''; });
+    setFillAnswers(previous => ({ ...previous, [field.id]: answer }));
   };
 
   // Manejo de bloques repetibles
@@ -292,6 +315,8 @@ export default function PublicFormFiller({ formToken }) {
         .insert([
           {
             formulario_id: form.id,
+            centro_gestion_id: fillMetadata.centro_gestion_id ? Number(fillMetadata.centro_gestion_id) : null,
+            obra_id: fillMetadata.obra_id ? Number(fillMetadata.obra_id) : null,
             proyecto_nombre: fillMetadata.proyecto_nombre.trim() || 'Terreno',
             inspector: fillMetadata.inspector.trim() || 'Trabajador Terreno',
             respuestas: finalAnswers,
@@ -370,6 +395,9 @@ export default function PublicFormFiller({ formToken }) {
               formattedAns = ans ? `<img src="${ans}" style="max-height: 50px;" />` : '<span style="color: #94a3b8; font-style: italic;">No firmado</span>';
             } else if (field.type === 'photo') {
               formattedAns = ans ? `<img src="${ans}" style="max-height: 160px; border-radius: 8px;" />` : '<span style="color: #94a3b8; font-style: italic;">Sin evidencia fotográfica</span>';
+            } else if (field.type === 'data_lookup' && ans) {
+              const columns = field.sourceColumns || [];
+              formattedAns = Object.entries(ans).filter(([key]) => !key.startsWith('_')).map(([key, value]) => `<b>${columns.find(column => column.key === key)?.label || key}:</b> ${value || 'N/R'}`).join('<br/>');
             } else if (field.type === 'checkbox') {
               formattedAns = Array.isArray(ans) && ans.length ? ans.join(', ') : 'Sin alternativas marcadas';
             } else {
@@ -559,24 +587,27 @@ export default function PublicFormFiller({ formToken }) {
           {/* Identificación del Terreno */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
             <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Obra Activa Seleccionada *</label>
+              <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Centro de gestión *</label>
               <select
                 required
-                value={fillMetadata.proyecto_nombre}
+                value={fillMetadata.centro_gestion_id}
                 onChange={(e) => {
-                  setFillMetadata({ ...fillMetadata, proyecto_nombre: e.target.value });
+                  const centerId = e.target.value;
+                  const linkedWork = obrasList.find(work => String(work.centro_gestion_id) === String(centerId));
+                  const center = centrosGestion.find(item => String(item.id) === String(centerId));
+                  setFillMetadata({ ...fillMetadata, centro_gestion_id: centerId, obra_id: linkedWork?.id || '', proyecto_nombre: linkedWork?.nombre || center?.nombre || 'Centro corporativo' });
                   if (form.tipo_registro === 'maquinaria_uso') {
                     setFillAnswers(previous => ({ ...previous, equipo_patente: '', marca_modelo: '', unidad_medicion: '', horometro_inicial: '' }));
                   }
                 }}
                 className="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs font-semibold uppercase text-slate-800 focus:outline-none focus:border-primary"
               >
-                <option value="">-- Selecciona Obra --</option>
-                <option value="Bodega / sin asignar">Bodega / sin asignar</option>
-                {obrasList.map((ob, oIdx) => (
-                  <option key={oIdx} value={ob.nombre}>{ob.nombre}</option>
+                <option value="">-- Selecciona centro de gestión --</option>
+                {centrosGestion.map(center => (
+                  <option key={center.id} value={center.id}>{center.codigo} · {center.nombre}{obrasList.find(work => String(work.centro_gestion_id) === String(center.id)) ? ` · ${obrasList.find(work => String(work.centro_gestion_id) === String(center.id)).nombre}` : ''}</option>
                 ))}
               </select>
+              {fillMetadata.proyecto_nombre && <p className="mt-1 text-[9px] font-bold text-slate-500">Obra vinculada: {fillMetadata.proyecto_nombre}</p>}
             </div>
             <div>
               <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Inspector / Trabajador *</label>
@@ -723,13 +754,23 @@ export default function PublicFormFiller({ formToken }) {
               // CAMPOS ESTÁNDAR
               const measurementName = fillAnswers.unidad_medicion === 'Kilometraje (km)' ? 'Kilometraje' : 'Horómetro';
               const displayedLabel = f.id === 'horometro_inicial' ? `${measurementName} inicial` : f.id === 'horometro_final' ? `${measurementName} final` : f.label;
+              const linkedOptions = (linkedCatalogs[f.id] || []).filter(item => !fillMetadata.centro_gestion_id || !item.centro_gestion_id || String(item.centro_gestion_id) === String(fillMetadata.centro_gestion_id));
               return (
                 <div key={f.id} className="space-y-2 border-b border-slate-100 pb-5">
                   <label className="block text-xs font-extrabold text-slate-800 uppercase">
                     {index + 1}. {displayedLabel} {f.required && <span className="text-red-500">*</span>}
                   </label>
 
-                  {form.tipo_registro === 'maquinaria_uso' && f.id === 'equipo_patente' ? (
+                  {f.type === 'data_lookup' ? (
+                    <div className="space-y-3 rounded-2xl border border-blue-100 bg-blue-50/40 p-3">
+                      <select required={f.required} value={fillAnswers[f.id]?._id || ''} onChange={e => selectLinkedRecord(f, e.target.value)} disabled={!fillMetadata.centro_gestion_id} className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-800 disabled:bg-slate-100">
+                        <option value="">{fillMetadata.centro_gestion_id ? '-- Seleccionar --' : '-- Primero selecciona un centro de gestión --'}</option>
+                        {linkedOptions.map(item => <option key={item._id} value={item._id}>{item._display}</option>)}
+                      </select>
+                      {fillAnswers[f.id] && <div className="grid gap-2 sm:grid-cols-2">{Object.entries(fillAnswers[f.id]).filter(([key]) => !key.startsWith('_')).map(([key, value]) => <div key={key} className="rounded-lg border border-blue-100 bg-white p-2"><p className="text-[9px] font-black uppercase text-slate-400">{f.sourceColumns?.find(column => column.key === key)?.label || key}</p><p className="mt-1 text-xs font-bold text-slate-700">{String(value || 'Sin información')}</p></div>)}</div>}
+                      {!linkedOptions.length && fillMetadata.centro_gestion_id && <p className="text-[10px] font-bold text-amber-700">No hay registros disponibles para este centro de gestión.</p>}
+                    </div>
+                  ) : form.tipo_registro === 'maquinaria_uso' && f.id === 'equipo_patente' ? (
                     <select
                       required={f.required}
                       value={fillAnswers[f.id] || ''}
