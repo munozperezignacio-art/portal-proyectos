@@ -14,7 +14,7 @@ export const PERMISSION_ACTIONS = [
 export const PERMISSIONS_CATALOG = [
   { id: 'obras', label: 'Obras', menus: [
     { id: 'ficha', label: 'Ficha de la obra', actions: ['ver', 'crear', 'editar', 'eliminar', 'configurar'] },
-    { id: 'avances', label: 'Avances', actions: ['ver', 'crear', 'editar', 'eliminar', 'revisar', 'descargar'] },
+    { id: 'avances', label: 'Avances', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'revisar', 'descargar'] },
     { id: 'gestion', label: 'Presupuesto, programación y costos', actions: ['ver', 'crear', 'editar', 'eliminar', 'descargar', 'configurar'] },
     { id: 'estados_pago', label: 'Estados de Pago', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'revisar', 'aprobar', 'descargar', 'configurar'] },
     { id: 'libro_obra', label: 'Libro de Obra', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'revisar', 'aprobar', 'descargar', 'configurar'] },
@@ -40,7 +40,7 @@ export const PERMISSIONS_CATALOG = [
     { id: 'estadisticas', label: 'Estadísticas de Bodega', actions: ['ver', 'descargar', 'configurar'] },
   ]},
   { id: 'prevencion', label: 'Prevención de Riesgos', menus: [
-    { id: 'registros', label: 'Registros e inspecciones', actions: ['ver', 'crear', 'editar', 'eliminar', 'revisar', 'aprobar', 'descargar', 'configurar'] },
+    { id: 'registros', label: 'Registros e inspecciones', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'revisar', 'aprobar', 'descargar', 'configurar'] },
     { id: 'procedimientos', label: 'Procedimientos', actions: ['ver', 'crear', 'editar', 'eliminar', 'revisar', 'aprobar', 'descargar', 'configurar'] },
     { id: 'estadisticas', label: 'Estadísticas de Prevención', actions: ['ver', 'descargar', 'configurar'] },
   ]},
@@ -69,8 +69,8 @@ export const PERMISSIONS_CATALOG = [
     { id: 'acreditaciones', label: 'Acreditaciones contractuales', actions: ['ver', 'crear', 'editar', 'enviar', 'revisar', 'aprobar', 'descargar', 'configurar'] },
   ]},
   { id: 'admin', label: 'Panel de control', menus: [
-    { id: 'usuarios', label: 'Usuarios y roles', actions: ['ver', 'crear', 'editar', 'eliminar', 'configurar'] },
-    { id: 'permisos', label: 'Permisos y flujos', actions: ['ver', 'editar', 'configurar'] },
+    { id: 'usuarios', label: 'Usuarios y roles', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'configurar'] },
+    { id: 'permisos', label: 'Permisos y flujos', actions: ['ver', 'editar', 'enviar', 'configurar'] },
     { id: 'auditoria', label: 'Auditoría General', actions: ['ver', 'descargar', 'configurar'] },
   ]},
 ];

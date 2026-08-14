@@ -88,7 +88,6 @@ function ConfigCorreos({ user, onBack }) {
     color_secundario: '#1d4ed8',
     modulos_activos: [],
     submenus_activos: [],
-    email_api_key: '',
     email_sender: 'notificaciones@obraxis.cl'
   });
 
@@ -594,7 +593,8 @@ function ConfigCorreos({ user, onBack }) {
               to: dataToSave.correo,
               subject: '🔐 Tus credenciales de acceso a Obraxis',
               htmlContent: welcomeHtml,
-              customSender: 'usuarios@obraxis.cl'
+              customSender: 'usuarios@obraxis.cl',
+              permissionKey: 'admin.usuarios.enviar'
             });
           } catch (mailErr) {
             console.error('Error al enviar correo de credenciales:', mailErr.message);
@@ -672,7 +672,6 @@ function ConfigCorreos({ user, onBack }) {
       color_secundario: '#1d4ed8',
       modulos_activos: Array.from(new Set(['admin', ...defaultModules])),
       submenus_activos: defaultSubmenus,
-      email_api_key: '',
       email_sender: globalSettings.correo_remitente
     });
     setSuccessMsg('');
@@ -701,7 +700,6 @@ function ConfigCorreos({ user, onBack }) {
       color_secundario: comp.color_secundario || '#1d4ed8',
       modulos_activos: comp.modulos_activos ? comp.modulos_activos.split(',').map(m => m.trim()) : [],
       submenus_activos: comp.submenus_activos ? comp.submenus_activos.split(',').map(s => s.trim()) : [],
-      email_api_key: comp.email_api_key || '',
       email_sender: comp.email_sender || 'notificaciones@obraxis.cl'
     });
     setSuccessMsg('');
@@ -767,7 +765,6 @@ function ConfigCorreos({ user, onBack }) {
       moneda: globalSettings.moneda,
       configuracion_completa: true,
       updated_at: new Date().toISOString(),
-      email_api_key: companyFormData.email_api_key ? companyFormData.email_api_key.trim() : null,
       email_sender: companyFormData.email_sender ? companyFormData.email_sender.trim() : 'notificaciones@obraxis.cl'
     };
 
@@ -868,7 +865,8 @@ function ConfigCorreos({ user, onBack }) {
           const mailResult = await sendSystemEmail({
             to: dataToSave.correo_administrador,
             subject: `Bienvenido a Obraxis · ${dataToSave.empresa}`,
-            htmlContent: `<div style="max-width:650px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:28px;font-family:Arial,sans-serif;color:#1e293b"><h2 style="color:#073b76">Tu empresa ya está habilitada en Obraxis</h2><p>Hola <strong>${dataToSave.administrador}</strong>,</p><p>Se creó la cuenta inicial de administración para <strong>${dataToSave.empresa}</strong>.</p><div style="background:#f8fafc;border-radius:12px;padding:18px;margin:20px 0"><p><strong>Usuario:</strong> ${adminUsername}</p><p><strong>Contraseña temporal:</strong> ${initialPassword}</p><p><strong>Rol:</strong> ${adminRoleName}</p></div><p style="text-align:center"><a href="https://www.obraxis.cl/login" style="display:inline-block;background:#073b76;color:#fff;padding:12px 22px;border-radius:9px;text-decoration:none;font-weight:bold">Ingresar a Obraxis</a></p><p style="font-size:12px;color:#64748b">Al ingresar podrás cambiar nombres, crear nuevos roles y configurar sus permisos sin acceder a información de otras empresas.</p></div>`
+            htmlContent: `<div style="max-width:650px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:28px;font-family:Arial,sans-serif;color:#1e293b"><h2 style="color:#073b76">Tu empresa ya está habilitada en Obraxis</h2><p>Hola <strong>${dataToSave.administrador}</strong>,</p><p>Se creó la cuenta inicial de administración para <strong>${dataToSave.empresa}</strong>.</p><div style="background:#f8fafc;border-radius:12px;padding:18px;margin:20px 0"><p><strong>Usuario:</strong> ${adminUsername}</p><p><strong>Contraseña temporal:</strong> ${initialPassword}</p><p><strong>Rol:</strong> ${adminRoleName}</p></div><p style="text-align:center"><a href="https://www.obraxis.cl/login" style="display:inline-block;background:#073b76;color:#fff;padding:12px 22px;border-radius:9px;text-decoration:none;font-weight:bold">Ingresar a Obraxis</a></p><p style="font-size:12px;color:#64748b">Al ingresar podrás cambiar nombres, crear nuevos roles y configurar sus permisos sin acceder a información de otras empresas.</p></div>`,
+            permissionKey: 'admin.usuarios.enviar'
           });
           credentialsMailSent = Boolean(mailResult?.success);
           if (!credentialsMailSent) console.error('No fue posible enviar las credenciales:', mailResult?.error);
@@ -891,10 +889,6 @@ function ConfigCorreos({ user, onBack }) {
   };
 
   const handleSendTestEmail = async () => {
-    if (!companyFormData.email_api_key) {
-      alert("Por favor ingrese la API Key de Resend primero.");
-      return;
-    }
     setTestMailLoading(true);
     try {
       const testHtml = `
@@ -913,7 +907,8 @@ function ConfigCorreos({ user, onBack }) {
       const res = await sendSystemEmail({
         to: recipient,
         subject: '🧪 Prueba de Envío de Correo - Obraxis',
-        htmlContent: testHtml
+        htmlContent: testHtml,
+        permissionKey: 'admin.permisos.enviar'
       });
 
       if (res.success) {
@@ -957,19 +952,18 @@ function ConfigCorreos({ user, onBack }) {
     setPlatSuccess('');
     setPlatError('');
     try {
-      const [{ data, error }, { data: legacy, error: legacyError }, { data: sessionData }, aiProbe] = await Promise.all([
+      const [{ data, error }, { data: sessionData }, aiProbe, mailProbe] = await Promise.all([
         supabase.from('config_global_obraxis').select('*').eq('id', 1).maybeSingle(),
-        supabase.from('config_empresa').select('email_api_key').eq('empresa', 'Obraxis').maybeSingle(),
         supabase.auth.getSession(),
-        supabase.functions.invoke('leer-boleta-ia', { body: {} })
+        supabase.functions.invoke('leer-boleta-ia', { body: {} }),
+        supabase.functions.invoke('enviar-correo-sistema', { body: { action: 'health', permissionKey: 'admin.permisos.enviar' } })
       ]);
       if (error) throw error;
-      if (legacyError) throw legacyError;
       if (data) setGlobalSettings(current => ({ ...current, ...data, hora_resumen_diario: String(data.hora_resumen_diario || '18:00').slice(0, 5) }));
       setServiceStatus({
         database: true,
         auth: Boolean(sessionData?.session?.user),
-        email: Boolean(legacy?.email_api_key),
+        email: !mailProbe?.error && Boolean(mailProbe?.data?.configured),
         ai: !aiProbe?.error || ![401, 503].includes(Number(aiProbe?.error?.context?.status || 0))
       });
     } catch (err) {
@@ -1025,7 +1019,8 @@ function ConfigCorreos({ user, onBack }) {
         to: recipient,
         subject: '🧪 Prueba de Envío de Correo Global - Obraxis',
         htmlContent: testHtml,
-        customSender: senderToUse
+        customSender: senderToUse,
+        permissionKey: 'admin.permisos.enviar'
       });
 
       if (res.success) {
@@ -2272,17 +2267,8 @@ function ConfigCorreos({ user, onBack }) {
 
               {companyFormData.empresa === 'Obraxis' && (
                 <div className="border-t border-slate-100 pt-4 space-y-4">
-                  <h4 className="font-bold text-slate-800 text-xs">Configuración de Correo (Resend API)</h4>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Resend API Key</label>
-                    <input
-                      type="password"
-                      value={companyFormData.email_api_key || ''}
-                      onChange={(e) => setCompanyFormData({ ...companyFormData, email_api_key: e.target.value })}
-                      placeholder="re_xxxxxxxx"
-                      className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 focus:outline-none focus:border-primary"
-                    />
-                  </div>
+                  <h4 className="font-bold text-slate-800 text-xs">Configuración de correo</h4>
+                  <p className="rounded-lg border border-emerald-100 bg-emerald-50 p-2.5 text-[10px] font-semibold leading-relaxed text-emerald-800">La clave de Resend se administra exclusivamente mediante Supabase Secrets y nunca se expone en el navegador.</p>
                   <div>
                     <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Correo Remitente Autorizado</label>
                     <input

@@ -396,6 +396,7 @@ export default function ExecutiveReportScheduler({
           to,
           subject: `${schedule.nombre} · ${user.empresa}`,
           htmlContent: result.html,
+          permissionKey: 'admin.permisos.enviar',
         });
         if (!mail.success) throw new Error(mail.error);
         state = "Enviado";

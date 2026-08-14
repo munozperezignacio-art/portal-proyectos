@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { Eye, EyeOff, Lock, Building2, User, AlertCircle, Loader2, QrCode, Navigation, RotateCcw, CheckCircle2, AlertTriangle, Search, Mail, KeyRound } from 'lucide-react';
-import { sendSystemEmail } from '../utils/emailService';
 import { getAuthenticatedProfile } from '../utils/auth';
 
 function Login({ onLoginSuccess, onBackHome }) {
@@ -910,29 +909,6 @@ function Login({ onLoginSuccess, onBackHome }) {
                     // 1. Trigger Supabase reset email
                     await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
                       redirectTo: `${window.location.origin}/reset-password`
-                    });
-
-                    // 2. Send transactional notification email via Resend (usuarios@obraxis.cl)
-                    const htmlEmail = `
-                      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
-                        <h2 style="color: #1e3a8a; margin-top: 0;">🔑 Solicitud de Recuperación de Contraseña</h2>
-                        <p style="color: #334155; font-size: 14px;">Hola,</p>
-                        <p style="color: #334155; font-size: 14px;">Hemos recibido una solicitud para reestablecer la contraseña de acceso a tu cuenta en <b>Obraxis Portal de Proyectos</b>.</p>
-                        <p style="color: #334155; font-size: 14px;">Si fuiste tú quien solicitó este cambio, haz clic en el siguiente botón para continuar:</p>
-                        <div style="text-align: center; margin: 25px 0;">
-                          <a href="${window.location.origin}" style="background-color: #1e3a8a; color: #ffffff; padding: 12px 24px; font-weight: bold; text-decoration: none; border-radius: 8px; display: inline-block;">Reestablecer Mi Contraseña</a>
-                        </div>
-                        <p style="color: #64748b; font-size: 12px; margin-top: 20px; border-top: 1px solid #f1f5f9; padding-top: 12px;">
-                          Este correo fue enviado automáticamente desde <b>usuarios@obraxis.cl</b>. Si no solicitaste este cambio, puedes ignorar este mensaje de forma segura.
-                        </p>
-                      </div>
-                    `;
-
-                    await sendSystemEmail({
-                      to: resetEmail.trim(),
-                      subject: '🔑 Recuperación de Contraseña Obraxis',
-                      htmlContent: htmlEmail,
-                      customSender: 'usuarios@obraxis.cl'
                     });
 
                     setResetSent(true);

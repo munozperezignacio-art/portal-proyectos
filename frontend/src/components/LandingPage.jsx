@@ -3,7 +3,6 @@ import {
   ArrowRight, BarChart3, Building2, CheckCircle2, ClipboardCheck,
   FileCheck2, LayoutDashboard, Loader2, Mail, Menu, Send, ShieldCheck, Smartphone, Truck, Users
 } from 'lucide-react';
-import { sendSystemEmail } from '../utils/emailService';
 
 const features = [
   { icon: Building2, title: 'Obras conectadas', text: 'Presupuesto, programación, avances, costos y estados de pago en una misma lectura.' },
@@ -11,8 +10,6 @@ const features = [
   { icon: ShieldCheck, title: 'Calidad y prevención', text: 'PAC, no conformidades, procedimientos, incidentes y evidencias con trazabilidad.' },
   { icon: Truck, title: 'Recursos bajo control', text: 'Personal, cuadrillas, equipos, horómetros, kilometraje, mantenciones e inventario.' }
 ];
-const escapeHtml = (value) => String(value || '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
-
 export default function LandingPage({ onGoToLogin, user, onGoToDashboard }) {
   const openPortal = user ? onGoToDashboard : onGoToLogin;
   const [contact, setContact] = useState({ nombre: '', empresa: '', correo: '', telefono: '', mensaje: '' });
@@ -42,16 +39,14 @@ export default function LandingPage({ onGoToLogin, user, onGoToDashboard }) {
     setSendingContact(true);
     setContactStatus(null);
     const clean = Object.fromEntries(Object.entries(contact).map(([key, value]) => [key, value.trim()]));
-    const safe = Object.fromEntries(Object.entries(clean).map(([key, value]) => [key, escapeHtml(value)]));
-    const result = await sendSystemEmail({
-      to: 'contacto@obraxis.cl',
-      subject: `Solicitud de cotización · ${clean.empresa || clean.nombre}`,
-      htmlContent: `<div style="max-width:650px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;padding:28px;font-family:Arial,sans-serif;color:#1e293b;"><h2 style="margin:0 0 18px;color:#073b76;">Nueva consulta desde obraxis.cl</h2><table style="width:100%;border-collapse:collapse;font-size:14px;"><tr><td style="padding:9px 0;color:#64748b;width:130px;">Nombre</td><td style="padding:9px 0;font-weight:bold;">${safe.nombre}</td></tr><tr><td style="padding:9px 0;color:#64748b;">Empresa</td><td style="padding:9px 0;font-weight:bold;">${safe.empresa || 'No indicada'}</td></tr><tr><td style="padding:9px 0;color:#64748b;">Correo</td><td style="padding:9px 0;font-weight:bold;"><a href="mailto:${safe.correo}" style="color:#073b76;">${safe.correo}</a></td></tr><tr><td style="padding:9px 0;color:#64748b;">Teléfono</td><td style="padding:9px 0;font-weight:bold;">${safe.telefono || 'No indicado'}</td></tr></table><div style="margin-top:18px;padding:16px;background:#f8fafc;border-radius:12px;"><div style="font-size:11px;font-weight:bold;color:#64748b;text-transform:uppercase;">Mensaje</div><p style="margin:8px 0 0;line-height:1.6;white-space:pre-wrap;">${safe.mensaje}</p></div></div>`
-    });
+    const subject = encodeURIComponent(`Solicitud de cotización · ${clean.empresa || clean.nombre}`);
+    const body = encodeURIComponent(`Nombre: ${clean.nombre}\nEmpresa: ${clean.empresa || 'No indicada'}\nCorreo: ${clean.correo}\nTeléfono: ${clean.telefono || 'No indicado'}\n\n${clean.mensaje}`);
+    window.location.href = `mailto:contacto@obraxis.cl?subject=${subject}&body=${body}`;
+    const result = { success: true };
     setSendingContact(false);
     if (result.success) {
       setContact({ nombre: '', empresa: '', correo: '', telefono: '', mensaje: '' });
-      setContactStatus({ ok: true, text: 'Recibimos tu solicitud de cotización. Te contactaremos pronto.' });
+      setContactStatus({ ok: true, text: 'Se abrió tu aplicación de correo para completar el envío.' });
     } else {
       setContactStatus({ ok: false, text: `No fue posible enviar la consulta. Escríbenos a contacto@obraxis.cl. (${result.error})` });
     }

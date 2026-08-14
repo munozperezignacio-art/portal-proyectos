@@ -88,6 +88,7 @@ export default function ClientesPortal({ user, onBack }) {
           to: data.contacto_email,
           subject: `Acceso al Portal del Cliente - ${empresa}`,
           htmlContent: `<div style="max-width:650px;margin:auto;background:white;border-radius:18px;padding:28px"><h2 style="color:#0f172a">Portal del Cliente</h2><p>${data.contacto_nombre}, ${empresa} habilitó un espacio para consultar la información autorizada de sus obras.</p><p><a href="${portalUrl(data.token)}" style="display:inline-block;padding:12px 20px;background:#0f172a;color:white;border-radius:10px;text-decoration:none;font-weight:bold">Ingresar al portal</a></p><p>Clave de acceso: <strong style="font-size:20px;letter-spacing:2px">${code}</strong></p><p style="color:#64748b">La clave es personal. No la compartas.</p></div>`,
+          permissionKey: 'clientes.portales.enviar',
         });
         setMessage(mail.success ? 'Portal creado y credenciales enviadas.' : `Portal creado. No se pudo enviar el correo: ${mail.error || 'revisa la configuración de correo'}.`);
       }

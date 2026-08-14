@@ -2193,7 +2193,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
             to: uniqueRecipients,
             subject: `📊 Reporte de Avance (${obraNombre}) - ${fechaStr}`,
             htmlContent: htmlEmail,
-            customSender: 'notificaciones@obraxis.cl'
+            customSender: 'notificaciones@obraxis.cl',
+            permissionKey: 'obras.avances.enviar'
           });
         }
       } catch (emailErr) {

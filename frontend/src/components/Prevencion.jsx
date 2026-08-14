@@ -1447,7 +1447,8 @@ export default function Prevencion({ user, onBack, companyBranding }) {
                 filename: `${selectedFormToFill.titulo.replace(/[^a-zA-Z0-9]/g, '_')}_Reporte.pdf`,
                 content_type: 'application/pdf'
               }
-            ]
+            ],
+            permissionKey: 'prevencion.registros.enviar'
           });
         }
       } catch (errMail) {

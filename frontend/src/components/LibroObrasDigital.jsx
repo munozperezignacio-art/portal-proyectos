@@ -268,6 +268,7 @@ export default function LibroObrasDigital({ user, obraNombre, obra }) {
         to: clientEmail,
         subject: `Libro de Obra ${entry.folio} · ${obraNombre}`,
         htmlContent: `<p>Hola ${clientName || ""},</p><p>Se ha enviado el folio <b>${entry.folio}</b> del Libro de Obra para su revisión.</p><p><a href="${link}">Abrir folio</a></p><p><b>Clave de acceso: ${code}</b></p><p>Desde el enlace puedes aceptar o dejar observaciones, identificando a la persona que responde.</p>`,
+        permissionKey: 'obras.libro_obra.enviar',
       });
       if (!result.success) throw new Error(result.error);
       await updateEntry(
