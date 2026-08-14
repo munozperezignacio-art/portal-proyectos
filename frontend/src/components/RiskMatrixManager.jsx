@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { AlertTriangle, ChevronDown, ChevronUp, Download, FileSpreadsheet, Paperclip, Plus, Save, Trash2, Upload } from 'lucide-react';
 import { supabase } from '../supabaseClient';
@@ -58,14 +58,14 @@ export default function RiskMatrixManager({ user, obras = [], canCreate = false,
   const [saving, setSaving] = useState(false);
   const fileRef = useRef(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase.from('prevencion_matrices_riesgo').select('*, prevencion_matriz_riesgo_filas(*)').eq('empresa', user?.empresa).order('updated_at', { ascending: false });
     setLoading(false);
     if (error) { setMessage(error.message); return; }
     setMatrices((data || []).map(item => ({ ...item, filas: (item.prevencion_matriz_riesgo_filas || []).sort((a, b) => a.orden - b.orden) })));
-  };
-  useEffect(() => { if (user?.empresa) load(); }, [user?.empresa]);
+  }, [user?.empresa]);
+  useEffect(() => { if (user?.empresa) load(); }, [load, user?.empresa]);
 
   const stats = useMemo(() => matrices.reduce((acc, matrix) => {
     acc.rows += matrix.filas?.length || 0;

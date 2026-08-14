@@ -2,7 +2,7 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
-Avance actualizado: Etapa 1 99%; Etapa 2 90%; Etapa 3 65%; Etapa 4 52%; Etapa 5 52%; plan completo 71%.
+Avance actualizado: Etapa 1 99%; Etapa 2 90%; Etapa 3 65%; Etapa 4 60%; Etapa 5 60%; plan completo 74%.
 
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
@@ -131,3 +131,6 @@ La plataforma se considerará lista para producción cuando no existan política
 - Eliminado un script heredado de inicialización que contenía una contraseña administrativa en texto plano; la autenticación vigente permanece centralizada en Supabase Auth.
 - Limpieza transversal adicional en Last Planner, DTE, PDF, acreditaciones, Estados de Pago, configuración y aplicación principal; las advertencias de lint bajaron de 97 a 55, sin errores.
 - Batería automatizada ampliada y verificada en 19 pruebas; compilación productiva correcta. Permanecen como alertas operativas la versión Node 22.11 y los paquetes mayores a 500 kB.
+- Cargadores de datos estabilizados con callbacks explícitos en contactos, documentos laborales, capacitación pública, matrices de riesgo, correo contextual, subcontratos, IA, conciliación, clientes, rendiciones, bodega, nómina y facturación.
+- Corregida una dependencia innecesaria que recalculaba el Flujo de Caja ante cambios de avance que no participan de su cálculo.
+- Advertencias de lint reducidas nuevamente de 55 a 40; el remanente queda concentrado en componentes históricos que requieren división por dominio.

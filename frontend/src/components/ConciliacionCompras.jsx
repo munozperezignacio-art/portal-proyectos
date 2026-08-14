@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Link2, RefreshCw, Save } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
@@ -13,7 +13,7 @@ export default function ConciliacionCompras({ empresa, user }) {
   const [rows, setRows] = useState([]);
   const [form, setForm] = useState(empty);
   const [message, setMessage] = useState('');
-  const load = async () => {
+  const load = useCallback(async () => {
     const [d, i, m, c] = await Promise.all([
       supabase.from('dte_documentos_operacion').select('*').eq('empresa', empresa).eq('direccion', 'Recibido').order('fecha_emision', { ascending: false }),
       supabase.from('dte_documento_items').select('*'),
@@ -23,8 +23,8 @@ export default function ConciliacionCompras({ empresa, user }) {
     const issue = d.error || i.error || m.error || c.error;
     if (issue) setMessage(`No fue posible cargar la conciliación: ${issue.message}`);
     else { setDocs(d.data || []); setItems(i.data || []); setMoves(m.data || []); setRows(c.data || []); }
-  };
-  useEffect(() => { if (empresa) load(); }, [empresa]);
+  }, [empresa]);
+  useEffect(() => { if (empresa) load(); }, [empresa, load]);
   const guides = docs.filter(doc => Number(doc.tipo_dte) === 52);
   const invoices = docs.filter(doc => [33, 34].includes(Number(doc.tipo_dte)));
   const credits = docs.filter(doc => Number(doc.tipo_dte) === 61);

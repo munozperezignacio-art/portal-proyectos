@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Building2, FileInput,
   FileOutput, Link2, Plus, RefreshCw, Save, Settings2, WalletCards
@@ -35,7 +35,7 @@ export default function FacturacionElectronica({ user, onBack, embedded = false 
   const [saleForm, setSaleForm] = useState(emptySale);
   const empresa = user?.empresa || '';
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!empresa) return;
     setLoading(true);
     setMessage('');
@@ -57,9 +57,9 @@ export default function FacturacionElectronica({ user, onBack, embedded = false 
     } catch (error) {
       setMessage(`No fue posible cargar Facturación Electrónica: ${error.message}`);
     } finally { setLoading(false); }
-  };
+  }, [empresa]);
 
-  useEffect(() => { load(); }, [empresa]);
+  useEffect(() => { load(); }, [load]);
 
   const centerMap = useMemo(() => new Map(centros.map(center => [String(center.id), center])), [centros]);
   const obraByCenter = useMemo(() => new Map(obras.filter(obra => obra.centro_gestion_id).map(obra => [String(obra.centro_gestion_id), obra])), [obras]);

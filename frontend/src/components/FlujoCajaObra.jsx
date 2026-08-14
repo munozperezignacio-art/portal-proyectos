@@ -70,7 +70,7 @@ export default function FlujoCajaObra({ obra, user, partidas = [], costos = [], 
     ajustes.forEach(item => { if (manual[item.periodo] !== undefined) manual[item.periodo] += (item.tipo === 'ingreso' ? 1 : -1) * Number(item.monto || 0); });
     let accumulated = 0;
     return keys.map(key => { const ingreso = actualIncome[key] || plannedIncome[key]; const egreso = actualExpense[key] || plannedExpense[key]; const flujo = ingreso - egreso + manual[key]; accumulated += flujo; return { key, ingreso, egreso, ajuste: manual[key], flujo, accumulated, realIngreso: actualIncome[key], realEgreso: actualExpense[key] }; });
-  }, [ajustes, avances, costos, estadosPago, liquidaciones, obra?.fecha_inicio, partidas]);
+  }, [ajustes, costos, estadosPago, liquidaciones, obra?.fecha_inicio, partidas]);
 
   const totals = rows.reduce((acc, row) => ({ ingreso: acc.ingreso + row.ingreso, egreso: acc.egreso + row.egreso, flujo: acc.flujo + row.flujo }), { ingreso: 0, egreso: 0, flujo: 0 });
   const submit = async event => { event.preventDefault(); const amount = Number(form.monto); if (!form.periodo || !amount || !form.descripcion.trim()) return; const next = [...ajustes, { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ...form, monto: amount, creado_por: user?.nombre || user?.email || 'Usuario autorizado', created_at: new Date().toISOString() }]; if (await saveAjustes(next)) setForm(current => ({ ...current, monto: '', descripcion: '' })); };

@@ -1,4 +1,4 @@
-import React,{useEffect,useMemo,useState}from'react';
+import React,{useCallback,useEffect,useMemo,useState}from'react';
 import{AlertTriangle,Bot,Building2,CheckCircle2,CircleDollarSign,Database,Loader2,LockKeyhole,RefreshCw,Save,ShieldCheck,Users,Workflow}from'lucide-react';
 import{supabase}from'../supabaseClient';
 
@@ -21,7 +21,7 @@ const numberOrBlank=value=>value===''?'':Number(value);
 
 export default function AIControlCenter({user}){
  const[loading,setLoading]=useState(true),[saving,setSaving]=useState(''),[message,setMessage]=useState(''),[companies,setCompanies]=useState([]),[configs,setConfigs]=useState([]),[usage,setUsage]=useState([]),[roles,setRoles]=useState([]),[users,setUsers]=useState([]),[selected,setSelected]=useState('');
- const load=async()=>{
+ const load=useCallback(async()=>{
   setLoading(true);setMessage('');const start=new Date();start.setUTCDate(1);start.setUTCHours(0,0,0,0);
   const[cfg,cfgs,uses,roleRows,userRows]=await Promise.all([
    supabase.from('config_empresa').select('empresa').order('empresa'),
@@ -35,8 +35,8 @@ export default function AIControlCenter({user}){
    const names=Array.from(new Set((cfg.data||[]).map(x=>x.empresa).filter(Boolean)));
    setCompanies(names);setConfigs(cfgs.data||[]);setUsage(uses.data||[]);setRoles(roleRows.data||[]);setUsers(userRows.data||[]);setSelected(current=>current||names[0]||user?.empresa||'');
   }setLoading(false);
- };
- useEffect(()=>{load()},[]);
+ },[]);
+ useEffect(()=>{load()},[load]);
  const current=useMemo(()=>configs.find(x=>x.empresa===selected)||{empresa:selected,habilitada:false,presupuesto_mensual_usd:10,bloquear_al_limite:true,alerta_porcentaje:80,modelo:'gpt-4.1-mini',funciones:DEFAULT_FEATURES,limites_funcion:{},limites_usuario:{}},[configs,selected]);
  const companyUsage=usage.filter(x=>x.empresa===selected&&['Reservado','Completado'].includes(x.estado));
  const companyRoles=roles.filter(x=>x.empresa===selected);

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Archive, Check, Copy, KeyRound, Loader2, Plus, Save, Settings2, Users } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { sendSystemEmail } from '../utils/emailService';
@@ -31,7 +31,7 @@ export default function ClientesPortal({ user, onBack }) {
   const [error, setError] = useState('');
   const [revealed, setRevealed] = useState({});
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!empresa) return;
     setLoading(true); setError('');
     const [p, a, e, o] = await Promise.all([
@@ -43,8 +43,8 @@ export default function ClientesPortal({ user, onBack }) {
     const firstError = [p, a, e, o].find(x => x.error)?.error;
     if (firstError) setError(firstError.message);
     setPortals(p.data || []); setAccesses(a.data || []); setEvents(e.data || []); setObras(o.data || []); setLoading(false);
-  };
-  useEffect(() => { load(); }, [empresa]);
+  }, [empresa]);
+  useEffect(() => { load(); }, [load]);
 
   const accessByPortal = useMemo(() => accesses.reduce((acc, item) => { (acc[item.portal_id] ||= []).push(item); return acc; }, {}), [accesses]);
   const clearForm = () => { setEditing(null); setForm(newForm()); setTab('portales'); setError(''); };

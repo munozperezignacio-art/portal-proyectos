@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { ShieldAlert, Play, Loader2, Award, ClipboardList, Send } from 'lucide-react';
 
@@ -16,13 +16,7 @@ export default function PublicTrainingFiller({ trainingToken }) {
   const [submitting, setSubmitting] = useState(false);
   const [attemptResult, setAttemptResult] = useState(null); // { puntaje_obtenido, puntaje_maximo, nota, aprobado }
 
-  useEffect(() => {
-    if (trainingToken) {
-      loadPublicTraining();
-    }
-  }, [trainingToken]);
-
-  const loadPublicTraining = async () => {
+  const loadPublicTraining = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -41,7 +35,13 @@ export default function PublicTrainingFiller({ trainingToken }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [trainingToken]);
+
+  useEffect(() => {
+    if (trainingToken) {
+      loadPublicTraining();
+    }
+  }, [trainingToken, loadPublicTraining]);
 
   // Convertidor de URL de YouTube/Vimeo a Embed Link
   const getEmbedUrl = (url) => {

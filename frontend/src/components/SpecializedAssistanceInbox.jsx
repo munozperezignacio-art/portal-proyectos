@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CalendarClock, CheckCircle2, ClipboardCheck, Filter, HardHat, RefreshCw, ShieldAlert, Truck, Users } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
@@ -26,7 +26,7 @@ export default function SpecializedAssistanceInbox({ user, obra, criticalPartida
   const company = user?.empresa || 'Obraxis';
   const work = obra?.nombre || '';
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!work) return;
     setLoading(true); setMessage('');
     const base = query => query.eq('empresa', company).eq('obra_nombre', work);
@@ -43,9 +43,9 @@ export default function SpecializedAssistanceInbox({ user, obra, criticalPartida
     const errors = results.filter(result => result.error);
     if (errors.length) setMessage('Algunas fuentes no pudieron consultarse. La bandeja muestra los datos disponibles.');
     setLoading(false);
-  };
+  }, [company, work]);
 
-  useEffect(() => { load(); }, [company, work]);
+  useEffect(() => { load(); }, [load]);
 
   const items = useMemo(() => {
     const rows = [];

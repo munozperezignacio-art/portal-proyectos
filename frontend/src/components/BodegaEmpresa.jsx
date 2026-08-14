@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Boxes, Building2, PackagePlus, ArrowRightLeft, AlertTriangle, Search, Plus, Save, Warehouse, History, PackageCheck, FileText, Link2, BarChart3 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import ModuleHeader from './ModuleHeader';
@@ -35,7 +35,7 @@ export default function BodegaEmpresa({ user, onBack }) {
   const [movForm, setMovForm] = useState({ bodega_id: '', producto_id: '', tipo: 'Entrada', cantidad: '', costo_unitario: '', documento: '', contraparte: '', observaciones: '', dte_documento_id: '', generar_guia: false });
   const [transferForm, setTransferForm] = useState({ origen: '', destino: '', producto_id: '', cantidad: '', observaciones: '' });
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!empresa) return;
     setLoading(true); setMessage('');
     const [b, p, m, c, o, g] = await Promise.all([
@@ -50,8 +50,8 @@ export default function BodegaEmpresa({ user, onBack }) {
     if (error) setMessage(`No fue posible cargar Bodega: ${error.message}`);
     else { setBodegas(b.data || []); setProductos(p.data || []); setMovimientos(m.data || []); setCentros(c.data || []); setObras(o.data || []); setGuias(g.data || []); }
     setLoading(false);
-  };
-  useEffect(() => { load(); }, [empresa]);
+  }, [empresa]);
+  useEffect(() => { load(); }, [load]);
 
   const stockRows = useMemo(() => {
     const map = new Map();

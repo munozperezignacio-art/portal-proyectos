@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { BookOpen, FileCheck2, FilePlus2, FileText, Landmark, Link2, Loader2, Plus, RefreshCw, Save, Search, Send, Settings2, ShieldCheck, Trash2, XCircle } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import useUserPermissions from '../utils/useUserPermissions';
@@ -41,7 +41,7 @@ export default function OperacionDTE({ user }) {
   const [error, setError] = useState('');
   const [folioForm, setFolioForm] = useState({ tipo_dte: 33, desde: '', hasta: '', fecha_autorizacion: '', archivo_nombre: '' });
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!empresa) return; setLoading(true); setError('');
     const [d, f, c, o, e, cfg] = await Promise.all([
       supabase.from('dte_documentos_operacion').select('*').eq('empresa', empresa).order('created_at', { ascending: false }),
@@ -55,8 +55,8 @@ export default function OperacionDTE({ user }) {
     if (issue) setError(issue.message);
     setDocs(d.data || []); setFolios(f.data || []); setCenters(c.data || []); setObras(o.data || []); setEstadosPago(e.data || []);
     if (cfg.data) setConfig(cfg.data); setLoading(false);
-  };
-  useEffect(() => { load(); }, [empresa]);
+  }, [empresa]);
+  useEffect(() => { load(); }, [load]);
   const emitted = docs.filter(d => d.direccion === 'Emitido');
   const received = docs.filter(d => d.direccion === 'Recibido');
   const filtered = list => list.filter(d => `${d.folio} ${d.razon_social_contraparte} ${d.rut_contraparte} ${d.estado}`.toLowerCase().includes(search.toLowerCase()));

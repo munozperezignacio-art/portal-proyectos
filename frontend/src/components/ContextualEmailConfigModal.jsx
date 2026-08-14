@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { Settings, Mail, Check, Plus } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
@@ -20,12 +20,7 @@ export default function ContextualEmailConfigModal({
 
   const storageKey = `emails_config_${user?.empresa || 'Obraxis'}_${moduloKey}_${obraNombre || 'global'}`;
 
-  useEffect(() => {
-    if (!isOpen) return;
-    loadConfig();
-  }, [isOpen, moduloKey, obraNombre]);
-
-  const loadConfig = async () => {
+  const loadConfig = useCallback(async () => {
     setLoading(true);
     setMsg({ type: '', text: '' });
     try {
@@ -60,7 +55,12 @@ export default function ContextualEmailConfigModal({
     } finally {
       setLoading(false);
     }
-  };
+  }, [storageKey, user?.empresa]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    loadConfig();
+  }, [isOpen, loadConfig]);
 
   const handleAddEmail = (type) => {
     if (type === 'to') {

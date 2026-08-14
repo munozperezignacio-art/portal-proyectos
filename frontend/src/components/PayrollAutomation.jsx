@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Building2, CheckCircle2, FileSpreadsheet, Printer, RefreshCw, Save } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { attendanceSummary, calculatePayroll } from '../utils/payrollChile';
@@ -19,7 +19,7 @@ export default function PayrollAutomation({ user, personal, centrosGestion = [],
   const [centerFilter, setCenterFilter] = useState('Todos');
   const parameters = useMemo(() => ({ ...indicadores, horasSemanales: indicadores.horasSemanales || 44, afpRates: afpCommissionRates }), [indicadores]);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true); setMessage('');
     const start = `${period}-01T00:00:00`, endDate = new Date(`${period}-01T00:00:00`); endDate.setMonth(endDate.getMonth() + 1);
     const [attendanceResult, runResult] = await Promise.all([
@@ -30,8 +30,8 @@ export default function PayrollAutomation({ user, personal, centrosGestion = [],
     if (runResult.data) { setStatus(runResult.data.estado); setSavedItems(runResult.data.rrhh_nomina_items || []); setNovelties(Object.fromEntries((runResult.data.rrhh_nomina_items || []).map(item => [item.trabajador_id, item.novedades || {}]))); }
     else { setStatus('Borrador'); setSavedItems([]); setNovelties({}); }
     setLoading(false);
-  };
-  useEffect(() => { load(); }, [period, user.empresa]);
+  }, [period, user.empresa]);
+  useEffect(() => { load(); }, [load]);
 
   const centerMap = useMemo(() => new Map(centrosGestion.map(center => [String(center.id), center])), [centrosGestion]);
   const allCalculations = useMemo(() => personal.filter(worker => String(worker.estado || 'Activo').toLowerCase() !== 'inactivo').map(worker => {

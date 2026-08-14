@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ArrowRightLeft, CheckCircle2, Link2, Plus } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
@@ -18,7 +18,7 @@ export default function CollaborativeContracts({ obra, user }) {
   const [form, setForm] = useState({ colaboracion_id: '', codigo: '', nombre: '', monto_contrato: '', fecha_inicio: '', fecha_termino: '' });
   const [mapping, setMapping] = useState({ partida_contratista_id: '', partida_colaboradora_id: '', cantidad_contratada: '', ponderacion: '', factor_conversion: 1 });
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const [c, k, o] = await Promise.all([
       supabase.from('colaboraciones_obra').select('*').eq('estado', 'Activa'),
       supabase.from('contratos_colaborativos').select('*').order('created_at', { ascending: false }),
@@ -29,9 +29,9 @@ export default function CollaborativeContracts({ obra, user }) {
     setCollaborations((c.data || []).filter(x => (x.empresa_contratista === company && x.obra_nombre === obra.nombre) || x.empresa_colaboradora === company));
     setContracts((k.data || []).filter(x => x.obra_contratista_id === obra.id || x.obra_colaboradora_id === obra.id || x.obra_contratista_nombre === obra.nombre || x.obra_colaboradora_nombre === obra.nombre));
     setWorks(o.data || []);
-  };
+  }, [company, obra.id, obra.nombre]);
 
-  useEffect(() => { load(); }, [obra.id, obra.nombre, company]);
+  useEffect(() => { load(); }, [load]);
 
   const open = async contract => {
     setSelected(contract);

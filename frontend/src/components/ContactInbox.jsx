@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Mail, MessageSquareText, RefreshCw, Search } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import useUserPermissions from '../utils/useUserPermissions';
@@ -13,8 +13,8 @@ export default function ContactInbox({ user }) {
   const allowed = user?.empresa === 'Obraxis' && (isSuperUser(user) || can(user, permissions, 'admin.contactos.ver'));
   const [rows,setRows] = useState([]), [loading,setLoading] = useState(true), [error,setError] = useState('');
   const [search,setSearch] = useState(''), [filter,setFilter] = useState('abiertos'), [selected,setSelected] = useState(null), [saving,setSaving] = useState(false);
-  const load = async () => { if(!allowed)return; setLoading(true); setError(''); const {data,error:e}=await supabase.from('contactos_publicos').select('*').order('created_at',{ascending:false}).limit(500); if(e)setError(e.message);else setRows(data||[]); setLoading(false); };
-  useEffect(()=>{ if(!permissionsLoading)load(); },[permissionsLoading,allowed]);
+  const load = useCallback(async () => { if(!allowed)return; setLoading(true); setError(''); const {data,error:e}=await supabase.from('contactos_publicos').select('*').order('created_at',{ascending:false}).limit(500); if(e)setError(e.message);else setRows(data||[]); setLoading(false); }, [allowed]);
+  useEffect(()=>{ if(!permissionsLoading)load(); },[permissionsLoading,load]);
   const visible=useMemo(()=>rows.filter(row=>{if(filter==='abiertos'&&['cerrado','descartado'].includes(row.estado))return false;if(!['todos','abiertos'].includes(filter)&&row.estado!==filter)return false;const q=search.trim().toLowerCase();return !q||[row.nombre,row.empresa_interesada,row.correo,row.telefono,row.mensaje].some(v=>String(v||'').toLowerCase().includes(q));}),[rows,search,filter]);
   const save=async()=>{setSaving(true);setError('');const payload={estado:selected.estado,responsable_auth_user_id:selected.responsable_auth_user_id||user?.auth_user_id||null,responsable_nombre:selected.responsable_nombre||user?.nombre||user?.usuario||'',notas_internas:selected.notas_internas||''};const {data,error:e}=await supabase.from('contactos_publicos').update(payload).eq('id',selected.id).select().single();if(e)setError(e.message);else{setRows(old=>old.map(x=>x.id===data.id?data:x));setSelected(data);}setSaving(false);};
   if(permissionsLoading)return <div className="rounded-2xl border bg-white p-8 text-center text-sm text-slate-500">Cargando autorización…</div>;
