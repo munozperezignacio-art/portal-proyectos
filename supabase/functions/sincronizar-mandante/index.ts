@@ -44,6 +44,14 @@ Deno.serve(async req=>{
     if(!automatic&&(!profile?.empresa||![contract.empresa_mandante,contract.empresa_obraxis_vinculada].includes(profile.empresa)))return reply({error:"No tienes acceso a este contrato."},403);
     if(contract.modalidad!=="Empresa Obraxis"||!contract.empresa_obraxis_vinculada||!contract.obra_contratista_id)return reply({error:"El contrato no está enlazado a una obra de otra empresa Obraxis."},409);
     let created=0,skipped=0; const errors:string[]=[]; const counts:Record<string,number>={};
+    if(contract.exige_acreditacion&&contract.paquetes?.acreditaciones===true){
+      const {data:accreditationRows,error:accreditationError}=await db.from("acreditaciones_resumen_obra").select("categoria,total_requeridos,total_recibidos,total_aprobados,proximo_vencimiento,estado,observacion").eq("empresa",contract.empresa_obraxis_vinculada).eq("obra_nombre",contract.obra_contratista_nombre);
+      if(accreditationError)errors.push(`Acreditaciones: ${accreditationError.message}`);
+      else for(const row of accreditationRows||[]){
+        const {error:upsertError}=await db.from("mandante_acreditaciones").upsert({contrato_id:contract.id,empresa_mandante:contract.empresa_mandante,...row,updated_at:new Date().toISOString()},{onConflict:"contrato_id,categoria"});
+        if(upsertError)errors.push(`Acreditaciones ${row.categoria}: ${upsertError.message}`);else counts.Acreditaciones=(counts.Acreditaciones||0)+1;
+      }
+    }
     for(const spec of specs){
       if(contract.paquetes?.[spec.packageId]!==true)continue;
       let query=db.from(spec.table).select(spec.select);
