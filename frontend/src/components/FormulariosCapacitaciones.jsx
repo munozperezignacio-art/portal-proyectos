@@ -5,9 +5,9 @@ import { generateFormPdf } from '../utils/pdfGenerator';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
 import { 
-  ArrowLeft, ChevronRight, ClipboardCheck, Plus, FileText, CheckCircle2, AlertCircle, 
-  HelpCircle, Trash2, Edit3, Share2, Download, Copy, Eye, BookOpen, 
-  GraduationCap, Users, Calendar, Award, CheckSquare, Layers, Building2, Send, Sparkles
+  ChevronRight, ClipboardCheck, Plus, FileText,
+  Trash2, Share2, Download, Eye,
+  GraduationCap, CheckSquare, Sparkles
 } from 'lucide-react';
 
 const MACHINERY_SOURCE_COLUMNS = [
@@ -84,7 +84,6 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   const [capTitle, setCapTitle] = useState('');
   const [capDesc, setCapDesc] = useState('');
   const [capTipo, setCapTipo] = useState('Charla 5 Minutos');
-  const [capModulo, setCapModulo] = useState('general');
   const [capQuiz, setCapQuiz] = useState([
     { id: Date.now(), pregunta: '¿Comprendió la charla?', opciones: ['Sí', 'No'], correcta: 0 }
   ]);
@@ -132,13 +131,13 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       } else {
         const local = localStorage.getItem('obraxis_formularios_dinamicos');
         if (local) {
-          try { setFormularios(JSON.parse(local)); } catch (e) { setFormularios([]); }
+          try { setFormularios(JSON.parse(local)); } catch { setFormularios([]); }
         }
       }
-    } catch (e) {
+    } catch {
       const local = localStorage.getItem('obraxis_formularios_dinamicos');
       if (local) {
-        try { setFormularios(JSON.parse(local)); } catch (e) { setFormularios([]); }
+        try { setFormularios(JSON.parse(local)); } catch { setFormularios([]); }
       }
     }
   };
@@ -155,13 +154,13 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       } else {
         const local = localStorage.getItem('obraxis_respuestas_formularios');
         if (local) {
-          try { setRespuestas(JSON.parse(local)); } catch (e) { setRespuestas([]); }
+          try { setRespuestas(JSON.parse(local)); } catch { setRespuestas([]); }
         }
       }
-    } catch (e) {
+    } catch {
       const local = localStorage.getItem('obraxis_respuestas_formularios');
       if (local) {
-        try { setRespuestas(JSON.parse(local)); } catch (e) { setRespuestas([]); }
+        try { setRespuestas(JSON.parse(local)); } catch { setRespuestas([]); }
       }
     }
   };
@@ -179,13 +178,13 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       } else {
         const local = localStorage.getItem('obraxis_capacitaciones_charlas');
         if (local) {
-          try { setCapacitaciones(JSON.parse(local)); } catch (e) { setCapacitaciones([]); }
+          try { setCapacitaciones(JSON.parse(local)); } catch { setCapacitaciones([]); }
         }
       }
-    } catch (e) {
+    } catch {
       const local = localStorage.getItem('obraxis_capacitaciones_charlas');
       if (local) {
-        try { setCapacitaciones(JSON.parse(local)); } catch (e) { setCapacitaciones([]); }
+        try { setCapacitaciones(JSON.parse(local)); } catch { setCapacitaciones([]); }
       }
     }
   };
@@ -310,7 +309,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       if (error) throw error;
       await fetchFormularios();
       setSuccessMsg(`${pending.length} plantillas operacionales instaladas.`);
-    } catch (error) {
+    } catch {
       const updated = [...pending, ...formularios]; setFormularios(updated); localStorage.setItem('obraxis_formularios_dinamicos', JSON.stringify(updated));
       setSuccessMsg('Plantillas instaladas localmente.');
     } finally { setLoading(false); setTimeout(() => setSuccessMsg(''), 4000); }
@@ -357,7 +356,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       const request = editingForm?.id
         ? supabase.from('prevencion_formularios').update(newForm).eq('id', editingForm.id).select()
         : supabase.from('prevencion_formularios').insert([newForm]).select();
-      const { data, error } = await request;
+      const { error } = await request;
       if (error) throw error;
       setSuccessMsg(editingForm ? 'Formulario actualizado con éxito.' : '¡Formulario creado y asignado con éxito!');
       fetchFormularios();

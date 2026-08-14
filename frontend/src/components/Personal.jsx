@@ -5,8 +5,8 @@ import { formatRut } from '../utils/rutUtils';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
 import { 
-  Users, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Check, Building2, UserPlus, 
-  FileText, DollarSign, Upload, FileUp, Sparkles, FileCheck, RefreshCw, Calculator, BookOpen, Download, Building, Printer, BarChart3, CalendarRange
+  Users, Search, Plus, Edit, Trash2, Loader2, UserPlus,
+  FileText, DollarSign, Upload, FileUp, Sparkles, RefreshCw, Calculator, BookOpen, Download, Printer, BarChart3, CalendarRange
 } from 'lucide-react';
 import { HrStatistics } from './OperationalStatistics';
 import WorkforceProjection from './WorkforceProjection';
@@ -149,7 +149,7 @@ function Personal({ user, onBack }) {
           return migrated;
         }
         return { ...INDICADORES_OFICIALES_CHILE, ...parsed };
-      } catch (e) {}
+      } catch {}
     }
     return {
       ...INDICADORES_OFICIALES_CHILE,
@@ -347,7 +347,7 @@ function Personal({ user, onBack }) {
           try {
             const ext = JSON.parse(local);
             return { ...ext, ...w, ...ext };
-          } catch (e) {}
+          } catch {}
         }
         return w;
       });
@@ -531,7 +531,7 @@ function Personal({ user, onBack }) {
         const existing = localStorage.getItem(localKey);
         const parsed = existing ? JSON.parse(existing) : {};
         localStorage.setItem(localKey, JSON.stringify({ ...parsed, ...payload }));
-      } catch (errLocal) {}
+      } catch {}
 
       setPersonal(prev => prev.map(p => p.id === assignModalData.workerId ? { ...p, ...payload } : p));
       setShowAssignObraModal(false);
