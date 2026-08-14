@@ -113,8 +113,8 @@ No se inicia hasta disponer de volumen, calidad y continuidad histórica suficie
 - [x] Fecha probable de término y costo final en escenarios favorable, base y adverso; se identifica como simulación mientras la historia no alcance el umbral.
 - [x] Riesgo determinístico de sobrecosto y de incumplimiento de hitos, sin modificar la línea base.
 - [x] Flujo mensual orientativo del costo restante para el escenario base.
-- [ ] Accidentabilidad y no conformidades.
-- [ ] Utilización y fallas de equipos.
+- [x] Señales orientativas de accidentabilidad y no conformidades para los próximos 30 días, extrapoladas desde frecuencia histórica y rotuladas como simulación cuando faltan datos.
+- [x] Riesgo operativo de utilización y fallas de equipos mediante disponibilidad, detenciones y equipos críticos.
 - [ ] Comparación interna anonimizada entre obras.
 
 ## Próximo bloque obligatorio

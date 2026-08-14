@@ -5080,6 +5080,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
                     {estadisticasTab === 'prediccion' && (
                       <PredictiveScenarioPanel
+                        obra={selectedObra}
+                        user={user}
                         cutoff={fCorteStr}
                         baselineFinish={fechaTerminoEstimada || getObraDateRange(selectedObra).end}
                         bac={BAC}
@@ -5091,6 +5093,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                         advances={filteredAvances}
                         costs={(costosList || []).filter(cost => getCostDate(cost) <= fCorteStr)}
                         criticalItems={criticalPartidas}
+                        incidents={filteredAccidentes}
+                        equipment={equipmentAvailability}
                       />
                     )}
 
