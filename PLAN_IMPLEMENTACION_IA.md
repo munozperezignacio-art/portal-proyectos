@@ -10,7 +10,7 @@ La IA asiste. Los cálculos, permisos, aprobaciones y registros oficiales contin
 | 2. IA documental | Cerrada | 100% |
 | 3. Informes asistidos | Cerrada | 100% |
 | 4. Copiloto contextual por obra | Primera versión funcional | 70% |
-| 5. Asistencia especializada | Last Planner, Calidad, Prevención y analítica de Maquinaria operativos | 70% |
+| 5. Asistencia especializada | Last Planner, Calidad, Prevención, Maquinaria y capacidad de RR.HH. operativos | 85% |
 | 6. Predicción y optimización | Pendiente de historial confiable | 0% |
 
 ## Fase 1 — Gobierno y control de IA
@@ -88,6 +88,8 @@ La IA asiste. Los cálculos, permisos, aprobaciones y registros oficiales contin
 - [ ] Asistencia IA opcional de Prevención para borradores de AST, síntesis de recurrencias y sugerencias de controles, sujeta a autorización específica.
 - [x] Base determinística de Maquinaria: utilización, disponibilidad, índice de fallas, MTBF, costo horario, alertas de discontinuidad de lecturas y proyección de mantenciones por tiempo, horómetro o kilometraje.
 - [ ] Asistencia IA opcional de Maquinaria para síntesis de fallas recurrentes y recomendaciones de redistribución, sujeta a autorización específica.
+- [x] Base determinística de Recursos Humanos: personal disponible, costo sin asignar, asistencia y horas extra de 30 días, brechas proyectadas por cargo y sugerencias de reasignación con confirmación humana.
+- [ ] Asistencia IA opcional de Recursos Humanos para explicar brechas y proponer escenarios de dotación, sujeta a autorización específica.
 - [x] Lectura asistida de horómetro/kilometraje con revisión humana.
 - [ ] Anomalías, fallas recurrentes, mantenimiento y redistribución de maquinaria.
 
@@ -104,4 +106,4 @@ No se inicia hasta disponer de volumen, calidad y continuidad histórica suficie
 
 ## Próximo bloque obligatorio
 
-Continuar Fase 5 con Recursos Humanos: capacidad disponible, personal no asignado, brechas de dotación, ausentismo y sugerencias de reasignación; mantener decisiones como procesos determinísticos.
+Cerrar Fase 5 con una bandeja transversal de asistencia especializada y priorización consolidada; mantener decisiones, aprobaciones y cambios como procesos determinísticos.
