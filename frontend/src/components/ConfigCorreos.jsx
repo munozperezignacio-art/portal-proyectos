@@ -5,9 +5,10 @@ import { formatRut } from '../utils/rutUtils';
 import PermissionsGovernancePanel from './PermissionsGovernancePanel';
 import NotificationMaster from './NotificationMaster';
 import AIControlCenter from './AIControlCenter';
+import PlatformAudit from './PlatformAudit';
 import { PERMISSIONS_CATALOG, permissionKey } from '../utils/permissionsCatalog';
 import { 
-  Settings, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Check, Mail, Filter, User, Lock, Building2, ShieldAlert, Copy, Archive, ArchiveRestore, ShieldCheck, Bell, Palette, Users, Workflow, AtSign, BriefcaseBusiness, Layers3, Globe2, Database, Sparkles, HardDrive, Clock3, Save, RefreshCw, Server, CircleCheck, CircleX
+  Settings, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Check, Mail, Filter, User, Lock, Building2, ShieldAlert, Copy, Archive, ArchiveRestore, ShieldCheck, Bell, Palette, Users, Workflow, AtSign, BriefcaseBusiness, Layers3, Globe2, Database, Sparkles, HardDrive, Clock3, Save, RefreshCw, Server, CircleCheck, CircleX, ScrollText
 } from 'lucide-react';
 
 function PlatformField({ label, value, onChange, type = 'text', min, max }) {
@@ -1331,6 +1332,15 @@ function ConfigCorreos({ user, onBack }) {
           <Workflow className="h-4 w-4" />
           Permisos y Flujos
         </button>
+        <button
+          onClick={() => setActiveTab('auditoria')}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+            activeTab === 'auditoria' ? 'bg-slate-950 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+          }`}
+        >
+          <ScrollText className="h-4 w-4" />
+          Auditoría General
+        </button>
         {isObraxisGlobalAdmin && (
           <button
             onClick={() => setActiveTab('empresas')}
@@ -1362,6 +1372,8 @@ function ConfigCorreos({ user, onBack }) {
       {/* RENDER SECCIONES */}
       {activeTab === 'notificaciones' ? (
         <NotificationMaster user={user} obras={obras} roles={rolesList} />
+      ) : activeTab === 'auditoria' ? (
+        <PlatformAudit user={user} />
       ) : activeTab === 'alertas' ? (
         <>
           {/* Buscador de alertas */}

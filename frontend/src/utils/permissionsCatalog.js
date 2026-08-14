@@ -71,6 +71,7 @@ export const PERMISSIONS_CATALOG = [
   { id: 'admin', label: 'Panel de control', menus: [
     { id: 'usuarios', label: 'Usuarios y roles', actions: ['ver', 'crear', 'editar', 'eliminar', 'configurar'] },
     { id: 'permisos', label: 'Permisos y flujos', actions: ['ver', 'editar', 'configurar'] },
+    { id: 'auditoria', label: 'Auditoría General', actions: ['ver', 'descargar', 'configurar'] },
   ]},
 ];
 
