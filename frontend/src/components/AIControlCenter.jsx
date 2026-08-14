@@ -8,7 +8,7 @@ const FEATURES=[
  ['maquinaria','IA para maquinaria','Lectura de medidores, anomalías y apoyo de mantenimiento.'],
  ['rrhh','IA para Recursos Humanos','Lectura documental y alertas de dotación, vigencias y asistencia.'],
  ['informes','Informes asistidos','Interpretación ejecutiva de indicadores reales.'],
- ['copiloto','Copiloto por obra','Consultas trazables sobre información autorizada.'],
+ ['copiloto','OX por obra','Asistente contextual con consultas trazables sobre información autorizada.'],
  ['revision_legal','Revisión legal asistida','Contraste documental con reglas y normativa versionada.'],
  ['asistencia_planificacion','Asistencia de planificación','Interpreta restricciones y recursos de Last Planner; nunca libera compromisos.'],
  ['asistencia_calidad','Asistencia de calidad','Resume recurrencias y propone borradores de causa y acción para revisión profesional.'],

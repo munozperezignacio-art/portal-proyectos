@@ -9,7 +9,7 @@ La IA asiste. Los cálculos, permisos, aprobaciones y registros oficiales contin
 | 1. Gobierno y control de IA | Cerrada | 100% |
 | 2. IA documental | Cerrada | 100% |
 | 3. Informes asistidos | Cerrada | 100% |
-| 4. Copiloto contextual por obra | Trazabilidad navegable, aislamiento reforzado y consultas determinísticas | 100% |
+| 4. OX, asistente contextual por obra | Trazabilidad navegable, aislamiento reforzado y consultas determinísticas | 100% |
 | 5. Asistencia especializada | Cerrada: especialidades operativas y bandeja transversal priorizada | 100% |
 | 6. Predicción y optimización | Pendiente de historial confiable | 0% |
 
@@ -70,7 +70,7 @@ La IA asiste. Los cálculos, permisos, aprobaciones y registros oficiales contin
 - [ ] Integrar interpretación IA en el despachador automático sin omitir control presupuestario.
 - [ ] Completar fuentes específicas de maquinaria y RR. HH. en sus informes.
 
-## Fase 4 — Copiloto contextual por obra
+## Fase 4 — OX, asistente contextual por obra
 
 - [x] Aislamiento estricto por empresa y obras autorizadas.
 - [x] Consultas de la primera cobertura operativa: programación, avances, costos, calidad, prevención, estados de pago, Last Planner, maquinaria y personal asignado.
