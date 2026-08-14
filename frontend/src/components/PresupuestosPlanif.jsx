@@ -3,12 +3,12 @@ import { supabase } from '../supabaseClient';
 import { 
   ArrowLeft, FileSpreadsheet, Calendar, Plus, Save, Trash2, 
   Upload, Check, AlertCircle, RefreshCw, ChevronRight, CalendarDays,
-  FolderPlus, DollarSign, Hammer, Briefcase, FileText, MapPin, Clock, ChevronLeft,
-  Settings, Percent, Coins, Sliders, Info, Store, Building2, ChevronDown, ChevronUp, Calculator, Fuel, Wrench, PieChart, Download, Globe, TrendingUp, Sparkles
+  FolderPlus, Hammer, Briefcase, MapPin, Clock, ChevronLeft,
+  Settings, Coins, Sliders, ChevronDown, ChevronUp, Fuel, PieChart, Globe, TrendingUp, Sparkles
 } from 'lucide-react';
 import { comunasChile } from '../utils/comunas';
 import ContextualEmailConfigModal from './ContextualEmailConfigModal';
-import { canConfigureEmails, canEditItem, getUserLevel } from '../utils/userLevel';
+import { canConfigureEmails, getUserLevel } from '../utils/userLevel';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
 import BudgetExcelImporter from './BudgetExcelImporter';
@@ -157,7 +157,6 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
   const canView = can(user, permissions, 'presupuestos.presupuestos.ver');
   const canCreate = can(user, permissions, 'presupuestos.presupuestos.crear');
   const canEdit = can(user, permissions, 'presupuestos.presupuestos.editar');
-  const canDelete = can(user, permissions, 'presupuestos.presupuestos.eliminar');
   const canDownload = can(user, permissions, 'presupuestos.presupuestos.descargar');
   const canConfigure = can(user, permissions, 'presupuestos.presupuestos.configurar');
   const isSubmenuEnabled = (submenuId) => {
@@ -273,7 +272,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
       const [movedItem] = updated.splice(fromIdx, 1);
       updated.splice(toIdx, 0, movedItem);
       if (selectedProyectoId) {
-        try { localStorage.setItem(`obraxis_presupuesto_items_${selectedProyectoId}`, JSON.stringify(updated)); } catch (e) {}
+        try { localStorage.setItem(`obraxis_presupuesto_items_${selectedProyectoId}`, JSON.stringify(updated)); } catch {}
       }
       return updated;
     });
@@ -281,8 +280,8 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
 
 
   const [budgetLoading, setBudgetLoading] = useState(false);
-  const [debugErrorMsg, setDebugErrorMsg] = useState('');
-  const [debugStatusMsg, setDebugStatusMsg] = useState('');
+  const [, setDebugErrorMsg] = useState('');
+  const [, setDebugStatusMsg] = useState('');
 
   // Estados de Planificación
   const [cronograma, setCronograma] = useState([]);
@@ -380,7 +379,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
   // Cargar datos cuando cambia el proyecto activo
   useEffect(() => {
     if (selectedProyectoId) {
-      try { localStorage.setItem('obraxis_selected_presupuesto_id', selectedProyectoId.toString()); } catch (e) {}
+      try { localStorage.setItem('obraxis_selected_presupuesto_id', selectedProyectoId.toString()); } catch {}
       fetchBudgetItems(selectedProyectoId);
       fetchCronograma(selectedProyectoId);
       fetchRecursos(selectedProyectoId);
@@ -697,6 +696,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
         .from('presupuestos_items')
         .select('*')
         .eq('presupuesto_id', projId);
+      if (error) throw error;
       
       const localKey = `obraxis_presupuesto_items_${projId}`;
       const localStr = localStorage.getItem(localKey);
@@ -727,16 +727,16 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
             return 0;
           });
         }
-      } catch (e) {}
+      } catch {}
 
       setItemsPresupuesto(sorted);
-      try { localStorage.setItem(localKey, JSON.stringify(sorted)); } catch (e) {}
+      try { localStorage.setItem(localKey, JSON.stringify(sorted)); } catch {}
     } catch (err) {
       console.error('Error cargando ítems de presupuesto:', err.message);
       const localKey = `obraxis_presupuesto_items_${projId}`;
       const localStr = localStorage.getItem(localKey);
       if (localStr) {
-        try { setItemsPresupuesto(JSON.parse(localStr)); } catch (e) {}
+        try { setItemsPresupuesto(JSON.parse(localStr)); } catch {}
       }
     } finally {
       setBudgetLoading(false);
@@ -1031,7 +1031,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
     const updatedList = [newRow, ...itemsPresupuesto];
     setItemsPresupuesto(updatedList);
     if (selectedProyectoId) {
-      try { localStorage.setItem(`obraxis_presupuesto_items_${selectedProyectoId}`, JSON.stringify(updatedList)); localStorage.setItem(`obraxis_presupuesto_order_${selectedProyectoId}`, JSON.stringify(updatedList.map(x => (x.id || x.codigo || x.partida || '').toString()))); } catch (e) {}
+      try { localStorage.setItem(`obraxis_presupuesto_items_${selectedProyectoId}`, JSON.stringify(updatedList)); localStorage.setItem(`obraxis_presupuesto_order_${selectedProyectoId}`, JSON.stringify(updatedList.map(x => (x.id || x.codigo || x.partida || '').toString()))); } catch {}
     }
   };
 
@@ -1075,7 +1075,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
     const updatedList = [...itemsPresupuesto, newRow];
     setItemsPresupuesto(updatedList);
     if (selectedProyectoId) {
-      try { localStorage.setItem(`obraxis_presupuesto_items_${selectedProyectoId}`, JSON.stringify(updatedList)); } catch (e) {}
+      try { localStorage.setItem(`obraxis_presupuesto_items_${selectedProyectoId}`, JSON.stringify(updatedList)); } catch {}
     }
   };
 
@@ -1088,7 +1088,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
         return item;
       });
       if (selectedProyectoId) {
-        try { localStorage.setItem(`obraxis_presupuesto_items_${selectedProyectoId}`, JSON.stringify(updated)); } catch (e) {}
+        try { localStorage.setItem(`obraxis_presupuesto_items_${selectedProyectoId}`, JSON.stringify(updated)); } catch {}
       }
       return updated;
     });
@@ -1098,7 +1098,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
     setItemsPresupuesto(prev => {
       const updated = prev.filter(item => item.id !== id);
       if (selectedProyectoId) {
-        try { localStorage.setItem(`obraxis_presupuesto_items_${selectedProyectoId}`, JSON.stringify(updated)); } catch (e) {}
+        try { localStorage.setItem(`obraxis_presupuesto_items_${selectedProyectoId}`, JSON.stringify(updated)); } catch {}
       }
       return updated;
     });
@@ -1118,7 +1118,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
         localStorage.setItem(localKey, JSON.stringify(itemsPresupuesto));
         const orderIds = itemsPresupuesto.map(x => (x.id || x.codigo || x.partida || '').toString());
         localStorage.setItem(`obraxis_presupuesto_order_${selectedProyectoId}`, JSON.stringify(orderIds));
-      } catch (e) {}
+      } catch {}
 
       const cleanDbPayload = (p) => ({
         presupuesto_id: parseInt(selectedProyectoId, 10) || selectedProyectoId,
@@ -1162,7 +1162,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
               .from('presupuestos_items')
               .delete()
               .in('id', toDeleteIds);
-          } catch (errDel) {}
+          } catch {}
         }
       }
 
@@ -1174,7 +1174,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
             .from('presupuestos_items')
             .update(payload)
             .eq('id', item.id);
-        } catch (errUpd) {}
+        } catch {}
       }
 
       if (toInsert.length > 0) {
@@ -1853,14 +1853,14 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
         .filter(t => typeof t.id === 'string' && t.id.startsWith('temp-'))
         .map(t => {
           const { 
-            id, 
-            is_partida, 
-            is_chapter, 
-            cantidad, 
-            rendimiento_meta, 
-            predecesora_code, 
-            predecesora_tipo, 
-            predecesora_desfase, 
+            id: _id,
+            is_partida: _isPartida,
+            is_chapter: _isChapter,
+            cantidad: _cantidad,
+            rendimiento_meta: _rendimientoMeta,
+            predecesora_code: _predecesoraCode,
+            predecesora_tipo: _predecesoraTipo,
+            predecesora_desfase: _predecesoraDesfase,
             ...rest 
           } = t;
           return {
@@ -1961,7 +1961,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
       const toInsert = recursos
         .filter(r => typeof r.id === 'string' && r.id.startsWith('temp-'))
         .map(r => {
-          const { id, ...rest } = r;
+          const { id: _id, ...rest } = r;
           return { ...rest, presupuesto_id: selectedProyectoId };
         });
 
@@ -2052,7 +2052,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
       const toInsert = indirectCosts
         .filter(c => typeof c.id === 'string' && c.id.startsWith('temp-'))
         .map(c => {
-          const { id, ...rest } = c;
+          const { id: _id, ...rest } = c;
           return { 
             ...rest, 
             presupuesto_id: selectedProyectoId,
@@ -2110,7 +2110,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
           .insert(toInsert);
 
         if (insErr && insErr.message.includes('prorratear')) {
-          const cleanInsert = toInsert.map(({ prorratear, ...rest }) => rest);
+          const cleanInsert = toInsert.map(({ prorratear: _prorratear, ...rest }) => rest);
           const { error: fallbackIns } = await supabase
             .from('presupuestos_costos_indirectos')
             .insert(cleanInsert);
@@ -2566,7 +2566,15 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
         .eq('id', apuItem.id);
 
       if (itemErr && (itemErr.message.includes('schema cache') || itemErr.message.includes('column'))) {
-        const { costo_otros, costo_herramientas, herramientas_menores_pct, dias_habiles_mes, horas_jornada, precio_combustible, ...basicPayload } = fullUpdatePayload;
+        const {
+          costo_otros: _costoOtros,
+          costo_herramientas: _costoHerramientas,
+          herramientas_menores_pct: _herramientasMenoresPct,
+          dias_habiles_mes: _diasHabilesMes,
+          horas_jornada: _horasJornada,
+          precio_combustible: _precioCombustible,
+          ...basicPayload
+        } = fullUpdatePayload;
         const { error: fallbackErr } = await supabase
           .from('presupuestos_items')
           .update(basicPayload)

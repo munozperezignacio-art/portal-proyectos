@@ -3,10 +3,10 @@ import { obraxisLogoBase64 } from '../obraxisLogoBase64';
 import { supabase } from '../supabaseClient';
 import ModuleHeader from './ModuleHeader';
 import { 
-  Truck, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Check, QrCode, 
-  Building2, Eye, Camera, Image, Calendar, Clock, Gauge, Fuel, CheckCircle2, 
-  ChevronRight, Wrench, ShieldCheck, MapPin, CalendarDays, RefreshCw, Send, Handshake, DollarSign,
-  Filter, SlidersHorizontal, List, Grid, AlertTriangle, ChevronLeft, ChevronDown, BarChart3, Activity
+  Truck, Search, Plus, Edit, Trash2, QrCode,
+  Building2, Eye, Calendar, Clock, Gauge, Fuel, CheckCircle2,
+  ChevronRight, Wrench, CalendarDays, Send, Handshake, DollarSign,
+  List, Grid, AlertTriangle, ChevronLeft, ChevronDown, BarChart3, Activity
 } from 'lucide-react';
 import { formatRut, formatNumberWithDots, parseNumberFromDots } from '../utils/rutUtils';
 import useUserPermissions from '../utils/useUserPermissions';
@@ -116,7 +116,6 @@ export default function Maquinaria({ user, onBack }) {
   const [selectedEquipToAssign, setSelectedEquipToAssign] = useState(null);
   const [targetObraName, setTargetObraName] = useState('');
   const [assignFechaHasta, setAssignFechaHasta] = useState('');
-  const [assignWarning, setAssignWarning] = useState('');
 
   // 3. Estados Registro de Uso y Horómetros
   const [usoList, setUsoList] = useState([]);
@@ -263,7 +262,7 @@ export default function Maquinaria({ user, onBack }) {
       console.warn('Cargando inventario local:', err.message);
       const local = localStorage.getItem('obraxis_inventario_maquinaria');
       if (local) {
-        try { setMaquinaria(JSON.parse(local)); } catch (e) {}
+        try { setMaquinaria(JSON.parse(local)); } catch {}
       }
     } finally {
       setLoading(false);
@@ -282,9 +281,9 @@ export default function Maquinaria({ user, onBack }) {
         const local = localStorage.getItem('obraxis_maquinaria_uso');
         if (local) setUsoList(JSON.parse(local));
       }
-    } catch (e) {
+    } catch {
       const local = localStorage.getItem('obraxis_maquinaria_uso');
-      if (local) try { setUsoList(JSON.parse(local)); } catch (err) {}
+      if (local) try { setUsoList(JSON.parse(local)); } catch {}
     }
   };
 
@@ -292,7 +291,7 @@ export default function Maquinaria({ user, onBack }) {
     let localItems = [];
     const local = localStorage.getItem('obraxis_maquinaria_reservas');
     if (local) {
-      try { localItems = JSON.parse(local); } catch (e) {}
+      try { localItems = JSON.parse(local); } catch {}
     }
 
     try {
@@ -312,7 +311,7 @@ export default function Maquinaria({ user, onBack }) {
       } else {
         setReservasList(data || []);
       }
-    } catch (e) {
+    } catch {
       setReservasList(localItems);
     }
   };
@@ -321,7 +320,7 @@ export default function Maquinaria({ user, onBack }) {
     let localItems = [];
     const local = localStorage.getItem('obraxis_maquinaria_arriendos');
     if (local) {
-      try { localItems = JSON.parse(local); } catch (e) {}
+      try { localItems = JSON.parse(local); } catch {}
     }
 
     try {
@@ -342,7 +341,7 @@ export default function Maquinaria({ user, onBack }) {
       } else {
         setArriendosList(data || []);
       }
-    } catch (e) {
+    } catch {
       setArriendosList(localItems);
     }
   };
@@ -432,7 +431,6 @@ export default function Maquinaria({ user, onBack }) {
     setSuccessMsg('');
     setErrorMsg('');
 
-    const matchedObra = obras.find(o => o.nombre.toLowerCase() === (formData.obra_nombre || '').toLowerCase());
     const validObraNombre = formData.obra_nombre || 'Bodega Central / Libre';
 
     const dataToSave = {
@@ -641,7 +639,7 @@ export default function Maquinaria({ user, onBack }) {
       await supabase.from('inventario_maquinaria').update({ horometro_inicial: hFin }).eq('id', usoForm.equipo_id).eq('empresa', user?.empresa);
       setSuccessMsg('Registro de uso y horómetro guardado.');
       fetchUsoLogs();
-    } catch (err) {
+    } catch {
       const updated = [newLog, ...usoList];
       setUsoList(updated);
       localStorage.setItem('obraxis_maquinaria_uso', JSON.stringify(updated));
@@ -700,7 +698,7 @@ export default function Maquinaria({ user, onBack }) {
         setSuccessMsg('Reserva agendada exitosamente.');
       }
       fetchReservasLogs();
-    } catch (err) {
+    } catch {
       let updated;
       if (editingReserva) {
         updated = reservasList.map(r => r.id === editingReserva.id ? { ...r, ...payloadReserva } : r);
@@ -741,7 +739,7 @@ export default function Maquinaria({ user, onBack }) {
       const { error } = await supabase.from('inventario_maquinaria').update({ color_calendario: color }).eq('id', equipment.id);
       if (error) throw error;
       setSuccessMsg(`Color de ${equipment.patente} actualizado.`);
-    } catch (err) {
+    } catch {
       setErrorMsg('No fue posible guardar el color del equipo. Verifica que la actualización de Supabase esté aplicada.');
     }
   };
