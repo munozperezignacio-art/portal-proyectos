@@ -140,6 +140,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
 
   // --- SUBMÓDULO CUMPLIMIENTO DE SEGURIDAD Y PREVENCIÓN ---
   const [personalMaestro, setPersonalMaestro] = useState([]);
+  const [usuariosCumplimiento, setUsuariosCumplimiento] = useState([]);
   const [asignacionesCumplimiento, setAsignacionesCumplimiento] = useState([]);
   const [loadingAsignaciones, setLoadingAsignaciones] = useState(false);
   const [registrosCumplimientoLog, setRegistrosCumplimientoLog] = useState([]);
@@ -152,7 +153,9 @@ export default function Prevencion({ user, onBack, companyBranding }) {
   // Formulario Asignación
   const [asigTrabajadorRut, setAsigTrabajadorRut] = useState('');
   const [asigTrabajadorNombre, setAsigTrabajadorNombre] = useState('');
+  const [asigUsuarioId, setAsigUsuarioId] = useState('');
   const [asigRegistroNombre, setAsigRegistroNombre] = useState('');
+  const [asigFormularioId, setAsigFormularioId] = useState('');
   const [asigFrecuencia, setAsigFrecuencia] = useState('Diario');
   const [asigFormType, setAsigFormType] = useState('');
 
@@ -220,10 +223,11 @@ export default function Prevencion({ user, onBack, companyBranding }) {
     fetchCapacitaciones();
     fetchIntentosEvaluaciones();
     fetchPersonalMaestro();
+    fetchUsuariosCumplimiento();
     fetchAsignacionesCumplimiento();
     fetchRegistrosCumplimientoLog();
     fetchObrasList();
-  }, []);
+  }, [user?.empresa]);
 
   const fetchObrasList = async () => {
     try {
@@ -260,10 +264,12 @@ export default function Prevencion({ user, onBack, companyBranding }) {
   const fetchFormularios = async () => {
     setLoadingForms(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('prevencion_formularios')
         .select('*')
         .order('created_at', { ascending: false });
+      if (user?.empresa) query = query.eq('empresa', user.empresa);
+      const { data, error } = await query;
       if (error) throw error;
       setFormularios(data || []);
     } catch (err) {
@@ -385,12 +391,29 @@ export default function Prevencion({ user, onBack, companyBranding }) {
     }
   };
 
+  const fetchUsuariosCumplimiento = async () => {
+    try {
+      let query = supabase
+        .from('usuarios')
+        .select('id, usuario, nombre, correo, cargo, trabajador_rut, empresa, auth_user_id')
+        .order('nombre', { ascending: true, nullsFirst: false });
+      if (user?.empresa) query = query.eq('empresa', user.empresa);
+      const { data, error } = await query;
+      if (error) throw error;
+      setUsuariosCumplimiento((data || []).filter((item) => item.id && item.usuario));
+    } catch (err) {
+      console.error('Error al cargar usuarios para cumplimiento:', err?.message || 'Error desconocido');
+    }
+  };
+
   const fetchPersonalMaestro = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('maestro_personal')
-        .select('nombre, rut, cargo')
+        .select('id, nombre, rut, cargo, empresa')
         .order('nombre', { ascending: true });
+      if (user?.empresa) query = query.eq('empresa', user.empresa);
+      const { data, error } = await query;
       if (error) throw error;
       setPersonalMaestro(data || []);
     } catch (err) {
@@ -401,10 +424,13 @@ export default function Prevencion({ user, onBack, companyBranding }) {
   const fetchAsignacionesCumplimiento = async () => {
     setLoadingAsignaciones(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('prevencion_cumplimiento_asignaciones')
         .select('*')
+        .eq('activo', true)
         .order('trabajador_nombre', { ascending: true });
+      if (user?.empresa) query = query.eq('empresa', user.empresa);
+      const { data, error } = await query;
       if (error) throw error;
       setAsignacionesCumplimiento(data || []);
     } catch (err) {
@@ -416,10 +442,12 @@ export default function Prevencion({ user, onBack, companyBranding }) {
 
   const fetchRegistrosCumplimientoLog = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('prevencion_cumplimiento_registros')
         .select('*')
         .order('fecha_cumplimiento', { ascending: false });
+      if (user?.empresa) query = query.eq('empresa', user.empresa);
+      const { data, error } = await query;
       if (error) throw error;
       setRegistrosCumplimientoLog(data || []);
     } catch (err) {
@@ -569,9 +597,25 @@ export default function Prevencion({ user, onBack, companyBranding }) {
             const prefix = `${new Date(currentWeekStart).getFullYear()}-${String(new Date(currentWeekStart).getMonth() + 1).padStart(2, '0')}`;
             log = registrosCumplimientoLog.find(l => l.asignacion_id === a.id && l.fecha_cumplimiento.startsWith(prefix));
           } else {
-            const dailyLogs = registrosCumplimientoLog.filter(l => l.asignacion_id === a.id && weekDatesArr.includes(l.fecha_cumplimiento) && l.estado === 'Cumple');
-            complies = dailyLogs.length > 0;
-            detail = complies ? `${dailyLogs.length} días ok` : 'Pendiente';
+            const mandatoryDateStrings = getWeekDates(currentWeekStart)
+              .filter(isDailyMandatoryDate)
+              .map(formatDateYYYYMMDD);
+            const completedDates = new Set(registrosCumplimientoLog
+              .filter(l => l.asignacion_id === a.id && mandatoryDateStrings.includes(l.fecha_cumplimiento) && l.estado === 'Cumple')
+              .map(l => l.fecha_cumplimiento));
+            const matchingForm = getAssignedForm(a);
+            if (matchingForm) {
+              respuestas.forEach((response) => {
+                const responseDate = response.created_at?.split('T')[0];
+                if (
+                  Number(response.formulario_id) === Number(matchingForm.id) &&
+                  (response.inspector || '').trim().toLowerCase() === a.trabajador_nombre.trim().toLowerCase() &&
+                  mandatoryDateStrings.includes(responseDate)
+                ) completedDates.add(responseDate);
+              });
+            }
+            complies = completedDates.size === mandatoryDateStrings.length;
+            detail = `${completedDates.size} de ${mandatoryDateStrings.length} días obligatorios`;
           }
 
           if (log) {
@@ -579,7 +623,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
             detail = log.estado;
           } else if (a.frecuencia !== 'Diario') {
             // Check automatic responses
-            const matchingForm = formularios.find(f => f.titulo.trim().toLowerCase() === a.registro_nombre.trim().toLowerCase());
+            const matchingForm = getAssignedForm(a);
             if (matchingForm) {
               const autoResp = respuestas.find(r => 
                 r.formulario_id === matchingForm.id && 
@@ -638,8 +682,8 @@ export default function Prevencion({ user, onBack, companyBranding }) {
   };
   const handleSaveAsignacion = async () => {
     if (!canCreate) { setErrorMsg('Tu perfil no está autorizado para crear asignaciones.'); return; }
-    if (!asigTrabajadorRut || !asigTrabajadorNombre.trim() || !asigRegistroNombre.trim()) {
-      setErrorMsg('Por favor complete todos los datos del trabajador y del registro operacional.');
+    if (!asigUsuarioId || !asigTrabajadorNombre.trim() || !asigFormularioId || !asigRegistroNombre.trim()) {
+      setErrorMsg('Seleccione un usuario y un formulario válido para crear la asignación.');
       return;
     }
     setSavingForm(true);
@@ -647,10 +691,14 @@ export default function Prevencion({ user, onBack, companyBranding }) {
     setSuccessMsg('');
     try {
       const payload = {
+        empresa: user?.empresa,
+        usuario_id: Number(asigUsuarioId),
+        formulario_id: Number(asigFormularioId),
         trabajador_rut: asigTrabajadorRut,
         trabajador_nombre: asigTrabajadorNombre.trim(),
         registro_nombre: asigRegistroNombre.trim(),
-        frecuencia: asigFrecuencia
+        frecuencia: asigFrecuencia,
+        activo: true
       };
 
       const { error } = await supabase
@@ -663,7 +711,9 @@ export default function Prevencion({ user, onBack, companyBranding }) {
       // Reset form
       setAsigTrabajadorRut('');
       setAsigTrabajadorNombre('');
+      setAsigUsuarioId('');
       setAsigRegistroNombre('');
+      setAsigFormularioId('');
       setAsigFrecuencia('Diario');
       setAsigFormType('');
 
@@ -702,6 +752,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
     setSuccessMsg('');
     try {
       const payload = {
+        empresa: selectedAsigForLog.empresa || user?.empresa,
         asignacion_id: selectedAsigForLog.id,
         fecha_cumplimiento: logFecha,
         estado: logEstado,
@@ -709,9 +760,18 @@ export default function Prevencion({ user, onBack, companyBranding }) {
         verificado_por: user ? (user.correo || user.usuario) : 'Prevencionista'
       };
 
-      const { error } = await supabase
+      const { data: existingLog, error: lookupError } = await supabase
         .from('prevencion_cumplimiento_registros')
-        .insert([payload]);
+        .select('id')
+        .eq('asignacion_id', selectedAsigForLog.id)
+        .eq('fecha_cumplimiento', logFecha)
+        .maybeSingle();
+      if (lookupError) throw lookupError;
+
+      const saveQuery = existingLog?.id
+        ? supabase.from('prevencion_cumplimiento_registros').update(payload).eq('id', existingLog.id)
+        : supabase.from('prevencion_cumplimiento_registros').insert([payload]);
+      const { error } = await saveQuery;
       if (error) throw error;
 
       setSuccessMsg('Cumplimiento registrado con éxito.');
@@ -793,6 +853,17 @@ export default function Prevencion({ user, onBack, companyBranding }) {
     const dd = String(date.getDate()).padStart(2, '0');
     return `${yyyy}-${mm}-${dd}`;
   };
+
+  const isDailyMandatoryDate = (date) => {
+    const day = date.getDay();
+    return day >= 1 && day <= 5;
+  };
+
+  const getAssignedForm = (assignment) => formularios.find((form) =>
+    assignment.formulario_id
+      ? Number(form.id) === Number(assignment.formulario_id)
+      : (form.titulo || '').trim().toLowerCase() === (assignment.registro_nombre || '').trim().toLowerCase()
+  );
 
   const handleSaveCapacitacion = async () => {
     if (capId ? !canEdit : !canCreate) { setErrorMsg('Tu perfil no está autorizado para guardar capacitaciones.'); return; }
@@ -3222,65 +3293,37 @@ export default function Prevencion({ user, onBack, companyBranding }) {
                   <span className="text-[10px] font-black uppercase text-slate-450 tracking-wider block">Asignar Registro Operacional</span>
                   
                   <div className="space-y-1">
-                    <label className="text-[9px] font-bold uppercase text-slate-550 block">Seleccionar Trabajador</label>
+                    <label className="text-[9px] font-bold uppercase text-slate-550 block">Usuario responsable</label>
                     <select
-                      value={`${asigTrabajadorRut}|${asigTrabajadorNombre}`}
+                      value={asigUsuarioId}
                       onChange={(e) => {
-                        const val = e.target.value;
-                        if (!val) {
-                          setAsigTrabajadorRut('');
-                          setAsigTrabajadorNombre('');
-                        } else {
-                          const [rut, nombre] = val.split('|');
-                          setAsigTrabajadorRut(rut);
-                          setAsigTrabajadorNombre(nombre);
-                        }
+                        const selectedId = e.target.value;
+                        const selectedUser = usuariosCumplimiento.find((item) => String(item.id) === selectedId);
+                        setAsigUsuarioId(selectedId);
+                        setAsigTrabajadorRut(selectedUser?.trabajador_rut || selectedUser?.usuario || '');
+                        setAsigTrabajadorNombre(selectedUser?.nombre || selectedUser?.usuario || '');
                       }}
                       className="w-full border border-slate-250 rounded-xl p-2.5 bg-white text-xs font-semibold text-slate-700 focus:outline-none focus:border-primary"
                     >
-                      <option value="">-- Seleccione un Trabajador --</option>
-                      {personalMaestro.map((p, idx) => (
-                        <option key={idx} value={`${p.rut}|${p.nombre}`}>
-                          {p.nombre} ({p.rut}) - {p.cargo || 'Sin Cargo'}
+                      <option value="">-- Seleccione un usuario --</option>
+                      {usuariosCumplimiento.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.nombre || item.usuario} · {item.cargo || item.usuario}
                         </option>
                       ))}
                     </select>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[9px] font-bold uppercase text-slate-550 block">O buscar/ingresar RUT manualmente</label>
-                    <input 
-                      type="text"
-                      placeholder="RUT del trabajador"
-                      value={asigTrabajadorRut}
-                      onChange={(e) => setAsigTrabajadorRut(e.target.value)}
-                      className="w-full border border-slate-250 rounded-xl p-2.5 bg-white text-xs font-semibold text-slate-700 focus:outline-none focus:border-primary"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-bold uppercase text-slate-550 block">Nombre del Trabajador (Si se ingresó RUT manual)</label>
-                    <input 
-                      type="text"
-                      placeholder="Nombre completo"
-                      value={asigTrabajadorNombre}
-                      onChange={(e) => setAsigTrabajadorNombre(e.target.value)}
-                      className="w-full border border-slate-250 rounded-xl p-2.5 bg-white text-xs font-semibold text-slate-700 focus:outline-none focus:border-primary"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-bold uppercase text-slate-550 block">Registro Operacional / Requisito</label>
+                    <label className="text-[9px] font-bold uppercase text-slate-550 block">Formulario exigido</label>
                     <select
-                      value={asigFormType}
+                      value={asigFormularioId}
                       onChange={(e) => {
                         const val = e.target.value;
                         setAsigFormType(val);
-                        if (val !== 'OTRO') {
-                          setAsigRegistroNombre(val);
-                        } else {
-                          setAsigRegistroNombre('');
-                        }
+                        setAsigFormularioId(val);
+                        const selectedForm = formularios.find((form) => String(form.id) === val);
+                        setAsigRegistroNombre(selectedForm?.titulo || '');
                       }}
                       className="w-full border border-slate-250 rounded-xl p-2.5 bg-white text-xs font-semibold text-slate-700 focus:outline-none focus:border-primary"
                     >
@@ -3288,26 +3331,12 @@ export default function Prevencion({ user, onBack, companyBranding }) {
                       {formularios.length > 0 && (
                         <optgroup label="Formularios del Sistema">
                           {formularios.map((f) => (
-                            <option key={f.id} value={f.titulo}>{f.titulo}</option>
+                            <option key={f.id} value={f.id}>{f.codigo ? `${f.codigo} · ` : ''}{f.titulo}</option>
                           ))}
                         </optgroup>
                       )}
-                      <option value="OTRO">* Otro (Ingresar Texto Personalizado)</option>
                     </select>
                   </div>
-
-                  {asigFormType === 'OTRO' && (
-                    <div className="space-y-1 animate-in fade-in duration-200">
-                      <label className="text-[9px] font-bold uppercase text-slate-550 block">Nombre del Registro Personalizado</label>
-                      <input 
-                        type="text"
-                        placeholder="Escriba el nombre del registro"
-                        value={asigRegistroNombre}
-                        onChange={(e) => setAsigRegistroNombre(e.target.value)}
-                        className="w-full border border-slate-250 rounded-xl p-2.5 bg-white text-xs font-semibold text-slate-700 focus:outline-none focus:border-primary"
-                      />
-                    </div>
-                  )}
 
                   <div className="space-y-1">
                     <label className="text-[9px] font-bold uppercase text-slate-550 block">Frecuencia de Cumplimiento</label>
@@ -3320,6 +3349,11 @@ export default function Prevencion({ user, onBack, companyBranding }) {
                       <option value="Semanal">Semanal</option>
                       <option value="Mensual">Mensual</option>
                     </select>
+                    {asigFrecuencia === 'Diario' && (
+                      <p className="text-[9px] leading-relaxed text-slate-500 pt-1">
+                        Lunes a viernes serán obligatorios. Sábados y domingos podrán registrarse, pero serán opcionales y no reducirán el indicador.
+                      </p>
+                    )}
                   </div>
 
                   <button
@@ -3427,11 +3461,13 @@ export default function Prevencion({ user, onBack, companyBranding }) {
                     let slotsCumplidos = 0;
                     
                     if (a.frecuencia === 'Diario') {
-                      slotsRequeridos = 7;
-                      weekDateStrings.forEach(dateStr => {
+                      const mandatoryDates = weekDates.filter(isDailyMandatoryDate);
+                      slotsRequeridos = mandatoryDates.length;
+                      mandatoryDates.forEach((date) => {
+                        const dateStr = formatDateYYYYMMDD(date);
                         let hasLog = registrosCumplimientoLog.some(l => l.asignacion_id === a.id && l.fecha_cumplimiento === dateStr && l.estado === 'Cumple');
                         if (!hasLog) {
-                          const matchingForm = formularios.find(f => f.titulo.trim().toLowerCase() === a.registro_nombre.trim().toLowerCase());
+                          const matchingForm = getAssignedForm(a);
                           if (matchingForm) {
                             hasLog = respuestas.some(r => 
                               r.formulario_id === matchingForm.id && 
@@ -3446,7 +3482,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
                       slotsRequeridos = 1;
                       let hasLog = registrosCumplimientoLog.some(l => l.asignacion_id === a.id && weekDateStrings.includes(l.fecha_cumplimiento) && l.estado === 'Cumple');
                       if (!hasLog) {
-                        const matchingForm = formularios.find(f => f.titulo.trim().toLowerCase() === a.registro_nombre.trim().toLowerCase());
+                        const matchingForm = getAssignedForm(a);
                         if (matchingForm) {
                           hasLog = respuestas.some(r => 
                             r.formulario_id === matchingForm.id && 
@@ -3461,7 +3497,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
                       const currentMonthPrefix = `${weekDates[0].getFullYear()}-${String(weekDates[0].getMonth() + 1).padStart(2, '0')}`;
                       let hasLog = registrosCumplimientoLog.some(l => l.asignacion_id === a.id && l.fecha_cumplimiento.startsWith(currentMonthPrefix) && l.estado === 'Cumple');
                       if (!hasLog) {
-                        const matchingForm = formularios.find(f => f.titulo.trim().toLowerCase() === a.registro_nombre.trim().toLowerCase());
+                        const matchingForm = getAssignedForm(a);
                         if (matchingForm) {
                           hasLog = respuestas.some(r => 
                             r.formulario_id === matchingForm.id && 
@@ -3842,6 +3878,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
                                   </td>
                                   {getWeekDates(currentWeekStart).map((date, dayIdx) => {
                                     const dateStr = formatDateYYYYMMDD(date);
+                                    const isOptionalDailyDate = a.frecuencia === 'Diario' && !isDailyMandatoryDate(date);
                                     
                                     // 1. Buscar log manual
                                     let log = null;
@@ -3859,7 +3896,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
                                     
                                     // 2. Buscar si hay respuesta automática si no hay log manual
                                     if (!log) {
-                                      const matchingForm = formularios.find(f => f.titulo.trim().toLowerCase() === a.registro_nombre.trim().toLowerCase());
+                                      const matchingForm = getAssignedForm(a);
                                       if (matchingForm) {
                                         if (a.frecuencia === 'Semanal') {
                                           const weekDatesArr = getWeekDates(currentWeekStart).map(d => formatDateYYYYMMDD(d));
@@ -3964,20 +4001,23 @@ export default function Prevencion({ user, onBack, companyBranding }) {
                                             </button>
                                           )
                                         ) : (
-                                          <button 
-                                            type="button"
-                                            onClick={() => {
-                                              setSelectedAsigForLog(a);
-                                              setLogFecha(dateStr);
-                                              setLogEstado('Cumple');
-                                              setLogObservaciones('');
-                                              setShowLogModal(true);
-                                            }}
-                                            title="Registrar cumplimiento para este día"
-                                            className="w-7 h-7 rounded-full bg-slate-50 hover:bg-slate-200 border border-slate-200 text-slate-400 flex items-center justify-center mx-auto cursor-pointer hover:text-slate-700 transition-all font-bold"
-                                          >
-                                            +
-                                          </button>
+                                          <div className="flex flex-col items-center gap-1">
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setSelectedAsigForLog(a);
+                                                setLogFecha(dateStr);
+                                                setLogEstado('Cumple');
+                                                setLogObservaciones('');
+                                                setShowLogModal(true);
+                                              }}
+                                              title={isOptionalDailyDate ? 'Registro opcional: no afecta el indicador de cumplimiento' : 'Registrar cumplimiento obligatorio para este día'}
+                                              className={`w-7 h-7 rounded-full flex items-center justify-center mx-auto cursor-pointer transition-all font-bold ${isOptionalDailyDate ? 'bg-sky-50 hover:bg-sky-100 border border-dashed border-sky-300 text-sky-600' : 'bg-slate-50 hover:bg-slate-200 border border-slate-200 text-slate-400 hover:text-slate-700'}`}
+                                            >
+                                              +
+                                            </button>
+                                            {isOptionalDailyDate && <span className="text-[7px] font-black uppercase text-sky-600">Opcional</span>}
+                                          </div>
                                         )}
                                       </td>
                                     );
