@@ -2661,6 +2661,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     try {
       const { error } = await supabase.from('reporte_maquinaria').insert([
         {
+          empresa: user.empresa,
           obra_nombre: selectedObra.nombre,
           supervisor: user.usuario,
           operador: maqData.operador,
@@ -2696,6 +2697,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     try {
       const { error } = await supabase.from('inventario_materiales').insert([
         {
+          empresa: user.empresa,
           obra_nombre: selectedObra.nombre,
           guia: materialData.guia || 'N/A',
           tipo_movimiento: materialData.tipoMovimiento,

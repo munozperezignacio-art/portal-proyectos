@@ -28,7 +28,7 @@ Deno.serve(async req => {
       const { data: obra } = await supabase.from("obras").select("id,nombre,tipo,area,ubicacion,estado,cliente,imagen_base64,administrador,admin_contrato").eq("empresa", portal.empresa).eq("nombre", access.obra_nombre).maybeSingle();
       const result: Record<string, unknown> = { obra, permisos: p, permite_comentar: access.permite_comentar };
       if (p.avance && obra?.id) result.avances = (await supabase.from("avances_produccion_partidas").select("id,created_at,frente,partida,unidad,cantidad,observaciones").eq("empresa", portal.empresa).eq("obra_id", obra.id).order("created_at", { ascending: false }).limit(50)).data || [];
-      if (p.programacion) result.programacion = (await supabase.from("planificacion_tareas").select("id,codigo,tarea,fecha_inicio,fecha_fin,porcentaje_avance,estado,duracion").eq("obra_nombre", access.obra_nombre).order("fecha_inicio")).data || [];
+      if (p.programacion) result.programacion = (await supabase.from("planificacion_tareas").select("id,codigo,tarea,fecha_inicio,fecha_fin,porcentaje_avance,estado,duracion").eq("empresa", portal.empresa).eq("obra_nombre", access.obra_nombre).order("fecha_inicio")).data || [];
       if (p.bitacora) result.bitacora = (await supabase.from("bitacora_eventos_obra").select("id,categoria,accion,detalle,actor,fecha").eq("empresa", portal.empresa).eq("obra_nombre", access.obra_nombre).order("fecha", { ascending: false }).limit(40)).data || [];
       if (p.calidad) {
         result.rdi = (await supabase.from("calidad_rdi").select("id,codigo,fecha_solicitud,partida,sector,estado,observaciones").eq("empresa", portal.empresa).eq("obra_nombre", access.obra_nombre).order("fecha_solicitud", { ascending: false }).limit(40)).data || [];
