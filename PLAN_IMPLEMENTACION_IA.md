@@ -119,4 +119,10 @@ No se inicia hasta disponer de volumen, calidad y continuidad histórica suficie
 
 ## Próximo bloque obligatorio
 
-La capa funcional de la Fase 6 queda completa en modo simulación. Las obras ficticias permiten validar interfaz, fórmulas y escenarios; la activación como predicción estadística real permanece condicionada a los umbrales visibles de continuidad, volumen y calidad de datos. El siguiente bloque es reforzar calidad histórica, aislamiento por empresa en tablas heredadas y validación retrospectiva de los modelos.
+La capa funcional de la Fase 6 queda completa en modo simulación. Las obras ficticias permiten validar interfaz, fórmulas y escenarios; la activación como predicción estadística real permanece condicionada a los umbrales visibles de continuidad, volumen y calidad de datos.
+
+- [x] Aislamiento por empresa y obra para partidas y avances heredados, con RLS, claves foráneas y compatibilidad transitoria.
+- [x] Prueba multiempresa reversible: lectura propia, invisibilidad de obras ajenas, creación propia y bloqueo de escrituras cruzadas.
+- [x] Historial inmutable de escenarios base por fecha de corte.
+- [x] Validación retrospectiva al cierre: error de plazo y costo frente al resultado real.
+- [ ] Acumular al menos tres obras terminadas y validadas por tipología antes de calibrar o activar predicciones estadísticas reales.
