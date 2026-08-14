@@ -1,7 +1,6 @@
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
 const number = value => Number(value) || 0;
 const money = value => `$${Math.round(number(value)).toLocaleString('es-CL')}`;
-const clamp = value => Math.max(0, Math.min(100, number(value)));
 const ratio = (a, b) => b > 0 ? a / b : null;
 const day = 86400000;
 const isoDate = value => { if (!value) return null; const date = new Date(value); return Number.isNaN(date.getTime()) ? null : date; };

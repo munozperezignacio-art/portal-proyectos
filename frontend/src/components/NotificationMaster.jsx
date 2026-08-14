@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import {
-  BarChart3, Bell, CalendarClock, CheckCircle2, ChevronDown, Clock3, Edit3, Mail,
-  Plus, Search, Send, Settings2, Trash2, Users, X, Zap
+  BarChart3, Bell, CalendarClock, CheckCircle2, Clock3, Edit3,
+  Plus, Search, Send, Settings2, Trash2, X, Zap
 } from 'lucide-react';
 import ExecutiveReportScheduler from './ExecutiveReportScheduler';
 

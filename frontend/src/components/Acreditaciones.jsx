@@ -6,10 +6,10 @@ import { sendSystemEmail } from '../utils/emailService';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
 import AccreditationAIReview from './AccreditationAIReview';
-import { 
-  ArrowLeft, PackageCheck, Store, ShieldCheck, Plus, Send, CheckCircle2, AlertCircle, FileText, 
-  Trash2, Eye, Download, Copy, ExternalLink, Building2, User, Truck, Pencil, Archive, RotateCcw,
-  RefreshCw, Check, Clock, Lock, Key, Mail, Search, FileUp, Sparkles, Filter, Settings2, CheckSquare, XCircle, MessageSquare, Layers, FileCheck
+import {
+  Store, ShieldCheck, Plus, Send, CheckCircle2,
+  Trash2, Eye, Copy, Building2, User, Truck, Pencil, Archive, RotateCcw,
+  Check, Clock, Mail, FileUp, Sparkles, Settings2, CheckSquare, XCircle, MessageSquare, FileCheck
 } from 'lucide-react';
 
 export default function Acreditaciones({ user, onBack, companyBranding }) {
@@ -39,10 +39,9 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
   const [asuntoEmail, setAsuntoEmail] = useState('');
   const [observaciones, setObservaciones] = useState('');
   const [selectedWorkers, setSelectedWorkers] = useState([]);
-  const [customDocs, setCustomDocs] = useState({});
   const [sendingEmail, setSendingEmail] = useState(false);
   const [historialInterno, setHistorialInterno] = useState([]);
-  const [selectedHistorialDetail, setSelectedHistorialDetail] = useState(null);
+  const [, setSelectedHistorialDetail] = useState(null);
 
   // --- ESTADOS PARA "ACREDITACIÓN SUBCONTRATO" ---
   const [subcontratosList, setSubcontratosList] = useState([]);
@@ -58,7 +57,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     { key: 'f30_1', label: 'Certificado F30-1 (Cumplimiento Laboral)' }
   ]);
   const [newSupplierDocLabel, setNewSupplierDocLabel] = useState('');
-  const [loadingSubcontratos, setLoadingSubcontratos] = useState(false);
+  const [, setLoadingSubcontratos] = useState(false);
   const [sendingSubInvite, setSendingSubInvite] = useState(false);
   const [showSubModal, setShowSubModal] = useState(false);
   const [editingSub, setEditingSub] = useState(null);
@@ -112,7 +111,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
 
   // Toast / Mensajes
   const [successMsg, setSuccessMsg] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
+  const [, setErrorMsg] = useState('');
 
   useEffect(() => {
     fetchObras();

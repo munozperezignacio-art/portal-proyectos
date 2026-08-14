@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { Eye, EyeOff, Lock, Building2, User, AlertCircle, Loader2, QrCode, Navigation, RotateCcw, CheckCircle2, AlertTriangle, Search, Mail, KeyRound } from 'lucide-react';
+import { Eye, EyeOff, Lock, Building2, User, AlertCircle, Loader2, QrCode, Navigation, RotateCcw, CheckCircle2, AlertTriangle, Mail, KeyRound } from 'lucide-react';
 import { getAuthenticatedProfile } from '../utils/auth';
 import { formatRut, validateRut } from '../utils/rutUtils';
 
@@ -18,8 +18,6 @@ function Login({ onLoginSuccess, onBackHome }) {
   const [resetLoading, setResetLoading] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [resetError, setResetError] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [showNewPasswordForm, setShowNewPasswordForm] = useState(false);
 
   const [companiesList, setCompaniesList] = useState([]);
   const [selectedBranding, setSelectedBranding] = useState(null);
@@ -143,7 +141,7 @@ function Login({ onLoginSuccess, onBackHome }) {
         }
         setQrGpsLoc({ lat: uLat, lng: uLng, distance: dist, status: 'success', isWithin: within, error: '' });
       },
-      (err) => {
+      () => {
         setQrGpsLoc({ lat: null, lng: null, distance: null, status: 'error', isWithin: false, error: 'Permiso GPS denegado. Activa tu ubicación para verificar.' });
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }

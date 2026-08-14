@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Archive, Building2, Check, Copy, Eye, EyeOff, KeyRound, Loader2, Mail, Plus, RefreshCw, Save, Send, Settings2, ShieldCheck, Trash2, Users } from 'lucide-react';
+import { Archive, Check, Copy, KeyRound, Loader2, Plus, Save, Settings2, Users } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { sendSystemEmail } from '../utils/emailService';
 import { formatRut } from '../utils/rutUtils';

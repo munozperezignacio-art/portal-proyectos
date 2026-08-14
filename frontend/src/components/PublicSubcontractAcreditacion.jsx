@@ -4,11 +4,11 @@ import { formatRut } from '../utils/rutUtils';
 import PublicObraxisHeader from './PublicObraxisHeader';
 import SubcontractOperationsPortal from './SubcontractOperationsPortal';
 import { 
-  Building2, ShieldCheck, User, Truck, FileUp, CheckCircle2, Lock, 
-  Plus, Trash2, FileText, Check, AlertCircle, Sparkles, ExternalLink, Key, Eye, Download, XCircle, MessageSquare, Save, RefreshCw
+  Building2, ShieldCheck, User, Truck, FileUp, CheckCircle2, Lock,
+  Plus, FileText, Key, Eye, MessageSquare, Save, RefreshCw
 } from 'lucide-react';
 
-export default function PublicSubcontractAcreditacion({ token, companyNameParam }) {
+export default function PublicSubcontractAcreditacion({ token }) {
   const [authenticated, setAuthenticated] = useState(false);
   const [passInput, setPassInput] = useState('');
   const [subInfo, setSubInfo] = useState(null);

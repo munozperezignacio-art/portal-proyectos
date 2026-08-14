@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Activity, AlertTriangle, Bot, Building2, CalendarDays, ChevronDown, Download, Eye, Filter, Search, ShieldCheck, UserRound, X } from 'lucide-react';
+import { Activity, AlertTriangle, Bot, Download, Eye, Search, ShieldCheck, UserRound, X } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can, isSuperUser } from '../utils/permissionsCatalog';

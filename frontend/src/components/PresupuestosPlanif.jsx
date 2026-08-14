@@ -2620,7 +2620,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
   };
 
   const makeSheetName = (code, title, usedSet) => {
-    let raw = `${code ? code + ' ' : ''}${title || 'Partida'}`.replace(/[:\\/?*\[\]]/g, '');
+    let raw = `${code ? code + ' ' : ''}${title || 'Partida'}`.replace(/[:\\/?*[\]]/g, '');
     if (raw.length > 30) {
       raw = raw.substring(0, 30).trim();
     }

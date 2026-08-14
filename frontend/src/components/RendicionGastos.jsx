@@ -1,5 +1,5 @@
-import React,{useEffect,useMemo,useState}from'react';
-import{Coins,Plus,Receipt,ScanLine,Send,CheckCircle2,XCircle,MessageSquare,WalletCards,Eye,Image as ImageIcon,Loader2}from'lucide-react';
+import React,{useEffect,useState}from'react';
+import{Coins,Plus,ScanLine,Send,Eye,Image as ImageIcon,Loader2}from'lucide-react';
 import{supabase}from'../supabaseClient';
 import ModuleHeader from'./ModuleHeader';
 import useUserPermissions from'../utils/useUserPermissions';

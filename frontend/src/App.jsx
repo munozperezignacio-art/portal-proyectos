@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   LogOut, LayoutDashboard, Building2, Users, Truck, ShieldAlert, Settings, Info, Menu, X, Loader2,
   Layers, Handshake, Receipt, Coins, ClipboardCheck, Boxes, BadgeCheck,
-  FileSpreadsheet, Upload, CalendarDays, Hammer, ChevronLeft, ChevronRight, Search, Star
+  Hammer, ChevronLeft, ChevronRight, Search, Star
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import { getAuthenticatedProfile } from './utils/auth';
@@ -78,15 +78,6 @@ function GroupedModuleLinks({ modules, currentModule, onSelect }) {
   });
 }
 
-const defaultCovers = [
-  "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=600&q=80", // construction site
-  "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=600&q=80", // crane/construction
-  "https://images.unsplash.com/photo-1581094288338-2314dddb7ecc?auto=format&fit=crop&w=600&q=80", // plans
-  "https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&w=600&q=80", // concrete
-  "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=600&q=80", // buildings
-  "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=600&q=80"  // steel/glass structure
-];
-
 function App() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -126,8 +117,8 @@ function App() {
   });
   const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile drawer toggle
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true); // Desktop sidebar collapse toggle
-  const [obras, setObras] = useState([]);
-  const [obrasLoading, setObrasLoading] = useState(false);
+  const [, setObras] = useState([]);
+  const [, setObrasLoading] = useState(false);
   const [selectedObraName, setSelectedObraName] = useState(null);
 
   const activeUserContext = user 

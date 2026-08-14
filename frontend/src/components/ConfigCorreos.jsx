@@ -9,7 +9,7 @@ import PlatformAudit from './PlatformAudit';
 import ContactInbox from './ContactInbox';
 import { PERMISSIONS_CATALOG, permissionKey } from '../utils/permissionsCatalog';
 import { 
-  Settings, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Check, Mail, Filter, User, Lock, Building2, ShieldAlert, Copy, Archive, ArchiveRestore, ShieldCheck, Bell, Palette, Users, Workflow, AtSign, BriefcaseBusiness, Layers3, Globe2, Database, Sparkles, HardDrive, Clock3, Save, RefreshCw, Server, CircleCheck, CircleX, ScrollText, MessageSquareText
+  Settings, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Mail, Filter, Building2, Copy, Archive, ArchiveRestore, ShieldCheck, Bell, Palette, Users, Workflow, AtSign, BriefcaseBusiness, Globe2, Database, Sparkles, HardDrive, Save, RefreshCw, Server, CircleCheck, CircleX, ScrollText, MessageSquareText
 } from 'lucide-react';
 
 function PlatformField({ label, value, onChange, type = 'text', min, max }) {

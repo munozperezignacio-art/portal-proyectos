@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { 
-  ShieldAlert, Send, CheckCircle2, Camera, PenTool, AlertCircle, Loader2, Check, Plus 
+  Send, CheckCircle2, Camera, AlertCircle, Loader2, Plus
 } from 'lucide-react';
 
 export default function PublicFormFiller({ formToken }) {

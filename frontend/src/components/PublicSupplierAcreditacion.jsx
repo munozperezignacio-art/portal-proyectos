@@ -3,11 +3,11 @@ import { supabase } from '../supabaseClient';
 import { formatRut } from '../utils/rutUtils';
 import PublicObraxisHeader from './PublicObraxisHeader';
 import { 
-  Building2, ShieldCheck, User, Truck, FileUp, CheckCircle2, Lock, 
-  Plus, Trash2, FileText, Check, AlertCircle, Sparkles, ExternalLink, Key, Eye, Download, XCircle, MessageSquare, Save, RefreshCw, PackageCheck, Store
+  Building2, User, Truck, FileUp, CheckCircle2, Lock,
+  Plus, FileText, Key, Eye, MessageSquare, Save, RefreshCw, PackageCheck, Store
 } from 'lucide-react';
 
-export default function PublicSupplierAcreditacion({ token, companyNameParam }) {
+export default function PublicSupplierAcreditacion({ token }) {
   const [authenticated, setAuthenticated] = useState(false);
   const [passInput, setPassInput] = useState('');
   const [subInfo, setSubInfo] = useState(null);

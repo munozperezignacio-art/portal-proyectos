@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { ShieldAlert, Play, CheckCircle2, AlertCircle, Loader2, Check, ArrowRight, Award, ClipboardList, Send } from 'lucide-react';
+import { ShieldAlert, Play, Loader2, Award, ClipboardList, Send } from 'lucide-react';
 
 export default function PublicTrainingFiller({ trainingToken }) {
   const [training, setTraining] = useState(null);
@@ -47,7 +47,7 @@ export default function PublicTrainingFiller({ trainingToken }) {
   const getEmbedUrl = (url) => {
     if (!url) return null;
     // YouTube
-    const ytReg = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const ytReg = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&\?]*).*/;
     const ytMatch = url.match(ytReg);
     if (ytMatch && ytMatch[2].length === 11) {
       return `https://www.youtube.com/embed/${ytMatch[2]}`;
@@ -74,18 +74,6 @@ export default function PublicTrainingFiller({ trainingToken }) {
 
   const handleRutChange = (e) => {
     setWorkerRut(formatRut(e.target.value));
-  };
-
-  const calculateChileanGrade = (score, max) => {
-    if (max === 0) return 1.0;
-    const pct = score / max;
-    let grade = 1.0;
-    if (pct < 0.6) {
-      grade = 1.0 + 3.0 * (pct / 0.6);
-    } else {
-      grade = 4.0 + 3.0 * ((pct - 0.6) / 0.4);
-    }
-    return Math.round(grade * 10) / 10;
   };
 
   const handleSubmitEvaluation = async (e) => {

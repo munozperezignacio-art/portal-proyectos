@@ -2,7 +2,7 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
-Avance actualizado: Etapa 1 99%; Etapa 2 90%; Etapa 3 60%; plan completo 55%.
+Avance actualizado: Etapa 1 99%; Etapa 2 90%; Etapa 3 60%; Etapa 4 15%; Etapa 5 10%; plan completo 56%.
 
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
@@ -92,6 +92,8 @@ La plataforma se considerará lista para producción cuando no existan política
 - Portales externos de acreditación encapsulados en `acreditacion-publica`, con token y clave, límite de frecuencia, tamaño máximo y rechazo de empresas archivadas.
 - Revisión, aprobación y rechazo documental conectados a la misma fuente persistente; eliminadas las credenciales universales y los respaldos operativos silenciosos del navegador.
 - Pruebas de arquitectura incorporadas para impedir secretos en frontend, escrituras directas desde portales públicos y llamadas a Edge Functions no versionadas.
+- Primera limpieza transversal de lint ejecutada: las advertencias bajaron de 386 a 287 sin retirar funciones, concentrando el remanente en los cinco componentes históricos que deben dividirse por dominio.
+- Eliminados imports, estados, parámetros y cálculos muertos en portales públicos, acreditaciones, configuración, facturación, informes, login y aplicación principal; corregidos además escapes documentales seguros.
 - Obras, maestro de personal y asistencia quedaron aislados por empresa; `anon` ya no posee privilegios sobre esas tablas.
 - Políticas públicas amplias reducidas de 3 a 0 y verificadas directamente en producción.
 - Control de lint reactivado en Windows; corregido el único error bloqueante de reglas de Hooks detectado en Bodega.

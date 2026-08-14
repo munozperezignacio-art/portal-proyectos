@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Mail, Check, X, ShieldAlert, Plus, Trash2 } from 'lucide-react';
+import { Settings, Mail, Check, Plus } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
 export default function ContextualEmailConfigModal({

@@ -6,7 +6,7 @@ import { sendSystemEmail } from '../utils/emailService';
 const field='rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold outline-none focus:border-primary';
 
 export default function MandanteReports({contracts,projects,company,who}){
-  const [configs,setConfigs]=useState([]),[history,setHistory]=useState([]),[drafts,setDrafts]=useState({}),[email,setEmail]=useState({}),[working,setWorking]=useState(''),[message,setMessage]=useState(''),[error,setError]=useState('');
+  const [,setConfigs]=useState([]),[history,setHistory]=useState([]),[drafts,setDrafts]=useState({}),[email,setEmail]=useState({}),[working,setWorking]=useState(''),[message,setMessage]=useState(''),[error,setError]=useState('');
   const projectById=useMemo(()=>Object.fromEntries(projects.map(x=>[x.id,x])),[projects]);
   const owned=contracts.filter(x=>x.empresa_mandante===company);
   const load=async()=>{const ids=owned.map(x=>x.id);if(!ids.length){setConfigs([]);setHistory([]);return;}const[c,h]=await Promise.all([supabase.from('mandante_informes_config').select('*').in('contrato_id',ids),supabase.from('mandante_informes_historial').select('id,contrato_id,periodo,resumen,destinatarios,estado,error,generado_por,generado_at,enviado_at').in('contrato_id',ids).order('generado_at',{ascending:false}).limit(100)]);if(c.error||h.error)setError(c.error?.message||h.error?.message);setConfigs(c.data||[]);setHistory(h.data||[]);setDrafts(Object.fromEntries(owned.map(contract=>{const cfg=(c.data||[]).find(x=>x.contrato_id===contract.id);return[contract.id,cfg||{contrato_id:contract.id,empresa_mandante:company,activo:false,frecuencia:'Semanal',dia_semana:1,dia_mes:1,hora:'08:00',destinatarios:[]}];})));};

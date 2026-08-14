@@ -498,7 +498,7 @@ export default function ExecutiveReportScheduler({
       setMessage("El navegador bloqueó la ventana de impresión.");
       return;
     }
-    reportWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${execution.nombre || "Informe Obraxis"}</title><style>@page{size:A4;margin:12mm}body{margin:0;background:#fff} @media print{button{display:none!important}}</style></head><body>${execution.contenido_html || ""}<script>window.onload=()=>window.print()<\/script></body></html>`);
+    reportWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${execution.nombre || "Informe Obraxis"}</title><style>@page{size:A4;margin:12mm}body{margin:0;background:#fff} @media print{button{display:none!important}}</style></head><body>${execution.contenido_html || ""}<script>window.onload=()=>window.print()</script></body></html>`);
     reportWindow.document.close();
   };
   return (

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowRight, BookOpen, Check, CheckCircle2, Clock3, FileCheck2, FilePlus2, FileText, Landmark, Link2, Loader2, Plus, RefreshCw, Save, Search, Send, Settings2, ShieldCheck, Trash2, XCircle } from 'lucide-react';
+import { BookOpen, FileCheck2, FilePlus2, FileText, Landmark, Link2, Loader2, Plus, RefreshCw, Save, Search, Send, Settings2, ShieldCheck, Trash2, XCircle } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';

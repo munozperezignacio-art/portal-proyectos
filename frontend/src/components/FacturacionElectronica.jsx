@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ArrowLeftRight, Building2, CheckCircle2, CircleDollarSign, FileInput,
+  Building2, FileInput,
   FileOutput, Link2, Plus, RefreshCw, Save, Settings2, WalletCards
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
