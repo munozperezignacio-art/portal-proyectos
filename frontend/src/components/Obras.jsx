@@ -17,6 +17,7 @@ import EstadosPagoObra from './EstadosPagoObra';
 import SubcontratosObra from './SubcontratosObra';
 import FlujoCajaObra from './FlujoCajaObra';
 import CopilotoObra from './CopilotoObra';
+import SpecializedAssistanceInbox from './SpecializedAssistanceInbox';
 import { registrarEventoBitacora } from '../utils/bitacoraService';
 import FormAnswerDisplay from './FormAnswerDisplay';
 import { generateFormPdf } from '../utils/pdfGenerator';
@@ -466,7 +467,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [editingWorkerData, setEditingWorkerData] = useState(null);
 
   // Estados del Sub-módulo de Estadísticas Ejecutivas de Obra
-  const [estadisticasTab, setEstadisticasTab] = useState('resumen'); // 'resumen' | 'avance' | 'cuadrillas' | 'maquinarias' | 'prevencion' | 'costos' | 'bodega'
+  const [estadisticasTab, setEstadisticasTab] = useState('prioridades'); // bandeja transversal y detalle por especialidad
   const [fCorteEstadisticas, setFCorteEstadisticas] = useState(() => new Date().toISOString().substring(0, 10));
   const [filtroPartidaEstadisticas, setFiltroPartidaEstadisticas] = useState('GLOBAL');
   
@@ -4630,6 +4631,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   {/* BARRA DE NAVEGACIÓN POR SUB-PESTAÑAS DE ESTADÍSTICAS */}
                   <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100">
                     {[
+                      { id: 'prioridades', label: '🚨 Prioridades' },
                       { id: 'resumen', label: '🎯 Control Ejecutivo' },
                       { id: 'lastplanner', label: '📋 Lookahead / Last Planner' },
                       { id: 'avance', label: '📈 Avance Físico' },
@@ -5030,6 +5032,25 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
                 return (
                   <div className="space-y-6">
+
+                    {estadisticasTab === 'prioridades' && (
+                      <SpecializedAssistanceInbox
+                        user={user}
+                        obra={selectedObra}
+                        criticalPartidas={criticalPartidas}
+                        upcomingPartidas={upcomingPartidas}
+                        equipmentAvailability={equipmentAvailability}
+                        incidents={filteredAccidentes}
+                        personal={personalList}
+                        onNavigate={(module) => {
+                          if (module === 'planning') setEstadisticasTab('lastplanner');
+                          else if (module === 'machinery') setEstadisticasTab('maquinarias');
+                          else if (module === 'hr') setEstadisticasTab('cuadrillas');
+                          else if (module === 'quality') setObraActiveSubmodule('calidad');
+                          else if (module === 'prevention') setObraActiveSubmodule('prevencion');
+                        }}
+                      />
+                    )}
 
                     {/* PESTAÑA 0: CONTROL EJECUTIVO — lectura rápida para jefatura de obra */}
                     {estadisticasTab === 'resumen' && (

@@ -10,7 +10,7 @@ La IA asiste. Los cálculos, permisos, aprobaciones y registros oficiales contin
 | 2. IA documental | Cerrada | 100% |
 | 3. Informes asistidos | Cerrada | 100% |
 | 4. Copiloto contextual por obra | Primera versión funcional | 70% |
-| 5. Asistencia especializada | Last Planner, Calidad, Prevención, Maquinaria y capacidad de RR.HH. operativos | 85% |
+| 5. Asistencia especializada | Cerrada: especialidades operativas y bandeja transversal priorizada | 100% |
 | 6. Predicción y optimización | Pendiente de historial confiable | 0% |
 
 ## Fase 1 — Gobierno y control de IA
@@ -80,6 +80,8 @@ La IA asiste. Los cálculos, permisos, aprobaciones y registros oficiales contin
 
 ## Fase 5 — Asistencia especializada
 
+La cobertura operativa determinística de esta fase está cerrada. Las interpretaciones IA indicadas como opcionales quedan como extensiones contratables y no reducen la funcionalidad base.
+
 - [x] Base determinística de Planificación y Last Planner: semáforo por partida, restricciones, responsables, compromisos, criticidad y sugerencias de recuperación sin consumo de tokens.
 - [ ] Interpretación IA opcional de Planificación y Last Planner, sujeta a autorización específica para enviar restricciones y recursos a OpenAI.
 - [x] Base determinística de Calidad: contención, análisis causal, recurrencia, acción correctiva, verificación de eficacia y cierre por etapas.
@@ -90,8 +92,9 @@ La IA asiste. Los cálculos, permisos, aprobaciones y registros oficiales contin
 - [ ] Asistencia IA opcional de Maquinaria para síntesis de fallas recurrentes y recomendaciones de redistribución, sujeta a autorización específica.
 - [x] Base determinística de Recursos Humanos: personal disponible, costo sin asignar, asistencia y horas extra de 30 días, brechas proyectadas por cargo y sugerencias de reasignación con confirmación humana.
 - [ ] Asistencia IA opcional de Recursos Humanos para explicar brechas y proponer escenarios de dotación, sujeta a autorización específica.
+- [x] Bandeja transversal por obra: consolida prioridades de planificación, Last Planner, Calidad, Prevención, Maquinaria y RR. HH.; enlaza cada alerta con su registro responsable y no ejecuta cambios automáticos.
 - [x] Lectura asistida de horómetro/kilometraje con revisión humana.
-- [ ] Anomalías, fallas recurrentes, mantenimiento y redistribución de maquinaria.
+- [x] Anomalías de lecturas, fallas recurrentes, mantenimiento proyectado y sugerencias determinísticas de redistribución de maquinaria.
 
 ## Fase 6 — Predicción y optimización
 
@@ -106,4 +109,4 @@ No se inicia hasta disponer de volumen, calidad y continuidad histórica suficie
 
 ## Próximo bloque obligatorio
 
-Cerrar Fase 5 con una bandeja transversal de asistencia especializada y priorización consolidada; mantener decisiones, aprobaciones y cambios como procesos determinísticos.
+Continuar Fase 4: ampliar la trazabilidad del Copiloto contextual con enlaces navegables al registro citado, controles de alcance y mejor cobertura de consultas determinísticas antes de iniciar predicción.
