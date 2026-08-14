@@ -4533,7 +4533,13 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           )}
 
           {obraActiveSubmodule === 'copiloto' && (
-            <CopilotoObra user={user} obra={selectedObra} />
+            <CopilotoObra user={user} obra={selectedObra} onNavigate={(destination) => {
+              if (destination === 'calidad') setObraActiveSubmodule('calidad');
+              else if (destination === 'prevencion') setObraActiveSubmodule('prevencion');
+              else if (destination === 'estados_pago') setObraActiveSubmodule('estados_pago');
+              else if (destination === 'inicio') setObraActiveSubmodule(null);
+              else if (destination?.startsWith('estadisticas:')) { setEstadisticasTab(destination.split(':')[1] || 'resumen'); setObraActiveSubmodule('estadisticas'); }
+            }} />
           )}
 
           {/* VISTA DEDICADA 9: PANEL DE ESTADÍSTICAS EJECUTIVAS DE OBRA */}

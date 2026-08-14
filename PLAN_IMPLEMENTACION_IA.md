@@ -9,7 +9,7 @@ La IA asiste. Los cálculos, permisos, aprobaciones y registros oficiales contin
 | 1. Gobierno y control de IA | Cerrada | 100% |
 | 2. IA documental | Cerrada | 100% |
 | 3. Informes asistidos | Cerrada | 100% |
-| 4. Copiloto contextual por obra | Primera versión funcional | 70% |
+| 4. Copiloto contextual por obra | Trazabilidad navegable, aislamiento reforzado y consultas determinísticas | 90% |
 | 5. Asistencia especializada | Cerrada: especialidades operativas y bandeja transversal priorizada | 100% |
 | 6. Predicción y optimización | Pendiente de historial confiable | 0% |
 
@@ -77,6 +77,9 @@ La IA asiste. Los cálculos, permisos, aprobaciones y registros oficiales contin
 - [x] Citas al módulo y tabla de origen; enlaces profundos quedan para el siguiente bloque.
 - [x] Separación visible entre hechos, cálculos y sugerencias.
 - [x] Modo solo lectura e historial de consultas.
+- [x] Referencias controladas por servidor con navegación al módulo y registro de origen; la IA no puede inventar destinos.
+- [x] Consultas determinísticas de avance, calidad/prevención, estados de pago y costo total sin consumo de tokens.
+- [x] Aislamiento defensivo para fuentes antiguas relacionadas solo por nombre de obra.
 
 ## Fase 5 — Asistencia especializada
 
@@ -109,4 +112,4 @@ No se inicia hasta disponer de volumen, calidad y continuidad histórica suficie
 
 ## Próximo bloque obligatorio
 
-Continuar Fase 4: ampliar la trazabilidad del Copiloto contextual con enlaces navegables al registro citado, controles de alcance y mejor cobertura de consultas determinísticas antes de iniciar predicción.
+Cerrar Fase 4 con cobertura determinística de restricciones, maquinaria y dotación, además de evaluación funcional de respuestas y referencias antes de iniciar predicción.
