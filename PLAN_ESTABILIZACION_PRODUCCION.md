@@ -2,7 +2,7 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
-Avance actualizado: Etapa 1 99%; Etapa 2 60%; plan completo 33%.
+Avance actualizado: Etapa 1 99%; Etapa 2 80%; plan completo 38%.
 
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
@@ -23,7 +23,7 @@ Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operac
 - [x] Hacer obligatorios los identificadores multiempresa donde corresponde.
 - [ ] Consolidar toda la historia en `supabase/migrations`.
 - [x] Sincronizar el inventario de Edge Functions locales y desplegadas.
-- [ ] Corregir automatizaciones del mandante que responden 401.
+- [x] Corregir y verificar automatizaciones internas y del mandante que respondían 401.
 - [x] Incorporar índices de claves foráneas según uso real en las tablas operativas normalizadas.
 
 ## Etapa 3 — Pruebas
@@ -97,3 +97,7 @@ La plataforma se considerará lista para producción cuando no existan política
 - Eliminados, por autorización expresa, 4 partidas, 19 avances, 10 asistencias, 2 asignaciones preventivas vacías y sus 2 registros dependientes heredados sin origen válido.
 - Las 5 respuestas preventivas antiguas con nombre de obra inequívoco fueron enlazadas a su obra real; no se creó una obra de cuarentena.
 - `empresa` y `obra_id` quedaron obligatorios en partidas y avances; `obra_id` también quedó obligatorio en asistencia, con índices compuestos para los accesos por empresa, obra y fecha.
+- Eliminada la validación JWT redundante del gateway en `detectar-reportes-pendientes` y `despachar-informes`; ambas conservan autenticación obligatoria mediante secreto de Vault.
+- Pruebas negativas sin secreto respondieron 401 y pruebas internas con el secreto respondieron 200, sin registros pendientes procesados.
+- Las funciones del mandante aceptaron su secreto de automatización y alcanzaron correctamente la validación funcional (404/400 con identificadores deliberadamente inexistentes, no 401).
+- Inventario de migraciones comparado: producción conserva historia previa que Git mantiene aún como archivos `schema_*.sql`; documentado el procedimiento seguro para generar el baseline sin reejecutar SQL acumulativo.

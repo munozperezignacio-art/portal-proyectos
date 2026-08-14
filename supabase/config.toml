@@ -1,0 +1,10 @@
+project_id = "wegphblwwcfidvdbdtdq"
+
+# Estas funciones no usan el JWT del gateway porque son tareas internas de
+# pg_cron. Ambas rechazan toda solicitud cuyo x-cron-secret no coincida con el
+# secreto privado almacenado en Vault.
+[functions.detectar-reportes-pendientes]
+verify_jwt = false
+
+[functions.despachar-informes]
+verify_jwt = false
