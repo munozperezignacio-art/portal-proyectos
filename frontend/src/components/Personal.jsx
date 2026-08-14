@@ -240,11 +240,11 @@ function Personal({ user, onBack }) {
         const mammoth = await import('mammoth/mammoth.browser');
         const extracted = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
         if (!extracted.value.trim()) throw new Error('El documento Word no contiene texto legible.');
-        body = { text: extracted.value, file_name: file.name, mime_type: file.type || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' };
+        body = { text: extracted.value, file_name: file.name, mime_type: file.type || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', empresa: user?.empresa };
       } else if (extension === 'txt') {
-        body = { text: await file.text(), file_name: file.name, mime_type: 'text/plain' };
+        body = { text: await file.text(), file_name: file.name, mime_type: 'text/plain', empresa: user?.empresa };
       } else {
-        body = { file_base64: await fileToBase64(file), file_name: file.name, mime_type: file.type || 'application/pdf' };
+        body = { file_base64: await fileToBase64(file), file_name: file.name, mime_type: file.type || 'application/pdf', empresa: user?.empresa };
       }
       const { data, error } = await supabase.functions.invoke('analizar-formato-laboral-ia', { body });
       if (error) throw error;

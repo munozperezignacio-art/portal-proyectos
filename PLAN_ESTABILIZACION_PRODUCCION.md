@@ -2,7 +2,7 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
-Avance actualizado: Etapa 1 99%; plan completo 22%.
+Avance actualizado: Etapa 1 99%; Etapa 2 35%; plan completo 28%.
 
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
@@ -22,7 +22,7 @@ Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operac
 - [ ] Reasignar partidas y avances sin `empresa` u `obra_id`.
 - [ ] Hacer obligatorios los identificadores multiempresa donde corresponda.
 - [ ] Consolidar toda la historia en `supabase/migrations`.
-- [ ] Sincronizar Edge Functions locales y desplegadas.
+- [x] Sincronizar el inventario de Edge Functions locales y desplegadas.
 - [ ] Corregir automatizaciones del mandante que responden 401.
 - [ ] Incorporar índices de claves foráneas según uso real.
 
@@ -92,3 +92,6 @@ La plataforma se considerará lista para producción cuando no existan política
 - Políticas públicas amplias reducidas de 3 a 0 y verificadas directamente en producción.
 - Control de lint reactivado en Windows; corregido el único error bloqueante de reglas de Hooks detectado en Bodega.
 - Auditoría de integridad multiempresa iniciada: quedan 19 avances, 4 partidas y 10 asistencias heredadas sin obra inequívoca; se mantienen identificadas para reasignación controlada, sin inventar relaciones ni eliminar registros.
+- Recuperada en Git la función productiva `subcontrato-operacion`, que no estaba versionada.
+- Desplegada `analizar-formato-laboral-ia`, antes presente sólo en Git, con autenticación, permisos por empresa, presupuesto de IA y auditoría de consumo.
+- Preparada y validada la migración de cuarentena para datos heredados sin obra; su aplicación queda sujeta a autorización específica por reasignar registros e imponer identificadores obligatorios.
