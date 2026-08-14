@@ -32,7 +32,7 @@ const hasWorksiteAccess = (profile: any, worksite: string) => {
 };
 
 type Source = { id: string; modulo: string; referencia: string; destino: string; registro_id?: string | number | null };
-type Context = { obra: any; resumen: any; partidas: any[]; costos_por_tipo: any[]; calidad: any[]; prevencion: any[]; estados_pago: any[]; fuentes: Source[] };
+type Context = { obra: any; resumen: any; partidas: any[]; costos_por_tipo: any[]; calidad: any[]; prevencion: any[]; estados_pago: any[]; restricciones: any[]; maquinaria: any[]; fallas_maquinaria: any[]; personal_asignado: any[]; fuentes: Source[] };
 
 const decorate = (result: any, sources: Source[], mode: "IA" | "Determinístico") => {
   const allowed = new Map(sources.map(source => [source.id, source]));
@@ -71,6 +71,42 @@ const deterministicAnswer = (question: string, context: Context) => {
   if (q.includes("costo") && (q.includes("total") || q.includes("gast") || q.includes("desviaci"))) {
     return { respuesta_breve: `El costo real registrado de la obra es ${money(context.resumen.costo_real_total)}.`, hechos: [{ texto: `Costo real acumulado: ${money(context.resumen.costo_real_total)}.`, fuente_id: "costos:resumen" }], calculos: context.costos_por_tipo.slice(0, 8).map(item => ({ nombre: item.tipo, valor: money(item.monto), base: "Suma de costos reales registrados en la categoría" })), sugerencias: [], limitaciones: ["La desviación requiere comparar este costo con presupuesto, valor ganado y fecha de corte."] };
   }
+  if (q.includes("restric") || q.includes("last planner") || q.includes("partidas prontas")) {
+    const pending = context.restricciones.filter(item => !["confirmado", "liberado", "no aplica", "no_aplica"].includes(normalized(item.estado)));
+    const overdue = pending.filter(item => item.fecha_compromiso && item.fecha_compromiso < new Date().toISOString().slice(0, 10));
+    const critical = pending.filter(item => ["crítica", "critica"].includes(normalized(item.criticidad)));
+    return {
+      respuesta_breve: `Existen ${pending.length} restricción(es) pendiente(s): ${overdue.length} vencida(s) y ${critical.length} crítica(s).`,
+      hechos: pending.slice(0, 8).map(item => ({ texto: `${item.partida}: ${item.recurso || item.tipo || "restricción"} · ${item.estado || "Pendiente"}${item.fecha_compromiso ? ` · compromiso ${item.fecha_compromiso}` : ""}.`, fuente_id: item.fuente_id })),
+      calculos: [{ nombre: "Restricciones pendientes", valor: String(pending.length), base: "Recursos Last Planner sin estado liberado, confirmado o no aplica" }, { nombre: "Restricciones vencidas", valor: String(overdue.length), base: "Fecha de compromiso anterior a hoy" }],
+      sugerencias: overdue.length ? [{ accion: "Regularizar primero las restricciones vencidas y críticas antes de comprometer nuevas partidas.", prioridad: "Alta", motivo: "Pueden impedir el inicio o continuidad de actividades." }] : [],
+      limitaciones: ["La liberación debe ser confirmada por el responsable; el Copiloto no modifica estados."]
+    };
+  }
+  if (q.includes("maquinaria") || q.includes("equipo") || q.includes("mantenci") || q.includes("falla")) {
+    const unavailable = context.maquinaria.filter(item => !["operativo", "disponible", "activo"].includes(normalized(item.estado_equipo)));
+    const stopped = context.fallas_maquinaria.filter(item => item.detuvo_equipo && !item.solucion);
+    const hours = context.maquinaria.reduce((sum, item) => sum + num(item.horas_reportadas), 0);
+    return {
+      respuesta_breve: `La obra tiene ${context.maquinaria.length} equipo(s) asignado(s), ${unavailable.length} fuera de condición operativa y ${stopped.length} falla(s) sin solución registrada.`,
+      hechos: [...unavailable.slice(0, 5).map(item => ({ texto: `${item.tipo || "Equipo"} ${item.patente || "sin patente"}: estado ${item.estado_equipo || "no informado"}.`, fuente_id: item.fuente_id })), ...stopped.slice(0, 5).map(item => ({ texto: `${item.equipo_tipo || "Equipo"} ${item.equipo_patente || ""}: falla ${item.severidad || "sin severidad"} del ${item.fecha || "día no informado"}.`, fuente_id: item.fuente_id }))],
+      calculos: [{ nombre: "Equipos asignados", valor: String(context.maquinaria.length), base: "Inventario asociado a la obra" }, { nombre: "Horas registradas", valor: hours.toLocaleString("es-CL"), base: "Suma de reportes diarios de uso disponibles" }],
+      sugerencias: stopped.length ? [{ accion: "Resolver o documentar las fallas que mantienen equipos detenidos.", prioridad: "Alta", motivo: "Afectan disponibilidad y continuidad operacional." }] : [],
+      limitaciones: ["La predicción de mantención requiere lecturas y planes de mantenimiento vigentes."]
+    };
+  }
+  if (q.includes("personal") || q.includes("dotaci") || q.includes("rrhh") || q.includes("recurso humano")) {
+    const today = new Date().toISOString().slice(0, 10);
+    const active = context.personal_asignado.filter(item => (!item.fecha_inicio || item.fecha_inicio <= today) && (!item.fecha_termino || item.fecha_termino >= today));
+    const byRole = Object.entries(active.reduce((acc: Record<string, number>, item: any) => { const key = item.cargo || "Sin cargo"; acc[key] = (acc[key] || 0) + 1; return acc; }, {})).sort((a: any, b: any) => b[1] - a[1]);
+    return {
+      respuesta_breve: `La obra registra ${active.length} persona(s) con asignación vigente.`,
+      hechos: active.slice(0, 8).map(item => ({ texto: `${item.trabajador_nombre}: ${item.cargo || "Sin cargo"}${item.fecha_termino ? ` · asignado hasta ${item.fecha_termino}` : ""}.`, fuente_id: item.fuente_id })),
+      calculos: byRole.slice(0, 8).map(([cargo, total]) => ({ nombre: String(cargo), valor: String(total), base: "Asignaciones vigentes a la obra" })),
+      sugerencias: [],
+      limitaciones: ["La asignación contractual no confirma asistencia efectiva del día; para ello debe revisarse el registro de asistencia."]
+    };
+  }
   return null;
 };
 
@@ -96,15 +132,23 @@ Deno.serve(async (req) => {
     const { count: sameNameCount } = await db.from("obras").select("id", { count: "exact", head: true }).eq("nombre", obraNombre);
     if (num(sameNameCount) > 1) return json({ error: "Esta obra comparte nombre con otra empresa. Para proteger el aislamiento de datos, asígnale un nombre único antes de consultar el Copiloto." }, 409);
 
-    const [partsResult, advancesResult, costsResult, qualityResult, safetyResult, paymentsResult] = await Promise.all([
+    const [partsResult, advancesResult, costsResult, qualityResult, safetyResult, paymentsResult, restrictionsResult, machineryResult, machineryUseResult, failuresResult, assignmentsResult] = await Promise.all([
       db.from("partidas_obra").select("id,partida,unidad,cantidad_presupuestada,costo_por_dia,fecha_inicio,fecha_termino").eq("obra_nombre", obraNombre),
       db.from("avances_produccion_partidas").select("id,partida,cantidad,created_at").eq("obra_nombre", obraNombre),
       db.from("costos_reales_obra").select("id,nombre,tipo_costo,monto,created_at").eq("obra_nombre", obraNombre).eq("empresa", empresa),
       db.from("calidad_no_conformidades").select("id,codigo,partida,clasificacion,estado,fecha_compromiso").eq("obra_nombre", obraNombre).eq("empresa", empresa),
       db.from("prevencion_respuestas").select("id,created_at").eq("proyecto_nombre", obraNombre),
-      db.from("estados_pago_obra").select("id,numero,fecha_corte,monto_bruto,monto_neto,estado,factura_estado").eq("obra_nombre", obraNombre).eq("empresa", empresa)
+      db.from("estados_pago_obra").select("id,numero,fecha_corte,monto_bruto,monto_neto,estado,factura_estado").eq("obra_nombre", obraNombre).eq("empresa", empresa),
+      db.from("last_planner_recursos").select("id,partida,recurso,tipo,estado,responsable,fecha_compromiso,criticidad,observacion").eq("obra_nombre", obraNombre).eq("empresa", empresa),
+      db.from("inventario_maquinaria").select("id,tipo,patente,marca,estado_equipo,horometro_inicial,planes_mantencion").eq("obra_nombre", obraNombre).eq("empresa", empresa),
+      db.from("maquinaria_uso_diario").select("id,equipo_id,horas_trabajadas,fecha").eq("obra_nombre", obraNombre).eq("empresa", empresa),
+      db.from("maquinaria_fallas").select("id,equipo_id,equipo_patente,equipo_tipo,fecha,severidad,detuvo_equipo,horas_fuera_servicio,descripcion,solucion").eq("empresa", empresa),
+      db.from("rrhh_asignaciones_personal").select("id,trabajador_id,trabajador_nombre,cargo,fecha_inicio,fecha_termino").eq("obra_nombre", obraNombre).eq("empresa", empresa)
     ]);
-    const parts = partsResult.data || [], advances = advancesResult.data || [], costs = costsResult.data || [], quality = qualityResult.data || [], prevention = safetyResult.data || [], payments = paymentsResult.data || [];
+    const parts = partsResult.data || [], advances = advancesResult.data || [], costs = costsResult.data || [], quality = qualityResult.data || [], prevention = safetyResult.data || [], payments = paymentsResult.data || [], restrictions = restrictionsResult.data || [], machinery = machineryResult.data || [], machineryUse = machineryUseResult.data || [], assignments = assignmentsResult.data || [];
+    const machineryIds = new Set(machinery.map((item: any) => String(item.id)));
+    const failures = (failuresResult.data || []).filter((item: any) => machineryIds.has(String(item.equipo_id)));
+    const useByEquipment = machineryUse.reduce((acc: Record<string, number>, item: any) => { const key = String(item.equipo_id); acc[key] = (acc[key] || 0) + num(item.horas_trabajadas); return acc; }, {});
     const progressByPart = new Map<string, number>(); advances.forEach((row: any) => progressByPart.set(row.partida, num(progressByPart.get(row.partida)) + num(row.cantidad)));
     const activities = parts.filter((row: any) => !["TITULO", "GRUPO"].includes(String(row.unidad || "").toUpperCase()));
     const activitySummaries = activities.map((row: any) => { const reported = num(progressByPart.get(row.partida)), planned = num(row.cantidad_presupuestada); return { id: row.id, fuente_id: `avance:${row.id}`, partida: row.partida, unidad: row.unidad, programado: planned, reportado: reported, avance_pct: planned > 0 ? Math.min(100, reported / planned * 100) : null, fecha_inicio: row.fecha_inicio, fecha_termino: row.fecha_termino }; }).sort((a: any, b: any) => (a.avance_pct ?? 101) - (b.avance_pct ?? 101)).slice(0, 40);
@@ -115,15 +159,22 @@ Deno.serve(async (req) => {
       { id: "calidad:resumen", modulo: "Calidad", referencia: "No conformidades de la obra", destino: "calidad" },
       { id: "prevencion:resumen", modulo: "Prevención", referencia: "Registros e inspecciones", destino: "prevencion" },
       { id: "estados_pago:resumen", modulo: "Estados de pago", referencia: "Historial contractual", destino: "estados_pago" },
+      { id: "restricciones:resumen", modulo: "Last Planner", referencia: "Restricciones y recursos", destino: "planificacion" },
+      { id: "maquinaria:resumen", modulo: "Maquinaria", referencia: "Equipos asignados a la obra", destino: "maquinaria" },
+      { id: "personal:resumen", modulo: "Recursos Humanos", referencia: "Personal asignado a la obra", destino: "personal" },
       ...activitySummaries.map((row: any) => ({ id: row.fuente_id, modulo: "Programación y Avances", referencia: row.partida, destino: "estadisticas:avance", registro_id: row.id })),
       ...quality.slice(0, 30).map((row: any) => ({ id: `calidad:${row.id}`, modulo: "Calidad", referencia: `${row.codigo || "NC"} · ${row.partida || "Sin partida"}`, destino: "calidad", registro_id: row.id })),
       ...prevention.slice(0, 30).map((row: any) => ({ id: `prevencion:${row.id}`, modulo: "Prevención", referencia: `Registro ${row.id}`, destino: "prevencion", registro_id: row.id })),
-      ...payments.slice(0, 30).map((row: any) => ({ id: `estado_pago:${row.id}`, modulo: "Estados de pago", referencia: `Estado de pago N° ${row.numero}`, destino: "estados_pago", registro_id: row.id }))
+      ...payments.slice(0, 30).map((row: any) => ({ id: `estado_pago:${row.id}`, modulo: "Estados de pago", referencia: `Estado de pago N° ${row.numero}`, destino: "estados_pago", registro_id: row.id })),
+      ...restrictions.slice(0, 40).map((row: any) => ({ id: `restriccion:${row.id}`, modulo: "Last Planner", referencia: `${row.partida} · ${row.recurso || row.tipo || "Restricción"}`, destino: "planificacion", registro_id: row.id })),
+      ...machinery.slice(0, 40).map((row: any) => ({ id: `maquinaria:${row.id}`, modulo: "Maquinaria", referencia: `${row.tipo || "Equipo"} · ${row.patente || "Sin patente"}`, destino: "maquinaria", registro_id: row.id })),
+      ...failures.slice(0, 30).map((row: any) => ({ id: `falla:${row.id}`, modulo: "Maquinaria", referencia: `Falla · ${row.equipo_patente || row.equipo_tipo || row.id}`, destino: "maquinaria", registro_id: row.id })),
+      ...assignments.slice(0, 50).map((row: any) => ({ id: `personal:${row.id}`, modulo: "Recursos Humanos", referencia: `${row.trabajador_nombre} · ${row.cargo || "Sin cargo"}`, destino: "personal", registro_id: row.id }))
     ];
     const context: Context = {
       obra: { nombre: worksite.nombre, estado: worksite.estado, tipo: worksite.tipo },
       resumen: { partidas_activas: activities.length, reportes_avance: advances.length, costo_real_total: costs.reduce((sum: number, row: any) => sum + num(row.monto), 0), no_conformidades_abiertas: quality.filter((row: any) => !isClosed(row.estado)).length, registros_prevencion: prevention.length, estados_pago: payments.length },
-      partidas: activitySummaries, costos_por_tipo: costByType, calidad: quality.slice(0, 25).map((row: any) => ({ ...row, fuente_id: `calidad:${row.id}` })), prevencion: prevention.slice(0, 25).map((row: any) => ({ ...row, fuente_id: `prevencion:${row.id}` })), estados_pago: payments.slice(0, 20).map((row: any) => ({ ...row, fuente_id: `estado_pago:${row.id}` })), fuentes: sources
+      partidas: activitySummaries, costos_por_tipo: costByType, calidad: quality.slice(0, 25).map((row: any) => ({ ...row, fuente_id: `calidad:${row.id}` })), prevencion: prevention.slice(0, 25).map((row: any) => ({ ...row, fuente_id: `prevencion:${row.id}` })), estados_pago: payments.slice(0, 20).map((row: any) => ({ ...row, fuente_id: `estado_pago:${row.id}` })), restricciones: restrictions.slice(0, 40).map((row: any) => ({ ...row, fuente_id: `restriccion:${row.id}` })), maquinaria: machinery.slice(0, 40).map((row: any) => ({ ...row, horas_reportadas: useByEquipment[String(row.id)] || 0, fuente_id: `maquinaria:${row.id}` })), fallas_maquinaria: failures.slice(0, 30).map((row: any) => ({ ...row, fuente_id: `falla:${row.id}` })), personal_asignado: assignments.slice(0, 50).map((row: any) => ({ ...row, fuente_id: `personal:${row.id}` })), fuentes: sources
     };
 
     const deterministic = deterministicAnswer(pregunta, context);
@@ -144,8 +195,10 @@ Deno.serve(async (req) => {
     const { data: reserved, error: reserveError } = await db.rpc("ia_reservar_consumo", { p_empresa: empresa, p_obra_nombre: obraNombre, p_auth_user_id: authData.user.id, p_usuario: profile.nombre || profile.usuario || profile.correo, p_funcion: "copiloto", p_modelo: model, p_reserva_usd: .02 });
     if (reserveError) return json({ error: reserveError.message }, 429);
     reservationId = reserved;
+    const aiSourceIds = new Set(["obra:resumen", "costos:resumen", "calidad:resumen", "prevencion:resumen", "estados_pago:resumen", ...activitySummaries.map((item: any) => item.fuente_id), ...quality.map((item: any) => `calidad:${item.id}`), ...prevention.map((item: any) => `prevencion:${item.id}`), ...payments.map((item: any) => `estado_pago:${item.id}`)]);
+    const aiContext = { obra: context.obra, resumen: context.resumen, partidas: context.partidas, costos_por_tipo: context.costos_por_tipo, calidad: context.calidad, prevencion: context.prevencion, estados_pago: context.estados_pago, fuentes: context.fuentes.filter(source => aiSourceIds.has(source.id)) };
     const prompt = `Eres el Copiloto de Obraxis para control profesional de construcción. Responde SOLO con el contexto JSON de la obra autorizada. No inventes ni completes datos ausentes. Distingue hechos, cálculos y sugerencias. Para cada hecho usa exclusivamente un fuente_id existente en contexto.fuentes. Si no existe una fuente que respalde una afirmación, omítela o indícala como limitación. Sé breve. No ordenes cambios ni afirmes que modificaste registros: eres de solo lectura. Consulta: ${pregunta}`;
-    const response = await fetch("https://api.openai.com/v1/responses", { method: "POST", headers: { Authorization: `Bearer ${openAIKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ model, input: [{ role: "user", content: [{ type: "input_text", text: prompt }, { type: "input_text", text: JSON.stringify(context) }] }], text: { format: { type: "json_schema", name: "copiloto_contextual_obra", strict: true, schema } } }) });
+    const response = await fetch("https://api.openai.com/v1/responses", { method: "POST", headers: { Authorization: `Bearer ${openAIKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ model, input: [{ role: "user", content: [{ type: "input_text", text: prompt }, { type: "input_text", text: JSON.stringify(aiContext) }] }], text: { format: { type: "json_schema", name: "copiloto_contextual_obra", strict: true, schema } } }) });
     const apiData = await response.json();
     if (!response.ok) throw new Error(apiData?.error?.message || "No fue posible consultar el Copiloto.");
     const raw = apiData.output_text || apiData.output?.flatMap((item: any) => item.content || []).find((item: any) => item.type === "output_text")?.text;

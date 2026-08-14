@@ -4537,6 +4537,9 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
               if (destination === 'calidad') setObraActiveSubmodule('calidad');
               else if (destination === 'prevencion') setObraActiveSubmodule('prevencion');
               else if (destination === 'estados_pago') setObraActiveSubmodule('estados_pago');
+              else if (destination === 'maquinaria') setObraActiveSubmodule('maquinaria');
+              else if (destination === 'personal') { setEquipoTab('personal'); setObraActiveSubmodule('equipo'); }
+              else if (destination === 'planificacion') { setGestionObraTab('planificacion'); setObraActiveSubmodule('gestion_obra'); }
               else if (destination === 'inicio') setObraActiveSubmodule(null);
               else if (destination?.startsWith('estadisticas:')) { setEstadisticasTab(destination.split(':')[1] || 'resumen'); setObraActiveSubmodule('estadisticas'); }
             }} />
