@@ -2,8 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import ModuleHeader from './ModuleHeader';
 import { sendSystemEmail } from '../utils/emailService';
-import { generateFormPdf } from '../utils/pdfGenerator';
-import { jsPDF } from 'jspdf';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
 import { 
@@ -14,8 +12,9 @@ import {
   PenTool, Camera, Sparkles, Send, Check, Download, Layers, Layers3,
   Award, BookOpen, GraduationCap, Video, FileSpreadsheet, Loader2
 } from 'lucide-react';
-import { PreventionStatistics } from './OperationalStatistics';
-import RiskMatrixManager from './RiskMatrixManager';
+
+const PreventionStatistics = React.lazy(() => import('./OperationalStatistics').then(module => ({ default: module.PreventionStatistics })));
+const RiskMatrixManager = React.lazy(() => import('./RiskMatrixManager'));
 
 export default function Prevencion({ user, onBack, companyBranding }) {
   const { permissions, loading: permissionsLoading } = useUserPermissions(user);
@@ -488,8 +487,9 @@ export default function Prevencion({ user, onBack, companyBranding }) {
     }
   };
 
-  const handleDownloadPdfReport = () => {
+  const handleDownloadPdfReport = async () => {
     try {
+      const { jsPDF } = await import('jspdf');
       const doc = new jsPDF({
         orientation: 'p',
         unit: 'mm',
@@ -1361,6 +1361,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
             </div>
           `;
 
+          const { generateFormPdf } = await import('../utils/pdfGenerator');
           const pdfBase64 = generateFormPdf({
             form: selectedFormToFill,
             metadata: fillMetadata,

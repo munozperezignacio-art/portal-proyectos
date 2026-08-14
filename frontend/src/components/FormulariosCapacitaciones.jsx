@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import ModuleHeader from './ModuleHeader';
-import { generateFormPdf } from '../utils/pdfGenerator';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
 import { 
@@ -522,6 +521,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     if (!canDownload) { setErrorMsg('Tu perfil no está autorizado para descargar respuestas.'); return; }
     const resolved = await resolveResponseForm(response);
     const form = responseForm(resolved);
+    const { generateFormPdf } = await import('../utils/pdfGenerator');
     const base64 = generateFormPdf({ form, metadata: { proyecto_nombre: response.proyecto_nombre || '', inspector: response.inspector || '' }, answers: response.respuestas || {}, mainSignature: response.firma_url, companyLogo: companyBranding?.logo_base64 });
     const bytes = Uint8Array.from(atob(base64), char => char.charCodeAt(0));
     const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));

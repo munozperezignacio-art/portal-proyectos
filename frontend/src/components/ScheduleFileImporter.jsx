@@ -1,5 +1,4 @@
 import React, { useMemo, useRef, useState } from 'react';
-import * as XLSX from 'xlsx';
 import { AlertCircle, CalendarRange, CheckCircle2, Download, FileSpreadsheet, Upload } from 'lucide-react';
 
 const clean = value => String(value ?? '').trim();
@@ -10,8 +9,8 @@ const toIsoDate = value => {
   if (!value) return '';
   if (value instanceof Date && !Number.isNaN(value.getTime())) return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
   if (typeof value === 'number') {
-    const parsed = XLSX.SSF.parse_date_code(value);
-    return parsed ? `${parsed.y}-${pad(parsed.m)}-${pad(parsed.d)}` : '';
+    const parsed = new Date(Date.UTC(1899, 11, 30) + Math.round(value * 86400000));
+    return Number.isNaN(parsed.getTime()) ? '' : `${parsed.getUTCFullYear()}-${pad(parsed.getUTCMonth() + 1)}-${pad(parsed.getUTCDate())}`;
   }
   const raw = clean(value);
   const chile = raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
@@ -139,7 +138,8 @@ export default function ScheduleFileImporter({ calculateEndDate, onApply, disabl
     finish: preview.tasks.map(task => task.fecha_fin).filter(Boolean).sort().at(-1) || '—'
   } : null, [preview]);
 
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
+    const XLSX = await import('xlsx');
     const wb = XLSX.utils.book_new();
     const guide = XLSX.utils.aoa_to_sheet([
       ['PLANTILLA OFICIAL DE PLANIFICACIÓN OBRAXIS'],
@@ -172,6 +172,7 @@ export default function ScheduleFileImporter({ calculateEndDate, onApply, disabl
         const parsed = parseProjectXml(await file.text(), calculateEndDate);
         tasks = parsed.tasks; sourceWarnings = parsed.warnings;
       } else if (['xlsx', 'xls'].includes(extension)) {
+        const XLSX = await import('xlsx');
         const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
         const sheet = wb.Sheets.Cronograma || wb.Sheets[wb.SheetNames[0]];
         tasks = normalizeExcelRows(XLSX.utils.sheet_to_json(sheet, { defval: '', raw: true }), calculateEndDate);

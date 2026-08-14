@@ -2,7 +2,7 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
-Avance actualizado: Etapa 1 99%; Etapa 2 90%; Etapa 3 65%; Etapa 4 80%; Etapa 5 75%; plan completo 82%.
+Avance actualizado: Etapa 1 99%; Etapa 2 90%; Etapa 3 68%; Etapa 4 84%; Etapa 5 88%; plan completo 85%.
 
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
@@ -46,9 +46,9 @@ Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operac
 ## Etapa 5 — Rendimiento y observabilidad
 
 - [ ] Sustituir o aislar `xlsx`.
-- [ ] Corregir dependencias vulnerables y fijar la versión de Node.
-- [ ] Reparar lint y convertirlo en control obligatorio.
-- [ ] Reducir paquetes grandes y carga inicial.
+- [ ] Corregir dependencias vulnerables y fijar la versión de Node (versión mínima fijada; actualización del entorno local pendiente).
+- [x] Reparar lint y convertirlo en control obligatorio.
+- [x] Reducir paquetes grandes y carga inicial.
 - [ ] Incorporar alertas de errores, métricas y trazabilidad de automatizaciones.
 
 ## Criterio de término
@@ -141,3 +141,9 @@ La plataforma se considerará lista para producción cuando no existan política
 - Consolidadas cargas duplicadas de Calidad y dependencias de contexto multiempresa en la aplicacion principal, sin alterar los flujos operativos existentes.
 - Deuda de lint reducida de 31 a 0 advertencias; acumulado desde la auditoria: 386 a 0, sin desactivar reglas ni agregar excepciones.
 - Verificacion integral del bloque completada con 19 de 19 pruebas aprobadas, lint limpio y build productivo correcto.
+- Excel, Word y PDF quedaron bajo carga por demanda: abrir Obras, Presupuestos, Prevencion o Formularios ya no descarga esos motores hasta importar o generar un documento.
+- Submodulos de Obras, Presupuestos y Prevencion separados en paquetes independientes, incluidos Calidad, Estados de Pago, Subcontratos, Last Planner, matrices de riesgo y analisis predictivo.
+- El paquete de Obras bajo de 599,16 kB a 458,25 kB; Presupuestos de 212,26 kB a 192,48 kB y Prevencion de 163,65 kB a 142,62 kB.
+- React, Supabase e iconos separados en paquetes cacheables; el paquete inicial principal bajo de 697,90 kB a 292,68 kB y ya no existen paquetes JavaScript superiores a 500 kB.
+- Version minima de Node declarada en `package.json` y `.nvmrc`; se agrego una prueba arquitectonica que impide reintroducir imports estaticos de bibliotecas documentales pesadas.
+- Bateria automatizada ampliada a 20 pruebas, con lint limpio y build productivo sin advertencias de tamano de paquetes.

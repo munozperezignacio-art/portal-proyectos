@@ -46,3 +46,18 @@ test('cada Edge Function invocada literalmente por el frontend está versionada'
   assert.deepEqual(missing, []);
   assert.ok(invoked.size >= 10, 'La prueba debe cubrir un conjunto significativo de funciones');
 });
+
+test('las bibliotecas documentales pesadas se cargan solo bajo demanda', () => {
+  const heavyPackages = ['xlsx', 'jspdf', 'mammoth/mammoth.browser'];
+  const findings = [];
+  for (const path of sourceFiles) {
+    if (relative(sourceRoot, path) === join('utils', 'pdfGenerator.js')) continue;
+    const source = readFileSync(path, 'utf8');
+    for (const packageName of heavyPackages) {
+      const escapedName = packageName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const staticImport = new RegExp(`^\\s*import\\s+.+?\\s+from\\s+['"]${escapedName}['"]`, 'm');
+      if (staticImport.test(source)) findings.push(`${relative(sourceRoot, path)}: ${packageName}`);
+    }
+  }
+  assert.deepEqual(findings, []);
+});

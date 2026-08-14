@@ -6,25 +6,25 @@ import {
   QrCode, MapPin, Printer, Navigation, RotateCcw, CheckCircle2, ShieldAlert, Settings, Edit, Trash2, Download,
   History, BarChart3, ShieldCheck, ClipboardCheck, DollarSign, CalendarRange, CalendarDays, Loader2, FolderPlus, Send, Filter, TrendingUp, BookOpenCheck, ReceiptText, Search
 } from 'lucide-react';
-import ContextualEmailConfigModal from './ContextualEmailConfigModal';
 import { canConfigureEmails, canCreateObras, canModifyOrDeleteRecords } from '../utils/userLevel';
 import { sendSystemEmail } from '../utils/emailService';
 import { formatRut, formatNumberWithDots, parseNumberFromDots } from '../utils/rutUtils';
 import { calculateEarnedValue } from '../utils/earnedValue';
-import LastPlannerLookahead from './LastPlannerLookahead';
-import CalidadObras from './CalidadObras';
-import LibroObrasDigital from './LibroObrasDigital';
-import EstadosPagoObra from './EstadosPagoObra';
-import SubcontratosObra from './SubcontratosObra';
-import FlujoCajaObra from './FlujoCajaObra';
-import FloatingOX from './FloatingOX';
-import SpecializedAssistanceInbox from './SpecializedAssistanceInbox';
-import PredictiveScenarioPanel from './PredictiveScenarioPanel';
 import { registrarEventoBitacora } from '../utils/bitacoraService';
 import FormAnswerDisplay from './FormAnswerDisplay';
-import { generateFormPdf } from '../utils/pdfGenerator';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
+
+const ContextualEmailConfigModal = React.lazy(() => import('./ContextualEmailConfigModal'));
+const LastPlannerLookahead = React.lazy(() => import('./LastPlannerLookahead'));
+const CalidadObras = React.lazy(() => import('./CalidadObras'));
+const LibroObrasDigital = React.lazy(() => import('./LibroObrasDigital'));
+const EstadosPagoObra = React.lazy(() => import('./EstadosPagoObra'));
+const SubcontratosObra = React.lazy(() => import('./SubcontratosObra'));
+const FlujoCajaObra = React.lazy(() => import('./FlujoCajaObra'));
+const FloatingOX = React.lazy(() => import('./FloatingOX'));
+const SpecializedAssistanceInbox = React.lazy(() => import('./SpecializedAssistanceInbox'));
+const PredictiveScenarioPanel = React.lazy(() => import('./PredictiveScenarioPanel'));
 
 const defaultCovers = [
   "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=600&q=80",
@@ -1237,7 +1237,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     }
   };
 
-  const downloadPrevencionResponsePdf = (response) => {
+  const downloadPrevencionResponsePdf = async (response) => {
     if (!canPrevDownload) {
       setErrorMsg('Tu perfil no está autorizado para descargar registros de prevención.');
       return;
@@ -1245,6 +1245,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     const form = response?.formulario;
     if (!form) return;
     const normalizedForm = { ...form, campos: getPrevencionFormFields(form) };
+    const { generateFormPdf } = await import('../utils/pdfGenerator');
     const base64 = generateFormPdf({ form: normalizedForm, metadata: { proyecto_nombre: response.proyecto_nombre || selectedObra?.nombre || '', inspector: response.inspector || '' }, answers: response.respuestas || {}, mainSignature: response.firma_url, companyLogo: companyBranding?.logo_base64 });
     const bytes = Uint8Array.from(atob(base64), char => char.charCodeAt(0));
     const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));

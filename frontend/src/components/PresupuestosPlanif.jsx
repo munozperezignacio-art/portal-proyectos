@@ -7,13 +7,13 @@ import {
   Settings, Coins, Sliders, ChevronDown, ChevronUp, Fuel, PieChart, Globe, TrendingUp, Sparkles
 } from 'lucide-react';
 import { comunasChile } from '../utils/comunas';
-import ContextualEmailConfigModal from './ContextualEmailConfigModal';
 import { canConfigureEmails, getUserLevel } from '../utils/userLevel';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
-import BudgetExcelImporter from './BudgetExcelImporter';
-import ScheduleFileImporter from './ScheduleFileImporter';
-import * as XLSX from 'xlsx';
+
+const ContextualEmailConfigModal = React.lazy(() => import('./ContextualEmailConfigModal'));
+const BudgetExcelImporter = React.lazy(() => import('./BudgetExcelImporter'));
+const ScheduleFileImporter = React.lazy(() => import('./ScheduleFileImporter'));
 
 const RESOURCE_CATEGORY_SUGGESTIONS = ['Obras preliminares', 'Movimiento de tierras', 'Hormigones', 'Enfierradura', 'Moldajes', 'Estructura', 'Instalaciones', 'Terminaciones', 'Urbanización', 'Gastos generales', 'Subcontratos'];
 
@@ -472,6 +472,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
       let mimeType = file.type || "application/octet-stream";
 
       if (['xlsx', 'xls', 'csv'].includes(fileType)) {
+        const XLSX = await import('xlsx');
         const data = await file.arrayBuffer();
         const workbook = XLSX.read(data, { type: 'array' });
         workbook.SheetNames.forEach(sheetName => {
@@ -1250,6 +1251,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
     setSuccessMsg('');
 
     try {
+      const XLSX = await import('xlsx');
       const itemIds = itemsPresupuesto.filter(i => typeof i.id === 'number').map(i => i.id);
       let allApuLinks = [];
       if (itemIds.length > 0) {
