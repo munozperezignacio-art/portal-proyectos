@@ -7,6 +7,7 @@ import useUserPermissions from '../utils/useUserPermissions';
 import { registrarEventoBitacora } from '../utils/bitacoraService';
 import { appendAudit, auditActor } from '../utils/documentAudit';
 import DocumentAuditTrail from './DocumentAuditTrail';
+import { canDispatchPayment } from '../utils/workflowRules';
 
 const normalise = (value) => String(value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 const matchesPartida = (a, b) => {
@@ -203,6 +204,7 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
   const copyLink = async (item, type) => { await navigator.clipboard.writeText(publicUrl(item, type)); setMessage(`Enlace de ${type} copiado.`); };
   const copyAccessCode = async (code) => { await navigator.clipboard.writeText(code); setMessage('Clave de acceso copiada.'); };
   const sendExternal = async (item, type) => {
+    if (!canDispatchPayment(item.estado, type)) { setMessage('El Estado de Pago no se encuentra en la etapa correspondiente para este envío.'); return; }
     if (!canSendPayment) { setMessage('Tu perfil no está autorizado para enviar estados de pago.'); return; }
     const email = type === 'revision'
       ? (item.revisor_email || contactos.revisor_email || clientEmail)

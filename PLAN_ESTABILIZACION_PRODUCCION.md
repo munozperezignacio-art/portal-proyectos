@@ -2,7 +2,7 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
-Avance actualizado: Etapa 1 99%; Etapa 2 85%; Etapa 3 20%; plan completo 43%.
+Avance actualizado: Etapa 1 99%; Etapa 2 85%; Etapa 3 35%; plan completo 47%.
 
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
@@ -15,7 +15,7 @@ Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operac
 - [x] Proteger tareas Cron con un secreto interno en Vault independiente de la clave pública.
 - [ ] Activar protección de contraseñas filtradas en Supabase Auth.
 - [x] Revisar `GRANT` y funciones `SECURITY DEFINER`.
-- [ ] Verificar con pruebas cruzadas entre al menos dos empresas.
+- [x] Verificar con pruebas cruzadas entre al menos dos empresas.
 
 ## Etapa 2 — Integridad y reproducibilidad
 
@@ -29,7 +29,7 @@ Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operac
 ## Etapa 3 — Pruebas
 
 - [ ] Configurar pruebas unitarias, de integración y de interfaz (pruebas unitarias base operativas; integración e interfaz pendientes).
-- [ ] Probar aislamiento entre empresas y permisos por rol.
+- [x] Probar aislamiento entre empresas y permisos por rol.
 - [ ] Cubrir Auth, estados de pago, Libro de Obras, calidad y prevención.
 - [ ] Cubrir formularios públicos, subcontratos, mandante y acreditaciones.
 - [ ] Cubrir bodega, DTE, centros de gestión, OX, IA, Cron y correos.
@@ -106,3 +106,7 @@ La plataforma se considerará lista para producción cuando no existan política
 - Corregida una elevación heredada: sesiones ausentes o roles desconocidos ya no reciben nivel administrativo por defecto.
 - Cálculos CPI, SPI, EAC, CV y SV extraídos a una utilidad determinística reutilizable y conectados al panel real de estadísticas de obra.
 - Pruebas, lint y build productivo ejecutados correctamente; permanece como deuda técnica actualizar Node 22.11 a 22.12 o superior y reducir paquetes mayores a 500 kB.
+- Prueba RLS transaccional ejecutada en producción con dos empresas y usuarios temporales: lectura propia permitida, lectura e inserción cruzadas bloqueadas y rollback verificado sin residuos.
+- Prueba RLS multiempresa conservada en `supabase/tests/rls_multiempresa.sql` para futuras verificaciones controladas.
+- Cobertura unitaria ampliada a 13 pruebas, incluyendo precedencia de permisos, orden de revisión/aprobación de Estados de Pago, flujo de no conformidades y acciones permitidas del Libro de Obras.
+- Estados de Pago rechazan internamente envíos que intenten saltar la revisión; Calidad impide avanzar una no conformidad más de una etapa por operación.
