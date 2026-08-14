@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CalendarRange, CheckCircle2, CircleDollarSign, FlaskConical, History, Save, ShieldCheck, TrendingUp, Wrench } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
@@ -49,12 +49,12 @@ export default function PredictiveScenarioPanel({ obra, user, cutoff, baselineFi
       milestoneRisk: scheduleIndex < 0.9 || criticalRate > 0.1 ? 'Alto' : scheduleIndex < 1 ? 'Medio' : 'Bajo' };
   }, [advances, bac, baselineFinish, cpi, costs, cutoff, eac, criticalItems, spi]);
   const company = user?.empresa || obra?.empresa || 'Obraxis';
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
     if (!obra?.id) return setHistory([]);
     const { data, error } = await supabase.from('predicciones_obra_historial').select('*').eq('empresa', company).eq('obra_id', obra.id).order('created_at', { ascending: false }).limit(12);
     if (error) setHistoryMessage(`No fue posible cargar la validación histórica: ${error.message}`); else setHistory(data || []);
-  };
-  useEffect(() => { loadHistory(); }, [obra?.id, company]);
+  }, [company, obra?.id]);
+  useEffect(() => { loadHistory(); }, [loadHistory]);
   const saveSnapshot = async () => {
     if (!obra?.id) return setHistoryMessage('La obra debe estar guardada antes de registrar una proyección.');
     const { data: auth } = await supabase.auth.getUser();

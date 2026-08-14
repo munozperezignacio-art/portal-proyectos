@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { BarChart3, Clock3, Download, Loader2, Mail, Plus, Send, Trash2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { sendSystemEmail } from '../utils/emailService';
@@ -8,9 +8,9 @@ const field='rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-
 export default function MandanteReports({contracts,projects,company,who}){
   const [,setConfigs]=useState([]),[history,setHistory]=useState([]),[drafts,setDrafts]=useState({}),[email,setEmail]=useState({}),[working,setWorking]=useState(''),[message,setMessage]=useState(''),[error,setError]=useState('');
   const projectById=useMemo(()=>Object.fromEntries(projects.map(x=>[x.id,x])),[projects]);
-  const owned=contracts.filter(x=>x.empresa_mandante===company);
-  const load=async()=>{const ids=owned.map(x=>x.id);if(!ids.length){setConfigs([]);setHistory([]);return;}const[c,h]=await Promise.all([supabase.from('mandante_informes_config').select('*').in('contrato_id',ids),supabase.from('mandante_informes_historial').select('id,contrato_id,periodo,resumen,destinatarios,estado,error,generado_por,generado_at,enviado_at').in('contrato_id',ids).order('generado_at',{ascending:false}).limit(100)]);if(c.error||h.error)setError(c.error?.message||h.error?.message);setConfigs(c.data||[]);setHistory(h.data||[]);setDrafts(Object.fromEntries(owned.map(contract=>{const cfg=(c.data||[]).find(x=>x.contrato_id===contract.id);return[contract.id,cfg||{contrato_id:contract.id,empresa_mandante:company,activo:false,frecuencia:'Semanal',dia_semana:1,dia_mes:1,hora:'08:00',destinatarios:[]}];})));};
-  useEffect(()=>{load();},[company,contracts.map(x=>x.id).join('|')]);
+  const owned=useMemo(()=>contracts.filter(x=>x.empresa_mandante===company),[company,contracts]);
+  const load=useCallback(async()=>{const ids=owned.map(x=>x.id);if(!ids.length){setConfigs([]);setHistory([]);return;}const[c,h]=await Promise.all([supabase.from('mandante_informes_config').select('*').in('contrato_id',ids),supabase.from('mandante_informes_historial').select('id,contrato_id,periodo,resumen,destinatarios,estado,error,generado_por,generado_at,enviado_at').in('contrato_id',ids).order('generado_at',{ascending:false}).limit(100)]);if(c.error||h.error)setError(c.error?.message||h.error?.message);setConfigs(c.data||[]);setHistory(h.data||[]);setDrafts(Object.fromEntries(owned.map(contract=>{const cfg=(c.data||[]).find(x=>x.contrato_id===contract.id);return[contract.id,cfg||{contrato_id:contract.id,empresa_mandante:company,activo:false,frecuencia:'Semanal',dia_semana:1,dia_mes:1,hora:'08:00',destinatarios:[]}];})));},[company,owned]);
+  useEffect(()=>{load();},[load]);
   const update=(id,changes)=>setDrafts(v=>({...v,[id]:{...v[id],...changes}}));
   const addEmail=id=>{const value=(email[id]||'').trim().toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))return setError('Ingresa un correo válido.');update(id,{destinatarios:[...new Set([...(drafts[id]?.destinatarios||[]),value])]});setEmail(v=>({...v,[id]:''}));setError('');};
   const save=async contract=>{setWorking(`save-${contract.id}`);setError('');const payload={...drafts[contract.id],contrato_id:contract.id,empresa_mandante:company,creado_por:who,updated_at:new Date().toISOString(),proxima_ejecucion_at:drafts[contract.id]?.activo?(drafts[contract.id]?.proxima_ejecucion_at||new Date().toISOString()):null};const{error:e}=await supabase.from('mandante_informes_config').upsert(payload,{onConflict:'contrato_id'});setWorking('');if(e)return setError(e.message);setMessage('Programación guardada. El envío automático quedó operativo.');await load();};

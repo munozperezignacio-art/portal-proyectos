@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, BarChart3, CalendarRange, Edit3, Plus, Trash2, Users } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
@@ -16,15 +16,15 @@ export default function WorkforceProjection({ user, personal = [], obras = [], c
   const [obraFilter, setObraFilter] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  const localKey = `obraxis_rrhh_proyeccion_${user?.empresa || 'OBRAXIS'}`;
+  const defaultObra = obras[0]?.nombre || '';
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const { data, error: queryError } = await supabase.from('rrhh_proyecciones_dotacion').select('*').eq('empresa', user?.empresa || 'OBRAXIS').order('fecha_inicio', { ascending: true });
-    if (queryError) { try { setRows(JSON.parse(localStorage.getItem(localKey) || '[]')); } catch { setRows([]); } return; }
+    if (queryError) { setError(`No fue posible cargar la proyección: ${queryError.message}`); setRows([]); return; }
     setRows(data || []);
-  };
-  useEffect(() => { load(); }, [user?.empresa]);
-  useEffect(() => { if (!form.obra_nombre && obras[0]?.nombre) setForm(current => ({ ...current, obra_nombre: obras[0].nombre })); }, [obras]);
+  }, [user?.empresa]);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (!form.obra_nombre && defaultObra) setForm(current => ({ ...current, obra_nombre: defaultObra })); }, [defaultObra, form.obra_nombre]);
 
   const actualByKey = useMemo(() => {
     const map = new Map();
@@ -47,11 +47,7 @@ export default function WorkforceProjection({ user, personal = [], obras = [], c
     const payload = { ...form, cantidad_requerida: Number(form.cantidad_requerida), costo_mensual_unitario: Number(form.costo_mensual_unitario || 0), empresa: user?.empresa || 'OBRAXIS', creado_por: user?.nombre || user?.usuario || '' };
     const result = editing ? await supabase.from('rrhh_proyecciones_dotacion').update(payload).eq('id', editing.id).select().single() : await supabase.from('rrhh_proyecciones_dotacion').insert([payload]).select().single();
     setSaving(false);
-    if (result.error) {
-      const localRow = { ...payload, id: editing?.id || `local_${Date.now()}` };
-      const updated = editing ? rows.map(row => row.id === editing.id ? localRow : row) : [...rows, localRow];
-      setRows(updated); localStorage.setItem(localKey, JSON.stringify(updated)); setShowForm(false); return;
-    }
+    if (result.error) { setError(`No fue posible guardar la proyección: ${result.error.message}`); return; }
     setRows(current => editing ? current.map(row => row.id === editing.id ? result.data : row) : [...current, result.data]); setShowForm(false);
   };
   const remove = async row => {

@@ -44,9 +44,9 @@ export default function PermissionsGovernancePanel({ user, initialRoleId = '' })
     setSubjectId(next);
     const current = subjects.find(item => String(item.id) === String(next));
     setPermissions(current?.permisos || {});
-  }, [subjectType, roles, users]);
+  }, [subjectId, subjects]);
 
-  useEffect(() => { if (selected) setPermissions(selected.permisos || {}); }, [selected?.id]);
+  useEffect(() => { if (selected) setPermissions(selected.permisos || {}); }, [selected]);
 
   const effectiveUser = subjectType === 'rol'
     ? { empresa: user.empresa, rol: selected?.nombre }

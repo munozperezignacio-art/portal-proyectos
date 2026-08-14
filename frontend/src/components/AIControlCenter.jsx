@@ -35,7 +35,7 @@ export default function AIControlCenter({user}){
    const names=Array.from(new Set((cfg.data||[]).map(x=>x.empresa).filter(Boolean)));
    setCompanies(names);setConfigs(cfgs.data||[]);setUsage(uses.data||[]);setRoles(roleRows.data||[]);setUsers(userRows.data||[]);setSelected(current=>current||names[0]||user?.empresa||'');
   }setLoading(false);
- },[]);
+ },[user?.empresa]);
  useEffect(()=>{load()},[load]);
  const current=useMemo(()=>configs.find(x=>x.empresa===selected)||{empresa:selected,habilitada:false,presupuesto_mensual_usd:10,bloquear_al_limite:true,alerta_porcentaje:80,modelo:'gpt-4.1-mini',funciones:DEFAULT_FEATURES,limites_funcion:{},limites_usuario:{}},[configs,selected]);
  const companyUsage=usage.filter(x=>x.empresa===selected&&['Reservado','Completado'].includes(x.estado));
