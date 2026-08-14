@@ -978,7 +978,7 @@ function App() {
           )}
           </React.Suspense>
 
-          {currentModule !== 'obras' && currentModule !== 'admin' && (
+          {currentModule !== 'obras' && (
             <FloatingOX
               user={activeUserContext}
               moduleContext={{

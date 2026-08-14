@@ -6,6 +6,7 @@ const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,
 const norm=(value:unknown)=>String(value||"").trim().toLocaleLowerCase("es-CL");
 const modules:Record<string,{label:string,permission:string,tables:string[]}>= {
  dashboard:{label:"Inicio",permission:"",tables:["obras"]},
+ admin:{label:"Panel de Control",permission:"admin",tables:["usuarios","roles"]},
  rrhh:{label:"Recursos Humanos",permission:"rrhh",tables:["maestro_personal","rrhh_asignaciones_personal"]},
  maquinaria:{label:"Maquinaria y Equipos",permission:"maquinaria",tables:["inventario_maquinaria","maquinaria_mantenciones","maquinaria_fallas","maquinaria_uso_diario"]},
  bodega:{label:"Bodega e Inventario",permission:"bodega",tables:["bodega_bodegas","bodega_productos","bodega_movimientos"]},
