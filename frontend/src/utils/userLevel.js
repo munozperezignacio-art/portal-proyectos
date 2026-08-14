@@ -9,7 +9,7 @@
  */
 
 export const getUserLevel = (user) => {
-  if (!user) return 0; // Si no hay objeto user explícito, conceder permisos Nivel 0 por defecto
+  if (!user) return 4; // Mínimo privilegio cuando no existe un usuario autenticado.
 
   const rol = (user.rol_base || user.rol || user.perfil || '').toLowerCase();
   const nivelNum = user.nivel !== undefined && user.nivel !== null ? parseInt(user.nivel, 10) : null;
@@ -46,7 +46,7 @@ export const getUserLevel = (user) => {
   }
 
   // Nivel 4: Inspector / Operador / Capturador Terreno
-  return 0; // Por defecto otorgar permisos si no hay rol explicito
+  return 4; // Un rol desconocido nunca debe heredar privilegios administrativos.
 };
 
 export const getUserLevelLabel = (user) => {

@@ -23,3 +23,11 @@ registro de `supabase_migrations.schema_migrations`.
 Las Edge Functions que usan autenticación personalizada mediante secretos de
 Vault están declaradas en `../config.toml`; desactivar `verify_jwt` en esos casos
 no las hace públicas porque la función rechaza solicitudes sin su secreto.
+
+## Contrato TypeScript del esquema
+
+El archivo `../database.types.ts` se genera directamente desde el proyecto
+productivo `wegphblwwcfidvdbdtdq`. Debe regenerarse después de aplicar cambios
+de esquema y revisarse en el mismo commit que la migración correspondiente. Es
+un contrato de compilación y revisión; no reemplaza el historial SQL ni debe
+editarse manualmente.

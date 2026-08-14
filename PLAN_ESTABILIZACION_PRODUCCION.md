@@ -2,7 +2,7 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
-Avance actualizado: Etapa 1 99%; Etapa 2 80%; plan completo 38%.
+Avance actualizado: Etapa 1 99%; Etapa 2 85%; Etapa 3 20%; plan completo 43%.
 
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
@@ -28,7 +28,7 @@ Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operac
 
 ## Etapa 3 — Pruebas
 
-- [ ] Configurar pruebas unitarias, de integración y de interfaz.
+- [ ] Configurar pruebas unitarias, de integración y de interfaz (pruebas unitarias base operativas; integración e interfaz pendientes).
 - [ ] Probar aislamiento entre empresas y permisos por rol.
 - [ ] Cubrir Auth, estados de pago, Libro de Obras, calidad y prevención.
 - [ ] Cubrir formularios públicos, subcontratos, mandante y acreditaciones.
@@ -101,3 +101,8 @@ La plataforma se considerará lista para producción cuando no existan política
 - Pruebas negativas sin secreto respondieron 401 y pruebas internas con el secreto respondieron 200, sin registros pendientes procesados.
 - Las funciones del mandante aceptaron su secreto de automatización y alcanzaron correctamente la validación funcional (404/400 con identificadores deliberadamente inexistentes, no 401).
 - Inventario de migraciones comparado: producción conserva historia previa que Git mantiene aún como archivos `schema_*.sql`; documentado el procedimiento seguro para generar el baseline sin reejecutar SQL acumulativo.
+- Contrato TypeScript completo del esquema productivo generado desde Supabase y versionado en `supabase/database.types.ts`.
+- Ejecutor de pruebas unitarias incorporado sin dependencias adicionales, con siete verificaciones sobre RUT, montos, mínimo privilegio y Valor Ganado.
+- Corregida una elevación heredada: sesiones ausentes o roles desconocidos ya no reciben nivel administrativo por defecto.
+- Cálculos CPI, SPI, EAC, CV y SV extraídos a una utilidad determinística reutilizable y conectados al panel real de estadísticas de obra.
+- Pruebas, lint y build productivo ejecutados correctamente; permanece como deuda técnica actualizar Node 22.11 a 22.12 o superior y reducir paquetes mayores a 500 kB.

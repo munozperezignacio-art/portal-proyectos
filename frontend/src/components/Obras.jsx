@@ -10,6 +10,7 @@ import ContextualEmailConfigModal from './ContextualEmailConfigModal';
 import { canConfigureEmails, canCreateObras, canModifyOrDeleteRecords } from '../utils/userLevel';
 import { sendSystemEmail } from '../utils/emailService';
 import { formatRut, formatNumberWithDots, parseNumberFromDots } from '../utils/rutUtils';
+import { calculateEarnedValue } from '../utils/earnedValue';
 import LastPlannerLookahead from './LastPlannerLookahead';
 import CalidadObras from './CalidadObras';
 import LibroObrasDigital from './LibroObrasDigital';
@@ -4951,11 +4952,13 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 const AC = AC_facturas + AC_personal + AC_maquinaria; // Costo Real Actual Total
 
                 const BAC = totalVentaPresupuestada; // Presupuesto Total Venta
-                const CPI = AC > 0 ? (EV / AC) : (EV > 0 ? 1.2 : 1.0); // Cost Performance Index
-                const SPI = PV > 0 ? (EV / PV) : 1.0; // Schedule Performance Index
-                const EAC = CPI > 0 ? Math.round(BAC / CPI) : BAC; // Estimate at Completion
-                const CV = EV - AC; // Cost Variance
-                const SV = EV - PV; // Schedule Variance
+                const evm = calculateEarnedValue({ earnedValue: EV, plannedValue: PV, actualCost: AC, budgetAtCompletion: BAC });
+                // La interfaz conserva valores neutros cuando aún no existe base suficiente para un índice.
+                const CPI = evm.cpi ?? 1.0;
+                const SPI = evm.spi ?? 1.0;
+                const EAC = evm.eac;
+                const CV = evm.costVariance;
+                const SV = evm.scheduleVariance;
 
                 // PARTIDAS CON ALERTA Y DESVIACIÓN CRÍTICA DE COSTO
                 const partidasConDesviacion = targetPartidas.map(p => {
