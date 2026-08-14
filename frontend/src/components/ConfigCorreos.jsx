@@ -1163,6 +1163,7 @@ function ConfigCorreos({ user, onBack }) {
     { id: 'calidad', label: 'Calidad', description: 'PAC, RDI, recepciones y no conformidades.' },
     { id: 'acreditaciones', label: 'Acreditaciones', description: 'Empresas, personal, equipos y documentación.' },
     { id: 'clientes', label: 'Clientes', description: 'Contactos, oportunidades y relación comercial.' },
+    { id: 'mandante', label: 'Gestión del Mandante', description: 'Proyectos, contratos, empresas vinculadas y acreditaciones del mandante.' },
     { id: 'facturacion', label: 'Facturación Electrónica', description: 'Centros de gestión, DTE, compras y ventas.' },
     { id: 'gastos', label: 'Rendición de Gastos', description: 'Rendiciones, comprobantes y aprobaciones.' }
   ];

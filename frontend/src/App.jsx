@@ -46,6 +46,7 @@ const PublicReporteDiarioMaquinaria = lazyWithRetry(() => import('./components/P
 const PublicEstadoPago = lazyWithRetry(() => import('./components/PublicEstadoPago'), 'estado-pago-publico');
 const PublicLibroObra = lazyWithRetry(() => import('./components/PublicLibroObra'), 'libro-obra-publico');
 const ClientesPortal = lazyWithRetry(() => import('./components/ClientesPortal'), 'clientes');
+const GestionMandante = lazyWithRetry(() => import('./components/GestionMandante'), 'mandante');
 const PublicClientePortal = lazyWithRetry(() => import('./components/PublicClientePortal'), 'portal-cliente');
 const FloatingOX = lazyWithRetry(() => import('./components/FloatingOX'), 'ox');
 
@@ -62,7 +63,7 @@ const moduleGroups = [
   { label: 'Proyectos', ids: ['obras', 'presupuestos'] },
   { label: 'Operación', ids: ['rrhh', 'maquinaria', 'bodega'] },
   { label: 'Control y cumplimiento', ids: ['prevencion', 'formularios_capacitaciones', 'acreditaciones', 'calidad'] },
-  { label: 'Administración', ids: ['clientes', 'facturacion', 'gastos'] },
+  { label: 'Administración', ids: ['clientes', 'mandante', 'facturacion', 'gastos'] },
 ];
 
 function GroupedModuleLinks({ modules, currentModule, onSelect }) {
@@ -502,6 +503,14 @@ function App() {
       action: () => { setSelectedObraName(null); setCurrentModule('clientes'); }
     },
     {
+      id: 'mandante',
+      title: 'Gestión del Mandante',
+      description: 'Control contractual para mandantes y propietarios, con empresas conectadas, portales externos y acreditaciones.',
+      icon: <Building2 className="w-5 h-5" />,
+      sidebarIcon: <Building2 className="w-4 h-4" />,
+      action: () => { setSelectedObraName(null); setCurrentModule('mandante'); }
+    },
+    {
       id: 'facturacion',
       title: 'Facturación Electrónica',
       description: 'Emisión de facturas electrónicas, control tributario y cobros integrados.',
@@ -933,6 +942,14 @@ function App() {
             />
           ) : currentModule === 'clientes' ? (
             <ClientesPortal
+              user={activeUserContext}
+              onBack={() => {
+                setSelectedObraName(null);
+                setCurrentModule('dashboard');
+              }}
+            />
+          ) : currentModule === 'mandante' ? (
+            <GestionMandante
               user={activeUserContext}
               onBack={() => {
                 setSelectedObraName(null);

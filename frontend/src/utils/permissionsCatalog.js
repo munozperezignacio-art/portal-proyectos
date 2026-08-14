@@ -63,6 +63,11 @@ export const PERMISSIONS_CATALOG = [
   { id: 'clientes', label: 'Clientes y Portal del Cliente', menus: [
     { id: 'portales', label: 'Portales, obras y contactos', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'revisar', 'configurar'] },
   ]},
+  { id: 'mandante', label: 'Gestión del Mandante', menus: [
+    { id: 'proyectos', label: 'Proyectos del mandante', actions: ['ver', 'crear', 'editar', 'eliminar', 'descargar', 'configurar'] },
+    { id: 'contratos', label: 'Contratos y empresas vinculadas', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'revisar', 'aprobar', 'descargar', 'configurar'] },
+    { id: 'acreditaciones', label: 'Acreditaciones contractuales', actions: ['ver', 'crear', 'editar', 'enviar', 'revisar', 'aprobar', 'descargar', 'configurar'] },
+  ]},
   { id: 'admin', label: 'Panel de control', menus: [
     { id: 'usuarios', label: 'Usuarios y roles', actions: ['ver', 'crear', 'editar', 'eliminar', 'configurar'] },
     { id: 'permisos', label: 'Permisos y flujos', actions: ['ver', 'editar', 'configurar'] },
