@@ -2440,8 +2440,9 @@ export default function Maquinaria({ user, onBack }) {
       {/* MODAL IMPRESIÓN / GENERACIÓN DE CÓDIGO QR DEL EQUIPO */}
       {qrModalArriendo && (() => {
         const arr = qrModalArriendo;
+        const equipment = maquinaria.find(item => String(item.id) === String(arr.equipo_id));
         const baseUrl = window.location.origin;
-        const qrTargetUrl = `${baseUrl}/?reporte_diario_equipo=${arr.equipo_id}&patente=${encodeURIComponent(arr.equipo_patente)}`;
+        const qrTargetUrl = `${baseUrl}/?maquinaria_token=${encodeURIComponent(equipment?.publico_token || '')}`;
         const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrTargetUrl)}`;
 
         return (

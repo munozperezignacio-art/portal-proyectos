@@ -43,6 +43,16 @@ Deno.serve(async(req)=>{
     const inspector=clean(body?.inspector,200)||"Trabajador Terreno",signature=clean(body?.firma_url,4*1024*1024)||null;
     const {data:saved,error:saveError}=await db.from("prevencion_respuestas").insert({formulario_id:form.id,centro_gestion_id:centerId,obra_id:workId,proyecto_nombre:workName,inspector,respuestas:answers,firma_url:signature}).select("id").single();
     if(saveError){await log(false);throw saveError;}
+    if(control.tipo_registro==="maquinaria_uso"){
+      const patent=clean((answers as any).equipo_patente,40).toUpperCase();
+      const initial=Number((answers as any).horometro_inicial),final=Number((answers as any).horometro_final);
+      const{data:equipment}=await db.from("inventario_maquinaria").select("id,tipo,patente,obra_nombre,horometro_inicial,empresa").eq("empresa",form.empresa).ilike("patente",patent).maybeSingle();
+      if(!equipment||!Number.isFinite(initial)||!Number.isFinite(final)||final<initial)throw new Error("Lecturas de maquinaria inválidas");
+      const isMileage=(answers as any).unidad_medicion==="Kilometraje (km)";
+      const{error:usageError}=await db.from("maquinaria_uso_diario").insert({equipo_id:String(equipment.id),equipo_tipo:equipment.tipo,equipo_patente:equipment.patente,obra_nombre:workName||equipment.obra_nombre||"Sin asignar",fecha:new Date().toISOString().slice(0,10),horometro_inicial:initial,horometro_final:final,horas_trabajadas:isMileage?0:Math.max(0,final-initial),combustible_cargado:Math.max(0,Number((answers as any).combustible)||0),operador:inspector,observaciones:clean((answers as any).observaciones,2000),empresa:form.empresa});
+      if(usageError)throw usageError;
+      await db.from("inventario_maquinaria").update({horometro_inicial:final}).eq("id",equipment.id).eq("empresa",form.empresa);
+    }
     await log(true);return json({id:saved.id});
   }catch(error){console.error(error);return json({error:error instanceof Error?error.message:"Error inesperado"},500);}
 });

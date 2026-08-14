@@ -134,22 +134,13 @@ export default function PublicFormFiller({ formToken }) {
     }
   };
 
-  const selectEquipment = async (patente) => {
+  const selectEquipment = (patente) => {
     const equipment = maquinariaList.find(item => item.patente === patente);
     if (!equipment) {
       setFillAnswers(previous => ({ ...previous, equipo_patente: patente }));
       return;
     }
-    let lastHourmeter = Number(equipment.horometro_inicial) || 0;
-    try {
-      let { data: uses } = await supabase.from('maquinaria_uso_diario').select('horometro_final, created_at, fecha').eq('equipo_id', equipment.id).order('created_at', { ascending: false }).limit(1);
-      if (!uses?.length) {
-        ({ data: uses } = await supabase.from('maquinaria_uso_diario').select('horometro_final, created_at, fecha').eq('equipo_patente', equipment.patente).order('created_at', { ascending: false }).limit(1));
-      }
-      if (uses?.[0]?.horometro_final !== null && uses?.[0]?.horometro_final !== undefined) lastHourmeter = Number(uses[0].horometro_final) || 0;
-    } catch (err) {
-      console.warn('No se pudo recuperar el último horómetro:', err.message);
-    }
+    const lastHourmeter = Number(equipment.horometro_inicial) || 0;
     const vehicleType = /camion|camión|camioneta|minibus|vehiculo|vehículo|automóvil|auto/i.test(equipment.tipo || '');
     const measurementUnit = vehicleType ? 'Kilometraje (km)' : 'Horómetro (hrs)';
     setFillAnswers(previous => ({
@@ -297,14 +288,6 @@ export default function PublicFormFiller({ formToken }) {
 
       if (insErr) throw insErr;
 
-      if (form.tipo_registro === 'maquinaria_uso') {
-        const patente = String(finalAnswers.equipo_patente || '').trim().toUpperCase();
-        const { data: equipment } = await supabase.from('maquinaria').select('id, tipo, patente, obra_nombre').ilike('patente', patente).maybeSingle();
-        const initial = Number(finalAnswers.horometro_inicial) || 0;
-        const final = Number(finalAnswers.horometro_final) || 0;
-        const isMileage = finalAnswers.unidad_medicion === 'Kilometraje (km)';
-        await supabase.from('maquinaria_uso_diario').insert([{ equipo_id: equipment?.id || null, equipo_tipo: equipment?.tipo || 'Equipo', equipo_patente: patente, obra_nombre: fillMetadata.proyecto_nombre || equipment?.obra_nombre || '', fecha: new Date().toISOString().slice(0, 10), horometro_inicial: initial, horometro_final: final, horas_trabajadas: isMileage ? 0 : Math.max(0, final - initial), combustible_cargado: Number(finalAnswers.combustible) || 0, operador: fillMetadata.inspector || '', observaciones: `${isMileage ? `Kilometraje: ${initial} a ${final} km. ` : ''}${finalAnswers.observaciones || ''}`.trim(), empresa: form.empresa || 'OBRAXIS', created_at: new Date().toISOString() }]);
-      }
       if (form.tipo_registro === 'incidente_accidente') {
         // El aviso inicial queda guardado en prevencion_respuestas, que es la
         // fuente trazable del formulario. El seguimiento (mutual, reposo y

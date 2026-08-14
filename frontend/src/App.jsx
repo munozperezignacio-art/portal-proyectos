@@ -336,7 +336,7 @@ function App() {
 
   // Detectar si se está accediendo a un formulario o capacitación pública de prevención a través de la URL
   const urlParams = new URLSearchParams(window.location.search);
-  const publicEquipoArriendo = urlParams.get('arriendo_qr') || urlParams.get('reporte_diario_equipo');
+  const publicEquipoArriendo = urlParams.get('maquinaria_token') || urlParams.get('arriendo_qr') || urlParams.get('reporte_diario_equipo');
   const publicEstadoPagoToken = urlParams.get('estado_pago');
   const publicLibroObraToken = urlParams.get('libro_obra');
   const publicClienteToken = urlParams.get('cliente_portal');
@@ -354,7 +354,7 @@ function App() {
     return <React.Suspense fallback={<ModuleLoader />}><PublicEstadoPago token={publicEstadoPagoToken} role={urlParams.get('rol_ep') === 'aprobacion' ? 'aprobacion' : 'revision'} /></React.Suspense>;
   }
   if (publicEquipoArriendo) {
-    return <React.Suspense fallback={<ModuleLoader />}><PublicReporteDiarioMaquinaria equipoId={publicEquipoArriendo} patente={urlParams.get('patente')} /></React.Suspense>;
+    return <React.Suspense fallback={<ModuleLoader />}><PublicReporteDiarioMaquinaria token={publicEquipoArriendo} /></React.Suspense>;
   }
 
   const publicFormToken = urlParams.get('prevencion_form');
