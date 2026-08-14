@@ -41,7 +41,7 @@ const hasWorksiteAccess = (profile: any, worksite: string) => {
 };
 
 type Source = { id: string; modulo: string; referencia: string; destino: string; registro_id?: string | number | null };
-type Context = { obra: any; resumen: any; partidas: any[]; costos_por_tipo: any[]; calidad: any[]; prevencion: any[]; estados_pago: any[]; restricciones: any[]; maquinaria: any[]; fallas_maquinaria: any[]; personal_asignado: any[]; fuentes: Source[] };
+type Context = { obra: any; resumen: any; partidas: any[]; programacion: any[]; costos_por_tipo: any[]; calidad: any[]; prevencion: any[]; estados_pago: any[]; restricciones: any[]; maquinaria: any[]; fallas_maquinaria: any[]; personal_asignado: any[]; fuentes: Source[] };
 
 const decorate = (result: any, sources: Source[], mode: "IA" | "Determinístico") => {
   const allowed = new Map(sources.map(source => [source.id, source]));
@@ -93,6 +93,13 @@ const deterministicAnswer = (question: string, context: Context) => {
       limitaciones: ["La liberación debe ser confirmada por el responsable; el Copiloto no modifica estados."]
     };
   }
+  if (q.includes("hito") || q.includes("programacion") || q.includes("programación") || q.includes("cronograma")) {
+    const today = new Date().toISOString().slice(0, 10);
+    const milestones = context.programacion.filter(item => Number(item.duracion) === 0);
+    const overdue = milestones.filter(item => item.fecha_fin && item.fecha_fin < today && num(item.porcentaje_avance) < 100);
+    const upcoming = milestones.filter(item => item.fecha_fin && item.fecha_fin >= today).sort((a, b) => String(a.fecha_fin).localeCompare(String(b.fecha_fin))).slice(0, 5);
+    return { respuesta_breve: `El cronograma contiene ${context.programacion.length} tarea(s), ${milestones.length} hito(s) y ${overdue.length} hito(s) vencido(s).`, hechos: [...overdue.slice(0, 5), ...upcoming].map(item => ({ texto: `${item.tarea}: ${item.fecha_fin || "sin fecha"} · avance ${num(item.porcentaje_avance).toFixed(0)}%.`, fuente_id: item.fuente_id })), calculos: [{ nombre: "Tareas programadas", valor: String(context.programacion.length), base: "Planificación vinculada al presupuesto de la obra" }, { nombre: "Hitos vencidos", valor: String(overdue.length), base: "Hitos anteriores a hoy con avance menor a 100%" }], sugerencias: overdue.length ? [{ accion: "Revisar y reprogramar los hitos vencidos con sus responsables.", prioridad: "Alta", motivo: "Mantienen compromisos de plazo abiertos." }] : [], limitaciones: ["La reprogramación debe ser validada y guardada por un usuario autorizado."] };
+  }
   if (q.includes("maquinaria") || q.includes("equipo") || q.includes("mantenci") || q.includes("falla")) {
     const unavailable = context.maquinaria.filter(item => !["operativo", "disponible", "activo"].includes(normalized(item.estado_equipo)));
     const stopped = context.fallas_maquinaria.filter(item => item.detuvo_equipo && !item.solucion);
@@ -139,6 +146,17 @@ Deno.serve(async (req) => {
     if (!hasWorksiteAccess(profile, obraNombre)) return json({ error: "No tienes acceso autorizado a esta obra." }, 403);
     const { data: worksite } = await db.from("obras").select("id,nombre,empresa,estado,tipo,cliente").eq("nombre", obraNombre).eq("empresa", empresa).maybeSingle();
     if (!worksite) return json({ error: "La obra no existe o no pertenece a la empresa indicada." }, 404);
+    let scheduleRows: any[] = [];
+    try {
+      const { data: relation } = await db.from("obra_presupuestos").select("presupuesto_id").eq("empresa", empresa).eq("obra_nombre", obraNombre).maybeSingle();
+      if (relation?.presupuesto_id) {
+        const [{ data: schedule }, { data: budgetItems }] = await Promise.all([
+          db.from("planificacion_cronogramas").select("id,presupuesto_id,codigo,tarea,fecha_inicio,fecha_fin,duracion,predecesora,porcentaje_avance,responsable").eq("presupuesto_id", relation.presupuesto_id),
+          db.from("presupuestos_items").select("codigo,partida").eq("presupuesto_id", relation.presupuesto_id)
+        ]);
+        scheduleRows = (schedule || []).map((task: any) => ({ ...task, partida: (budgetItems || []).find((item: any) => String(item.codigo || "") === String(task.codigo || ""))?.partida || task.tarea, fuente_id: `programacion:${task.id}` }));
+      }
+    } catch (scheduleError) { console.warn("No fue posible cargar la programación vinculada", scheduleError); }
     const [partsResult, advancesResult, costsResult, qualityResult, safetyResult, paymentsResult, restrictionsResult, machineryResult, machineryUseResult, failuresResult, assignmentsResult] = await Promise.all([
       db.from("partidas_obra").select("id,partida,unidad,cantidad_presupuestada,costo_por_dia,fecha_inicio,fecha_termino").eq("empresa", empresa).eq("obra_id", worksite.id),
       db.from("avances_produccion_partidas").select("id,partida,cantidad,created_at").eq("empresa", empresa).eq("obra_id", worksite.id),
@@ -167,9 +185,11 @@ Deno.serve(async (req) => {
       { id: "prevencion:resumen", modulo: "Prevención", referencia: "Registros e inspecciones", destino: "prevencion" },
       { id: "estados_pago:resumen", modulo: "Estados de pago", referencia: "Historial contractual", destino: "estados_pago" },
       { id: "restricciones:resumen", modulo: "Last Planner", referencia: "Restricciones y recursos", destino: "planificacion" },
+      { id: "programacion:resumen", modulo: "Programación", referencia: "Cronograma vinculado", destino: "planificacion" },
       { id: "maquinaria:resumen", modulo: "Maquinaria", referencia: "Equipos asignados a la obra", destino: "maquinaria" },
       { id: "personal:resumen", modulo: "Recursos Humanos", referencia: "Personal asignado a la obra", destino: "personal" },
       ...activitySummaries.map((row: any) => ({ id: row.fuente_id, modulo: "Programación y Avances", referencia: row.partida, destino: "estadisticas:avance", registro_id: row.id })),
+      ...scheduleRows.slice(0, 60).map((row: any) => ({ id: row.fuente_id, modulo: "Programación", referencia: `${row.codigo || ""} · ${row.tarea}`, destino: "planificacion", registro_id: row.id })),
       ...quality.slice(0, 30).map((row: any) => ({ id: `calidad:${row.id}`, modulo: "Calidad", referencia: `${row.codigo || "NC"} · ${row.partida || "Sin partida"}`, destino: "calidad", registro_id: row.id })),
       ...prevention.slice(0, 30).map((row: any) => ({ id: `prevencion:${row.id}`, modulo: "Prevención", referencia: `Registro ${row.id}`, destino: "prevencion", registro_id: row.id })),
       ...payments.slice(0, 30).map((row: any) => ({ id: `estado_pago:${row.id}`, modulo: "Estados de pago", referencia: `Estado de pago N° ${row.numero}`, destino: "estados_pago", registro_id: row.id })),
@@ -182,7 +202,7 @@ Deno.serve(async (req) => {
     const context: Context = {
       obra: { nombre: worksite.nombre, estado: worksite.estado, tipo: worksite.tipo },
       resumen: { partidas_activas: activities.length, reportes_avance: advances.length, costo_real_total: costs.reduce((sum: number, row: any) => sum + num(row.monto), 0), no_conformidades_abiertas: quality.filter((row: any) => !isClosed(row.estado)).length, registros_prevencion: prevention.length, estados_pago: payments.length },
-      partidas: activitySummaries, costos_por_tipo: costByType, calidad: quality.slice(0, 25).map((row: any) => ({ ...row, fuente_id: `calidad:${row.id}` })), prevencion: preventionSafe.slice(0, 25), estados_pago: payments.slice(0, 20).map((row: any) => ({ ...row, fuente_id: `estado_pago:${row.id}` })), restricciones: restrictions.slice(0, 40).map((row: any) => ({ ...row, fuente_id: `restriccion:${row.id}` })), maquinaria: machinery.slice(0, 40).map((row: any) => ({ ...row, horas_reportadas: useByEquipment[String(row.id)] || 0, fuente_id: `maquinaria:${row.id}` })), fallas_maquinaria: failures.slice(0, 30).map((row: any) => ({ ...row, fuente_id: `falla:${row.id}` })), personal_asignado: assignments.slice(0, 50).map((row: any) => ({ ...row, fuente_id: `personal:${row.id}` })), fuentes: sources
+      partidas: activitySummaries, programacion: scheduleRows.slice(0, 60), costos_por_tipo: costByType, calidad: quality.slice(0, 25).map((row: any) => ({ ...row, fuente_id: `calidad:${row.id}` })), prevencion: preventionSafe.slice(0, 25), estados_pago: payments.slice(0, 20).map((row: any) => ({ ...row, fuente_id: `estado_pago:${row.id}` })), restricciones: restrictions.slice(0, 40).map((row: any) => ({ ...row, fuente_id: `restriccion:${row.id}` })), maquinaria: machinery.slice(0, 40).map((row: any) => ({ ...row, horas_reportadas: useByEquipment[String(row.id)] || 0, fuente_id: `maquinaria:${row.id}` })), fallas_maquinaria: failures.slice(0, 30).map((row: any) => ({ ...row, fuente_id: `falla:${row.id}` })), personal_asignado: assignments.slice(0, 50).map((row: any) => ({ ...row, fuente_id: `personal:${row.id}` })), fuentes: sources
     };
 
     const deterministic = deterministicAnswer(pregunta, context);
@@ -208,7 +228,7 @@ Deno.serve(async (req) => {
     reservationId = reserved;
     const aiSourceIds = new Set(["obra:resumen", "costos:resumen", "calidad:resumen", "prevencion:resumen", "estados_pago:resumen", ...activitySummaries.map((item: any) => item.fuente_id), ...quality.map((item: any) => `calidad:${item.id}`), ...prevention.map((item: any) => `prevencion:${item.id}`), ...payments.map((item: any) => `estado_pago:${item.id}`)]);
     const aiContext: any = { obra: context.obra, resumen: context.resumen, partidas: context.partidas, costos_por_tipo: context.costos_por_tipo, calidad: context.calidad, prevencion: context.prevencion, estados_pago: context.estados_pago };
-    if (specializedKey === "asistencia_planificacion") { aiContext.restricciones = context.restricciones; context.restricciones.forEach((item: any) => aiSourceIds.add(item.fuente_id)); }
+    if (specializedKey === "asistencia_planificacion") { aiContext.programacion = context.programacion; aiContext.restricciones = context.restricciones; context.programacion.forEach((item: any) => aiSourceIds.add(item.fuente_id)); context.restricciones.forEach((item: any) => aiSourceIds.add(item.fuente_id)); aiSourceIds.add("programacion:resumen"); }
     if (specializedKey === "asistencia_maquinaria") { aiContext.maquinaria = context.maquinaria.map(({ tipo, estado_equipo, horas_reportadas, planes_mantencion, fuente_id }: any) => ({ tipo, estado_equipo, horas_reportadas, planes_mantencion, fuente_id: "maquinaria:resumen" })); aiContext.fallas_maquinaria = context.fallas_maquinaria.map(({ equipo_tipo, fecha, severidad, detuvo_equipo, horas_fuera_servicio, descripcion, causa, solucion }: any) => ({ equipo_tipo, fecha, severidad, detuvo_equipo, horas_fuera_servicio, descripcion, causa, solucion, fuente_id: "maquinaria:resumen" })); aiSourceIds.add("maquinaria:resumen"); }
     if (specializedKey === "asistencia_rrhh") { const today = new Date().toISOString().slice(0, 10); const active = context.personal_asignado.filter((item: any) => (!item.fecha_inicio || item.fecha_inicio <= today) && (!item.fecha_termino || item.fecha_termino >= today)); aiContext.dotacion_por_cargo = Object.entries(active.reduce((acc: Record<string, number>, item: any) => { const role = item.cargo || "Sin cargo"; acc[role] = (acc[role] || 0) + 1; return acc; }, {})).map(([cargo, total]) => ({ cargo, total, fuente_id: "personal:resumen" })); aiSourceIds.add("personal:resumen"); }
     aiContext.fuentes = context.fuentes.filter(source => aiSourceIds.has(source.id));

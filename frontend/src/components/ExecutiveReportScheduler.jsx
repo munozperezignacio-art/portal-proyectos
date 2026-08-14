@@ -256,6 +256,25 @@ export default function ExecutiveReportScheduler({
       supabase.from("maquinaria_mantenciones").select("equipo_id,fecha,created_at").eq("empresa", user.empresa).gte("created_at", since.toISOString()),
       supabase.from("maestro_personal").select("id,obra_nombre").eq("empresa", user.empresa),
     ]);
+    let planning = [];
+    try {
+      const { data: relations } = await supabase.from("obra_presupuestos").select("obra_nombre,presupuesto_id").eq("empresa", user.empresa).in("obra_nombre", selected);
+      const budgetIds = [...new Set((relations || []).map(row => row.presupuesto_id).filter(Boolean))];
+      if (budgetIds.length) {
+        const [{ data: scheduleRows }, { data: budgetRows }] = await Promise.all([
+          supabase.from("planificacion_cronogramas").select("presupuesto_id,codigo,tarea,fecha_inicio,fecha_fin,duracion,porcentaje_avance").in("presupuesto_id", budgetIds),
+          supabase.from("presupuestos_items").select("presupuesto_id,codigo,partida").in("presupuesto_id", budgetIds)
+        ]);
+        planning = (scheduleRows || []).flatMap(task => {
+          const relation = (relations || []).find(row => String(row.presupuesto_id) === String(task.presupuesto_id));
+          if (!relation) return [];
+          const budgetItem = (budgetRows || []).find(row => String(row.presupuesto_id) === String(task.presupuesto_id) && String(row.codigo || '') === String(task.codigo || ''));
+          return [{ ...task, obra_nombre: relation.obra_nombre, partida: budgetItem?.partida || task.tarea }];
+        });
+      }
+    } catch (planningError) {
+      console.warn("No fue posible incorporar la planificación en el informe:", planningError);
+    }
     return {
       selected,
       since,
@@ -265,6 +284,7 @@ export default function ExecutiveReportScheduler({
       nc: nc.data || [],
       prevention: prevention.data || [],
       parts: parts.data || [],
+      planning,
       equipmentUse: equipmentUse.data || [],
       failures: failures.data || [],
       maintenance: maintenance.data || [],
@@ -283,6 +303,7 @@ export default function ExecutiveReportScheduler({
       nonConformities: d.nc,
       prevention: d.prevention,
       parts: d.parts,
+      planning: d.planning,
       equipmentUse: d.equipmentUse,
       failures: d.failures,
       maintenance: d.maintenance,

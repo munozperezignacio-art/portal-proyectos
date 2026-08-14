@@ -942,7 +942,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         const isGroup = p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo;
         const cant = parseFloat(p.cantidad) || 0;
         const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
-        const duracionDias = isGroup ? 0 : Math.max(1, Math.ceil(cant / rend));
+        const duracionDias = isGroup ? 0 : Math.max(1, parseInt(p.duracion_programada, 10) || Math.ceil(cant / rend));
         const fechaInicio = p.fecha_inicio ? String(p.fecha_inicio).split('T')[0] : fInicioObraDefault;
         const fechaTermino = isGroup ? '' : addChileanBusinessDays(fechaInicio, duracionDias);
         return { ...p, isGroup, cant, rend, duracionDias, fechaInicio, fechaTermino };
@@ -1730,6 +1730,35 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
     // 3. Cargar partidas de obra
     try {
+      let linkedBudgetItems = [];
+      let linkedSchedule = [];
+      try {
+        const { data: relation } = await supabase
+          .from('obra_presupuestos')
+          .select('presupuesto_id')
+          .eq('empresa', user?.empresa || 'Obraxis')
+          .eq('obra_nombre', obraNombre)
+          .maybeSingle();
+        if (relation?.presupuesto_id) {
+          const [{ data: budgetRows }, { data: scheduleRows }] = await Promise.all([
+            supabase.from('presupuestos_items').select('codigo,partida').eq('presupuesto_id', relation.presupuesto_id),
+            supabase.from('planificacion_cronogramas').select('*').eq('presupuesto_id', relation.presupuesto_id)
+          ]);
+          linkedBudgetItems = budgetRows || [];
+          linkedSchedule = scheduleRows || [];
+        }
+      } catch (planningError) {
+        console.warn('No fue posible sincronizar la planificación vinculada:', planningError);
+      }
+
+      setPlanificacionList(linkedSchedule.map(row => ({
+        ...row,
+        nombre: row.tarea,
+        actividad: row.tarea,
+        duracion_dias: row.duracion,
+        avance_pct: row.porcentaje_avance
+      })));
+
       let partidasQuery = supabase.from('partidas_obra').select('*');
       partidasQuery = selectedObra?.id
         ? partidasQuery.eq('obra_id', selectedObra.id)
@@ -1744,9 +1773,17 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       } catch(e) {}
 
       const projectStartDate = getObraDateRange(selectedObra).start;
+      const normalizePlanningText = value => String(value || '').trim().toLocaleLowerCase('es-CL').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const scheduleByCode = new window.Map(linkedSchedule.map(row => [String(row.codigo || '').trim(), row]));
       let normalizedListPart = (listPart || []).map((p) => {
         const localMatch = savedLocalPartidas.find(lp => lp.partida === p.partida || (lp.id && String(lp.id) === String(p.id)));
         const isTit = p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo || (p.partida && /^[0-9]\./.test(p.partida.trim()));
+        const budgetMatch = linkedBudgetItems.find(item => normalizePlanningText(item.partida) === normalizePlanningText(p.partida));
+        const scheduleMatch = (budgetMatch?.codigo && scheduleByCode.get(String(budgetMatch.codigo).trim()))
+          || linkedSchedule.find(row => normalizePlanningText(row.tarea) === normalizePlanningText(p.partida));
+        const predecessorMatch = scheduleMatch?.predecesora
+          ? String(scheduleMatch.predecesora).match(/^(.+?)(FC|CC)([+-]\d+)?$/i)
+          : null;
 
         return {
           ...p,
@@ -1755,10 +1792,13 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           pu: isTit ? 0 : (parseFloat(p.costo_por_dia !== undefined && p.costo_por_dia !== null && p.costo_por_dia !== 0 ? p.costo_por_dia : p.pu) || 0),
           rendimiento: p.rendimiento_meta || p.rendimiento || '10',
           // Si aún no existe programación por partida, usar inicio real de la obra; nunca fechas de una obra de prueba.
-          fecha_inicio: localMatch?.fecha_inicio || p.fecha_inicio || p.fecha_inicio_programada || projectStartDate,
-          predecesora: localMatch?.predecesora !== undefined ? localMatch.predecesora : (p.predecesora || null),
-          tipo_relacion: localMatch?.tipo_relacion || p.tipo_relacion || 'FS',
-          desfase_dias: localMatch?.desfase_dias !== undefined ? localMatch.desfase_dias : (p.desfase_dias || 0)
+          fecha_inicio: scheduleMatch?.fecha_inicio || localMatch?.fecha_inicio || p.fecha_inicio || p.fecha_inicio_programada || projectStartDate,
+          fecha_termino: scheduleMatch?.fecha_fin || p.fecha_termino || null,
+          duracion_programada: scheduleMatch?.duracion ?? null,
+          predecesora: predecessorMatch?.[1] || (localMatch?.predecesora !== undefined ? localMatch.predecesora : (p.predecesora || null)),
+          tipo_relacion: predecessorMatch?.[2]?.toUpperCase() === 'CC' ? 'SS' : (localMatch?.tipo_relacion || p.tipo_relacion || 'FS'),
+          desfase_dias: predecessorMatch?.[3] ? parseInt(predecessorMatch[3], 10) : (localMatch?.desfase_dias !== undefined ? localMatch.desfase_dias : (p.desfase_dias || 0)),
+          origen_planificacion: scheduleMatch ? 'Presupuesto / archivo importado' : 'Obra'
         };
       });
 
@@ -4782,8 +4822,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                     const pu = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (parseFloat(p.pu) || parseFloat(p.costo_por_dia) || 0);
                     const pCant = parseFloat(p.cantidad) || 0;
                     const pStart = p.fecha_inicio || fInicioObraDefault;
-                    const pDur = Math.max(1, Math.round(pCant / (parseFloat(p.rendimiento) || 10)));
-                    const pEnd = addChileanBusinessDays(pStart, pDur);
+                    const pDur = Math.max(1, parseInt(p.duracion_programada, 10) || Math.round(pCant / (parseFloat(p.rendimiento) || 10)));
+                    const pEnd = p.fecha_termino || addChileanBusinessDays(pStart, pDur);
 
                     if (mStr >= pEnd) return sum + Math.round(pCant * pu);
                     if (mStr <= pStart) return sum;
@@ -4874,11 +4914,14 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   if (startP && startP <= fCorteStr) {
                     const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
                     const cantTotal = parseFloat(p.cantidad) || 0;
+                    const duracionProgramada = Math.max(1, parseInt(p.duracion_programada, 10) || Math.ceil(cantTotal / rend));
                     const dBus = countChileanBusinessDays(startP, fCorteStr);
-                    dEf = Math.min(dBus, rend > 0 ? (cantTotal / rend) : 1);
+                    dEf = Math.min(dBus, duracionProgramada);
                   }
                   const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
-                  const cantProg = Math.min(parseFloat(p.cantidad) || 0, Math.round(dEf * rend));
+                  const cantTotal = parseFloat(p.cantidad) || 0;
+                  const duracionProgramada = Math.max(1, parseInt(p.duracion_programada, 10) || Math.ceil(cantTotal / rend));
+                  const cantProg = Math.min(cantTotal, cantTotal * Math.min(1, dEf / duracionProgramada));
                   return sum + Math.round(cantProg * pu);
                 }, 0);
 
@@ -4949,7 +4992,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   const actualPct = cantTotal > 0 ? Math.min(100, (cantAv / cantTotal) * 100) : 0;
                   const startP = getPartidaScheduledStart(p);
                   const rendimiento = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
-                  const duracion = Math.max(1, Math.ceil(cantTotal / rendimiento));
+                  const duracion = Math.max(1, parseInt(p.duracion_programada, 10) || Math.ceil(cantTotal / rendimiento));
                   const plannedPct = startP && startP <= fCorteStr
                     ? Math.min(100, (countChileanBusinessDays(startP, fCorteStr) / duracion) * 100)
                     : 0;
@@ -6324,7 +6367,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   const isGroup = p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo;
                   const cant = parseFloat(p.cantidad) || 0;
                   const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
-                  const duracionDias = isGroup ? 0 : Math.max(1, Math.ceil(cant / rend));
+                  const duracionDias = isGroup ? 0 : Math.max(1, parseInt(p.duracion_programada, 10) || Math.ceil(cant / rend));
 
                   const fechaInicio = p.fecha_inicio ? String(p.fecha_inicio).split('T')[0] : fInicioObraDefault;
                   const fechaTermino = isGroup ? '' : addChileanBusinessDays(fechaInicio, duracionDias);
@@ -6499,27 +6542,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           <span>Crear Hito / Tarea Adicional</span>
                         </button>
 
-                        <label className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs">
-                          <FileUp className="w-3.5 h-3.5" />
-                          <span>Importar MS Project</span>
-                          <input
-                            type="file"
-                            accept=".xml,.mpp,.xlsx,.csv,.mpx"
-                            onChange={(e) => {
-                              const file = e.target.files[0];
-                              if (file) {
-                                const mockTasks = [
-                                  { id: Date.now() + 1, nombre: 'Instalación de Faenas & Trazados', fecha_inicio: '2026-03-01', fecha_fin: '2026-03-10', duracion_dias: 10, avance_pct: 100 },
-                                  { id: Date.now() + 2, nombre: 'Excavaciones Principales', fecha_inicio: '2026-03-11', fecha_fin: '2026-03-25', duracion_dias: 15, avance_pct: 70 },
-                                  { id: Date.now() + 3, nombre: 'Hormigonado de Cimientos', fecha_inicio: '2026-03-26', fecha_fin: '2026-04-15', duracion_dias: 20, avance_pct: 30 }
-                                ];
-                                setPlanificacionList(prev => [...prev, ...mockTasks]);
-                                alert(`¡Archivo MS Project "${file.name}" importado con éxito! Se cargaron ${mockTasks.length} actividades al cronograma.`);
-                              }
-                            }}
-                            className="hidden"
-                          />
-                        </label>
+                        <span className="bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-xs">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>{planificacionList.length} tareas sincronizadas desde Presupuesto</span>
+                        </span>
                       </div>
                     </div>
 

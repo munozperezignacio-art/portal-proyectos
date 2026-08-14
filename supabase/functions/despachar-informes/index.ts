@@ -129,6 +129,25 @@ Deno.serve(async () => {
           .eq("empresa", "Obraxis")
           .maybeSingle(),
       ]);
+      let planning: any[] = [];
+      try {
+        const { data: relations } = await db.from("obra_presupuestos").select("obra_nombre,presupuesto_id").eq("empresa", s.empresa).in("obra_nombre", names);
+        const budgetIds = [...new Set((relations || []).map((row: any) => row.presupuesto_id).filter(Boolean))];
+        if (budgetIds.length) {
+          const [{ data: scheduleRows }, { data: budgetRows }] = await Promise.all([
+            db.from("planificacion_cronogramas").select("presupuesto_id,codigo,tarea,fecha_inicio,fecha_fin,duracion,porcentaje_avance").in("presupuesto_id", budgetIds),
+            db.from("presupuestos_items").select("presupuesto_id,codigo,partida").in("presupuesto_id", budgetIds)
+          ]);
+          planning = (scheduleRows || []).flatMap((task: any) => {
+            const relation = (relations || []).find((row: any) => String(row.presupuesto_id) === String(task.presupuesto_id));
+            if (!relation) return [];
+            const budgetItem = (budgetRows || []).find((row: any) => String(row.presupuesto_id) === String(task.presupuesto_id) && String(row.codigo || "") === String(task.codigo || ""));
+            return [{ ...task, obra_nombre: relation.obra_nombre, partida: budgetItem?.partida || task.tarea }];
+          });
+        }
+      } catch (planningError) {
+        console.warn("No fue posible incorporar la planificación al informe", planningError);
+      }
       const report = buildExecutiveReportHtml({
         schedule: s,
         company: s.empresa,
@@ -139,6 +158,7 @@ Deno.serve(async () => {
         nonConformities: nc || [],
         prevention: prevention || [],
         parts: parts || [],
+        planning,
         equipmentUse: equipmentUse || [],
         failures: failures || [],
         maintenance: maintenance || [],
