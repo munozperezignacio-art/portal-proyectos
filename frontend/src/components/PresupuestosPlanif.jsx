@@ -224,25 +224,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
   const [allApuLinks, setAllApuLinks] = useState([]);
   const [allApuLinksLoading, setAllApuLinksLoading] = useState(false);
 
-  // Estados del Importador de Presupuestos con IA
-  const [geminiApiKey, setGeminiApiKey] = useState(() => {
-    if (companyBranding?.gemini_api_key) return companyBranding.gemini_api_key;
-    return localStorage.getItem('gemini_api_key') || '';
-  });
-  const [geminiModel, setGeminiModel] = useState(() => {
-    if (companyBranding?.gemini_model) return companyBranding.gemini_model;
-    return localStorage.getItem('gemini_model') || 'gemini-3.5-flash';
-  });
-
-  useEffect(() => {
-    if (companyBranding?.gemini_api_key) {
-      setGeminiApiKey(companyBranding.gemini_api_key);
-    }
-    if (companyBranding?.gemini_model) {
-      setGeminiModel(companyBranding.gemini_model);
-    }
-  }, [companyBranding]);
-
+  // La credencial del proveedor de IA permanece exclusivamente en Supabase Secrets.
   const [importAILoading, setImportAILoading] = useState(false);
   const [importAIError, setImportAIError] = useState('');
   const [importAIFile, setImportAIFile] = useState(null);
@@ -474,10 +456,6 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
       setImportAIError("Por favor selecciona un archivo.");
       return;
     }
-    if (!geminiApiKey.trim()) {
-      setImportAIError("Por favor ingresa una API Key de Gemini válida.");
-      return;
-    }
     setImportAILoading(true);
     setImportAIError("");
     setParsedAIBudget(null);
@@ -486,131 +464,32 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
       const file = importAIFile;
       const fileType = file.name.split('.').pop().toLowerCase();
       
-      let promptPayload = "";
-      let inlineData = null;
+      let textContent = "";
+      let fileBase64 = "";
+      let mimeType = file.type || "application/octet-stream";
 
       if (['xlsx', 'xls', 'csv'].includes(fileType)) {
         const data = await file.arrayBuffer();
         const workbook = XLSX.read(data, { type: 'array' });
-        let textContent = "";
         workbook.SheetNames.forEach(sheetName => {
           const worksheet = workbook.Sheets[sheetName];
           const csv = XLSX.utils.sheet_to_csv(worksheet);
           textContent += `--- Hoja: ${sheetName} ---\n${csv}\n\n`;
         });
-        promptPayload = `Aquí está el contenido del presupuesto en formato de planilla:\n\n${textContent}`;
+        mimeType = 'text/csv';
       } else if (fileType === 'pdf') {
-        const base64 = await convertFileToBase64(file);
-        inlineData = {
-          mimeType: "application/pdf",
-          data: base64
-        };
-        promptPayload = "Analiza el archivo PDF adjunto que contiene un presupuesto de obra.";
+        fileBase64 = await convertFileToBase64(file);
+        mimeType = 'application/pdf';
       } else if (['png', 'jpg', 'jpeg'].includes(fileType)) {
-        const base64 = await convertFileToBase64(file);
-        inlineData = {
-          mimeType: file.type,
-          data: base64
-        };
-        promptPayload = "Analiza la imagen adjunta que contiene una planilla de presupuesto de obra.";
+        fileBase64 = await convertFileToBase64(file);
       } else {
-        const text = await file.text();
-        promptPayload = `Aquí está el contenido de texto del presupuesto:\n\n${text}`;
+        textContent = await file.text();
+        mimeType = 'text/plain';
       }
-
-      const systemPrompt = `Eres un experto en ingeniería de costos y presupuestos para la construcción.
-Tu tarea es leer y extraer estructuradamente la información de la planilla o documento de presupuesto adjunto.
-Debes identificar:
-1. Nombre del proyecto (sé descriptivo, ej. "Habilitación de Oficinas EMIN", "Pavimentación Calle Larraín").
-2. Cliente o Mandante del proyecto.
-3. Ubicación o Comuna de Chile sugerida en base a la dirección o contexto del texto (ej. "Santiago", "Las Condes", "Maipú").
-4. Moneda base (CLP, USD o UF).
-5. Listado jerárquico de partidas y capítulos.
-
-Para cada fila en el presupuesto, clasifícala como:
-- Capítulo (is_chapter: true): tiene un código y descripción, pero no tiene unidad, cantidad ni precio unitario.
-- Partida (is_chapter: false): tiene un código, descripción, unidad (ej: GL, M3, UN, M2, KG, etc.), cantidad y costo_unitario (precio unitario directo de costo).
-
-IMPORTANTE:
-- Mantén la jerarquía utilizando los códigos (ej: "01", "01.01", "01.02"). Si el archivo original no tiene códigos, genéralos en formato correlativo (ej. "01", "01.01", "01.02").
-- Si no encuentras la cantidad o el costo unitario para una partida, ponle 0 por defecto.
-- No incluyas filas vacías o subtotales de capítulo como partidas individuales. Los subtotales se calculan dinámicamente en nuestra aplicación.
-- Proporciona un estimado razonable para el plazo de ejecución en días hábiles (plazo_estimado, def: 30) según la magnitud del proyecto.
-
-Devuelve el resultado estrictamente en formato JSON utilizando el siguiente esquema:
-{
-  "proyecto": {
-    "nombre": "Nombre del proyecto o de la obra",
-    "cliente": "Cliente o Mandante",
-    "moneda_base": "CLP" (o "USD", o "UF"),
-    "comuna": "Comuna de Chile relevante o vacía",
-    "plazo_estimado": 30
-  },
-  "items": [
-    {
-      "codigo": "Código jerárquico",
-      "descripcion": "Descripción del ítem o capítulo",
-      "is_chapter": true o false,
-      "unidad": "Unidad física si no es capítulo, sino vacía",
-      "cantidad": número,
-      "costo_unitario": número
-    }
-  ]
-}
-
-IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado con bloques de código markdown de tipo \`\`\`json o similar, ni agregues ningún texto explicativo. Solo el objeto JSON.`;
-
-      const parts = [{ text: systemPrompt }];
-      if (promptPayload) {
-        parts.push({ text: promptPayload });
-      }
-      if (inlineData) {
-        parts.push({ inlineData });
-      }
-
-      let response;
-      let retries = 3;
-      let delay = 2000;
-
-      for (let i = 0; i < retries; i++) {
-        response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            contents: [{ parts }],
-            generationConfig: {
-              responseMimeType: "application/json"
-            }
-          })
-        });
-
-        if (response.ok) break;
-
-        if (response.status === 429 || response.status === 503 || response.status === 500) {
-          if (i < retries - 1) {
-            console.warn(`Gemini experimentó alta demanda (Status ${response.status}). Reintentando en ${delay / 1000}s...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            delay *= 2;
-            continue;
-          }
-        }
-        break;
-      }
-
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error?.message || `Error del servidor Gemini: ${response.status}`);
-      }
-
-      const resData = await response.json();
-      const rawText = resData.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!rawText) {
-        throw new Error("Gemini retornó una respuesta vacía o sin contenido.");
-      }
-
-      const parsed = JSON.parse(rawText.trim());
+      const { data: responseData, error: invokeError } = await supabase.functions.invoke('importar-presupuesto-ia', { body: { empresa:user?.empresa, file_name:file.name, mime_type:mimeType, file_base64:fileBase64, text_content:textContent } });
+      if (invokeError) throw invokeError;
+      if (responseData?.error) throw new Error(responseData.error);
+      const parsed = responseData?.data;
       
       if (!parsed.proyecto || !Array.isArray(parsed.items)) {
         throw new Error("El JSON retornado por la IA no tiene el formato correcto.");
@@ -625,41 +504,9 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
       setSuccessMsg("Archivo procesado con éxito por la Inteligencia Artificial. Revisa el desglose abajo.");
     } catch (err) {
       console.error(err);
-      setImportAIError(err.message || "Error procesando el archivo con Gemini.");
+      setImportAIError(err.message || "Error procesando el archivo con IA.");
     } finally {
       setImportAILoading(false);
-    }
-  };
-
-  const handleSaveIAConfig = async () => {
-    if (!canConfigure) { setErrorMsg('Tu perfil no está autorizado para configurar la importación inteligente.'); return; }
-    try {
-      localStorage.setItem('gemini_api_key', geminiApiKey);
-      localStorage.setItem('gemini_model', geminiModel);
-
-      const rBase = (user?.rol_base || user?.rol || 'Inspector').toLowerCase();
-      const isPrivileged = rBase === 'superusuario' || rBase === 'administrador';
-      if (isPrivileged) {
-        const { error } = await supabase
-          .from('config_empresa')
-          .upsert({
-            empresa: user.empresa,
-            gemini_api_key: geminiApiKey,
-            gemini_model: geminiModel
-          }, { onConflict: 'empresa' });
-
-        if (error) {
-          console.warn("No se pudo guardar la configuración de IA en la base de datos:", error.message);
-          alert("Configuración guardada en este navegador de forma local. Para habilitarla para toda la empresa, asegúrate de ejecutar el script SQL de migración en Supabase.");
-        } else {
-          alert("¡Configuración de IA guardada con éxito en la base de datos para toda la empresa!");
-        }
-      } else {
-        alert("Configuración de IA guardada en este navegador de forma local.");
-      }
-    } catch (err) {
-      console.error("Error al guardar configuración de IA:", err);
-      alert("Configuración guardada en este navegador de forma local.");
     }
   };
 
@@ -5591,61 +5438,14 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                               Importador Inteligente de Presupuestos con IA
                             </h3>
                             <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">
-                              Carga automática de archivos usando Gemini 2.5 Flash
+                              Lectura segura mediante el Centro de IA de Obraxis
                             </p>
                           </div>
                         </div>
                       </div>
 
-                      {/* API KEY DE GEMINI */}
-                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
-                        <div className="flex justify-between items-center border-b border-slate-150 pb-2">
-                          <h4 className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider flex items-center gap-1">
-                            🔑 Configuración de API Key (Gemini)
-                          </h4>
-                          <span className="text-[9px] bg-blue-100 text-blue-800 font-black px-2 py-0.5 rounded uppercase">
-                            BYOK - Almacenamiento Local Seguro
-                          </span>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-                          <div className="md:col-span-6 space-y-1">
-                            <label className="block text-[9px] font-bold uppercase text-slate-450">Ingresa tu API Key de Gemini</label>
-                            <input
-                              type="password"
-                              value={geminiApiKey}
-                              onChange={(e) => setGeminiApiKey(e.target.value)}
-                              placeholder="AIzaSy..."
-                              className="w-full border border-slate-250 rounded-xl p-2.5 text-xs text-slate-800 bg-white placeholder-slate-350 focus:ring-1 focus:ring-primary focus:outline-none"
-                            />
-                          </div>
-
-                          <div className="md:col-span-4 space-y-1">
-                            <label className="block text-[9px] font-bold uppercase text-slate-450">Modelo de Inteligencia Artificial</label>
-                            <select
-                              value={geminiModel}
-                              onChange={(e) => setGeminiModel(e.target.value)}
-                              className="w-full border border-slate-250 rounded-xl p-2.5 text-xs text-slate-800 bg-white focus:ring-1 focus:ring-primary focus:outline-none cursor-pointer font-bold"
-                            >
-                              <option value="gemini-3.5-flash">gemini-3.5-flash (Último - Recomendado)</option>
-                              <option value="gemini-1.5-flash">gemini-1.5-flash (Estable)</option>
-                              <option value="gemini-2.5-flash">gemini-2.5-flash (Deprecado)</option>
-                            </select>
-                          </div>
-
-                          <div className="md:col-span-2">
-                            <button
-                              onClick={handleSaveIAConfig}
-                              className="w-full bg-primary text-white font-extrabold text-xs uppercase py-2.5 rounded-xl hover:bg-primary-hover shadow-xs cursor-pointer transition h-10 flex items-center justify-center gap-1.5"
-                            >
-                              <Save className="w-3.5 h-3.5" />
-                              Guardar
-                            </button>
-                          </div>
-                        </div>
-                        <p className="text-[10px] text-slate-455 font-semibold leading-normal">
-                          💡 La clave se almacena exclusivamente en tu navegador. Si no tienes una clave, puedes obtener una de forma <strong>completamente gratuita y sin costo</strong> ingresando con tu cuenta de Google a <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-extrabold">Google AI Studio</a> y presionando "Get API Key".
-                        </p>
+                      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-semibold leading-relaxed text-emerald-900">
+                        La credencial del proveedor permanece protegida en Supabase. El uso respeta la habilitación, permisos y presupuesto de IA configurados para esta empresa; ningún secreto llega al navegador.
                       </div>
 
                       {/* CARGA DE ARCHIVO */}
@@ -5713,8 +5513,8 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                             </button>
                             <button
                               onClick={handleProcessAIImport}
-                              disabled={importAILoading || !importAIFile || !geminiApiKey}
-                              className={`bg-primary text-white font-extrabold text-xs uppercase px-5 py-2.5 rounded-xl shadow-xs hover:bg-primary-hover transition flex items-center gap-1.5 cursor-pointer ${(!importAIFile || !geminiApiKey) ? 'opacity-40 cursor-not-allowed' : ''}`}
+                              disabled={importAILoading || !importAIFile}
+                              className={`bg-primary text-white font-extrabold text-xs uppercase px-5 py-2.5 rounded-xl shadow-xs hover:bg-primary-hover transition flex items-center gap-1.5 cursor-pointer ${!importAIFile ? 'opacity-40 cursor-not-allowed' : ''}`}
                             >
                               {importAILoading ? (
                                 <>

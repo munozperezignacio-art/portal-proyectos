@@ -2,7 +2,7 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
-Avance actualizado: Etapa 1 65%; plan completo 13%.
+Avance actualizado: Etapa 1 70%; plan completo 14%.
 
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
@@ -11,7 +11,7 @@ Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operac
 - [ ] Reemplazar políticas RLS abiertas por aislamiento real por empresa y obra.
 - [ ] Eliminar acceso anónimo directo no indispensable.
 - [ ] Mover Resend completamente al servidor y rotar su clave.
-- [ ] Eliminar claves de IA del navegador y de tablas expuestas.
+- [x] Eliminar claves de IA del navegador y de tablas expuestas.
 - [x] Proteger tareas Cron con un secreto interno en Vault independiente de la clave pública.
 - [ ] Activar protección de contraseñas filtradas en Supabase Auth.
 - [ ] Revisar `GRANT` y funciones `SECURITY DEFINER`.
@@ -71,4 +71,5 @@ La plataforma se considerará lista para producción cuando no existan política
 - RLS multiempresa cerrado para Bitácora y las tablas operativas de Calidad, incluidos los controles dependientes de cada recepción.
 - Configuración corporativa cerrada a acceso anónimo y aislada por empresa; sólo administradores autorizados pueden modificarla.
 - Corregida la función transversal de acceso multiempresa: un superusuario de una empresa cliente ya no obtiene acceso global; ese alcance queda reservado a Obraxis.
-- Importador de presupuestos migrado localmente a una Edge Function con control de IA, presupuesto y auditoría; su despliegue espera autorización explícita para enviar presupuestos a OpenAI.
+- Importador de presupuestos migrado a una Edge Function autenticada con control por empresa, presupuesto de IA y auditoría; la vista previa exige confirmación humana antes de guardar.
+- Credenciales heredadas de Gemini eliminadas del frontend y del esquema público; OpenAI permanece exclusivamente en Supabase Secrets.

@@ -237,7 +237,7 @@ function App() {
         let data = null;
         const { data: brandData, error: brandErr } = await supabase
           .from('config_empresa')
-          .select('logo_base64, color_primario, color_secundario, modulos_activos, gemini_api_key, gemini_model')
+          .select('logo_base64, color_primario, color_secundario, modulos_activos')
           .eq('empresa', activeUserContext.empresa)
           .maybeSingle();
 
