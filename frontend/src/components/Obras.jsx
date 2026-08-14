@@ -1396,6 +1396,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       const { data: budgetsData } = await supabase
         .from('presupuestos_proyectos')
         .select('id, nombre, presupuesto_estimado, created_at')
+        .eq('empresa', user?.empresa || 'Obraxis')
         .order('created_at', { ascending: false });
       if (budgetsData) setAvailableBudgets(budgetsData);
     } catch (err) {

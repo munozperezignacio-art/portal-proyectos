@@ -11,6 +11,7 @@ import ContextualEmailConfigModal from './ContextualEmailConfigModal';
 import { canConfigureEmails, canEditItem, getUserLevel } from '../utils/userLevel';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
+import BudgetExcelImporter from './BudgetExcelImporter';
 
 // Helpers para compatibilidad de metadatos en columnas existentes
 const parseResourceUnitAndCurrency = (unidadStr) => {
@@ -352,7 +353,9 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
     costo_mano_obra: 0,
     costo_maquinaria: 0,
     costo_herramientas: 0,
-    costo_otros: 0
+    costo_otros: 0,
+    divisor_cantidad: 1,
+    divisor_unidad: 'unidad'
   });
 
   // Mensajes generales
@@ -673,7 +676,8 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
       const { data: existingProjs } = await supabase
         .from('presupuestos_proyectos')
         .select('id')
-        .eq('nombre', finalProjName);
+        .eq('nombre', finalProjName)
+        .eq('empresa', user?.empresa || 'Obraxis');
       
       if (existingProjs && existingProjs.length > 0) {
         finalProjName += ` (${new Date().toLocaleDateString('es-CL')} ${new Date().toLocaleTimeString('es-CL').slice(0,5)})`;
@@ -699,7 +703,8 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
             presupuesto_estimado: Math.round(totalDirectCostVal),
             tipo_proyecto: serializedTipo,
             comuna: aiProjComuna || 'Santiago',
-            metodologia: 'Precio Unitario'
+            metodologia: 'Precio Unitario',
+            empresa: user?.empresa || 'Obraxis'
           }
         ])
         .select();
@@ -813,6 +818,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
       const { data, error } = await supabase
         .from('presupuestos_proyectos')
         .select('*')
+        .eq('empresa', user?.empresa || 'Obraxis')
         .order('nombre', { ascending: true });
       if (error) throw error;
       setProyectos(data || []);
@@ -892,6 +898,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
         .from('presupuestos_proyectos')
         .select('descripcion')
         .eq('id', projId)
+        .eq('empresa', user?.empresa || 'Obraxis')
         .single();
       
       let localCalendar = {
@@ -1064,7 +1071,8 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
             plazo_estimado: parseInt(newProjectData.plazo_estimado, 10) || 0,
             presupuesto_estimado: parseFloat(newProjectData.presupuesto_estimado) || 0,
             tipo_proyecto: tipoWithCurrency,
-            comuna: newProjectData.comuna
+            comuna: newProjectData.comuna,
+            empresa: user?.empresa || 'Obraxis'
           }
         ])
         .select();
@@ -1088,6 +1096,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
       const { data: list } = await supabase
         .from('presupuestos_proyectos')
         .select('*')
+        .eq('empresa', user?.empresa || 'Obraxis')
         .order('nombre', { ascending: true });
       setProyectos(list || []);
       if (data && data.length > 0) {
@@ -1266,7 +1275,16 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
         unidad: p.unidad || 'UND',
         cantidad: parseFloat(p.cantidad) || 0,
         costo_unitario: parseFloat(p.costo_unitario !== undefined ? p.costo_unitario : (p.pu || 0)) || 0,
-        rendimiento_meta: parseFloat(p.rendimiento_meta || p.rendimiento) || 0
+        rendimiento_meta: parseFloat(p.rendimiento_meta || p.rendimiento) || 0,
+        tipo_metodologia: p.tipo_metodologia === 'Costo-Tiempo' ? 'Costo' : (p.tipo_metodologia || 'Precio Unitario'),
+        divisor_cantidad: Math.max(0.000001, parseFloat(p.divisor_cantidad) || 1),
+        divisor_unidad: p.divisor_unidad || p.unidad || 'unidad',
+        dias_habiles_mes: parseFloat(p.dias_habiles_mes) || 22,
+        horas_jornada: parseFloat(p.horas_jornada) || 9,
+        precio_combustible: parseFloat(p.precio_combustible) || 0,
+        leyes_sociales_pct: parseFloat(p.leyes_sociales_pct) || 0,
+        herramientas_menores_pct: parseFloat(p.herramientas_menores_pct) || 0,
+        imponderables_pct: parseFloat(p.imponderables_pct) || 0
       });
 
       const toInsert = itemsPresupuesto
@@ -1319,7 +1337,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
 
       // Sincronizar automáticamente partidas_obra para cualquier Obra vinculada (para Registrar Avance)
       try {
-        const { data: bData } = await supabase.from('presupuestos_proyectos').select('nombre').eq('id', selectedProyectoId).single();
+        const { data: bData } = await supabase.from('presupuestos_proyectos').select('nombre').eq('id', selectedProyectoId).eq('empresa', user?.empresa || 'Obraxis').single();
         if (bData && bData.nombre) {
           const cleanBName = bData.nombre.trim().toLowerCase().replace(/^obra\s+/i, '');
           const empresaActual = user?.empresa || 'Obraxis';
@@ -1881,7 +1899,8 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
       const { error } = await supabase
         .from('presupuestos_proyectos')
         .update({ descripcion: serializedDesc })
-        .eq('id', selectedProyectoId);
+        .eq('id', selectedProyectoId)
+        .eq('empresa', user?.empresa || 'Obraxis');
       
       if (error) throw error;
       
@@ -2372,7 +2391,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
 
     // Rellenar formulario APU con valores guardados o por defecto
     setApuForm({
-      tipo_metodologia: item.tipo_metodologia || 'Precio Unitario',
+      tipo_metodologia: item.tipo_metodologia === 'Costo-Tiempo' ? 'Costo' : (item.tipo_metodologia || 'Precio Unitario'),
       rendimiento_meta: item.rendimiento_meta || 25,
       dias_habiles_mes: item.dias_habiles_mes || 22,
       horas_jornada: item.horas_jornada || 9,
@@ -2385,7 +2404,9 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
       costo_mano_obra: item.costo_mano_obra || 0,
       costo_maquinaria: item.costo_maquinaria || 0,
       costo_herramientas: item.costo_herramientas || 0,
-      costo_otros: item.costo_otros || 0
+      costo_otros: item.costo_otros || 0,
+      divisor_cantidad: item.divisor_cantidad || 1,
+      divisor_unidad: item.divisor_unidad || item.unidad || 'unidad'
     });
 
     try {
@@ -2497,7 +2518,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
     setApuResources(prev => prev.filter(r => r.id !== id));
   };
 
-  // CÁLCULO Y UNIFICACIÓN DE COSTOS DE APU (SOPORTE COSTO-TIEMPO & PRECIO UNITARIO)
+  // Cálculo unificado: Precio Unitario por rendimiento o Costo distribuido por divisor.
   const calculateApuCost = () => {
     const isPU = apuForm.tipo_metodologia === 'Precio Unitario';
     const rend = isPU ? (parseFloat(apuForm.rendimiento_meta) || 1) : 1;
@@ -2530,7 +2551,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
       const consumoLh = parseFloat(link.consumo_combustible_lh) || 0;
 
       if (!isPU) {
-        // COSTO-TIEMPO (Cobro directo por tiempo de recursos sin rendimiento de obra)
+        // COSTO: acumula recursos en sus unidades originales y distribuye el total al final.
         let fuelCost = 0;
         if (res.tipo === 'Maquinaria' && consumoLh > 0) {
           if (unitStr.includes('mes') || unitStr.includes('mensual')) {
@@ -2626,18 +2647,23 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
 
     const laborTotal = laborSum * (1 + (lsPct + hmPct) / 100);
     const subtotalDirecto = matSum + machSum + laborTotal + herrSum + otrosSum;
-    const totalUnitario = subtotalDirecto * (1 + impPct / 100);
+    const totalAnalisis = subtotalDirecto * (1 + impPct / 100);
+    const divisorCosto = isPU ? 1 : Math.max(parseFloat(apuForm.divisor_cantidad) || 1, 0.000001);
+    const totalUnitario = totalAnalisis / divisorCosto;
+    const distributionFactor = 1 / divisorCosto;
 
     return {
       totalUnitario: Math.round(totalUnitario),
-      matSum: Math.round(matSum),
-      laborSum: Math.round(laborSum),
-      laborTotal: Math.round(laborTotal),
-      machSum: Math.round(machSum),
-      herrSum: Math.round(herrSum),
-      otrosSum: Math.round(otrosSum),
-      subtotalDirecto: Math.round(subtotalDirecto),
-      impValue: Math.round(subtotalDirecto * (impPct / 100))
+      matSum: Math.round(matSum * distributionFactor),
+      laborSum: Math.round(laborSum * distributionFactor),
+      laborTotal: Math.round(laborTotal * distributionFactor),
+      machSum: Math.round(machSum * distributionFactor),
+      herrSum: Math.round(herrSum * distributionFactor),
+      otrosSum: Math.round(otrosSum * distributionFactor),
+      subtotalDirecto: Math.round(subtotalDirecto * distributionFactor),
+      impValue: Math.round(subtotalDirecto * (impPct / 100) * distributionFactor),
+      totalAnalisis: Math.round(totalAnalisis),
+      divisorCosto
     };
   };
 
@@ -2669,7 +2695,9 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
         costo_maquinaria: calc.machSum,
         costo_herramientas: calc.herrSum,
         costo_otros: calc.otrosSum,
-        costo_unitario: calc.totalUnitario
+        costo_unitario: calc.totalUnitario,
+        divisor_cantidad: apuForm.tipo_metodologia === 'Costo' ? (parseFloat(apuForm.divisor_cantidad) || 1) : null,
+        divisor_unidad: apuForm.tipo_metodologia === 'Costo' ? (apuForm.divisor_unidad || apuItem.unidad || 'unidad') : null
       };
 
       let { error: itemErr } = await supabase
@@ -2700,7 +2728,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
           item_id: apuItem.id,
           recurso_id: parseInt(r.recurso_id, 10),
           cantidad_unidad: parseFloat(r.cantidad_unidad) || 0,
-          rendimiento: apuForm.tipo_metodologia === 'Costo-Tiempo' ? 1 : (parseFloat(r.rendimiento) || 1),
+          rendimiento: apuForm.tipo_metodologia === 'Costo' ? 1 : (parseFloat(r.rendimiento) || 1),
           consumo_combustible_lh: parseFloat(r.consumo_combustible_lh) || 0
         }));
 
@@ -2978,7 +3006,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                         Crear Presupuesto
                       </h3>
                       <p className="text-xs text-slate-500 leading-normal">
-                        Estructura y edita la planilla de partidas bajo metodologías de Precio Unitario (con rendimiento) o Costo-Tiempo (arriendos).
+                      Estructura partidas mediante Precio Unitario por rendimiento o Costo acumulado distribuido por una cantidad base.
                       </p>
                     </div>
                   </div>
@@ -2998,7 +3026,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                         Ingresar Presupuesto (Carga Masiva)
                       </h3>
                       <p className="text-xs text-slate-500 leading-normal">
-                        Importa rápidamente tu presupuesto estructurado pegando textos y datos tabulados o separados por comas.
+                        Descarga la plantilla oficial, importa Excel con validación previa o utiliza el pegado rápido.
                       </p>
                     </div>
                   </div>
@@ -3251,7 +3279,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                                 : (parseFloat(item.cantidad) || 0) * effectivePriceInDisplay;
 
                               const isIndent = item.codigo && item.codigo.includes('.');
-                              const isCostoTiempo = item.tipo_metodologia === 'Costo-Tiempo';
+                              const isCosto = item.tipo_metodologia === 'Costo' || item.tipo_metodologia === 'Costo-Tiempo';
 
                               return (
                                 <tr 
@@ -3285,7 +3313,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                                         type="text"
                                         value={item.unidad || ''}
                                         onChange={(e) => handleUpdateBudgetField(item.id, 'unidad', e.target.value)}
-                                        placeholder={isCostoTiempo ? 'días' : 'm3'}
+                                        placeholder={isCosto ? 'unidad base' : 'm3'}
                                         className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-600 text-center uppercase"
                                       />
                                     )}
@@ -3340,11 +3368,11 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                                   <td className="p-2 text-center">
                                     {!isChapter && (
                                       <span className={`inline-flex items-center gap-1 text-[9.5px] font-extrabold px-2.5 py-1 rounded-full border uppercase ${
-                                        isCostoTiempo 
+                                        isCosto
                                           ? 'bg-purple-50 text-purple-700 border-purple-200' 
                                           : 'bg-blue-50 text-blue-700 border-blue-200'
                                       }`}>
-                                        {isCostoTiempo ? 'Costo-Tiempo' : 'Precio Unitario'}
+                                        {isCosto ? 'Costo' : 'Precio Unitario'}
                                       </span>
                                     )}
                                   </td>
@@ -3431,12 +3459,26 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                   <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4 animate-in fade-in duration-200">
                     <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                       <Upload className="w-5 h-5 text-primary" />
-                      <h3 className="font-extrabold text-xs uppercase tracking-wider text-slate-800">Ingresar Presupuesto (Carga Masiva)</h3>
+                      <h3 className="font-extrabold text-xs uppercase tracking-wider text-slate-800">Ingreso e importación de presupuesto</h3>
                     </div>
 
-                    <p className="text-xs text-slate-500 leading-relaxed">
-                      Copia y pega partidas directamente desde otro sistema o planilla de cálculo en el cuadro de texto.
-                    </p>
+                    <BudgetExcelImporter
+                      presupuestoId={selectedProyectoId}
+                      projectCurrency={projectBaseCurrency}
+                      onImported={async (result) => {
+                        await Promise.all([
+                          fetchBudgetItems(selectedProyectoId),
+                          fetchRecursos(selectedProyectoId),
+                          fetchCronograma(selectedProyectoId)
+                        ]);
+                        setSuccessMsg(`Importación completada: ${result?.partidas || 0} partidas y ${result?.recursos_asignados || 0} recursos vinculados.`);
+                      }}
+                    />
+
+                    <div className="border-t border-slate-200 pt-4">
+                      <p className="text-xs font-black uppercase tracking-wider text-slate-800">Pegado rápido</p>
+                      <p className="mt-1 text-xs text-slate-500 leading-relaxed">Copia y pega partidas simples desde otra planilla. Para importar recursos y metodologías utiliza la plantilla oficial Excel.</p>
+                    </div>
 
                     <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-[10px] font-semibold text-slate-500 space-y-2">
                       <span className="font-bold text-slate-850 block">Formato aceptado (valores en {projectBaseCurrency}):</span>
@@ -4241,7 +4283,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                 {activeSection === 'analisis' && (() => {
                   // 1. Obtener el desglose unitario de una partida en base a sus recursos APU
                   const getItemApuBreakdown = (item, apuLinks) => {
-                    const isPU = item.tipo_metodologia !== 'Costo-Tiempo';
+                    const isPU = item.tipo_metodologia !== 'Costo' && item.tipo_metodologia !== 'Costo-Tiempo';
                     const rend = isPU ? (parseFloat(item.rendimiento_meta) || 1) : 1;
                     const diasMes = parseFloat(item.dias_habiles_mes) || 22;
                     const hrsJornada = parseFloat(item.horas_jornada) || 9;
@@ -4273,7 +4315,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                       const consumoLh = parseFloat(link.consumo_combustible_lh) || 0;
 
                       if (!isPU) {
-                        // COSTO-TIEMPO
+                        // COSTO ACUMULADO (antes de dividir por la base definida)
                         let fuelCost = 0;
                         if (res.tipo === 'Maquinaria' && consumoLh > 0) {
                           if (unitStr.includes('mes') || unitStr.includes('mensual')) {
@@ -5933,7 +5975,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                                         <button
                                           onClick={async () => {
                                             if (confirm(`¿Estás seguro de eliminar el proyecto "${p.nombre}"?`)) {
-                                              await supabase.from('presupuestos_proyectos').delete().eq('id', p.id);
+                                              await supabase.from('presupuestos_proyectos').delete().eq('id', p.id).eq('empresa', user?.empresa || 'Obraxis');
                                               fetchProyectos();
                                             }
                                           }}
@@ -5964,7 +6006,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
       {/* ================= MODAL: ANÁLISIS DE PARTIDA (APU CON MONEDAS PARTICULARES) ================= */}
       {showApuModal && apuItem && (() => {
         const apuCalc = calculateApuCost();
-        const isCostoTiempoMode = apuForm.tipo_metodologia === 'Costo-Tiempo';
+        const isCostMode = apuForm.tipo_metodologia === 'Costo';
 
         return (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
@@ -6000,7 +6042,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                 <div>
                   <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">Metodología</span>
                   <span className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase mt-1 ${
-                    isCostoTiempoMode ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
+                    isCostMode ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
                   }`}>
                     {apuForm.tipo_metodologia}
                   </span>
@@ -6044,23 +6086,23 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                         <span>Precio Unitario (Cantidad + Rendimiento)</span>
                       </label>
                       <label className={`flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-xl border cursor-pointer transition ${
-                        apuForm.tipo_metodologia === 'Costo-Tiempo' ? 'bg-purple-50 text-purple-700 border-purple-300' : 'bg-slate-50 text-slate-600 border-slate-200'
+                        apuForm.tipo_metodologia === 'Costo' ? 'bg-purple-50 text-purple-700 border-purple-300' : 'bg-slate-50 text-slate-600 border-slate-200'
                       }`}>
                         <input
                           type="radio"
                           name="tipo_metodologia"
-                          value="Costo-Tiempo"
-                          checked={apuForm.tipo_metodologia === 'Costo-Tiempo'}
+                          value="Costo"
+                          checked={apuForm.tipo_metodologia === 'Costo'}
                           onChange={(e) => setApuForm({ ...apuForm, tipo_metodologia: e.target.value })}
                           className="text-primary focus:ring-primary w-4 h-4"
                         />
-                        <span>Costo-Tiempo (Arriendo / Recursos en Tiempo)</span>
+                        <span>Costo (Suma de costos ÷ cantidad base)</span>
                       </label>
                     </div>
 
                     {/* Fila de Inputs de Parámetros */}
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-3">
-                      {!isCostoTiempoMode ? (
+                      {!isCostMode ? (
                         <div>
                           <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">
                             Rendimiento
@@ -6076,9 +6118,16 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                           <span className="text-[8px] text-slate-400 block mt-0.5">Unidades/Día</span>
                         </div>
                       ) : (
-                        <div className="col-span-1 bg-purple-50 p-2 rounded-xl border border-purple-200 flex flex-col justify-center">
-                          <span className="text-[9px] font-extrabold text-purple-800 uppercase">Sin Rendimiento</span>
-                          <span className="text-[8px] font-semibold text-purple-650">Metodología en Tiempo</span>
+                        <div className="col-span-2 grid grid-cols-2 gap-2 rounded-xl border border-purple-200 bg-purple-50 p-2">
+                          <div>
+                            <label className="block text-[9px] font-bold uppercase text-purple-800 mb-1">Cantidad base</label>
+                            <input type="number" min="0.000001" step="any" value={apuForm.divisor_cantidad ?? 1} onChange={(e) => setApuForm({ ...apuForm, divisor_cantidad: parseFloat(e.target.value) || 0 })} className="w-full rounded-lg border border-purple-200 bg-white p-2 text-xs font-bold" />
+                          </div>
+                          <div>
+                            <label className="block text-[9px] font-bold uppercase text-purple-800 mb-1">Unidad base</label>
+                            <input type="text" value={apuForm.divisor_unidad || ''} onChange={(e) => setApuForm({ ...apuForm, divisor_unidad: e.target.value })} placeholder="mes, m³, ml…" className="w-full rounded-lg border border-purple-200 bg-white p-2 text-xs font-bold" />
+                          </div>
+                          <p className="col-span-2 text-[8px] font-semibold text-purple-700">El costo acumulado de todos los recursos se divide por esta cantidad.</p>
                         </div>
                       )}
 
@@ -6340,7 +6389,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                       <th className="p-3 w-24 text-center">Moneda</th>
                       <th className="p-3 w-24 text-center">Consumo / Cant.</th>
                       <th className="p-3 w-28 text-center">Consumo Diesel (L/hr)</th>
-                      {!isCostoTiempoMode && (
+                      {!isCostMode && (
                         <th className="p-3 w-24 text-center">Rend. Coef.</th>
                       )}
                       <th className="p-3 w-40 text-right">Costo Unit. Partida ({projectBaseCurrency})</th>
@@ -6368,7 +6417,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                       const consumoLh = parseFloat(link.consumo_combustible_lh) || 0;
 
                       let itemSub = 0;
-                      if (!isCostoTiempoMode) {
+                      if (!isCostMode) {
                         // PRECIO UNITARIO
                         if (res.tipo === 'Maquinaria') {
                           const isTimeUnit = unitStr.includes('mes') || unitStr.includes('mensual') || 
@@ -6423,7 +6472,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                           itemSub = unitCost * qty * resRend;
                         }
                       } else {
-                        // COSTO-TIEMPO (Cobro directo en tiempo sin rendimiento)
+                        // COSTO ACUMULADO: aporte completo del recurso antes de dividir por la cantidad base
                         let fuelCost = 0;
                         if (res.tipo === 'Maquinaria' && consumoLh > 0) {
                           if (unitStr.includes('mes') || unitStr.includes('mensual')) {
@@ -6494,7 +6543,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                               <span className="text-slate-300 text-[10px]">-</span>
                             )}
                           </td>
-                          {!isCostoTiempoMode && (
+                          {!isCostMode && (
                             <td className="p-2 text-center">
                               <input
                                 type="number"
@@ -6524,7 +6573,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
 
                     {apuResources.length === 0 && (
                       <tr>
-                        <td colSpan={!isCostoTiempoMode ? 9 : 8} className="p-8 text-center text-xs text-slate-400 italic">
+                        <td colSpan={!isCostMode ? 9 : 8} className="p-8 text-center text-xs text-slate-400 italic">
                           No has vinculado recursos a esta partida. Selecciona uno del catálogo o crea uno nuevo arriba.
                         </td>
                       </tr>
@@ -6536,6 +6585,13 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
               {/* RESUMEN DE SUB-TOTALES POR CATEGORÍA EN MONEDA BASE DEL PROYECTO */}
               <div className="bg-slate-50 p-4 border border-slate-200 rounded-2xl space-y-2 text-xs">
                 <span className="text-[10px] font-extrabold uppercase text-slate-550 tracking-wider block mb-2">Desglose de Costos de la Partida ($/Unidad en {projectBaseCurrency}):</span>
+                {isCostMode && (
+                  <div className="grid grid-cols-1 gap-2 rounded-xl border border-purple-200 bg-purple-50 p-3 sm:grid-cols-3">
+                    <div><span className="block text-[9px] font-bold uppercase text-purple-600">Costo acumulado</span><strong className="text-purple-950">{formatCurrencyValue(apuCalc.totalAnalisis, projectBaseCurrency)}</strong></div>
+                    <div><span className="block text-[9px] font-bold uppercase text-purple-600">Base de distribución</span><strong className="text-purple-950">{apuCalc.divisorCosto.toLocaleString('es-CL')} {apuForm.divisor_unidad || apuItem.unidad || 'unidad'}</strong></div>
+                    <div><span className="block text-[9px] font-bold uppercase text-purple-600">Costo resultante</span><strong className="text-purple-950">{formatCurrencyValue(apuCalc.totalUnitario, projectBaseCurrency)} / {apuForm.divisor_unidad || apuItem.unidad || 'unidad'}</strong></div>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 font-semibold text-slate-700">
                   <div>
                     <span className="text-[9px] uppercase text-slate-400 block">Materiales:</span>

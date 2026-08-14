@@ -56,7 +56,7 @@ export default function LastPlannerLookahead({ obra, partidas, fechaCorte, getSt
       const { data: relation } = await relationQuery.maybeSingle();
       let budgetId = relation?.presupuesto_id;
       if (!budgetId) {
-        const { data: matchingBudget } = await supabase.from('presupuestos_proyectos').select('id').eq('nombre', obra.nombre).maybeSingle();
+        const { data: matchingBudget } = await supabase.from('presupuestos_proyectos').select('id').eq('nombre', obra.nombre).eq('empresa', company).maybeSingle();
         budgetId = matchingBudget?.id;
       }
       if (!budgetId) { setApuResources([]); return; }
