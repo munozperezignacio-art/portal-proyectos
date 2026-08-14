@@ -47,6 +47,7 @@ const PublicEstadoPago = lazyWithRetry(() => import('./components/PublicEstadoPa
 const PublicLibroObra = lazyWithRetry(() => import('./components/PublicLibroObra'), 'libro-obra-publico');
 const ClientesPortal = lazyWithRetry(() => import('./components/ClientesPortal'), 'clientes');
 const PublicClientePortal = lazyWithRetry(() => import('./components/PublicClientePortal'), 'portal-cliente');
+const FloatingOX = lazyWithRetry(() => import('./components/FloatingOX'), 'ox');
 
 function ModuleLoader() {
   return (
@@ -976,6 +977,20 @@ function App() {
             </div>
           )}
           </React.Suspense>
+
+          {currentModule !== 'obras' && currentModule !== 'admin' && (
+            <FloatingOX
+              user={activeUserContext}
+              moduleContext={{
+                id: currentModule === 'formularios_capacitaciones' ? 'formularios' : currentModule,
+                label: currentModule === 'dashboard' ? 'Inicio' : (allModulesList.find(module => module.id === currentModule)?.title || currentModule),
+              }}
+              onNavigate={(destination) => {
+                const target = destination === 'inicio' ? 'dashboard' : destination;
+                if (allModulesList.some(module => module.id === target) || target === 'dashboard') setCurrentModule(target);
+              }}
+            />
+          )}
 
         </main>
       </div>
