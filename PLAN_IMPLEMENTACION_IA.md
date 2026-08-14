@@ -105,6 +105,7 @@ La cobertura operativa determinística de esta fase está cerrada. Las interpret
 
 No se inicia hasta disponer de volumen, calidad y continuidad histórica suficientes.
 
+- [x] Diagnóstico determinístico de preparación por empresa, con umbrales visibles de volumen, continuidad y obras comparables; no consume tokens ni habilita predicciones automáticamente.
 - [ ] Fecha probable de término y costo final.
 - [ ] Riesgo de sobrecosto y de incumplimiento de hitos.
 - [ ] Flujo de caja.
