@@ -115,8 +115,8 @@ No se inicia hasta disponer de volumen, calidad y continuidad histórica suficie
 - [x] Flujo mensual orientativo del costo restante para el escenario base.
 - [x] Señales orientativas de accidentabilidad y no conformidades para los próximos 30 días, extrapoladas desde frecuencia histórica y rotuladas como simulación cuando faltan datos.
 - [x] Riesgo operativo de utilización y fallas de equipos mediante disponibilidad, detenciones y equipos críticos.
-- [ ] Comparación interna anonimizada entre obras.
+- [x] Comparación interna anonimizada entre obras, mostrando N/D cuando no existe base económica suficiente.
 
 ## Próximo bloque obligatorio
 
-Completar escenarios de accidentabilidad, calidad y maquinaria. Las obras ficticias se utilizan para validar interfaz y fórmulas en modo simulación; una predicción estadística se habilita únicamente al cumplir los umbrales visibles de continuidad y volumen.
+La capa funcional de la Fase 6 queda completa en modo simulación. Las obras ficticias permiten validar interfaz, fórmulas y escenarios; la activación como predicción estadística real permanece condicionada a los umbrales visibles de continuidad, volumen y calidad de datos. El siguiente bloque es reforzar calidad histórica, aislamiento por empresa en tablas heredadas y validación retrospectiva de los modelos.
