@@ -2,7 +2,7 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
-Avance actualizado: Etapa 1 28%; plan completo 6%.
+Avance actualizado: Etapa 1 40%; plan completo 8%.
 
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
@@ -62,3 +62,4 @@ La plataforma se considerará lista para producción cuando no existan política
 - Resend eliminado de las tablas en las automatizaciones de informes, prevención y mandante intervenidas.
 - RLS multiempresa cerrado para roles, relación obra–presupuesto y nueve tablas financieras heredadas.
 - Acceso `anon`, `TRUNCATE`, `TRIGGER` y `REFERENCES` retirado de esas tablas.
+- RLS multiempresa cerrado para Bitácora y las tablas operativas de Calidad, incluidos los controles dependientes de cada recepción.
