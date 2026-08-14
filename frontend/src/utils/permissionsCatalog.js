@@ -69,6 +69,7 @@ export const PERMISSIONS_CATALOG = [
     { id: 'acreditaciones', label: 'Acreditaciones contractuales', actions: ['ver', 'crear', 'editar', 'enviar', 'revisar', 'aprobar', 'descargar', 'configurar'] },
   ]},
   { id: 'admin', label: 'Panel de control', menus: [
+    { id: 'contactos', label: 'Contactos y cotizaciones', actions: ['ver', 'editar', 'descargar', 'configurar'] },
     { id: 'usuarios', label: 'Usuarios y roles', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'configurar'] },
     { id: 'permisos', label: 'Permisos y flujos', actions: ['ver', 'editar', 'enviar', 'configurar'] },
     { id: 'auditoria', label: 'Auditoría General', actions: ['ver', 'descargar', 'configurar'] },

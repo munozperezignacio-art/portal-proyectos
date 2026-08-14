@@ -3,6 +3,7 @@ import {
   ArrowRight, BarChart3, Building2, CheckCircle2, ClipboardCheck,
   FileCheck2, LayoutDashboard, Loader2, Mail, Menu, Send, ShieldCheck, Smartphone, Truck, Users
 } from 'lucide-react';
+import { supabase } from '../supabaseClient';
 
 const features = [
   { icon: Building2, title: 'Obras conectadas', text: 'Presupuesto, programación, avances, costos y estados de pago en una misma lectura.' },
@@ -39,14 +40,12 @@ export default function LandingPage({ onGoToLogin, user, onGoToDashboard }) {
     setSendingContact(true);
     setContactStatus(null);
     const clean = Object.fromEntries(Object.entries(contact).map(([key, value]) => [key, value.trim()]));
-    const subject = encodeURIComponent(`Solicitud de cotización · ${clean.empresa || clean.nombre}`);
-    const body = encodeURIComponent(`Nombre: ${clean.nombre}\nEmpresa: ${clean.empresa || 'No indicada'}\nCorreo: ${clean.correo}\nTeléfono: ${clean.telefono || 'No indicado'}\n\n${clean.mensaje}`);
-    window.location.href = `mailto:contacto@obraxis.cl?subject=${subject}&body=${body}`;
-    const result = { success: true };
+    const { data, error } = await supabase.functions.invoke('contacto-publico', { body: clean });
+    const result = { success: !error && !data?.error, error: data?.error || error?.message };
     setSendingContact(false);
     if (result.success) {
       setContact({ nombre: '', empresa: '', correo: '', telefono: '', mensaje: '' });
-      setContactStatus({ ok: true, text: 'Se abrió tu aplicación de correo para completar el envío.' });
+      setContactStatus({ ok: true, text: 'Recibimos tu solicitud de cotización. Te contactaremos pronto.' });
     } else {
       setContactStatus({ ok: false, text: `No fue posible enviar la consulta. Escríbenos a contacto@obraxis.cl. (${result.error})` });
     }
