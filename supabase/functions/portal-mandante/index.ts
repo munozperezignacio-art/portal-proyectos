@@ -28,6 +28,18 @@ Deno.serve(async req=>{
       if(attachmentError)throw attachmentError;
       return json({attachment,...signed,path});
     }
+    if(body.action==="respond"){
+      const deliveryId=String(body?.entrega_id||""), response=String(body?.respuesta||"").trim();
+      if(response.length<3)return json({error:"Indica la respuesta a la observación."},400);
+      const {data:previous}=await db.from("mandante_entregas").select("*").eq("id",deliveryId).eq("contrato_id",contract.id).maybeSingle();
+      if(!previous||previous.estado!=="Observado")return json({error:"Esta entrega no está disponible para respuesta."},409);
+      const root=previous.entrega_raiz_id||previous.id;
+      const {data:last}=await db.from("mandante_entregas").select("version").eq("entrega_raiz_id",root).order("version",{ascending:false}).limit(1).maybeSingle();
+      const {data:next,error:nextError}=await db.from("mandante_entregas").insert({contrato_id:contract.id,empresa_mandante:contract.empresa_mandante,empresa_origen:contract.empresa_contratista,tipo:previous.tipo,titulo:previous.titulo,periodo_desde:previous.periodo_desde,periodo_hasta:previous.periodo_hasta,fecha_compromiso:previous.fecha_compromiso,monto:previous.monto,datos:previous.datos,estado:"Reenviado",respuesta_contratista:response,enviado_por:contract.contacto_nombre||contract.empresa_contratista,respondido_por:contract.contacto_nombre||contract.empresa_contratista,respondido_at:new Date().toISOString(),version:Number(last?.version||previous.version||1)+1,entrega_raiz_id:root,entrega_anterior_id:previous.id}).select("id,version,estado").single();
+      if(nextError)throw nextError;
+      await db.from("mandante_eventos").insert({empresa_mandante:contract.empresa_mandante,proyecto_id:contract.proyecto_id,contrato_id:contract.id,accion:"Entrega respondida y reenviada",estado_resultante:"Reenviado",actor_nombre:contract.contacto_nombre,actor_empresa:contract.empresa_contratista,detalle:`${previous.tipo} · ${previous.titulo} · v${next.version}`});
+      return json({success:true,entrega:next});
+    }
     if(body.action==="submit"){
       const type=String(body?.entrega?.tipo||""); if(!TYPES.includes(type))return json({error:"Tipo de entrega inválido."},400);
       const packageKey:{[key:string]:string}={Avance:"avance",Programacion:"programacion",Hito:"hitos","Estado de pago":"estados_pago",RDI:"rdi","Libro de obra":"libro_obra",Calidad:"calidad",Prevencion:"prevencion",Documento:"documentos",Acreditacion:"acreditaciones"};
@@ -46,7 +58,7 @@ Deno.serve(async req=>{
     const [{data:obligations},{data:accreditations},{data:deliveries}]=await Promise.all([
       db.from("mandante_obligaciones").select("id,tipo,nombre,periodicidad,proxima_fecha,responsable").eq("contrato_id",contract.id).eq("activa",true).order("proxima_fecha"),
       db.from("mandante_acreditaciones").select("id,categoria,estado,total_requeridos,total_recibidos,total_aprobados,proximo_vencimiento,observacion").eq("contrato_id",contract.id).order("categoria"),
-      db.from("mandante_entregas").select("id,tipo,titulo,periodo_desde,periodo_hasta,monto,estado,observacion_mandante,respuesta_contratista,enviado_at,revisado_at").eq("contrato_id",contract.id).order("enviado_at",{ascending:false}).limit(100)
+      db.from("mandante_entregas").select("id,tipo,titulo,periodo_desde,periodo_hasta,monto,estado,observacion_mandante,respuesta_contratista,enviado_at,revisado_at,version,entrega_raiz_id,entrega_anterior_id").eq("contrato_id",contract.id).order("enviado_at",{ascending:false}).limit(100)
     ]);
     const deliveryIds=(deliveries||[]).map(item=>item.id);
     const {data:attachmentRows}=deliveryIds.length?await db.from("mandante_adjuntos").select("id,entrega_id,nombre_archivo,mime_type,tamano_bytes,storage_path").in("entrega_id",deliveryIds).eq("estado","Adjunto"):{data:[]};
@@ -54,6 +66,7 @@ Deno.serve(async req=>{
     await db.from("mandante_contratos").update({ultimo_acceso_externo:new Date().toISOString()}).eq("id",contract.id);
     await db.from("mandante_eventos").insert({empresa_mandante:contract.empresa_mandante,proyecto_id:contract.proyecto_id,contrato_id:contract.id,accion:"Acceso al portal contractual",actor_nombre:contract.contacto_nombre,actor_empresa:contract.empresa_contratista});
     const {clave_externa_hash,...safe}=contract;
-    return json({contract:safe,obligations:obligations||[],accreditations:accreditations||[],deliveries:deliveries||[],attachments});
+    const {data:actions}=deliveryIds.length?await db.from("mandante_entrega_acciones").select("id,entrega_id,accion,estado_resultante,comentario,actor_nombre,actor_empresa,actor_tipo,created_at").in("entrega_id",deliveryIds).order("created_at"):{data:[]};
+    return json({contract:safe,obligations:obligations||[],accreditations:accreditations||[],deliveries:deliveries||[],attachments,actions:actions||[]});
   }catch(error){return json({error:error instanceof Error?error.message:String(error)},500);}
 });
