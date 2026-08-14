@@ -64,11 +64,13 @@ La IA asiste. Los cálculos, permisos, aprobaciones y registros oficiales contin
 - [x] Programación, destinatarios y base gráfica determinística.
 - [x] Indicadores EVM, Curva S y días de atraso/adelanto disponibles en la base de informes.
 - [x] Generar interpretación IA estructurada y revisable desde indicadores determinísticos.
-- [ ] Informe semanal y mensual de obra.
-- [ ] Informe corporativo, prevención, calidad, maquinaria y RR. HH.
+- [x] Informe semanal y mensual de obra.
+- [x] Informe corporativo, prevención, calidad, maquinaria y RR. HH., con secciones e indicadores específicos por disciplina.
 - [x] Registrar aprobación previa al envío manual y consumo IA asociado.
-- [ ] Integrar interpretación IA en el despachador automático sin omitir control presupuestario.
-- [ ] Completar fuentes específicas de maquinaria y RR. HH. en sus informes.
+- [x] Integrar interpretación IA en el despachador automático sin omitir control presupuestario.
+- [x] Completar fuentes específicas de maquinaria y RR. HH. en sus informes.
+- [x] Evitar envíos duplicados mediante toma atómica de programaciones y reintento controlado ante error.
+- [x] Respetar zona horaria de la programación y permitir generación histórica sin envío de correo.
 
 ## Fase 4 — OX, asistente contextual por obra
 

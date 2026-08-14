@@ -8,22 +8,34 @@ const json = (body: unknown, status = 200) =>
     status,
     headers: { "Content-Type": "application/json" },
   });
-const nextRun = (s: any) => {
-  const n = new Date(),
-    t = new Date(n);
-  const [h, m] = String(s.hora_envio || "08:00")
-    .split(":")
-    .map(Number);
-  t.setUTCHours(h + 4, m, 0, 0);
-  if (s.frecuencia === "Semanal") {
-    let add = ((Number(s.dia_semana || 1) % 7) - t.getUTCDay() + 7) % 7;
-    if (add === 0) add = 7;
-    t.setUTCDate(t.getUTCDate() + add);
-  } else {
-    t.setUTCDate(Number(s.dia_mes || 1));
-    if (t <= n) t.setUTCMonth(t.getUTCMonth() + 1);
+const zonedParts = (date: Date, zone: string) => Object.fromEntries(
+  new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })
+    .formatToParts(date).filter((part) => part.type !== "literal").map((part) => [part.type, Number(part.value)]),
+);
+const zonedToUtc = (year: number, month: number, day: number, hour: number, minute: number, zone: string) => {
+  let guess = Date.UTC(year, month - 1, day, hour, minute, 0, 0);
+  for (let i = 0; i < 3; i += 1) {
+    const actual = zonedParts(new Date(guess), zone);
+    const shown = Date.UTC(actual.year, actual.month - 1, actual.day, actual.hour, actual.minute, actual.second || 0);
+    guess += Date.UTC(year, month - 1, day, hour, minute) - shown;
   }
-  return t.toISOString();
+  return new Date(guess);
+};
+const nextRun = (s: any, now = new Date()) => {
+  const zone = s.zona_horaria || "America/Santiago";
+  const local = zonedParts(now, zone);
+  const [hour, minute] = String(s.hora_envio || "08:00").split(":").map(Number);
+  for (let offset = 0; offset < 370; offset += 1) {
+    const candidateDay = new Date(Date.UTC(local.year, local.month - 1, local.day + offset));
+    const year = candidateDay.getUTCFullYear(), month = candidateDay.getUTCMonth() + 1, day = candidateDay.getUTCDate();
+    const matches = s.frecuencia === "Semanal"
+      ? candidateDay.getUTCDay() === Number(s.dia_semana || 1) % 7
+      : day === Math.min(Number(s.dia_mes || 1), new Date(Date.UTC(year, month, 0)).getUTCDate());
+    if (!matches) continue;
+    const candidate = zonedToUtc(year, month, day, hour, minute, zone);
+    if (candidate > now) return candidate.toISOString();
+  }
+  throw new Error("No fue posible calcular la próxima ejecución");
 };
 
 Deno.serve(async () => {
@@ -41,6 +53,11 @@ Deno.serve(async () => {
   if (error) return json({ error: error.message }, 500);
   const results = [];
   for (const s of schedules || []) {
+    const claimedNextRun = nextRun(s);
+    const { data: claimed } = await db.from("informes_programaciones")
+      .update({ proxima_ejecucion: claimedNextRun, updated_at: new Date().toISOString() })
+      .eq("id", s.id).eq("proxima_ejecucion", s.proxima_ejecucion).select("id").maybeSingle();
+    if (!claimed) continue;
     try {
       const { data: works } = await db
         .from("obras")
@@ -85,12 +102,12 @@ Deno.serve(async () => {
           .in("obra_nombre", names),
         db
           .from("calidad_no_conformidades")
-          .select("obra_nombre,estado,fecha_compromiso")
+          .select("obra_nombre,estado,fecha_compromiso,clasificacion,causa_categoria,eficacia_verificada,fecha_cierre")
           .eq("empresa", s.empresa)
           .in("obra_nombre", names),
         db
           .from("prevencion_respuestas")
-          .select("proyecto_nombre,created_at")
+          .select("proyecto_nombre,created_at,respuestas")
           .in("proyecto_nombre", names)
           .gte("created_at", from.toISOString()),
         db
@@ -140,10 +157,11 @@ Deno.serve(async () => {
           ].filter(Boolean),
         ),
       ];
-      if (!mailConfig?.email_api_key)
+      const shouldEmail = s.incluir_correo !== false;
+      if (shouldEmail && !mailConfig?.email_api_key)
         throw new Error("Resend no está configurado");
-      if (!recipients.length) throw new Error("Sin destinatarios");
-      const response = await fetch("https://api.resend.com/emails", {
+      if (shouldEmail && !recipients.length) throw new Error("Sin destinatarios");
+      const response = shouldEmail ? await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${mailConfig.email_api_key}`,
@@ -155,8 +173,8 @@ Deno.serve(async () => {
           subject: `${s.nombre} · ${s.empresa}`,
           html: finalHtml,
         }),
-      });
-      if (!response.ok) throw new Error(await response.text());
+      }) : null;
+      if (response && !response.ok) throw new Error(await response.text());
       await db
         .from("informes_ejecuciones")
         .insert({
@@ -172,22 +190,26 @@ Deno.serve(async () => {
           contenido_html: finalHtml,
           interpretacion_ia: ai.interpretation,
           ia_consumo_id: ai.consumptionId,
-          estado: "Enviado",
+          estado: shouldEmail ? "Enviado" : "Generado",
           ejecutado_por: "Programador Obraxis",
           aprobado_por: `Programación autorizada por ${s.creado_por || "usuario"}`,
           aprobado_at: new Date().toISOString(),
-          enviada_at: new Date().toISOString(),
+          enviada_at: shouldEmail ? new Date().toISOString() : null,
         });
       await db
         .from("informes_programaciones")
         .update({
           ultima_ejecucion: new Date().toISOString(),
-          proxima_ejecucion: nextRun(s),
+          proxima_ejecucion: claimedNextRun,
           updated_at: new Date().toISOString(),
         })
         .eq("id", s.id);
       results.push({ id: s.id, ok: true });
     } catch (e) {
+      await db.from("informes_programaciones").update({
+        proxima_ejecucion: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq("id", s.id).eq("proxima_ejecucion", claimedNextRun);
       await db
         .from("informes_ejecuciones")
         .insert({

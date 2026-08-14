@@ -78,6 +78,8 @@ const empty = {
   destinatarios_usuarios: [],
   correos_adicionales: [""],
   incluir_pdf: true,
+  incluir_correo: true,
+  zona_horaria: "America/Santiago",
   usar_ia: true,
   activa: true,
 };
@@ -233,12 +235,12 @@ export default function ExecutiveReportScheduler({
         .in("obra_nombre", selected),
       supabase
         .from("calidad_no_conformidades")
-        .select("obra_nombre,estado,fecha_compromiso")
+        .select("obra_nombre,estado,fecha_compromiso,clasificacion,causa_categoria,eficacia_verificada,fecha_cierre")
         .eq("empresa", user.empresa)
         .in("obra_nombre", selected),
       supabase
         .from("prevencion_respuestas")
-        .select("proyecto_nombre,created_at")
+        .select("proyecto_nombre,created_at,respuestas")
         .in("proyecto_nombre", selected)
         .gte("created_at", since.toISOString()),
       supabase
@@ -836,6 +838,30 @@ export default function ExecutiveReportScheduler({
                   />
                 </label>
               )}
+              <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+                <input
+                  type="checkbox"
+                  checked={form.incluir_correo !== false}
+                  onChange={(e) => setForm({ ...form, incluir_correo: e.target.checked })}
+                  className="mt-0.5 h-4 w-4 accent-indigo-700"
+                />
+                <span>
+                  <b className="block text-xs text-slate-900">Enviar por correo</b>
+                  <small className="text-[10px] leading-5 text-slate-500">Si se desactiva, el informe se genera y queda disponible en el historial, sin distribuirse.</small>
+                </span>
+              </label>
+              <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+                <input
+                  type="checkbox"
+                  checked={form.incluir_pdf !== false}
+                  onChange={(e) => setForm({ ...form, incluir_pdf: e.target.checked })}
+                  className="mt-0.5 h-4 w-4 accent-indigo-700"
+                />
+                <span>
+                  <b className="block text-xs text-slate-900">Habilitar versión PDF</b>
+                  <small className="text-[10px] leading-5 text-slate-500">Permite imprimir o guardar como PDF la versión aprobada desde el historial.</small>
+                </span>
+              </label>
               <label className="md:col-span-2 flex items-start gap-3 rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
                 <input
                   type="checkbox"
