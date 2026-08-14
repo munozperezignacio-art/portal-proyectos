@@ -2,7 +2,7 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
-Avance actualizado: Etapa 1 99%; Etapa 2 85%; Etapa 3 35%; plan completo 47%.
+Avance actualizado: Etapa 1 99%; Etapa 2 85%; Etapa 3 50%; plan completo 50%.
 
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
@@ -28,12 +28,12 @@ Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operac
 
 ## Etapa 3 — Pruebas
 
-- [ ] Configurar pruebas unitarias, de integración y de interfaz (pruebas unitarias base operativas; integración e interfaz pendientes).
+- [ ] Configurar pruebas unitarias, de integración y de interfaz (pruebas unitarias y humo HTTP operativos; interfaz automatizada pendiente).
 - [x] Probar aislamiento entre empresas y permisos por rol.
 - [ ] Cubrir Auth, estados de pago, Libro de Obras, calidad y prevención.
 - [ ] Cubrir formularios públicos, subcontratos, mandante y acreditaciones.
 - [ ] Cubrir bodega, DTE, centros de gestión, OX, IA, Cron y correos.
-- [ ] Ejecutar pruebas de humo posteriores a cada despliegue.
+- [x] Incorporar y ejecutar pruebas de humo repetibles sobre los portales y servicios externos críticos desplegados.
 
 ## Etapa 4 — Limpieza y refactorización
 
@@ -110,3 +110,8 @@ La plataforma se considerará lista para producción cuando no existan política
 - Prueba RLS multiempresa conservada en `supabase/tests/rls_multiempresa.sql` para futuras verificaciones controladas.
 - Cobertura unitaria ampliada a 13 pruebas, incluyendo precedencia de permisos, orden de revisión/aprobación de Estados de Pago, flujo de no conformidades y acciones permitidas del Libro de Obras.
 - Estados de Pago rechazan internamente envíos que intenten saltar la revisión; Calidad impide avanzar una no conformidad más de una etapa por operación.
+- Validación de RUT del acceso centralizada en una única utilidad módulo 11 y cubierta con casos numéricos, dígito `K`, inválidos y texto arbitrario.
+- Trazabilidad documental cubierta con pruebas de identidad, empresa, acción, estado, fecha y conservación inmutable del historial.
+- Prueba de humo HTTP versionada para once Edge Functions críticas: Auth, formularios, capacitación, maquinaria, asistencia, cliente, mandante, subcontratos, correo, documentos y OX.
+- Corregido un fallo de ejecución detectado por lint en el portal público de capacitaciones: el icono de envío ahora se importa explícitamente.
+- Batería actual consolidada en 16 pruebas unitarias y 11 verificaciones HTTP; lint sin errores y build productivo correcto.

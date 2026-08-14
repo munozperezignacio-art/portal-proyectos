@@ -26,6 +26,24 @@ export function cleanRut(rut) {
   return rut.toString().replace(/[^0-9kK]/g, '').toUpperCase();
 }
 
+/** Valida un RUT chileno mediante módulo 11. */
+export function validateRut(rut) {
+  const clean = cleanRut(rut);
+  if (clean.length < 8 || clean.length > 9) return false;
+  const body = clean.slice(0, -1);
+  const dv = clean.slice(-1);
+  if (!/^\d+$/.test(body)) return false;
+  let sum = 0;
+  let multiplier = 2;
+  for (let index = body.length - 1; index >= 0; index -= 1) {
+    sum += Number(body[index]) * multiplier;
+    multiplier = multiplier === 7 ? 2 : multiplier + 1;
+  }
+  const result = 11 - (sum % 11);
+  const expected = result === 11 ? '0' : result === 10 ? 'K' : String(result);
+  return dv === expected;
+}
+
 /**
  * Formats numeric string or number with Chilean thousands dots (e.g., 1000000 -> 1.000.000)
  */

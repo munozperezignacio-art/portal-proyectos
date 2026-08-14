@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { Eye, EyeOff, Lock, Building2, User, AlertCircle, Loader2, QrCode, Navigation, RotateCcw, CheckCircle2, AlertTriangle, Search, Mail, KeyRound } from 'lucide-react';
 import { getAuthenticatedProfile } from '../utils/auth';
+import { formatRut, validateRut } from '../utils/rutUtils';
 
 function Login({ onLoginSuccess, onBackHome }) {
   const [username, setUsername] = useState('');
@@ -44,40 +45,6 @@ function Login({ onLoginSuccess, onBackHome }) {
   }, []);
 
   // --- Utilidades de Formato y Validación Módulo 11 de RUT Chileno ---
-  const formatRut = (rawStr) => {
-    if (!rawStr) return '';
-    let clean = rawStr.replace(/[^0-9kK]/g, '').toUpperCase();
-    if (clean.length === 0) return '';
-    if (clean.length === 1) return clean;
-
-    const body = clean.slice(0, -1);
-    const dv = clean.slice(-1);
-    const formattedBody = body.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-    return `${formattedBody}-${dv}`;
-  };
-
-  const validateRut = (rawStr) => {
-    if (!rawStr) return false;
-    const clean = rawStr.replace(/[^0-9kK]/g, '').toUpperCase();
-    if (clean.length < 8 || clean.length > 9) return false;
-
-    const body = clean.slice(0, -1);
-    const dv = clean.slice(-1);
-
-    let sum = 0;
-    let multiplier = 2;
-    for (let i = body.length - 1; i >= 0; i--) {
-      sum += parseInt(body.charAt(i), 10) * multiplier;
-      multiplier = multiplier === 7 ? 2 : multiplier + 1;
-    }
-    const expectedDvNum = 11 - (sum % 11);
-    let expectedDv = 'K';
-    if (expectedDvNum === 11) expectedDv = '0';
-    else if (expectedDvNum < 10) expectedDv = expectedDvNum.toString();
-
-    return dv === expectedDv;
-  };
-
   const handleRutInputChange = async (e) => {
     const rawVal = e.target.value;
     const formatted = formatRut(rawVal);

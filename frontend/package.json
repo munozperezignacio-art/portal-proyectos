@@ -8,6 +8,7 @@
     "build": "vite build",
     "lint": "oxlint",
     "test": "node --test",
+    "test:smoke": "node ../scripts/smoke-edge-functions.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

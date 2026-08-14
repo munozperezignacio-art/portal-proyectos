@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { ShieldAlert, Play, CheckCircle2, AlertCircle, Loader2, Check, ArrowRight, Award, ClipboardList } from 'lucide-react';
+import { ShieldAlert, Play, CheckCircle2, AlertCircle, Loader2, Check, ArrowRight, Award, ClipboardList, Send } from 'lucide-react';
 
 export default function PublicTrainingFiller({ trainingToken }) {
   const [training, setTraining] = useState(null);
