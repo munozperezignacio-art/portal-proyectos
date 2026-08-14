@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CalendarClock, CheckCircle2, ChevronDown, ChevronUp, ClipboardCheck, Filter, Plus, RefreshCw, ShieldAlert, UserRound } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
@@ -44,7 +44,7 @@ export default function LastPlannerLookahead({ obra, partidas, fechaCorte, getSt
       .sort((a, b) => a.startDate.localeCompare(b.startDate));
   }, [partidas, fechaCorte, getStartDate]);
 
-  const loadLookahead = async () => {
+  const loadLookahead = useCallback(async () => {
     if (!obra?.nombre || !company) return;
     setLoading(true); setMessage('');
     try {
@@ -75,27 +75,26 @@ export default function LastPlannerLookahead({ obra, partidas, fechaCorte, getSt
       }).filter(Boolean));
     } catch (error) { setMessage(`No se pudieron cargar los recursos: ${error.message}`); }
     finally { setLoading(false); }
-  };
+  }, [company, obra?.nombre]);
 
-  useEffect(() => { loadLookahead(); }, [obra?.nombre, company]);
+  useEffect(() => { loadLookahead(); }, [loadLookahead]);
 
-  const mergedResources = partida => {
+  const mergedResources = useCallback((partida) => {
     const persisted = checks.filter(item => normalize(item.partida) === normalize(partida));
     const savedKeys = new Set(persisted.map(item => item.recurso_clave));
     const apu = apuResources.filter(item => normalize(item.partida) === normalize(partida) && !savedKeys.has(item.recurso_clave))
       .map(item => ({ ...item, estado: 'pendiente', criticidad: 'Media', responsable: '', fecha_compromiso: '', observacion: '' }));
     return [...persisted, ...apu];
-  };
+  }, [apuResources, checks]);
 
   const activities = useMemo(() => lookaheadPartidas.map(partida => {
     const resources = mergedResources(partida.partida);
     return { ...partida, resources, readiness: statusFor(resources, partida.startDate) };
-  }), [lookaheadPartidas, checks, apuResources]);
+  }), [lookaheadPartidas, mergedResources]);
   const visibleActivities = activities.filter(item => filter === 'todos' || item.readiness.code === filter);
   const allResources = activities.flatMap(item => item.resources);
   const pending = allResources.filter(item => item.estado === 'pendiente');
   const overdue = pending.filter(item => item.fecha_compromiso && item.fecha_compromiso < todayKey());
-  const confirmed = allResources.filter(item => item.estado === 'confirmado').length;
 
   const persist = async (resource, patch = {}) => {
     const next = { ...resource, ...patch };

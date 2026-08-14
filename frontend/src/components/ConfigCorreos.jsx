@@ -1202,16 +1202,6 @@ function ConfigCorreos({ user, onBack }) {
     }));
   };
 
-  const toggleCompanySubmenus = (moduleId, enabled) => {
-    const ids = submenusDisponibles.filter(item => item.modulo === moduleId).map(item => item.id);
-    setCompanyFormData(current => ({
-      ...current,
-      submenus_activos: enabled
-        ? Array.from(new Set([...(current.submenus_activos || []), ...ids]))
-        : (current.submenus_activos || []).filter(item => !ids.includes(item))
-    }));
-  };
-
   return (
     <div className="space-y-4">
       

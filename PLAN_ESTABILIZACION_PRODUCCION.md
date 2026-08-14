@@ -2,7 +2,7 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
-Avance actualizado: Etapa 1 99%; Etapa 2 90%; Etapa 3 60%; Etapa 4 42%; Etapa 5 40%; plan completo 66%.
+Avance actualizado: Etapa 1 99%; Etapa 2 90%; Etapa 3 65%; Etapa 4 52%; Etapa 5 52%; plan completo 71%.
 
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
@@ -127,3 +127,7 @@ La plataforma se considerará lista para producción cuando no existan política
 - Corregido un fallo de ejecución detectado por lint en el portal público de capacitaciones: el icono de envío ahora se importa explícitamente.
 - Eliminada del portal externo de Estados de Pago la ruta heredada e inaccesible de escritura directa; decisiones y propuestas operan exclusivamente mediante la Edge Function protegida.
 - Batería actual consolidada en 16 pruebas unitarias y 11 verificaciones HTTP; lint sin errores y build productivo correcto.
+- Facturación consolidada en `FacturacionV2`: se retiraron dos implementaciones heredadas sin referencias, reduciendo más de 265 KB y 4.900 líneas duplicadas del código fuente.
+- Eliminado un script heredado de inicialización que contenía una contraseña administrativa en texto plano; la autenticación vigente permanece centralizada en Supabase Auth.
+- Limpieza transversal adicional en Last Planner, DTE, PDF, acreditaciones, Estados de Pago, configuración y aplicación principal; las advertencias de lint bajaron de 97 a 55, sin errores.
+- Batería automatizada ampliada y verificada en 19 pruebas; compilación productiva correcta. Permanecen como alertas operativas la versión Node 22.11 y los paquetes mayores a 500 kB.

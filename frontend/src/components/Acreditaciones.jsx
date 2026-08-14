@@ -391,7 +391,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
         const local = localStorage.getItem('obraxis_acreditaciones_internas');
         if (local) setHistorialInterno(JSON.parse(local));
       }
-    } catch (e) {
+    } catch {
       const local = localStorage.getItem('obraxis_acreditaciones_internas');
       if (local) setHistorialInterno(JSON.parse(local));
     }
@@ -525,7 +525,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
 
       try {
         await supabase.from('acreditaciones_internas').insert([newRecord]);
-      } catch (e) {
+      } catch {
         console.warn('Fallback a localStorage');
       }
 

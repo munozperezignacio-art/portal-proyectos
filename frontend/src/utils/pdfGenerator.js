@@ -49,7 +49,7 @@ export function generateFormPdf({ form, metadata, answers, mainSignature, compan
         const logoX = margin + (45 - logoWidth) / 2;
         const logoY = y + (24 - logoHeight) / 2;
         doc.addImage(companyLogo, image.fileType || 'PNG', logoX, logoY, logoWidth, logoHeight);
-      } catch (e) {
+      } catch {
         doc.setTextColor(15, 23, 42);
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(10);
@@ -176,7 +176,7 @@ export function generateFormPdf({ form, metadata, answers, mainSignature, compan
               try {
                 doc.addImage(subVal, 'PNG', margin + 50, y - 4, subField?.type === 'photo' ? 60 : 40, subField?.type === 'photo' ? 35 : 15);
                 y += subField?.type === 'photo' ? 32 : 12;
-              } catch (e) {
+              } catch {
                 // Si la imagen falla
               }
             } else {
@@ -195,7 +195,7 @@ export function generateFormPdf({ form, metadata, answers, mainSignature, compan
       try {
         doc.addImage(val, 'PNG', margin, y - 3, 40, 15);
         y += 15;
-      } catch (errSig) {
+      } catch {
         doc.text('[Firma Registrada]', margin, y);
         y += 5;
       }
@@ -203,7 +203,7 @@ export function generateFormPdf({ form, metadata, answers, mainSignature, compan
       try {
         doc.addImage(val, 'JPEG', margin, y - 3, 60, 35);
         y += 37;
-      } catch (errPhoto) {
+      } catch {
         doc.text('[Evidencia fotográfica registrada]', margin, y);
         y += 5;
       }
@@ -246,7 +246,7 @@ export function generateFormPdf({ form, metadata, answers, mainSignature, compan
     try {
       doc.addImage(mainSignature, 'PNG', margin, y, 50, 20);
       y += 22;
-    } catch (e) {
+    } catch {
       doc.setFont('helvetica', 'italic');
       doc.text('[Firma digital cargada]', margin, y);
       y += 8;

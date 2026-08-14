@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BadgeDollarSign, CheckCircle2, Copy, FileText, Paperclip, ReceiptText, RefreshCw, Send, Trash2 } from 'lucide-react';
+import { BadgeDollarSign, Copy, FileText, Paperclip, ReceiptText, RefreshCw, Send, Trash2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { sendSystemEmail } from '../utils/emailService';
 import { can } from '../utils/permissionsCatalog';

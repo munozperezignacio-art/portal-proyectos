@@ -43,7 +43,7 @@ const enrichRow = row => {
 };
 const emptyMeta = () => ({ nombre: '', codigo: 'MIPER-001', version: '1', fecha_revision: new Date().toISOString().slice(0, 10), obra_id: '', metodologia: 'ISP Chile · Guía IPER v3 (2024)', estado: 'Borrador' });
 
-export default function RiskMatrixManager({ user, obras = [], canCreate = false, canEdit = false, canDelete = false }) {
+export default function RiskMatrixManager({ user, obras = [], canCreate = false, canDelete = false }) {
   const [matrices, setMatrices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showEditor, setShowEditor] = useState(false);

@@ -112,7 +112,7 @@ function App() {
         }
         return parsed;
       }
-    } catch (e) {}
+    } catch {}
     return null;
   });
   const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile drawer toggle
@@ -249,7 +249,7 @@ function App() {
         
         if (data) {
           setCompanyBranding(data);
-          try { localStorage.setItem('obraxis_company_branding', JSON.stringify(data)); } catch(e){}
+          try { localStorage.setItem('obraxis_company_branding', JSON.stringify(data)); } catch{}
           document.documentElement.style.setProperty('--primary-color', data.color_primario || '#1e3a8a');
           document.documentElement.style.setProperty('--primary-color-hover', data.color_secundario || '#1d4ed8');
         } else {

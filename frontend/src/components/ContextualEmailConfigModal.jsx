@@ -40,7 +40,7 @@ export default function ContextualEmailConfigModal({
 
       // 2. Cargar de Supabase config_empresa si existe
       if (user?.empresa) {
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from('config_empresa')
           .select('email_notificaciones, email_notificaciones_cc')
           .eq('empresa', user.empresa)
