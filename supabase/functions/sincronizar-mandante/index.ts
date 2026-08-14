@@ -21,17 +21,27 @@ Deno.serve(async req=>{
   if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
   if(req.method!=="POST")return reply({error:"Método no permitido."},405);
   try{
+    const body=await req.json(); const contractId=text(body?.contrato_id);
+    if(!contractId)return reply({error:"Contrato requerido."},400);
+    const db=createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,{auth:{persistSession:false}});
+    const cronSecret=req.headers.get("x-cron-secret")||"";
+    let profile:{empresa:string|null;nombre?:string;usuario?:string}={empresa:null};
+    let automatic=false;
+    if(cronSecret){
+      const {data:valid}=await db.rpc("validar_cron_mandante",{p_secret:cronSecret});
+      if(valid!==true)return reply({error:"Credencial de automatización no válida."},401);
+      automatic=true; profile={empresa:null,nombre:"Motor de sincronización Obraxis",usuario:"cron.mandante"};
+    }else{
     const authHeader=req.headers.get("Authorization")||"";
     const auth=createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_ANON_KEY")!,{global:{headers:{Authorization:authHeader}},auth:{persistSession:false}});
     const {data:{user},error:userError}=await auth.auth.getUser();
     if(userError||!user)return reply({error:"Sesión no válida."},401);
-    const body=await req.json(); const contractId=text(body?.contrato_id);
-    if(!contractId)return reply({error:"Contrato requerido."},400);
-    const {data:profile}=await auth.from("usuarios").select("empresa,nombre,usuario").eq("auth_user_id",user.id).maybeSingle();
-    const db=createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,{auth:{persistSession:false}});
+      const {data:userProfile}=await auth.from("usuarios").select("empresa,nombre,usuario").eq("auth_user_id",user.id).maybeSingle();
+      profile=userProfile||{empresa:null};
+    }
     const {data:contract,error:contractError}=await db.from("mandante_contratos").select("*").eq("id",contractId).maybeSingle();
     if(contractError||!contract)return reply({error:"Contrato no encontrado."},404);
-    if(!profile?.empresa||![contract.empresa_mandante,contract.empresa_obraxis_vinculada].includes(profile.empresa))return reply({error:"No tienes acceso a este contrato."},403);
+    if(!automatic&&(!profile?.empresa||![contract.empresa_mandante,contract.empresa_obraxis_vinculada].includes(profile.empresa)))return reply({error:"No tienes acceso a este contrato."},403);
     if(contract.modalidad!=="Empresa Obraxis"||!contract.empresa_obraxis_vinculada||!contract.obra_contratista_id)return reply({error:"El contrato no está enlazado a una obra de otra empresa Obraxis."},409);
     let created=0,skipped=0; const errors:string[]=[]; const counts:Record<string,number>={};
     for(const spec of specs){
@@ -52,12 +62,15 @@ Deno.serve(async req=>{
         const {data:delivery,error:deliveryError}=await db.from("mandante_entregas").insert({contrato_id:contract.id,empresa_mandante:contract.empresa_mandante,empresa_origen:contract.empresa_obraxis_vinculada,tipo:spec.type,titulo:built.title,periodo_desde:isoDate,periodo_hasta:isoDate,monto:built.amount||0,datos:{...built.summary,origen_automatico:true,fuente:{tabla:spec.table,id:text(row.id),huella:fingerprint}},estado:previous?"Reenviado":"Recibido",enviado_por:profile.nombre||profile.usuario||"Sincronización Obraxis",version:Number(previous?.version||0)+1,entrega_raiz_id:rootId,entrega_anterior_id:previous?.id||null}).select("id").single();
         if(deliveryError){errors.push(`${spec.module} #${row.id}: ${deliveryError.message}`);continue;}
         const updated=text(spec.updatedField?row[spec.updatedField]:row[spec.dateField])||null;
-        const {error:linkError}=await db.from("mandante_integraciones").insert({contrato_id:contract.id,entrega_id:delivery.id,empresa_mandante:contract.empresa_mandante,empresa_origen:contract.empresa_obraxis_vinculada,modulo:spec.module,fuente_tabla:spec.table,fuente_id:text(row.id),huella:fingerprint,fuente_actualizada_at:updated,resumen:built.summary,sincronizado_por:profile.nombre||profile.usuario||user.email});
+        const {error:linkError}=await db.from("mandante_integraciones").insert({contrato_id:contract.id,entrega_id:delivery.id,empresa_mandante:contract.empresa_mandante,empresa_origen:contract.empresa_obraxis_vinculada,modulo:spec.module,fuente_tabla:spec.table,fuente_id:text(row.id),huella:fingerprint,fuente_actualizada_at:updated,resumen:built.summary,sincronizado_por:profile.nombre||profile.usuario||"Sistema Obraxis"});
         if(linkError){await db.from("mandante_entregas").delete().eq("id",delivery.id);errors.push(`${spec.module} #${row.id}: ${linkError.message}`);continue;}
         created++;counts[spec.module]=(counts[spec.module]||0)+1;
       }
     }
-    await db.from("mandante_eventos").insert({empresa_mandante:contract.empresa_mandante,proyecto_id:contract.proyecto_id,contrato_id:contract.id,accion:"Sincronización contractual Obraxis",estado_resultante:errors.length?"Con observaciones":"Completada",actor_nombre:profile.nombre||profile.usuario,actor_empresa:profile.empresa,detalle:`${created} nuevos; ${skipped} sin cambios; ${errors.length} observaciones`});
+    const now=new Date(); const next=new Date(now); const frequency=contract.sincronizacion_frecuencia||"Diaria";
+    if(frequency==="Cada hora")next.setUTCHours(next.getUTCHours()+1);else if(frequency==="Semanal")next.setUTCDate(next.getUTCDate()+7);else next.setUTCDate(next.getUTCDate()+1);
+    await db.from("mandante_contratos").update({ultima_sincronizacion_at:now.toISOString(),proxima_sincronizacion_at:next.toISOString(),sincronizacion_estado:errors.length?"Con observaciones":"Completada",sincronizacion_error:errors.length?errors.join(" | "):null,updated_at:now.toISOString()}).eq("id",contract.id);
+    await db.from("mandante_eventos").insert({empresa_mandante:contract.empresa_mandante,proyecto_id:contract.proyecto_id,contrato_id:contract.id,accion:automatic?"Sincronización contractual automática":"Sincronización contractual Obraxis",estado_resultante:errors.length?"Con observaciones":"Completada",actor_nombre:profile.nombre||profile.usuario,actor_empresa:profile.empresa||"Obraxis",detalle:`${created} nuevos; ${skipped} sin cambios; ${errors.length} observaciones`});
     return reply({success:true,created,skipped,counts,errors});
   }catch(error){return reply({error:error instanceof Error?error.message:String(error)},500);}
 });
