@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx';
 import { supabase } from '../supabaseClient';
 
 const PART_COLUMNS = ['TIPO_FILA','CODIGO','PARTIDA','UNIDAD_PARTIDA','CANTIDAD_OBRA','METODOLOGIA','RENDIMIENTO_DIARIO','DIVISOR_CANTIDAD','DIVISOR_UNIDAD','LEYES_SOCIALES_PCT','HERRAMIENTAS_MENORES_PCT','IMPONDERABLES_PCT'];
-const RESOURCE_COLUMNS = ['CODIGO_PARTIDA','RECURSO','TIPO_RECURSO','UNIDAD_COSTO','COSTO_UNITARIO','CANTIDAD_CONSUMO','COEFICIENTE','CONSUMO_COMBUSTIBLE_LH'];
+const RESOURCE_COLUMNS = ['CODIGO_PARTIDA','RECURSO','TIPO_RECURSO','CATEGORIA_RECURSO','UNIDAD_COSTO','COSTO_UNITARIO','CANTIDAD_CONSUMO','COEFICIENTE','CONSUMO_COMBUSTIBLE_LH'];
 const normalize = value => String(value ?? '').trim();
 const number = value => { const parsed = Number(String(value ?? '').replace(/\s/g, '').replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.').replace(/[^\d.-]/g, '')); return Number.isFinite(parsed) ? parsed : 0; };
 const method = value => normalize(value).toLowerCase().includes('costo') ? 'Costo' : 'Precio Unitario';
@@ -65,6 +65,7 @@ export default function BudgetExcelImporter({ presupuestoId, projectCurrency = '
       ['Uso','Complete Partidas y Recursos sin cambiar los encabezados. Los títulos no llevan cantidades ni recursos.'],
       ['Precio Unitario','Costo por unidad basado en rendimiento diario y consumos/coeficientes de recursos.'],
       ['Costo','Suma todos los costos cargados y divide por DIVISOR_CANTIDAD, expresado en DIVISOR_UNIDAD.'],
+      ['Categoría de recurso','Clasificación analítica editable, por ejemplo: Hormigones, Enfierradura, Instalaciones, Terminaciones o Gastos generales.'],
       ['Moneda',`Todos los costos deben venir en la moneda base del presupuesto: ${projectCurrency}.`]
     ]);
     instructions['!cols'] = [{ wch: 24 }, { wch: 110 }];
@@ -74,8 +75,8 @@ export default function BudgetExcelImporter({ presupuestoId, projectCurrency = '
       { TIPO_FILA:'PARTIDA', CODIGO:'1.2', PARTIDA:'Administración de instalación temporal', UNIDAD_PARTIDA:'mes', CANTIDAD_OBRA:6, METODOLOGIA:'Costo', DIVISOR_CANTIDAD:6, DIVISOR_UNIDAD:'mes', LEYES_SOCIALES_PCT:35, HERRAMIENTAS_MENORES_PCT:5, IMPONDERABLES_PCT:5 }
     ], { header: PART_COLUMNS });
     const resources = XLSX.utils.json_to_sheet([
-      { CODIGO_PARTIDA:'1.1', RECURSO:'Cuadrilla instalación', TIPO_RECURSO:'Mano de Obra', UNIDAD_COSTO:'día', COSTO_UNITARIO:180000, CANTIDAD_CONSUMO:1, COEFICIENTE:1 },
-      { CODIGO_PARTIDA:'1.2', RECURSO:'Arriendo oficina de obra', TIPO_RECURSO:'Otros', UNIDAD_COSTO:'mes', COSTO_UNITARIO:650000, CANTIDAD_CONSUMO:6, COEFICIENTE:1 }
+      { CODIGO_PARTIDA:'1.1', RECURSO:'Cuadrilla instalación', TIPO_RECURSO:'Mano de Obra', CATEGORIA_RECURSO:'Instalación de faenas', UNIDAD_COSTO:'día', COSTO_UNITARIO:180000, CANTIDAD_CONSUMO:1, COEFICIENTE:1 },
+      { CODIGO_PARTIDA:'1.2', RECURSO:'Arriendo oficina de obra', TIPO_RECURSO:'Otros', CATEGORIA_RECURSO:'Gastos generales', UNIDAD_COSTO:'mes', COSTO_UNITARIO:650000, CANTIDAD_CONSUMO:6, COEFICIENTE:1 }
     ], { header: RESOURCE_COLUMNS });
     parts['!cols'] = PART_COLUMNS.map((key,index) => ({ wch: index === 2 ? 44 : 20 }));
     resources['!cols'] = RESOURCE_COLUMNS.map((key,index) => ({ wch: index === 1 ? 38 : 23 }));
@@ -107,7 +108,7 @@ export default function BudgetExcelImporter({ presupuestoId, projectCurrency = '
       });
       const recursos = rawResources.filter(row => normalize(row.CODIGO_PARTIDA) || normalize(row.RECURSO)).map((row,index) => {
         const code = normalize(row.CODIGO_PARTIDA); const name = normalize(row.RECURSO); if (!codes.has(code)) validation.push(`Recursos fila ${index + 2}: la partida ${code || '(vacía)'} no existe.`); if (!name) validation.push(`Recursos fila ${index + 2}: falta RECURSO.`);
-        return { codigo_partida:code, recurso:name, tipo:normalize(row.TIPO_RECURSO)||'Otros', unidad:normalize(row.UNIDAD_COSTO)||'un', costo_unitario:number(row.COSTO_UNITARIO), cantidad_unidad:number(row.CANTIDAD_CONSUMO), rendimiento:number(row.COEFICIENTE)||1, consumo_combustible_lh:number(row.CONSUMO_COMBUSTIBLE_LH) };
+        return { codigo_partida:code, recurso:name, tipo:normalize(row.TIPO_RECURSO)||'Otros', categoria:normalize(row.CATEGORIA_RECURSO)||'Sin categoría', unidad:normalize(row.UNIDAD_COSTO)||'un', costo_unitario:number(row.COSTO_UNITARIO), cantidad_unidad:number(row.CANTIDAD_CONSUMO), rendimiento:number(row.COEFICIENTE)||1, consumo_combustible_lh:number(row.CONSUMO_COMBUSTIBLE_LH) };
       });
       partidas.forEach(part => Object.assign(part, calculateCost(part, recursos.filter(row => row.codigo_partida === part.codigo), settings)));
       setErrors(validation); setPreview({ partidas, recursos, fileName:file.name });
@@ -117,7 +118,7 @@ export default function BudgetExcelImporter({ presupuestoId, projectCurrency = '
 
   const importBudget = async () => {
     if (!preview || errors.length || !presupuestoId) return; setBusy(true);
-    const { data, error } = await supabase.rpc('importar_presupuesto_excel', { p_presupuesto_id:Number(presupuestoId), p_partidas:preview.partidas, p_recursos:preview.recursos, p_moneda_base:projectCurrency });
+    const { data, error } = await supabase.rpc('importar_presupuesto_excel_v2', { p_presupuesto_id:Number(presupuestoId), p_partidas:preview.partidas, p_recursos:preview.recursos, p_moneda_base:projectCurrency });
     setBusy(false);
     if (error) { setErrors([error.message]); return; }
     setPreview(null); await onImported?.(data);

@@ -71,7 +71,7 @@ export default function LastPlannerLookahead({ obra, partidas, fechaCorte, getSt
       const resourceMap = new Map((resources || []).map(resource => [String(resource.id), resource]));
       setApuResources((links || []).map(link => {
         const item = itemMap.get(String(link.item_id)); const resource = resourceMap.get(String(link.recurso_id));
-        return item && resource ? { partida: item.partida || item.descripcion, recurso_clave: `apu-${link.recurso_id}`, recurso: resource.recurso || resource.nombre || 'Recurso APU', tipo: resource.tipo || 'Recurso', unidad: resource.unidad || '', cantidad_requerida: link.cantidad || link.rendimiento || 0, origen: 'APU' } : null;
+        return item && resource ? { partida: item.partida || item.descripcion, recurso_clave: `apu-${link.recurso_id}`, recurso: resource.recurso || resource.nombre || 'Recurso APU', tipo: resource.tipo || 'Recurso', categoria: resource.categoria || 'Sin categoría', unidad: resource.unidad || '', cantidad_requerida: link.cantidad || link.rendimiento || 0, origen: 'APU' } : null;
       }).filter(Boolean));
     } catch (error) { setMessage(`No se pudieron cargar los recursos: ${error.message}`); }
     finally { setLoading(false); }

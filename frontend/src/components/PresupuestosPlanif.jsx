@@ -13,6 +13,8 @@ import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
 import BudgetExcelImporter from './BudgetExcelImporter';
 
+const RESOURCE_CATEGORY_SUGGESTIONS = ['Obras preliminares', 'Movimiento de tierras', 'Hormigones', 'Enfierradura', 'Moldajes', 'Estructura', 'Instalaciones', 'Terminaciones', 'Urbanización', 'Gastos generales', 'Subcontratos'];
+
 // Helpers para compatibilidad de metadatos en columnas existentes
 const parseResourceUnitAndCurrency = (unidadStr) => {
   const parts = (unidadStr || '').split('|');
@@ -332,6 +334,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
   const [newResourceForm, setNewResourceForm] = useState({
     recurso: '',
     tipo: 'Material',
+    categoria: '',
     unidad: 'un',
     moneda: 'CLP',
     costo_unitario: '',
@@ -1546,6 +1549,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
         apuSheetData.push([
           'RECURSO / INSUMO', 
           'TIPO', 
+          'CATEGORÍA',
           'TARIFA BASE ORIGINAL', 
           'MONEDA',
           'UNIDAD', 
@@ -1651,6 +1655,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
           apuSheetData.push([
             res.recurso || '',
             res.tipo || '',
+            res.categoria || 'Sin categoría',
             originalCost,
             resInfo.moneda,
             resInfo.unidad,
@@ -1662,7 +1667,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
         });
 
         if (itemLinks.length === 0) {
-          apuSheetData.push(['(Sin recursos vinculados en APU)', '', '', '', '', '', '', '', 0]);
+          apuSheetData.push(['(Sin recursos vinculados en APU)', '', '', '', '', '', '', '', '', 0]);
         }
 
         apuSheetData.push([]);
@@ -1690,6 +1695,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
         wsApu['!cols'] = [
           { wch: 32 },
           { wch: 16 },
+          { wch: 22 },
           { wch: 22 },
           { wch: 10 },
           { wch: 12 },
@@ -2074,6 +2080,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
       presupuesto_id: selectedProyectoId,
       recurso: 'NUEVO RECURSO',
       tipo: 'Material',
+      categoria: 'Sin categoría',
       unidad: serializeResourceUnitAndCurrency('un', 'CLP'),
       costo_unitario: 0,
       cantidad_estimada: 0,
@@ -2133,6 +2140,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
           .update({
             recurso: item.recurso,
             tipo: item.tipo,
+            categoria: item.categoria || 'Sin categoría',
             unidad: item.unidad,
             costo_unitario: parseFloat(item.costo_unitario) || 0,
             cantidad_estimada: parseFloat(item.cantidad_estimada) || 0,
@@ -2382,6 +2390,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
     setNewResourceForm({
       recurso: '',
       tipo: 'Material',
+      categoria: '',
       unidad: 'un',
       moneda: 'CLP',
       costo_unitario: '',
@@ -2461,6 +2470,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
             presupuesto_id: selectedProyectoId,
             recurso: newResourceForm.recurso.trim(),
             tipo: newResourceForm.tipo,
+            categoria: newResourceForm.categoria.trim() || 'Sin categoría',
             unidad: serializedUnit,
             costo_unitario: parseFloat(newResourceForm.costo_unitario) || 0,
             cantidad_estimada: 1,
@@ -4107,6 +4117,9 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                 {/* RECURSOS */}
                 {activeSection === 'recursos' && (
                   <div className="space-y-4 animate-in fade-in duration-200">
+                    <datalist id="resource-category-options">
+                      {RESOURCE_CATEGORY_SUGGESTIONS.map(category => <option key={category} value={category} />)}
+                    </datalist>
                     <div className="grid grid-cols-1 sm:grid-cols-6 gap-3">
                       <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
                         <h4 className="text-[10px] text-slate-455 font-bold uppercase tracking-wider">Costo Estimado Total ({projectBaseCurrency})</h4>
@@ -4151,6 +4164,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                             <tr className="bg-slate-50 border-b border-slate-200 text-slate-650 font-bold text-[9px] uppercase tracking-wider select-none">
                               <th className="p-3.5">Nombre Recurso</th>
                               <th className="p-3.5 w-36">Tipo</th>
+                              <th className="p-3.5 w-40">Categoría</th>
                               <th className="p-3.5 w-32 text-center">Tarifa / Costo</th>
                               <th className="p-3.5 w-24 text-center">Moneda</th>
                               <th className="p-3.5 w-24">Unidad</th>
@@ -4190,6 +4204,9 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                                       <option value="Herramientas">Herramientas</option>
                                       <option value="Otros">Otros</option>
                                     </select>
+                                  </td>
+                                  <td className="p-2">
+                                    <input list="resource-category-options" type="text" value={item.categoria || ''} onChange={(e) => handleUpdateResourceField(item.id, 'categoria', e.target.value)} placeholder="Sin categoría" className="w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-700 font-semibold" />
                                   </td>
                                   <td className="p-2">
                                     <input
@@ -6277,7 +6294,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                 {/* OPCIÓN 2: NUEVO (INCLUYE MONEDA) */}
                 {addResourceMode === 'nuevo' && (
                   <form onSubmit={handleCreateAndLinkNewResource} className="space-y-3 pt-1">
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
                       <div className="sm:col-span-2">
                         <label className="block text-[9px] font-bold uppercase text-slate-455 mb-1">Nombre Recurso / Insumo *</label>
                         <input
@@ -6302,6 +6319,11 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                           <option value="Herramientas">Herramientas</option>
                           <option value="Otros">Otros</option>
                         </select>
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Categoría analítica</label>
+                        <input list="apu-resource-category-options" type="text" value={newResourceForm.categoria} onChange={(e) => setNewResourceForm({ ...newResourceForm, categoria: e.target.value })} placeholder="ej: Hormigones" className="w-full border border-slate-200 rounded-lg p-1.5 text-xs text-slate-700 bg-white font-semibold" />
+                        <datalist id="apu-resource-category-options">{RESOURCE_CATEGORY_SUGGESTIONS.map(category => <option key={category} value={category} />)}</datalist>
                       </div>
                       <div>
                         <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Moneda del Costo Particular</label>
@@ -6385,6 +6407,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                     <tr className="bg-slate-50 border-b border-slate-200 text-slate-655 font-bold text-[9px] uppercase tracking-wider select-none">
                       <th className="p-3">Recurso / Insumo</th>
                       <th className="p-3 w-28">Tipo</th>
+                      <th className="p-3 w-32">Categoría</th>
                       <th className="p-3 w-40 text-right">Tarifa Original</th>
                       <th className="p-3 w-24 text-center">Moneda</th>
                       <th className="p-3 w-24 text-center">Consumo / Cant.</th>
@@ -6507,6 +6530,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                               {res.tipo}
                             </span>
                           </td>
+                          <td className="p-2 text-[10px] font-semibold text-slate-600">{res.categoria || 'Sin categoría'}</td>
                           <td className="p-2 text-right font-bold text-slate-700">
                             {formatCurrencyValue(originalCost, resInfo.moneda)}
                           </td>
@@ -6573,7 +6597,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
 
                     {apuResources.length === 0 && (
                       <tr>
-                        <td colSpan={!isCostMode ? 9 : 8} className="p-8 text-center text-xs text-slate-400 italic">
+                        <td colSpan={!isCostMode ? 10 : 9} className="p-8 text-center text-xs text-slate-400 italic">
                           No has vinculado recursos a esta partida. Selecciona uno del catálogo o crea uno nuevo arriba.
                         </td>
                       </tr>
