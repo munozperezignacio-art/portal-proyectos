@@ -2,7 +2,7 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
-Avance actualizado: Etapa 1 80%; plan completo 16%.
+Avance actualizado: Etapa 1 88%; plan completo 18%.
 
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
@@ -78,3 +78,6 @@ La plataforma se considerará lista para producción cuando no existan política
 - Inventario, usos diarios y reservas de maquinaria aislados por empresa; acceso anónimo directo eliminado y columnas de empresa hechas obligatorias.
 - Registro de maquinaria originado en formularios públicos trasladado al servidor; eliminado el acceso directo del navegador y su fallback operativo local.
 - Políticas públicas abiertas reducidas de 20 a 13 durante este bloque de estabilización.
+- Catálogos de centros de gestión, matrices de riesgo y maquinaria de formularios públicos encapsulados en la Edge Function protegida por token; sus RPC ya no son ejecutables por `anon` ni `authenticated`.
+- Tablas operativas heredadas de inventario, planificación y reportes de maquinaria normalizadas con empresa obligatoria, índices y RLS multiempresa.
+- Políticas públicas abiertas reducidas de 13 a 10; verificación en producción confirma que las nuevas políticas sólo están disponibles para usuarios autenticados de la empresa correspondiente.
