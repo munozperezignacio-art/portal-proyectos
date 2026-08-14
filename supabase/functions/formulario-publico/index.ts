@@ -28,7 +28,17 @@ Deno.serve(async(req)=>{
 
     if(action==="cargar"){
       const {data:branding}=await db.from("config_empresa").select("logo_base64,color_primario,color_secundario").eq("empresa",form.empresa).maybeSingle();
-      await log(true); return json({form,branding:branding||null});
+      const {data:centers,error:centerError}=await db.rpc("formulario_centros_gestion",{p_token:token});
+      if(centerError)throw centerError;
+      const storedFields:any=form.campos;
+      const fields=Array.isArray(storedFields)?storedFields:(storedFields?.items||[]);
+      const linkedFields=fields.filter((field:any)=>field?.type==="data_lookup"&&field?.id);
+      const catalogEntries=await Promise.all(linkedFields.map(async(field:any)=>{
+        const{data,error}=await db.rpc("formulario_catalogo_vinculado",{p_token:token,p_campo_id:String(field.id)});
+        if(error)throw error;
+        return[String(field.id),Array.isArray(data)?data:[]];
+      }));
+      await log(true); return json({form,branding:branding||null,centros:Array.isArray(centers)?centers:[],catalogos:Object.fromEntries(catalogEntries)});
     }
     if(action!=="enviar")return json({error:"Acción inválida"},400);
     const answers=body?.respuestas;

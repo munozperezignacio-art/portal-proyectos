@@ -89,29 +89,17 @@ export default function PublicFormFiller({ formToken }) {
         setForm(normalizedForm);
         setFormCompanyBranding(publicPayload?.branding || null);
         
-        // Cargar marca de la empresa propietaria y catálogos vinculados.
-        let loadedWorks = [];
-        try {
-          const { data: centerCatalog, error: centerError } = await supabase.rpc('formulario_centros_gestion', { p_token: String(formToken) });
-          if (centerError) throw centerError;
-          const centers = Array.isArray(centerCatalog) ? centerCatalog : [];
-          setCentrosGestion(centers);
-          loadedWorks = centers.filter(center => center.obra_id).map(center => ({ id: center.obra_id, nombre: center.obra_nombre, centro_gestion_id: center.id }));
-          setObrasList(loadedWorks);
-
-          const linkedFields = (normalizedForm.campos || []).filter(field => field.type === 'data_lookup');
-          const catalogs = await Promise.all(linkedFields.map(async field => {
-            const { data: catalog, error: catalogError } = await supabase.rpc('formulario_catalogo_vinculado', { p_token: String(formToken), p_campo_id: String(field.id) });
-            if (catalogError) console.warn(`No se pudo cargar el catálogo ${field.label}:`, catalogError.message);
-            return [field.id, Array.isArray(catalog) ? catalog : []];
-          }));
-          const linkedCatalogMap = Object.fromEntries(catalogs);
-          setLinkedCatalogs(linkedCatalogMap);
-          const machineryCatalog = linkedFields.filter(field => field.source === 'machinery').flatMap(field => linkedCatalogMap[field.id] || []);
-          setMaquinariaList(machineryCatalog.map(item => ({ id: item._id, patente: item.patente, tipo: item.tipo, marca: item.marca, obra_nombre: loadedWorks.find(work => work.id === item.obra_id)?.nombre || '', horometro_inicial: item.horometro_inicial })));
-        } catch (errMeta) {
-          console.error('Error al cargar datos auxiliares:', errMeta.message);
-        }
+        // Catálogos entregados por la misma función protegida por token. El
+        // navegador no ejecuta RPC privilegiados ni consulta tablas internas.
+        const centers = Array.isArray(publicPayload?.centros) ? publicPayload.centros : [];
+        const loadedWorks = centers.filter(center => center.obra_id).map(center => ({ id: center.obra_id, nombre: center.obra_nombre, centro_gestion_id: center.id }));
+        const linkedCatalogMap = publicPayload?.catalogos && typeof publicPayload.catalogos === 'object' ? publicPayload.catalogos : {};
+        setCentrosGestion(centers);
+        setObrasList(loadedWorks);
+        setLinkedCatalogs(linkedCatalogMap);
+        const linkedFields = (normalizedForm.campos || []).filter(field => field.type === 'data_lookup');
+        const machineryCatalog = linkedFields.filter(field => field.source === 'machinery').flatMap(field => linkedCatalogMap[field.id] || []);
+        setMaquinariaList(machineryCatalog.map(item => ({ id: item._id, patente: item.patente, tipo: item.tipo, marca: item.marca, obra_nombre: loadedWorks.find(work => work.id === item.obra_id)?.nombre || '', horometro_inicial: item.horometro_inicial })));
         
         // Inicializar respuestas para bloques repetibles con 1 elemento por defecto
         const initial = {};
