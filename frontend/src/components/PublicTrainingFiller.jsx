@@ -47,7 +47,7 @@ export default function PublicTrainingFiller({ trainingToken }) {
   const getEmbedUrl = (url) => {
     if (!url) return null;
     // YouTube
-    const ytReg = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&\?]*).*/;
+    const ytReg = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
     const ytMatch = url.match(ytReg);
     if (ytMatch && ytMatch[2].length === 11) {
       return `https://www.youtube.com/embed/${ytMatch[2]}`;

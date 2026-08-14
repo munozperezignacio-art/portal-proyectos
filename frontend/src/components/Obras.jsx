@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { 
   Building2, ArrowLeft, Users, Truck, Wrench, FileSpreadsheet, 
-  ExternalLink, Calendar, Plus, Info, Check, UserCheck, Play, ArrowRightLeft, FileText, AlertCircle, AlertTriangle, Camera,
-  QrCode, MapPin, Printer, Navigation, RotateCcw, CheckCircle2, MapIcon as Map, ShieldAlert, Settings, Edit, Trash2, Download,
-  History, BarChart3, ShieldCheck, ClipboardCheck, Clock, DollarSign, CalendarRange, CalendarDays, FileUp, Loader2, FolderPlus, Send, Filter, TrendingUp, BookOpenCheck, ReceiptText, Search
+  ExternalLink, Calendar, Plus, UserCheck, ArrowRightLeft, FileText, AlertCircle, AlertTriangle, Camera,
+  QrCode, MapPin, Printer, Navigation, RotateCcw, CheckCircle2, ShieldAlert, Settings, Edit, Trash2, Download,
+  History, BarChart3, ShieldCheck, ClipboardCheck, DollarSign, CalendarRange, CalendarDays, Loader2, FolderPlus, Send, Filter, TrendingUp, BookOpenCheck, ReceiptText, Search
 } from 'lucide-react';
 import ContextualEmailConfigModal from './ContextualEmailConfigModal';
 import { canConfigureEmails, canCreateObras, canModifyOrDeleteRecords } from '../utils/userLevel';
@@ -150,84 +150,6 @@ function ObraGpsMapPicker({ lat, lng, radius, onChange, canEdit }) {
     <div className="relative w-full h-52 rounded-xl overflow-hidden border border-slate-200 shadow-inner my-2 z-0">
       <div ref={mapRef} className="w-full h-full" />
 
-      {/* MODAL DE VINCULACIÓN / ASIGNACIÓN DIRECTA DE EQUIPO A LA OBRA */}
-      {showAssignModalObra && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-md w-full space-y-4 shadow-xl">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider flex items-center gap-2">
-                <Truck className="w-5 h-5 text-blue-900" />
-                <span>Vincular Equipo a Obra "{selectedObra?.nombre}"</span>
-              </h3>
-              <button onClick={() => setShowAssignModalObra(false)} className="p-1 rounded-lg bg-slate-100 font-bold text-xs text-slate-600 hover:bg-slate-200">✕</button>
-            </div>
-
-            <form onSubmit={handleConfirmAssignToObra} className="space-y-4 text-xs">
-              <div>
-                <label className="block text-[10.5px] font-bold uppercase text-slate-600 mb-1">Seleccionar Equipo de la Flota *</label>
-                <select
-                  value={selectedFleetEquipId}
-                  onChange={(e) => {
-                    const idVal = e.target.value;
-                    setSelectedFleetEquipId(idVal);
-                    const selected = fleetListForObra.find(m => (m.id || m.patente).toString() === idVal.toString());
-                    if (selected) {
-                      setAssignObraCostoInterno(selected.costo_interno ? selected.costo_interno.toString() : '');
-                      setAssignObraUnidadCosto(selected.unidad_costo_interno || '$/día');
-                    }
-                  }}
-                  className="w-full border border-slate-200 rounded-xl p-2.5 font-bold text-slate-800 bg-white"
-                  required
-                >
-                  {fleetListForObra.map(m => (
-                    <option key={m.id || m.patente} value={m.id || m.patente}>
-                      {m.tipo} ({m.patente || 'Sin Patente'}) - {m.obra_nombre ? 'Actual: ' + m.obra_nombre : 'En Bodega Libre'}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="bg-amber-50/80 p-3 rounded-2xl border border-amber-200 space-y-2">
-                <span className="text-[10.5px] font-extrabold text-amber-950 uppercase tracking-wider block">
-                  💲 Costo Interno (Tarifa Imputable a Obra):
-                </span>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[9.5px] font-bold uppercase text-amber-900 mb-1">Tarifa ($)</label>
-                    <input
-                      type="number"
-                      placeholder="ej: 50000"
-                      value={assignObraCostoInterno}
-                      onChange={(e) => setAssignObraCostoInterno(e.target.value)}
-                      className="w-full border border-amber-300 rounded-xl p-2 font-bold text-slate-900 bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[9.5px] font-bold uppercase text-amber-900 mb-1">Unidad</label>
-                    <select
-                      value={assignObraUnidadCosto}
-                      onChange={(e) => setAssignObraUnidadCosto(e.target.value)}
-                      className="w-full border border-amber-300 rounded-xl p-2 font-bold text-slate-900 bg-white"
-                    >
-                      <option value="$/día">$/día</option>
-                      <option value="$/hr">$/hr</option>
-                      <option value="$/mes">$/mes</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-                <button type="button" onClick={() => setShowAssignModalObra(false)} className="px-4 py-2.5 rounded-xl bg-slate-100 font-bold">Cancelar</button>
-                <button type="submit" className="px-5 py-2.5 rounded-xl bg-blue-900 text-white font-extrabold shadow-sm">
-                  Confirmar Asignación
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }
@@ -247,19 +169,6 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const canObraMaquinariaCreate = can(user, userPermissions, 'obras.maquinaria.crear');
   const rBase = (user?.rol_base || user?.rol || 'Inspector').toLowerCase();
   const canEditGPS = ['admin', 'administrador', 'superadmin', 'superusuario', 'gerencia', 'jefe', 'supervisor'].some(r => rBase.includes(r));
-
-  const isSubmenuEnabled = (submenuId) => {
-    if (user && rBase === 'superusuario') return true;
-    if (companyBranding && companyBranding.submenus_activos) {
-      const activeSubs = companyBranding.submenus_activos.split(',').map(s => s.trim().toLowerCase());
-      if (!activeSubs.includes(submenuId)) return false;
-    }
-    if (user && user.submenus) {
-      const allowedSubs = user.submenus.split(',').map(s => s.trim().toLowerCase());
-      return allowedSubs.includes(submenuId);
-    }
-    return true;
-  };
 
   const [obras, setObras] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -290,14 +199,14 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         if (savedSalaries) {
           setCustomSalariesMap(JSON.parse(savedSalaries));
         }
-      } catch (e) {}
+      } catch {}
 
       try {
         const savedPeriodos = localStorage.getItem('obraxis_asignaciones_periodos_' + selectedObra.nombre);
         if (savedPeriodos) {
           setAsignacionesPeriodosList(JSON.parse(savedPeriodos));
         }
-      } catch (e) {}
+      } catch {}
     }
   }, [selectedObra]);
 
@@ -391,7 +300,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   
   // Estados para métricas de la obra seleccionada
   const [personalCount, setPersonalCount] = useState(0);
-  const [maquinariaCount, setMaquinariaCount] = useState(0);
+  const [, setMaquinariaCount] = useState(0);
   const [recentLogs, setRecentLogs] = useState([]);
   
   // Estados para modales de registro y edicion
@@ -411,11 +320,6 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [avanceExpandedGroups, setAvanceExpandedGroups] = useState({});
   const [asistenciaSubTab, setAsistenciaSubTab] = useState('registro'); // 'registro' | 'libro'
   const [maqSubTab, setMaqSubTab] = useState('asignaciones');
-  const [showAssignModalObra, setShowAssignModalObra] = useState(false);
-  const [fleetListForObra, setFleetListForObra] = useState([]);
-  const [selectedFleetEquipId, setSelectedFleetEquipId] = useState('');
-  const [assignObraCostoInterno, setAssignObraCostoInterno] = useState('');
-  const [assignObraUnidadCosto, setAssignObraUnidadCosto] = useState('$/día'); // 'asignaciones' | 'arriendos'
   const [bitacoraFilters, setBitacoraFilters] = useState(['todos']); // Multi-select: ['todos'] o combinación de ['avances', 'asistencia', 'incidentes', 'personal', 'maquinaria']
   const [prevObraSubTab, setPrevObraSubTab] = useState('inspecciones'); // 'inspecciones' | 'pts' | 'incidentes'
 
@@ -457,11 +361,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [costosList, setCostosList] = useState([]);
   const [costosSubTab, setCostosSubTab] = useState('reales'); // 'reales' | 'proyectados'
   const [proyeccionesList, setProyeccionesList] = useState([]);
-  const [proyeccionesRrhhList, setProyeccionesRrhhList] = useState([]);
+  const [, setProyeccionesRrhhList] = useState([]);
   const [liquidacionesList, setLiquidacionesList] = useState([]);
   const [showProyeccionRrhhModal, setShowProyeccionRrhhModal] = useState(false);
   const [showProyeccionMasivaRrhhModal, setShowProyeccionMasivaRrhhModal] = useState(false);
-  const [showPeriodoRrhhModal, setShowPeriodoRrhhModal] = useState(false);
   const [showEditSueldoModal, setShowEditSueldoModal] = useState(false);
   const [showFechasObraModal, setShowFechasObraModal] = useState(false);
   const [isPersonalCollapseOpen, setIsPersonalCollapseOpen] = useState(true);
@@ -495,14 +398,6 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [showAccidenteModal, setShowAccidenteModal] = useState(false);
   const [accidenteFormData, setAccidenteFormData] = useState({ fecha: new Date().toISOString().substring(0, 10), tipo: 'STP', trabajador: '', dias_perdidos: 0, descripcion: '' });
 
-  const [fechaInicioRrhh, setFechaInicioRrhh] = useState(() => {
-    return localStorage.getItem('obraxis_fecha_inicio_rrhh_' + (selectedObra?.nombre || '')) || '2026-07-15';
-  });
-
-  const [fechaTerminoRrhh, setFechaTerminoRrhh] = useState(() => {
-    return localStorage.getItem('obraxis_fecha_termino_rrhh_' + (selectedObra?.nombre || '')) || '2027-01-15';
-  });
-
   const [fechaInicioReal, setFechaInicioReal] = useState(() => {
     return localStorage.getItem('obraxis_fecha_inicio_real_' + (selectedObra?.nombre || '')) || getObraDateRange(selectedObra).start;
   });
@@ -521,7 +416,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         parsed['Sofia Castro'] = { cargo: 'Recursos Humanos / Jefa RRHH', sueldo_base: 1200000, costo_dia: 40000 };
       }
       return parsed;
-    } catch (e) {
+    } catch {
       return {
         'Sofía Castro': { cargo: 'Recursos Humanos / Jefa RRHH', sueldo_base: 1200000, costo_dia: 40000 },
         'Sofia Castro': { cargo: 'Recursos Humanos / Jefa RRHH', sueldo_base: 1200000, costo_dia: 40000 }
@@ -550,7 +445,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           fecha_termino: '2026-09-30'
         }
       ];
-    } catch (e) {
+    } catch {
       return [];
     }
   });
@@ -630,8 +525,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [asistenciaList, setAsistenciaList] = useState([]);
   const [personalAsignadoList, setPersonalAsignadoList] = useState([]);
   const [reportesAvanceList, setReportesAvanceList] = useState([]);
-  const [rdisBitacoraList, setRdisBitacoraList] = useState([]);
-  const [estadosPagoBitacoraList, setEstadosPagoBitacoraList] = useState([]);
+  const [, setRdisBitacoraList] = useState([]);
+  const [, setEstadosPagoBitacoraList] = useState([]);
   const [eventosBitacoraList, setEventosBitacoraList] = useState([]);
   const [libroObraBitacoraList, setLibroObraBitacoraList] = useState([]);
   const [prevencionBitacoraList, setPrevencionBitacoraList] = useState([]);
@@ -734,7 +629,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       if (selectedObra?.nombre) {
         localStorage.setItem(`partidas_${selectedObra.nombre}`, JSON.stringify(updatedPartidas));
       }
-    } catch(e) {}
+    } catch {}
 
     try {
       if (partidaObj.id && !isNaN(parseInt(partidaObj.id))) {
@@ -792,7 +687,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       if (selectedObra?.nombre) {
         localStorage.setItem(`partidas_${selectedObra.nombre}`, JSON.stringify(updatedPartidas));
       }
-    } catch(e) {}
+    } catch {}
 
     try {
       const payload = {
@@ -821,7 +716,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       localStorage.setItem(`obraxis_costos_${obraKey}`, JSON.stringify(updatedCostos));
       if (selectedObra?.id) localStorage.setItem(`obraxis_costos_${selectedObra.id}`, JSON.stringify(updatedCostos));
       if (selectedObra?.nombre) localStorage.setItem(`obraxis_costos_${selectedObra.nombre}`, JSON.stringify(updatedCostos));
-    } catch (eErr) {}
+    } catch {}
 
     try {
       if (costoItem.id) {
@@ -899,10 +794,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     try {
       const key = selectedObra?.nombre || 'default';
       localStorage.setItem(`obraxis_accidentes_${key}`, JSON.stringify(updated));
-    } catch(eErr) {}
+    } catch {}
     try {
       await supabase.from('accidentes_prevencion_obra').insert([newAcc]);
-    } catch(err) {}
+    } catch {}
     await registrarEventoBitacora({ empresa: user?.empresa, obraNombre: newAcc.obra_nombre, categoria: 'Prevención', accion: `${newAcc.tipo} registrado`, detalle: `${newAcc.trabajador || 'Sin trabajador informado'} · ${newAcc.dias_perdidos} día(s) perdidos. ${newAcc.descripcion || ''}`, actor: user?.nombre || user?.email || 'Prevención de riesgos', fecha: newAcc.fecha });
     setShowAccidenteModal(false);
     alert('Incidente / Accidente registrado con éxito.');
@@ -1064,7 +959,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           error: ''
         });
       },
-      (err) => {
+      () => {
         setGpsUserLoc({
           lat: null,
           lng: null,
@@ -1135,7 +1030,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       try {
         const orderNames = updated.map(p => p.partida);
         localStorage.setItem(`obraxis_obra_partidas_order_${obraName}`, JSON.stringify(orderNames));
-      } catch (e) {}
+      } catch {}
     }
   };
 
@@ -1226,13 +1121,6 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       setRespuestasPrevencionObra([]);
       setProcedimientosPrevencionObra([]);
     }
-  };
-
-  const openObraRegisters = (obra) => {
-    setSelectedObra(obra);
-    setPrevObraSubTab('inspecciones');
-    setShowPrevencionAssignedForms(true);
-    setObraActiveSubmodule('prevencion');
   };
 
   const openAssignedPrevencionForm = (form) => {
@@ -1407,77 +1295,6 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     }
   };
 
-    const openAssignModalFromObra = async () => {
-    try {
-      const localStr = localStorage.getItem('obraxis_inventario_maquinaria');
-      const localMaq = localStr ? JSON.parse(localStr) : [];
-      const { data: remoteMaq } = await supabase.from('inventario_maquinaria').select('*');
-      
-      const mapFleet = new window.Map();
-      (remoteMaq || []).forEach(m => mapFleet.set((m.id || m.patente).toString(), m));
-      localMaq.forEach(m => {
-        const k = (m.id || m.patente).toString();
-        mapFleet.set(k, { ...mapFleet.get(k), ...m });
-      });
-
-      const fullFleet = Array.from(mapFleet.values());
-      setFleetListForObra(fullFleet);
-      if (fullFleet.length > 0) {
-        setSelectedFleetEquipId((fullFleet[0].id || fullFleet[0].patente).toString());
-        setAssignObraCostoInterno(fullFleet[0].costo_interno ? fullFleet[0].costo_interno.toString() : '');
-        setAssignObraUnidadCosto(fullFleet[0].unidad_costo_interno || '$/día');
-      }
-      setShowAssignModalObra(true);
-    } catch (e) {
-      console.error('Error cargando flota:', e);
-    }
-  };
-
-  const handleConfirmAssignToObra = async (e) => {
-    e.preventDefault();
-    if (!selectedFleetEquipId || !selectedObra) return;
-
-    const equipObj = fleetListForObra.find(m => (m.id || m.patente).toString() === selectedFleetEquipId.toString());
-    if (!equipObj) return;
-
-    const newObraName = selectedObra.nombre;
-    const parsedCosto = parseFloat(assignObraCostoInterno) || 0;
-
-    // 1. Guardado síncrono local
-    const localStr = localStorage.getItem('obraxis_inventario_maquinaria');
-    let localList = localStr ? JSON.parse(localStr) : [...fleetListForObra];
-
-    const updatedItem = {
-      ...equipObj,
-      obra_nombre: newObraName,
-      costo_interno: parsedCosto,
-      unidad_costo_interno: assignObraUnidadCosto
-    };
-
-    localList = localList.map(item => 
-      (item.id && item.id.toString() === equipObj.id?.toString()) || item.patente === equipObj.patente
-        ? updatedItem 
-        : item
-    );
-
-    localStorage.setItem('obraxis_inventario_maquinaria', JSON.stringify(localList));
-
-    // 2. Guardado en Supabase
-    try {
-      await supabase.from('inventario_maquinaria').update({
-        obra_nombre: newObraName,
-        costo_interno: parsedCosto,
-        unidad_costo_interno: assignObraUnidadCosto
-      }).eq('id', equipObj.id || selectedFleetEquipId);
-    } catch (err) {
-      console.warn('Asignación efectuada localmente:', err.message);
-    }
-
-    setShowAssignModalObra(false);
-    fetchObraDetails(selectedObra.nombre);
-    alert('¡Equipo ' + equipObj.tipo + ' (' + (equipObj.patente || 'S/I') + ') asignado exitosamente a la obra "' + newObraName + '"!');
-  };
-
     // Helper infalible para obtener equipos asignados a la obra actual
   const getEquiposParaObraActual = () => {
     if (maquinariaList && maquinariaList.length > 0) return maquinariaList;
@@ -1511,8 +1328,6 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
   const fetchObraDetails = async (obraNombre) => {
     if (!obraNombre) return;
-    const targetName = obraNombre.trim().toLowerCase();
-
     const isMatchObra = (itemObra, targetObra) => {
       if (!itemObra || !targetObra) return false;
       const rawObra = String(itemObra).trim().toLowerCase();
@@ -1555,7 +1370,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         if (savedLiq) setLiquidacionesList(JSON.parse(savedLiq));
         const savedCostosStr = localStorage.getItem(`obraxis_costos_${obraNombre}`) || localStorage.getItem(`obraxis_costos_${selectedObra?.id}`) || localStorage.getItem(`costos_reales_${obraNombre}`);
         if (savedCostosStr) {
-          try { setCostosList(JSON.parse(savedCostosStr)); } catch (err) {}
+          try { setCostosList(JSON.parse(savedCostosStr)); } catch {}
         }
         try {
           const { data: facturasObra, error: facturasError } = await supabase
@@ -1600,7 +1415,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           const { data: allMant } = await supabase.from('mantenciones_maquinaria').select('*');
           const supaMant = (allMant || []).filter(m => isMatchObra(m.obra_nombre, obraNombre));
           if (supaMant && supaMant.length > 0) setMantencionesMaquinariaList(supaMant);
-        } catch (errM) {}
+        } catch {}
 
         try {
           const savedPara = localStorage.getItem(`obraxis_paralizaciones_${obraNombre}`);
@@ -1608,7 +1423,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           const { data: allPara } = await supabase.from('paralizaciones_maquinaria').select('*');
           const supaPara = (allPara || []).filter(p => isMatchObra(p.obra_nombre, obraNombre));
           if (supaPara && supaPara.length > 0) setParalizacionesMaquinariaList(supaPara);
-        } catch (errP) {}
+        } catch {}
 
         try {
           const savedAcc = localStorage.getItem(`obraxis_accidentes_${obraNombre}`);
@@ -1616,8 +1431,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           const { data: allAcc } = await supabase.from('accidentes_prevencion_obra').select('*');
           const supaAcc = (allAcc || []).filter(a => isMatchObra(a.obra_nombre, obraNombre));
           if (supaAcc && supaAcc.length > 0) setAccidentesPrevencionList(supaAcc);
-        } catch (errA) {}
-      } catch (err) {}
+        } catch {}
+      } catch {}
     } catch (e) {
       console.warn('Aviso personal:', e);
     }
@@ -1687,7 +1502,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       const combinedFleet = Array.from(uniqueMap.values());
       try {
         localStorage.setItem('obraxis_inventario_maquinaria', JSON.stringify(combinedFleet));
-      } catch (err) {}
+      } catch {}
 
       const finalMaqObra = combinedFleet.filter(item => isMatchObra(item.obra_nombre, obraNombre));
       setMaquinariaCount(finalMaqObra.length);
@@ -1771,7 +1586,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       let savedLocalPartidas = [];
       try {
         if (savedLocalPartidasStr) savedLocalPartidas = JSON.parse(savedLocalPartidasStr);
-      } catch(e) {}
+      } catch {}
 
       const projectStartDate = getObraDateRange(selectedObra).start;
       const normalizePlanningText = value => String(value || '').trim().toLocaleLowerCase('es-CL').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -1817,7 +1632,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
             return 0;
           });
         }
-      } catch (e) {}
+      } catch {}
 
       setPartidasList(normalizedListPart);
     } catch (e) {
@@ -1832,7 +1647,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       const combinedAsist = [...(asist1 || []), ...(asist2 || [])];
       fullAsist = combinedAsist.filter(a => isMatchObra(a.obra_nombre, obraNombre));
       setAsistenciaList(fullAsist);
-    } catch (e) {}
+    } catch {}
 
     // 5. Avances de producción
     let fullAvances = [];
@@ -1846,7 +1661,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       const combinedAv = [...(av1 || []), ...(av2 || [])];
       fullAvances = combinedAv.filter(r => isMatchObra(r.obra_nombre, obraNombre));
       setReportesAvanceList(fullAvances);
-    } catch (e) {}
+    } catch {}
 
     // 6. Bitácora
     try {
@@ -1856,7 +1671,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         .eq('obra_nombre', obraNombre)
         .order('created_at', { ascending: true });
       setBitacoraNotasList(fullNotas || []);
-    } catch (e) {}
+    } catch {}
 
     // 7. Hitos integrados para la Bitácora: calidad y estados de pago.
     try {
@@ -1872,7 +1687,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       setEventosBitacoraList((eventosResult.data || []).filter(item => !user?.empresa || item.empresa === user.empresa));
       setLibroObraBitacoraList((libroResult.data || []).filter(item => !user?.empresa || item.empresa === user.empresa));
       setPrevencionBitacoraList(prevencionResult.data || []);
-    } catch (e) {
+    } catch {
       setRdisBitacoraList([]); setEstadosPagoBitacoraList([]); setEventosBitacoraList([]); setLibroObraBitacoraList([]); setPrevencionBitacoraList([]);
     }
 
@@ -1912,7 +1727,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       if (selectedObra?.id) {
         localStorage.setItem(`arriendos_${selectedObra.id}`, JSON.stringify(finalArriendos));
       }
-    } catch (e) {
+    } catch {
       const savedAStr = localStorage.getItem(`arriendos_${selectedObra?.id || selectedObra?.nombre}`) || localStorage.getItem(`arriendos_${obraNombre}`);
       if (savedAStr) setArriendosList(JSON.parse(savedAStr));
     }
@@ -1925,7 +1740,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         .eq('obra_nombre', obraNombre)
         .order('fecha', { ascending: false });
       setAsistenciasHistoryList(listAsistencia || []);
-    } catch (e) {}
+    } catch {}
 
     const combined = [
       ...(fullAsist || []).slice(0, 3).map(a => ({ type: 'asistencia', date: a.created_at, text: `${a.trabajador} marcado como ${a.asistencia}` })),
@@ -2392,13 +2207,13 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       if (selectedObra?.nombre) {
         localStorage.setItem(`arriendos_${selectedObra.nombre}`, JSON.stringify(updated));
       }
-    } catch (err) {}
+    } catch {}
 
     try {
       if (arriendoId && !isNaN(parseInt(arriendoId))) {
         await supabase.from('arriendos_maquinaria').delete().eq('id', arriendoId);
       }
-    } catch (err) {}
+    } catch {}
   };
 
   // 6. Generar / Descargar Documento Oficial del Libro Digital de Asistencia (con Firma Base64)
@@ -2517,7 +2332,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     setCuadrillasList(updated);
     try {
       localStorage.setItem(`cuadrillas_${selectedObra.id}`, JSON.stringify(updated));
-    } catch(e) {}
+    } catch {}
     setShowCuadrillaModal(false);
     setCuadrillaData({ nombre: '', lider: '', especialidad: 'Hormigón', miembros: [] });
   };
@@ -2564,7 +2379,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       if (selectedObra?.nombre) {
         localStorage.setItem(`arriendos_${selectedObra.nombre}`, JSON.stringify(updated));
       }
-    } catch(e) {}
+    } catch {}
 
     try {
       const payloadSupabase = {
@@ -2643,14 +2458,14 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
               }
             ];
             setCuadrillasList(autoCuadrillas);
-            try { localStorage.setItem(obraKey, JSON.stringify(autoCuadrillas)); } catch(e) {}
+            try { localStorage.setItem(obraKey, JSON.stringify(autoCuadrillas)); } catch {}
           }
         }
 
         const savedA = localStorage.getItem(`arriendos_${selectedObra.id}`) || localStorage.getItem(`arriendos_${selectedObra.nombre}`);
         if (savedA) setArriendosList(JSON.parse(savedA));
         else setArriendosList([]);
-      } catch(e) {}
+      } catch {}
     }
   }, [selectedObra, personalAsignadoList]);
 
@@ -2728,16 +2543,6 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       ...asistenciaData,
       trabajador: nombre,
       rut: selected ? selected.rut : ''
-    });
-  };
-
-  // Si se selecciona una partida, llenar su unidad de medida
-  const handlePartidaSelect = (partida) => {
-    const selected = partidasList.find(p => p.partida === partida);
-    setAvanceData({
-      ...avanceData,
-      partida: partida,
-      unidad: selected ? selected.unidad : 'UND'
     });
   };
 
@@ -4492,7 +4297,6 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                     return unifiedBitacoraEvents.map((item, idx) => {
                       const isAmber = item.color === 'amber';
                       const isBlue = item.color === 'blue';
-                      const isEmerald = item.color === 'emerald';
                       const isRose = item.color === 'rose';
 
                       return (
@@ -4902,7 +4706,6 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 // 6. Prevención de Riesgos y Accidentabilidad
                 const filteredAccidentes = (accidentesPrevencionList || []).filter(a => a.fecha <= fCorteStr);
                 const countCTP = filteredAccidentes.filter(a => a.tipo === 'CTP').length;
-                const countSTP = filteredAccidentes.filter(a => a.tipo === 'STP' || a.tipo === 'CASI_ACCIDENTE').length;
                 const totalDiasPerdidos = filteredAccidentes.reduce((acc, a) => acc + (parseInt(a.dias_perdidos, 10) || 0), 0);
                 
                 // Tasas HSE (Frecuencia y Gravidez)
@@ -4958,7 +4761,6 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 const SPI = evm.spi ?? 1.0;
                 const EAC = evm.eac;
                 const CV = evm.costVariance;
-                const SV = evm.scheduleVariance;
 
                 // PARTIDAS CON ALERTA Y DESVIACIÓN CRÍTICA DE COSTO
                 const partidasConDesviacion = targetPartidas.map(p => {
@@ -6958,9 +6760,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 const saldoReal = totalPres - totalCostosReales;
 
                 // Proyección de gastos por partidas ejecutables a fecha de corte
-                const fInicioStr = fechaInicioReal || selectedObra?.fecha_inicio || (new Date().toISOString().substring(0, 8) + '01');
                 const fCorteStr = fechaCorteProyeccion || new Date().toISOString().substring(0, 10);
-                const dInicio = new Date(fInicioStr);
                 const dCorte = new Date(fCorteStr);
 
                 const executableParts = partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo));
@@ -7467,16 +7267,6 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           </tr>
 
                           {(() => {
-                            const fInicioStr = fechaInicioReal || selectedObra?.fecha_inicio || (new Date().toISOString().substring(0, 8) + '01');
-                            const fCorteStr = fechaCorteProyeccion || new Date().toISOString().substring(0, 10);
-                            const dInicio = new Date(fInicioStr);
-                            const dCorte = new Date(fCorteStr);
-                            let diasTranscurridosCorte = 1;
-                            if (!isNaN(dInicio.getTime()) && !isNaN(dCorte.getTime())) {
-                              const diffDays = Math.floor((dCorte.getTime() - dInicio.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                              diasTranscurridosCorte = Math.max(1, diffDays);
-                            }
-
                             return partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo)).map((p, pIdx) => {
                               const cantTotal = parseFloat(p.cantidad) || 0;
                               const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
@@ -7694,7 +7484,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                                                   try {
                                                                     const key = `obraxis_proyecciones_obras_${selectedObra?.nombre}`;
                                                                     localStorage.setItem(key, JSON.stringify(updated));
-                                                                  } catch (err) {}
+                                                                  } catch {}
                                                                   return updated;
                                                                 });
                                                               }
@@ -9916,7 +9706,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           localStorage.setItem(`obraxis_obra_partidas_order_${selectedObra.nombre}`, JSON.stringify(savedNames));
                           localStorage.setItem(`partidas_${selectedObra.nombre}`, JSON.stringify(updated));
                           if (selectedObra.id) localStorage.setItem(`partidas_${selectedObra.id}`, JSON.stringify(updated));
-                        } catch (e) {}
+                        } catch {}
                       }
                       return updated;
                     });
@@ -9945,7 +9735,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                         if (selectedObra?.nombre) {
                           try {
                             localStorage.setItem(`obraxis_costos_${selectedObra.nombre}`, JSON.stringify(updatedCostos));
-                          } catch(e) {}
+                          } catch {}
                         }
                         return updatedCostos;
                       });
@@ -9968,7 +9758,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           localStorage.setItem(`obraxis_obra_partidas_order_${selectedObra.nombre}`, JSON.stringify(orderNames));
                           localStorage.setItem(`partidas_${selectedObra.nombre}`, JSON.stringify(updated));
                           if (selectedObra.id) localStorage.setItem(`partidas_${selectedObra.id}`, JSON.stringify(updated));
-                        } catch (e) {}
+                        } catch {}
                       }
                       return updated;
                     });
@@ -10304,7 +10094,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 setProyeccionesRrhhList(newBulkProjections);
                 try {
                   localStorage.setItem(`obraxis_proj_rrhh_${selectedObra?.nombre}`, JSON.stringify(newBulkProjections));
-                } catch (err) {}
+                } catch {}
 
                 // Actualizar customSalariesMap para que cada trabajador sume H.E. y Asignaciones al Costo Empresa
                 setCustomSalariesMap(prev => {
@@ -10738,7 +10528,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   try {
                     const key = `obraxis_proyecciones_obras_${selectedObra?.nombre}`;
                     localStorage.setItem(key, JSON.stringify(updated));
-                  } catch (err) {}
+                  } catch {}
                   return updated;
                 });
                 setShowProyeccionModal(false);
@@ -10957,7 +10747,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   localStorage.setItem(`obraxis_costos_${obraKey}`, JSON.stringify(updatedCostos));
                   if (selectedObra?.id) localStorage.setItem(`obraxis_costos_${selectedObra.id}`, JSON.stringify(updatedCostos));
                   if (selectedObra?.nombre) localStorage.setItem(`obraxis_costos_${selectedObra.nombre}`, JSON.stringify(updatedCostos));
-                } catch (eErr) {}
+                } catch {}
 
                 try {
                   const payload = {

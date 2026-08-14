@@ -7,12 +7,12 @@ import { jsPDF } from 'jspdf';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
 import { 
-  ArrowLeft, ShieldAlert, Plus, Save, Trash2, FileText, CheckCircle2, 
+  ShieldAlert, Plus, Save, Trash2, FileText, CheckCircle2,
   ChevronUp, ChevronDown, GripVertical, 
   Share2, Copy, Eye, Edit, ChevronLeft, ChevronRight, Search, QrCode, AlertTriangle, 
   Type, AlignLeft, Hash, Calendar, CheckSquare, Radio, ToggleLeft, 
-  PenTool, Camera, Sparkles, Send, Check, Download, Layers, Building2, User, BoxSelect, Layers3,
-  Award, BookOpen, GraduationCap, Video, HelpCircle, ExternalLink, FileSpreadsheet, Loader2, BarChart3
+  PenTool, Camera, Sparkles, Send, Check, Download, Layers, Layers3,
+  Award, BookOpen, GraduationCap, Video, FileSpreadsheet, Loader2
 } from 'lucide-react';
 import { PreventionStatistics } from './OperationalStatistics';
 import RiskMatrixManager from './RiskMatrixManager';
@@ -23,10 +23,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
   const canCreate = can(user, permissions, 'prevencion.registros.crear');
   const canEdit = can(user, permissions, 'prevencion.registros.editar');
   const canDelete = can(user, permissions, 'prevencion.registros.eliminar');
-  const canReview = can(user, permissions, 'prevencion.registros.revisar');
-  const canDownload = can(user, permissions, 'prevencion.registros.descargar');
   const canConfigure = can(user, permissions, 'prevencion.registros.configurar');
-  const canViewStatistics = can(user, permissions, 'prevencion.estadisticas.ver');
   // Apartado activo: '' (Menú), 'builder' (Creador), 'mis_formularios', 'completar', 'respuestas', 'capacitaciones', 'evaluaciones'
   const [activeSection, setActiveSection] = useState('');
 
@@ -46,11 +43,11 @@ export default function Prevencion({ user, onBack, companyBranding }) {
 
   // Lista de Formularios Guardados (Plantillas)
   const [formularios, setFormularios] = useState([]);
-  const [loadingForms, setLoadingForms] = useState(true);
+  const [, setLoadingForms] = useState(true);
 
   // Lista de Respuestas Enviadas
   const [respuestas, setRespuestas] = useState([]);
-  const [loadingRespuestas, setLoadingRespuestas] = useState(false);
+  const [, setLoadingRespuestas] = useState(false);
 
   // ESTADO DEL CREADOR DE FORMULARIOS
   const [builderTab, setBuilderTab] = useState('edit'); // 'edit' o 'preview'
@@ -112,9 +109,9 @@ export default function Prevencion({ user, onBack, companyBranding }) {
 
   // --- SUBMÓDULO CAPACITACIONES & EVALUACIONES ---
   const [capacitaciones, setCapacitaciones] = useState([]);
-  const [loadingCapacitaciones, setLoadingCapacitaciones] = useState(false);
+  const [, setLoadingCapacitaciones] = useState(false);
   const [intentosEvaluaciones, setIntentosEvaluaciones] = useState([]);
-  const [loadingIntentos, setLoadingIntentos] = useState(false);
+  const [, setLoadingIntentos] = useState(false);
 
   // Formulario Capacitación (Crear / Editar)
   const [showCapModal, setShowCapModal] = useState(false);
@@ -143,7 +140,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
   const [personalMaestro, setPersonalMaestro] = useState([]);
   const [usuariosCumplimiento, setUsuariosCumplimiento] = useState([]);
   const [asignacionesCumplimiento, setAsignacionesCumplimiento] = useState([]);
-  const [loadingAsignaciones, setLoadingAsignaciones] = useState(false);
+  const [, setLoadingAsignaciones] = useState(false);
   const [registrosCumplimientoLog, setRegistrosCumplimientoLog] = useState([]);
   const [cumplimientoSubTab, setCumplimientoSubTab] = useState('seguimiento');
   const [statsWorkerFilter, setStatsWorkerFilter] = useState('all');
@@ -158,7 +155,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
   const [asigRegistroNombre, setAsigRegistroNombre] = useState('');
   const [asigFormularioId, setAsigFormularioId] = useState('');
   const [asigFrecuencia, setAsigFrecuencia] = useState('Diario');
-  const [asigFormType, setAsigFormType] = useState('');
+  const [, setAsigFormType] = useState('');
   const [asigHoraLimite, setAsigHoraLimite] = useState('17:00');
   const [asigDiaSemana, setAsigDiaSemana] = useState('4');
   const [asigDiaMes, setAsigDiaMes] = useState('20');
@@ -185,16 +182,6 @@ export default function Prevencion({ user, onBack, companyBranding }) {
     monday.setHours(0, 0, 0, 0);
     return monday;
   });
-
-  const categoriasPrevencion = [
-    'Inspección EPP',
-    'Charla 5 Minutos',
-    'Análisis Seguro de Trabajo (AST)',
-    'Matriz de Riesgo',
-    'Reporte de Incidente / Accidente',
-    'Lista de Chequeo Maquinaria / Herramientas',
-    'Auditoría de Terreno'
-  ];
 
   // Elementos disponibles para añadir en el Creador de Formularios
   const availableElements = [
@@ -339,28 +326,6 @@ export default function Prevencion({ user, onBack, companyBranding }) {
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err) {
       alert('Error al vaciar historial: ' + err.message);
-    }
-  };
-
-  const handleDeleteIntentoEvaluacion = async (intentoId) => {
-    if (!canDelete) { setErrorMsg('Tu perfil no está autorizado para eliminar evaluaciones.'); return; }
-    if (!window.confirm('¿Está seguro de que desea eliminar este registro de evaluación?')) {
-      return;
-    }
-    try {
-      const { error } = await supabase
-        .from('prevencion_capacitaciones_intentos')
-        .delete()
-        .eq('id', intentoId);
-      if (error) throw error;
-      setIntentosEvaluaciones(prev => prev.filter(i => i.id !== intentoId));
-      if (selectedIntentoDetail && selectedIntentoDetail.id === intentoId) {
-        setSelectedIntentoDetail(null);
-      }
-      setSuccessMsg('Registro de evaluación eliminado con éxito');
-      setTimeout(() => setSuccessMsg(''), 4000);
-    } catch (err) {
-      alert('Error al eliminar evaluación: ' + err.message);
     }
   };
 
@@ -809,47 +774,6 @@ export default function Prevencion({ user, onBack, companyBranding }) {
     }
   };
 
-  const getCumplimientoStatus = (asig) => {
-    const logs = registrosCumplimientoLog.filter(l => l.asignacion_id === asig.id);
-    if (logs.length === 0) {
-      return { label: 'Atrasado (Sin registros)', color: 'bg-rose-50 text-rose-700 border-rose-250', status: 'atrasado', lastDate: null };
-    }
-    
-    const sortedLogs = [...logs].sort((a, b) => new Date(b.fecha_cumplimiento) - new Date(a.fecha_cumplimiento));
-    const latestLog = sortedLogs[0];
-    
-    const todayStr = new Date().toISOString().split('T')[0];
-    if (latestLog.fecha_cumplimiento >= todayStr) {
-      return { label: 'Al Día', color: 'bg-emerald-50 text-emerald-700 border-emerald-250', status: 'aldia', lastDate: latestLog.fecha_cumplimiento };
-    }
-    
-    const lastDate = new Date(latestLog.fecha_cumplimiento);
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    lastDate.setHours(0,0,0,0);
-    
-    const diffTime = Math.abs(today - lastDate);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (asig.frecuencia === 'Diario') {
-      return { label: 'Atrasado', color: 'bg-rose-50 text-rose-700 border-rose-250', status: 'atrasado', lastDate: latestLog.fecha_cumplimiento };
-    } else if (asig.frecuencia === 'Semanal') {
-      if (diffDays <= 7) {
-        return { label: 'Al Día', color: 'bg-emerald-50 text-emerald-700 border-emerald-250', status: 'aldia', lastDate: latestLog.fecha_cumplimiento };
-      } else {
-        return { label: 'Atrasado', color: 'bg-rose-50 text-rose-700 border-rose-250', status: 'atrasado', lastDate: latestLog.fecha_cumplimiento };
-      }
-    } else if (asig.frecuencia === 'Mensual') {
-      if (diffDays <= 30) {
-        return { label: 'Al Día', color: 'bg-emerald-50 text-emerald-700 border-emerald-250', status: 'aldia', lastDate: latestLog.fecha_cumplimiento };
-      } else {
-        return { label: 'Atrasado', color: 'bg-rose-50 text-rose-700 border-rose-250', status: 'atrasado', lastDate: latestLog.fecha_cumplimiento };
-      }
-    }
-    
-    return { label: 'Pendiente', color: 'bg-amber-50 text-amber-700 border-amber-250', status: 'pendiente', lastDate: latestLog.fecha_cumplimiento };
-  };
-
   const getWeekDates = (start) => {
     const dates = [];
     for (let i = 0; i < 7; i++) {
@@ -1053,7 +977,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
     setDraggedIndex(index);
   };
 
-  const handleDragOver = (e, index) => {
+  const handleDragOver = (e) => {
     e.preventDefault();
   };
 
@@ -2033,7 +1957,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
                                   </div>
 
                                   <div className="space-y-2 pl-2">
-                                    {(field.subFields || []).map((sub, sIdx) => (
+                                    {(field.subFields || []).map((sub) => (
                                       <div key={sub.id} className="flex items-center gap-2 bg-white p-2 border border-slate-200 rounded-xl">
                                         <span className="text-[9px] font-extrabold text-amber-600 uppercase w-20">{sub.type}</span>
                                         <input

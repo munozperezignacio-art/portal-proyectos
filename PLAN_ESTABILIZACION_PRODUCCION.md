@@ -2,7 +2,7 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
-Avance actualizado: Etapa 1 99%; Etapa 2 90%; Etapa 3 60%; Etapa 4 30%; Etapa 5 30%; plan completo 61%.
+Avance actualizado: Etapa 1 99%; Etapa 2 90%; Etapa 3 60%; Etapa 4 42%; Etapa 5 40%; plan completo 66%.
 
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
@@ -96,6 +96,8 @@ La plataforma se considerará lista para producción cuando no existan política
 - Segunda limpieza focalizada sobre Presupuestos y Maquinaria: las advertencias globales bajaron de 287 a 220; se retiraron 67 imports, estados, omisiones y manejadores muertos sin alterar las funciones operativas.
 - Presupuestos y Maquinaria quedaron sin deuda de variables muertas; permanecen cinco advertencias de dependencias de efectos que requieren refactorizar sus cargadores con callbacks estables antes de convertir lint en bloqueo obligatorio.
 - Limpieza extendida a Formularios/Capacitaciones y Recursos Humanos: las advertencias globales bajaron nuevamente de 220 a 185, preservando sus flujos de carga, diseño y gestión documental.
+- Limpieza profunda de Obras y Prevención: las advertencias globales bajaron de 185 a 97; ambos componentes quedaron únicamente con avisos estructurales de dependencias React.
+- Retirado de `Obras.jsx` un modal heredado de asignación de maquinaria incrustado por error dentro del mapa GPS, que dependía de variables fuera de alcance y duplicaba una operación administrada por el módulo de Maquinaria.
 - Eliminados imports, estados, parámetros y cálculos muertos en portales públicos, acreditaciones, configuración, facturación, informes, login y aplicación principal; corregidos además escapes documentales seguros.
 - Obras, maestro de personal y asistencia quedaron aislados por empresa; `anon` ya no posee privilegios sobre esas tablas.
 - Políticas públicas amplias reducidas de 3 a 0 y verificadas directamente en producción.
