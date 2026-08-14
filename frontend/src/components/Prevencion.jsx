@@ -15,6 +15,7 @@ import {
   Award, BookOpen, GraduationCap, Video, HelpCircle, ExternalLink, FileSpreadsheet, Loader2, BarChart3
 } from 'lucide-react';
 import { PreventionStatistics } from './OperationalStatistics';
+import RiskMatrixManager from './RiskMatrixManager';
 
 export default function Prevencion({ user, onBack, companyBranding }) {
   const { permissions, loading: permissionsLoading } = useUserPermissions(user);
@@ -4303,44 +4304,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
 
       {/* ================= APARTADO: MATRIZ DE RIESGOS ================= */}
       {activeSection === 'matriz_riesgos' && (
-        <div className="space-y-6 animate-in fade-in duration-200">
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs">
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-rose-50 text-rose-700 rounded-2xl"><AlertTriangle className="w-6 h-6" /></div>
-              <div>
-                <h3 className="font-extrabold text-slate-850 text-base">Matriz de Identificación de Peligros y Evaluación de Riesgos</h3>
-                <p className="text-sm text-slate-500 mt-1 max-w-3xl">Será la fuente única de control preventivo por obra: desde la tarea y el peligro hasta el responsable, la medida de control y la verificación de su eficacia.</p>
-              </div>
-            </div>
-          </div>
-
-          {canViewStatistics && <div
-            onClick={() => { setActiveSection('estadisticas'); setErrorMsg(''); setSuccessMsg(''); }}
-            className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-xs hover:shadow-md hover:border-cyan-700 hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col justify-between min-h-[160px]"
-          >
-            <div className="p-4 bg-cyan-50 text-cyan-800 rounded-2xl group-hover:bg-cyan-800 group-hover:text-white transition-all duration-300 w-fit"><BarChart3 className="w-6 h-6" /></div>
-            <div className="space-y-1 mt-4"><h3 className="font-extrabold text-slate-850 text-sm uppercase tracking-wider group-hover:text-cyan-800 transition">Estadísticas de Prevención</h3><p className="text-xs text-slate-500 leading-normal">Tendencias, incidentes, hallazgos, cumplimiento y concentración preventiva por obra.</p></div>
-          </div>}
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[
-              ['1. Identificar', 'Proceso, actividad, tarea, peligro, evento no deseado y personas expuestas.'],
-              ['2. Evaluar', 'Controles existentes, probabilidad, consecuencia, nivel de riesgo inherente y residual.'],
-              ['3. Controlar', 'Jerarquía de controles, responsable, plazo, evidencia, revisión y estado de cierre.']
-            ].map(([title, description]) => (
-              <div key={title} className="bg-white border border-slate-200 rounded-2xl p-5">
-                <p className="text-xs font-extrabold text-primary uppercase tracking-wide">{title}</p>
-                <p className="text-xs text-slate-500 leading-relaxed mt-2">{description}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="bg-slate-50 border border-dashed border-slate-300 rounded-3xl p-8 text-center">
-            <FileSpreadsheet className="w-9 h-9 text-slate-300 mx-auto" />
-            <h4 className="mt-3 text-sm font-extrabold text-slate-700">Matriz corporativa y por obra</h4>
-            <p className="mt-1 text-xs text-slate-500 max-w-xl mx-auto">Aquí estarán las matrices vigentes, sus revisiones y sus acciones de control. La implementación continuará con la tabla, escalas configurables y seguimiento de medidas.</p>
-          </div>
-        </div>
+        <RiskMatrixManager user={user} obras={obrasList} canCreate={canCreate} canEdit={canEdit} canDelete={canDelete} />
       )}
 
       {/* ================= APARTADO: PROCEDIMIENTOS (PTS) ================= */}
