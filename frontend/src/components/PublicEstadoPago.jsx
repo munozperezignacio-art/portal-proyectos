@@ -24,21 +24,10 @@ export default function PublicEstadoPago({ token, role }) {
   const [message, setMessage] = useState('');
   const typeLabel = role === 'aprobacion' ? 'aprobación contractual' : 'revisión técnica';
 
-  const loadSupportingData = async (payment) => {
+  const loadSupportingData = async (payment, serverSummary = null) => {
     setItem(payment);
     setProposal((payment.items || []).map(line => ({ ...line, cantidad_propuesta: line.cantidad_propuesta ?? line.executed ?? 0, comentario_externo: line.comentario_externo || '' })));
-    const statesResult = await supabase.from('estados_pago_obra').select('numero,monto_bruto,retencion_monto,anticipo_descontado,monto_neto,estado').eq('empresa', payment.empresa).eq('obra_nombre', payment.obra_nombre).lte('numero', payment.numero);
-    const valid = (statesResult.data || []).filter(row => row.estado !== 'Rechazado');
-    const before = valid.filter(row => Number(row.numero) < Number(payment.numero));
-    const total = field => valid.reduce((sum, row) => sum + Number(row[field] || 0), 0);
-    const prior = field => before.reduce((sum, row) => sum + Number(row[field] || 0), 0);
-    const contractFromSnapshot = (payment.items || []).reduce((sum, line) => sum + (Number(line.monto_contrato || 0) || Number(line.quantity || 0) * Number(line.unitPrice || 0)), 0);
-    const contract = contractFromSnapshot;
-    setSummary({
-      bruto_anterior: prior('monto_bruto'), bruto_acumulado: total('monto_bruto'), retencion_acumulada: total('retencion_monto'), anticipo_acumulado: total('anticipo_descontado'), neto_acumulado: total('monto_neto'),
-      avance_periodo_pct: contract > 0 ? Number(payment.monto_bruto || 0) / contract * 100 : 0,
-      avance_acumulado_pct: contract > 0 ? total('monto_bruto') / contract * 100 : 0,
-    });
+    setSummary(serverSummary || {});
   };
 
   const verifyAccess = async (event) => {
@@ -46,13 +35,10 @@ export default function PublicEstadoPago({ token, role }) {
     if (!accessCode.trim()) { setMessage('Ingresa la clave recibida por correo.'); return; }
     setLoading(true); setMessage('');
     try {
-      const codeColumn = role === 'aprobacion' ? 'clave_aprobacion_hash' : 'clave_revision_hash';
-      const tokenColumn = role === 'aprobacion' ? 'token_aprobacion' : 'token_revision';
-      const codeHash = await hashAccessCode(accessCode);
-      const { data, error } = await supabase.from('estados_pago_obra').select('*').eq(tokenColumn, token).eq(codeColumn, codeHash).maybeSingle();
+      const { data, error } = await supabase.functions.invoke('documento-publico', { body: { tipo: 'estado_pago', accion: 'cargar', token, clave: accessCode, rol: role } });
       if (error) throw error;
       if (!data) { setMessage('La clave o el enlace no son válidos. Revisa el correo recibido.'); return; }
-      await loadSupportingData(data);
+      await loadSupportingData(data.documento, data.resumen);
       setAuthorised(true);
     } catch (error) {
       setMessage(error.message?.includes('clave_') ? 'La obra debe actualizar la configuración de Estados de Pago antes de usar claves externas.' : `No fue posible validar el acceso: ${error.message}`);
@@ -65,11 +51,15 @@ export default function PublicEstadoPago({ token, role }) {
 
   const reload = async () => {
     if (!item) return;
-    const { data, error } = await supabase.from('estados_pago_obra').select('*').eq('id', item.id).maybeSingle();
+    const { data, error } = await supabase.functions.invoke('documento-publico', { body: { tipo: 'estado_pago', accion: 'cargar', token, clave: accessCode, rol: role } });
     if (error || !data) { setMessage('El Estado de Pago ya no está disponible.'); return; }
-    await loadSupportingData(data);
+    await loadSupportingData(data.documento, data.resumen);
   };
   const resolve = async (approved) => {
+    const server = await supabase.functions.invoke('documento-publico', { body: { tipo: 'estado_pago', accion: 'resolver', token, clave: accessCode, rol: role, aprobado: approved, comentario: note } });
+    if (server.error || !server.data?.ok) setMessage(`No fue posible registrar la decisión: ${server.error?.message || server.data?.error || 'Error desconocido'}`);
+    else { setMessage(approved ? 'Decisión registrada correctamente.' : 'El Estado de Pago fue devuelto con observaciones.'); await reload(); }
+    return;
     const estado = approved ? (role === 'aprobacion' ? 'Aprobado' : 'En aprobación') : 'Observado';
     const field = role === 'aprobacion' ? 'observacion_aprobacion' : 'observacion_revision';
     const actor = role === 'aprobacion' ? item.aprobador_nombre || 'Aprobador externo' : item.revisor_nombre || 'Revisor externo';
@@ -80,6 +70,10 @@ export default function PublicEstadoPago({ token, role }) {
   const submitProposal = async () => {
     const hasProposal = proposal.some(line => Number(line.cantidad_propuesta) !== Number(line.executed) || line.comentario_externo.trim());
     if (!hasProposal) { setMessage('Indica una cantidad distinta o un comentario en al menos una partida.'); return; }
+    const server = await supabase.functions.invoke('documento-publico', { body: { tipo: 'estado_pago', accion: 'proponer', token, clave: accessCode, rol: role, items: proposal, comentario: note } });
+    if (server.error || !server.data?.ok) setMessage(`No fue posible enviar la propuesta: ${server.error?.message || server.data?.error || 'Error desconocido'}`);
+    else { setMessage('Propuesta enviada al preparador para su revisión.'); await reload(); }
+    return;
     const { error } = await supabase.from('estados_pago_obra').update({ estado: 'Observado', items: proposal, observacion_revision: note || 'Se recibió una propuesta de ajuste por partidas.', trazabilidad: appendAudit(item.trazabilidad, auditActor({ nombre: item.revisor_nombre || 'Revisor externo', empresa: item.empresa, cargo: 'Revisor externo' }, 'Propuesta externa de ajuste', 'Observado', note || 'Se propusieron ajustes por partidas.')) }).eq('id', item.id);
     if (error) setMessage(`No fue posible enviar la propuesta: ${error.message}`);
     else { await registrarEventoBitacora({ empresa: item.empresa, obraNombre: item.obra_nombre, categoria: 'Estados de Pago', accion: `EP N° ${item.numero} observado con propuesta`, detalle: note || 'El revisor propuso ajustes por partidas.', actor: item.revisor_nombre || 'Revisor externo' }); setMessage('Propuesta enviada al preparador para su revisión.'); await reload(); }

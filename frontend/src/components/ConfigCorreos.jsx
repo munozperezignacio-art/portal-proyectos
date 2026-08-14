@@ -162,6 +162,7 @@ function ConfigCorreos({ user, onBack }) {
       const { data: dataConfigs, error: errConfigs } = await supabase
         .from('config_correos')
         .select('*')
+        .eq('empresa', user?.empresa)
         .order('tipo', { ascending: true });
       if (errConfigs) throw errConfigs;
       setConfigs(dataConfigs || []);
@@ -1094,7 +1095,8 @@ function ConfigCorreos({ user, onBack }) {
     const dataToSave = {
       tipo: formData.tipo,
       correos: emails.join(', '),
-      filtro: formData.filtro || null
+      filtro: formData.filtro || null,
+      empresa: user?.empresa
     };
 
     try {

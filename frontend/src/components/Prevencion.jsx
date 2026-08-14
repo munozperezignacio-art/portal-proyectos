@@ -468,6 +468,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
         .from('config_correos')
         .select('*')
         .eq('tipo', 'Informe Mensual Cumplimiento')
+        .eq('empresa', user?.empresa)
         .maybeSingle();
       if (error) throw error;
       if (data) {
@@ -490,12 +491,14 @@ export default function Prevencion({ user, onBack, companyBranding }) {
         .from('config_correos')
         .select('id')
         .eq('tipo', 'Informe Mensual Cumplimiento')
+        .eq('empresa', user?.empresa)
         .maybeSingle();
 
       const payload = {
         tipo: 'Informe Mensual Cumplimiento',
         correos: scheduledReportEmails.trim(),
-        filtro: isScheduledActive ? 'activo' : 'inactivo'
+        filtro: isScheduledActive ? 'activo' : 'inactivo',
+        empresa: user?.empresa
       };
 
       if (existing) {
@@ -1339,6 +1342,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
             .from('config_correos')
             .select('correos')
             .eq('tipo', 'Prevencion y Seguridad')
+            .eq('empresa', user?.empresa)
             .maybeSingle();
           if (configAlertas && configAlertas.correos) {
             destinationEmails = configAlertas.correos;
