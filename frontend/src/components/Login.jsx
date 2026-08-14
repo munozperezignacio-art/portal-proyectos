@@ -25,11 +25,10 @@ function Login({ onLoginSuccess, onBackHome }) {
 
   // Estados Lector y Marcación QR Rápida
   const [showQRScanner, setShowQRScanner] = useState(false);
-  const [obrasListQR, setObrasListQR] = useState([]);
   const [selectedObraQR, setSelectedObraQR] = useState(null);
+  const [qrAccessToken, setQrAccessToken] = useState('');
   const [qrWorkerData, setQrWorkerData] = useState({ trabajador: '', rut: '', rutInput: '', cargo: '' });
   const [rutValidationState, setRutValidationState] = useState({ status: 'idle', error: '' });
-  const [personalListQR, setPersonalListQR] = useState([]);
   const [qrGpsLoc, setQrGpsLoc] = useState({ lat: null, lng: null, distance: null, status: 'idle', isWithin: false, error: '' });
   const [qrSubmitLoading, setQrSubmitLoading] = useState(false);
   const [qrSuccessMsg, setQrSuccessMsg] = useState('');
@@ -79,7 +78,7 @@ function Login({ onLoginSuccess, onBackHome }) {
     return dv === expectedDv;
   };
 
-  const handleRutInputChange = (e) => {
+  const handleRutInputChange = async (e) => {
     const rawVal = e.target.value;
     const formatted = formatRut(rawVal);
     const clean = rawVal.replace(/[^0-9kK]/g, '').toUpperCase();
@@ -104,10 +103,8 @@ function Login({ onLoginSuccess, onBackHome }) {
     }
 
     // RUT válido Módulo 11 -> Buscar en la lista de personal de la obra
-    const found = personalListQR.find(p => {
-      const pClean = (p.rut || '').replace(/[^0-9kK]/g, '').toUpperCase();
-      return pClean === clean || p.rut === formatted;
-    });
+    const { data: lookup, error: lookupError } = await supabase.functions.invoke('asistencia-publica', { body: { accion: 'validar_persona', token: qrAccessToken, rut: formatted } });
+    const found = !lookupError ? lookup?.trabajador : null;
 
     if (found) {
       setQrWorkerData({ trabajador: found.nombre, rut: formatted, rutInput: formatted, cargo: found.cargo });
@@ -120,27 +117,18 @@ function Login({ onLoginSuccess, onBackHome }) {
 
   const fetchObrasForQR = async () => {
     try {
-      const { data } = await supabase.from('obras').select('*').order('nombre', { ascending: true });
-      if (data) {
-        setObrasListQR(data);
-
-        // Detectar si la URL contiene parámetro de Obra proveniente de código QR escaneado
-        const params = new URLSearchParams(window.location.search);
-        const obraParam = params.get('obra') || params.get('obra_id') || params.get('asistencia');
-        
-        if (obraParam) {
-          const match = data.find(o => 
-            o.id.toString() === obraParam || 
-            o.nombre.toLowerCase() === decodeURIComponent(obraParam).toLowerCase()
-          );
-          if (match) {
-            handleSelectObraQR(match);
-            setShowQRScanner(true);
-          }
-        }
-      }
+      const token = new URLSearchParams(window.location.search).get('asistencia');
+      if (!token) return;
+      const { data, error: loadError } = await supabase.functions.invoke('asistencia-publica', {
+        body: { accion: 'cargar', token }
+      });
+      if (loadError || !data?.obra) throw new Error(data?.error || 'El código QR no es válido o ya no está disponible.');
+      setQrAccessToken(token);
+      handleSelectObraQR(data.obra);
+      setShowQRScanner(true);
     } catch (e) {
       console.error('Error cargando obras para QR:', e);
+      setQrErrorMsg(e.message || 'No fue posible abrir la marcación QR.');
     }
   };
 
@@ -157,19 +145,12 @@ function Login({ onLoginSuccess, onBackHome }) {
     return Math.round(R * c);
   };
 
-  const handleSelectObraQR = async (obra) => {
+  const handleSelectObraQR = (obra) => {
     setSelectedObraQR(obra);
     setQrSuccessMsg('');
     setQrErrorMsg('');
     setQrWorkerData({ trabajador: '', rut: '' });
     clearSignatureQR();
-
-    try {
-      const { data } = await supabase.from('maestro_personal').select('nombre, rut, cargo').eq('obra_nombre', obra.nombre);
-      setPersonalListQR(data || []);
-    } catch (e) {
-      setPersonalListQR([]);
-    }
 
     requestGPSForLoginQR(obra);
   };
@@ -247,7 +228,8 @@ function Login({ onLoginSuccess, onBackHome }) {
     setQrErrorMsg('');
     setQrWelcomeData(null);
     try {
-      if (!qrWorkerData.trabajador) throw new Error('Debes seleccionar o ingresar un trabajador.');
+      if (!qrAccessToken) throw new Error('Debes ingresar escaneando el código QR vigente de la obra.');
+      if (!qrWorkerData.trabajador) throw new Error('El RUT debe corresponder a una persona asignada a esta obra.');
       if (selectedObraQR?.latitud && selectedObraQR?.longitud && qrGpsLoc.status === 'success' && !qrGpsLoc.isWithin) {
         const maxR = selectedObraQR.radio_cobertura_m || 200;
         throw new Error(`⚠️ Marcación rechazada por ubicación: Te encuentras a ${qrGpsLoc.distance}m de la obra (máximo permitido ${maxR}m).`);
@@ -257,81 +239,26 @@ function Login({ onLoginSuccess, onBackHome }) {
         firmaBase64 = qrCanvasRef.current.toDataURL('image/png');
       }
 
-      const todayStr = new Date().toISOString().split('T')[0];
-      const horaActual = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const workerName = qrWorkerData.trabajador.trim();
       const obraName = selectedObraQR.nombre;
-
-      // Buscar si el trabajador ya registra marcaje de INGRESO hoy en esta obra sin salida
-      let existingRecord = null;
-      try {
-        const { data: recs } = await supabase
-          .from('asistencia_personal')
-          .select('id, ingreso, salida, created_at')
-          .eq('obra_nombre', obraName)
-          .eq('trabajador', workerName)
-          .gte('created_at', `${todayStr}T00:00:00.000Z`)
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        if (recs && recs.length > 0 && recs[0].ingreso && !recs[0].salida) {
-          existingRecord = recs[0];
-        }
-      } catch (checkErr) {
-        console.warn("Aviso al verificar marcaje previo:", checkErr);
-      }
-
-      let isExit = false;
-
-      if (existingRecord) {
-        // Segundo marcaje del día -> Registrar SALIDA
-        isExit = true;
-        const { error: exitErr } = await supabase
-          .from('asistencia_personal')
-          .update({ salida: horaActual })
-          .eq('id', existingRecord.id);
-
-        if (exitErr) throw exitErr;
-      } else {
-        // Primer marcaje del día -> Registrar INGRESO
-        const basePayload = {
-          obra_nombre: obraName,
-          supervisor: 'Autogestión_QR_Móvil',
-          trabajador: workerName,
-          rut: qrWorkerData.rut ? qrWorkerData.rut.trim() : null,
-          asistencia: 'PRESENTE',
-          ingreso: horaActual,
-          salida: null,
-          colacion: 'SI',
-          horas_ordinarias: 9
-        };
-
-        const fullPayload = {
-          ...basePayload,
-          firma_base64: firmaBase64,
+      const { data: result, error: markError } = await supabase.functions.invoke('asistencia-publica', {
+        body: {
+          accion: 'marcar',
+          token: qrAccessToken,
+          rut: qrWorkerData.rut,
           latitud: qrGpsLoc.lat,
           longitud: qrGpsLoc.lng,
-          distancia_obra_m: qrGpsLoc.distance,
-          verificado_qr: true
-        };
-
-        let { error } = await supabase.from('asistencia_personal').insert([fullPayload]);
-
-        if (error && error.message && error.message.includes('column')) {
-          console.warn("Reintentando insercion de asistencia con campos base:", error.message);
-          const retryRes = await supabase.from('asistencia_personal').insert([basePayload]);
-          if (retryRes.error) throw retryRes.error;
-        } else if (error) {
-          throw error;
+          firma_base64: firmaBase64
         }
-      }
+      });
+      if (markError || !result?.ok) throw new Error(result?.error || 'No fue posible registrar la asistencia.');
 
       // Configurar datos de la pantalla de confirmación/bienvenida (duración 4 segundos)
       setQrWelcomeData({
-        tipo: isExit ? 'SALIDA' : 'INGRESO',
+        tipo: result.tipo,
         trabajador: workerName,
         obra: obraName,
-        hora: horaActual
+        hora: result.hora
       });
 
       setTimeout(() => {
@@ -612,28 +539,10 @@ function Login({ onLoginSuccess, onBackHome }) {
             {/* Paso 1: Selección / Escaneo de Obra */}
             {!selectedObraQR ? (
               <div className="space-y-4 my-2">
-                <p className="text-xs text-slate-600 font-medium leading-relaxed">
-                  Selecciona tu Obra o escanea el código QR de faena para verificar tu distancia y registrar tu asistencia inmediatamente:
-                </p>
-
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-bold uppercase text-slate-500">Seleccionar Obra de Faena</label>
-                  <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto pr-1">
-                    {obrasListQR.map(o => (
-                      <button
-                        key={o.id}
-                        type="button"
-                        onClick={() => handleSelectObraQR(o)}
-                        className="p-3 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-xl text-left transition flex justify-between items-center cursor-pointer group"
-                      >
-                        <div>
-                          <p className="font-bold text-xs text-slate-800 group-hover:text-blue-900 uppercase">{o.nombre}</p>
-                          <p className="text-[10px] text-slate-400 mt-0.5">{o.tipo || 'General'}</p>
-                        </div>
-                        <span className="text-[10px] font-bold text-blue-900 bg-white px-2 py-1 rounded-lg border border-slate-200 shadow-2xs">Escanear</span>
-                      </button>
-                    ))}
-                  </div>
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-center">
+                  <QrCode className="w-8 h-8 mx-auto text-blue-900 mb-2" />
+                  <p className="text-xs font-bold text-blue-950">Escanea el código QR publicado en la obra</p>
+                  <p className="text-[10px] text-blue-800 mt-1">Cada obra utiliza un acceso único. No se muestran obras ni personal sin ese código.</p>
                 </div>
               </div>
             ) : (
@@ -646,10 +555,10 @@ function Login({ onLoginSuccess, onBackHome }) {
                   </div>
                   <button
                     type="button"
-                    onClick={() => setSelectedObraQR(null)}
+                    onClick={() => setShowQRScanner(false)}
                     className="text-[10px] text-blue-900 font-bold hover:underline cursor-pointer"
                   >
-                    Cambiar
+                    Cerrar
                   </button>
                 </div>
 
@@ -750,19 +659,11 @@ function Login({ onLoginSuccess, onBackHome }) {
                     )}
 
                     {rutValidationState.status === 'not_found' && (
-                      <div className="mt-2 space-y-2 animate-in fade-in duration-200">
+                      <div className="mt-2 animate-in fade-in duration-200">
                         <div className="p-2.5 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs font-medium flex items-start gap-1.5">
                           <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                          <span>RUT con formato válido pero no registrado en la lista de la obra. Si perteneces a esta faena, ingresa tu Nombre Completo:</span>
+                          <span>Este RUT no está asignado a la obra. Solicita al administrador que actualice tu asignación antes de marcar.</span>
                         </div>
-                        <input
-                          type="text"
-                          required
-                          value={qrWorkerData.trabajador}
-                          onChange={(e) => setQrWorkerData({ ...qrWorkerData, trabajador: e.target.value })}
-                          placeholder="Ingresa tu Nombre y Apellido Completo"
-                          className="w-full border border-slate-300 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-900"
-                        />
                       </div>
                     )}
                   </div>

@@ -1958,6 +1958,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       }
 
       const payload = {
+        empresa: selectedObra.empresa || user.empresa,
+        obra_id: selectedObra.id,
         obra_nombre: selectedObra.nombre,
         supervisor: user.usuario,
         trabajador: asistenciaData.trabajador.trim(),
@@ -9051,7 +9053,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
               <p className="text-xs font-extrabold text-blue-950 uppercase">{selectedObra?.nombre}</p>
               <div className="bg-white p-3 rounded-2xl inline-block border border-slate-200 shadow-sm">
                 <img
-                  src={`https://quickchart.io/qr?text=${encodeURIComponent(`https://obraxis.cl/?obra=${encodeURIComponent(selectedObra?.nombre || '')}`)}&size=300&margin=1`}
+                  src={`https://quickchart.io/qr?text=${encodeURIComponent(`https://obraxis.cl/?asistencia=${encodeURIComponent(selectedObra?.asistencia_token || '')}`)}&size=300&margin=1`}
                   alt="QR Faena"
                   className="w-52 h-52 mx-auto block"
                 />
