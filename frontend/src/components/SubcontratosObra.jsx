@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   AlertTriangle, Building2, CheckCircle2, Download, ExternalLink, FileText,
   Plus, ReceiptText, Settings2, TrendingUp, Upload, Users, XCircle
@@ -31,7 +31,7 @@ export default function SubcontratosObra({ obra, user }) {
   const mayApprove = can(user, permissions, 'obras.subcontratos.aprobar');
   const mayConfigure = can(user, permissions, 'obras.subcontratos.configurar');
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const [s, a, attendance, p, r, d] = await Promise.all([
       supabase.from('acreditaciones_subcontratos').select('*').eq('obra_asociada', obra.nombre).neq('estado', 'Archivado'),
       supabase.from('subcontrato_avances').select('*').eq('obra_nombre', obra.nombre).order('fecha', { ascending: false }),
@@ -43,9 +43,9 @@ export default function SubcontratosObra({ obra, user }) {
     setSubs(s.data || []); setAvances(a.data || []); setAsistencia(attendance.data || []); setPagos(p.data || []);
     setRequisitos((r.data || []).filter(item => !item.obra_nombre || item.obra_nombre === obra.nombre));
     setDocumentos(d.data || []);
-  };
+  }, [obra.nombre, user.empresa]);
 
-  useEffect(() => { load(); }, [obra.nombre, user.empresa]);
+  useEffect(() => { load(); }, [load]);
 
   const requirementsFor = ep => requisitos.filter(r => !r.obra_nombre || r.obra_nombre === ep.obra_nombre);
   const documentsFor = ep => documentos.filter(d => d.estado_pago_id === ep.id);

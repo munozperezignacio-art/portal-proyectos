@@ -192,14 +192,15 @@ export default function Maquinaria({ user, onBack }) {
     observaciones: ''
   });
 
-  useEffect(() => {
+  const initializeMachinery = React.useEffectEvent(() => {
     fetchData();
     fetchUsoLogs();
     fetchReservasLogs();
     fetchArriendosLogs();
     fetchReliabilityLogs();
     fetchAIConfiguration();
-  }, []);
+  });
+  useEffect(() => { initializeMachinery(); }, []);
 
   const fetchAIConfiguration = async () => {
     const { data } = await supabase.from('ia_config_empresas').select('habilitada,funciones').eq('empresa', user?.empresa).maybeSingle();

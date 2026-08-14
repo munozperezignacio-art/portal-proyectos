@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { BadgeDollarSign, Copy, FileText, Paperclip, ReceiptText, RefreshCw, Send, Trash2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { sendSystemEmail } from '../utils/emailService';
@@ -69,7 +69,7 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
     aprobador_email: current.aprobador_email || clientEmail,
   }));
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!obraNombre) return;
     setLoading(true); setMessage('');
     try {
@@ -116,9 +116,9 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
     } catch (error) {
       setMessage(error.message?.includes('estados_pago_obra') ? 'Falta habilitar Estados de Pago en Supabase. Ejecuta schema_estados_pago.sql y actualiza.' : `No fue posible cargar Estados de Pago: ${error.message}`);
     } finally { setLoading(false); }
-  };
+  }, [empresa, obra?.id, obraNombre]);
 
-  useEffect(() => { load(); }, [empresa, obraNombre]);
+  useEffect(() => { load(); }, [load]);
 
   const valuation = useMemo(() => partidas.map(partida => {
     const quantity = Number(partida.cantidad_presupuestada ?? partida.cantidad ?? 0);

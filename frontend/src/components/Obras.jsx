@@ -62,6 +62,7 @@ function ObraGpsMapPicker({ lat, lng, radius, onChange, canEdit }) {
   const leafletInstance = React.useRef(null);
   const markerRef = React.useRef(null);
   const circleRef = React.useRef(null);
+  const emitChange = React.useEffectEvent(onChange);
 
   const initLat = parseFloat(lat) || -33.4372;
   const initLng = parseFloat(lng) || -70.6506;
@@ -111,13 +112,13 @@ function ObraGpsMapPicker({ lat, lng, radius, onChange, canEdit }) {
       if (canEdit) {
         marker.on('dragend', () => {
           const pos = marker.getLatLng();
-          onChange(pos.lat.toFixed(6), pos.lng.toFixed(6));
+          emitChange(pos.lat.toFixed(6), pos.lng.toFixed(6));
         });
 
         map.on('click', (e) => {
           marker.setLatLng(e.latlng);
           circle.setLatLng(e.latlng);
-          onChange(e.latlng.lat.toFixed(6), e.latlng.lng.toFixed(6));
+          emitChange(e.latlng.lat.toFixed(6), e.latlng.lng.toFixed(6));
         });
       }
     }
@@ -128,7 +129,7 @@ function ObraGpsMapPicker({ lat, lng, radius, onChange, canEdit }) {
         leafletInstance.current = null;
       }
     };
-  }, []);
+  }, [canEdit, initLat, initLng, initRadius]);
 
   React.useEffect(() => {
     if (leafletInstance.current && markerRef.current && circleRef.current) {
@@ -1036,15 +1037,17 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
 
 
+  const loadWorksEffect = React.useEffectEvent(() => fetchObras());
+  const loadWorkDetailsEffect = React.useEffectEvent((name) => fetchObraDetails(name));
+  const loadPreventionEffect = React.useEffectEvent((name) => fetchPrevencionObra(name));
+
   // Cargar lista de obras
-  useEffect(() => {
-    fetchObras();
-  }, []);
+  useEffect(() => { loadWorksEffect(); }, []);
 
   // Cargar métricas y listas cuando se selecciona una obra o cambia de submódulo
   useEffect(() => {
     if (selectedObra) {
-      fetchObraDetails(selectedObra.nombre);
+      loadWorkDetailsEffect(selectedObra.nombre);
     }
   }, [selectedObra, obraActiveSubmodule]);
 
@@ -1053,7 +1056,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   // Maquinaria, aunque el equipo esté asignado a esta misma obra.
   useEffect(() => {
     if (selectedObra?.nombre && obraActiveSubmodule === 'prevencion') {
-      fetchPrevencionObra(selectedObra.nombre);
+      loadPreventionEffect(selectedObra.nombre);
     }
   }, [selectedObra?.nombre, obraActiveSubmodule]);
 

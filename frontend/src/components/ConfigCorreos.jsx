@@ -131,12 +131,13 @@ function ConfigCorreos({ user, onBack }) {
   const [platLoading, setPlatLoading] = useState(false);
   const [platTestMailLoading, setPlatTestMailLoading] = useState(false);
 
-  useEffect(() => {
+  const initializeConfiguration = React.useEffectEvent(() => {
     fetchData();
     fetchCompaniesForSelect();
-  }, []);
+  });
+  useEffect(() => { initializeConfiguration(); }, []);
 
-  useEffect(() => {
+  const loadActiveConfigurationTab = React.useEffectEvent(() => {
     if (activeTab === 'branding') {
       fetchBranding();
     } else if (activeTab === 'notificaciones') {
@@ -154,7 +155,8 @@ function ConfigCorreos({ user, onBack }) {
     } else if (activeTab === 'plataforma') {
       fetchPlatformSettings();
     }
-  }, [activeTab]);
+  });
+  useEffect(() => { loadActiveConfigurationTab(); }, [activeTab]);
 
   const fetchData = async () => {
     setLoading(true);

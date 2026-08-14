@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import {
   BarChart3, Bell, CalendarClock, CheckCircle2, Clock3, Edit3,
@@ -86,7 +86,7 @@ export default function NotificationMaster({ user, obras = [], roles = [] }) {
     return [...new Set([...configured, ...assigned])].sort();
   }, [roles, users, user.empresa]);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     const [ruleResult, deliveryResult, userResult] = await Promise.all([
       supabase.from('notificaciones_reglas').select('*').eq('empresa', user.empresa).order('created_at', { ascending: false }),
@@ -104,9 +104,9 @@ export default function NotificationMaster({ user, obras = [], roles = [] }) {
     if (!deliveryResult.error) setDeliveries(deliveryResult.data || []);
     if (!userResult.error) setUsers(userResult.data || []);
     setLoading(false);
-  };
+  }, [user.empresa]);
 
-  useEffect(() => { load(); }, [user.empresa]);
+  useEffect(() => { load(); }, [load]);
 
   const selectTemplate = (code) => {
     const item = CATALOG.find(t => t.code === code) || CATALOG[0];

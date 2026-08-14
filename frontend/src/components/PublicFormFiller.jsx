@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { 
   Send, CheckCircle2, Camera, AlertCircle, Loader2, Plus
@@ -34,7 +34,7 @@ export default function PublicFormFiller({ formToken }) {
 
   // Formularios anteriores guardan un arreglo; los nuevos guardan además el
   // control documental dentro del mismo JSON. Ambos formatos siguen vigentes.
-  const normalizeForm = (rawForm) => {
+  const normalizeForm = useCallback((rawForm) => {
     const storedFields = rawForm?.campos;
     const control = storedFields && !Array.isArray(storedFields)
       ? (storedFields.control_documental || {})
@@ -64,15 +64,9 @@ export default function PublicFormFiller({ formToken }) {
       fecha_revision: control.fecha_revision ?? rawForm?.fecha_revision ?? '',
       tipo_registro: control.tipo_registro ?? ''
     };
-  };
+  }, []);
 
-  useEffect(() => {
-    if (formToken) {
-      loadPublicForm();
-    }
-  }, [formToken]);
-
-  const loadPublicForm = async () => {
+  const loadPublicForm = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -120,7 +114,13 @@ export default function PublicFormFiller({ formToken }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [formToken, normalizeForm]);
+
+  useEffect(() => {
+    if (formToken) {
+      loadPublicForm();
+    }
+  }, [formToken, loadPublicForm]);
 
   const selectEquipment = (patente) => {
     const equipment = maquinariaList.find(item => item.patente === patente);

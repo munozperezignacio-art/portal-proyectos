@@ -371,19 +371,22 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
     fetchRates();
   }, []);
 
+  const loadProjectsEffect = React.useEffectEvent(() => fetchProyectos());
+  const loadSelectedProjectEffect = React.useEffectEvent((projectId) => {
+    fetchBudgetItems(projectId);
+    fetchCronograma(projectId);
+    fetchRecursos(projectId);
+    fetchIndirectCosts(projectId);
+  });
+
   // Cargar proyectos al iniciar
-  useEffect(() => {
-    fetchProyectos();
-  }, []);
+  useEffect(() => { loadProjectsEffect(); }, []);
 
   // Cargar datos cuando cambia el proyecto activo
   useEffect(() => {
     if (selectedProyectoId) {
       try { localStorage.setItem('obraxis_selected_presupuesto_id', selectedProyectoId.toString()); } catch {}
-      fetchBudgetItems(selectedProyectoId);
-      fetchCronograma(selectedProyectoId);
-      fetchRecursos(selectedProyectoId);
-      fetchIndirectCosts(selectedProyectoId);
+      loadSelectedProjectEffect(selectedProyectoId);
     } else {
       setItemsPresupuesto([]);
       setCronograma([]);
@@ -393,7 +396,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
   }, [selectedProyectoId]);
 
   // Sincronizar moneda de visualización con la moneda base del proyecto activo
-  const currentProyecto = proyectos.find(p => p.id === parseInt(selectedProyectoId, 10));
+  const currentProyecto = React.useMemo(() => proyectos.find(p => p.id === parseInt(selectedProyectoId, 10)), [proyectos, selectedProyectoId]);
   const projectBaseCurrency = currentProyecto 
     ? parseProjectTipoAndCurrency(currentProyecto.tipo_proyecto).monedaBase 
     : 'CLP';
@@ -406,7 +409,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
       const parsed = parseProjectDescriptionAndCalendar(currentProyecto.descripcion);
       setCalendarConfig(parsed.calendar);
     }
-  }, [selectedProyectoId, proyectos]);
+  }, [currentProyecto]);
 
   const fetchProjectApuLinks = async () => {
     if (!selectedProyectoId || itemsPresupuesto.length === 0) return;
@@ -430,9 +433,10 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
     }
   };
 
+  const loadApuLinksEffect = React.useEffectEvent(() => fetchProjectApuLinks());
   useEffect(() => {
     if (activeSection === 'analisis') {
-      fetchProjectApuLinks();
+      loadApuLinksEffect();
     }
   }, [activeSection, selectedProyectoId, itemsPresupuesto]);
 

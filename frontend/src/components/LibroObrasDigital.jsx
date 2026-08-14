@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BookOpenCheck,
   CheckCircle2,
@@ -95,7 +95,7 @@ export default function LibroObrasDigital({ user, obraNombre, obra }) {
   const canDownload = can(user, permissions, "obras.libro_obra.descargar");
   const clientName = obra?.cliente || "";
   const clientEmail = obra?.cliente_email || "";
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!obraNombre) return;
     setLoading(true);
     setMessage("");
@@ -130,10 +130,10 @@ export default function LibroObrasDigital({ user, obraNombre, obra }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [empresa, obra?.id, obraNombre]);
   useEffect(() => {
     load();
-  }, [empresa, obraNombre]);
+  }, [load]);
   const visibleEntries = useMemo(
     () =>
       filter === "Todos"

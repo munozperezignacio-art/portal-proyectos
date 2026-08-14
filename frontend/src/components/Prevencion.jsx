@@ -209,7 +209,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
     }
   ];
 
-  useEffect(() => {
+  const initializePrevention = React.useEffectEvent(() => {
     fetchFormularios();
     fetchRespuestas();
     fetchCapacitaciones();
@@ -219,7 +219,8 @@ export default function Prevencion({ user, onBack, companyBranding }) {
     fetchAsignacionesCumplimiento();
     fetchRegistrosCumplimientoLog();
     fetchObrasList();
-  }, [user?.empresa]);
+  });
+  useEffect(() => { initializePrevention(); }, [user?.empresa]);
 
   const fetchObrasList = async () => {
     try {

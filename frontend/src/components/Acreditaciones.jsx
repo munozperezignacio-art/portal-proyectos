@@ -113,7 +113,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
   const [successMsg, setSuccessMsg] = useState('');
   const [, setErrorMsg] = useState('');
 
-  useEffect(() => {
+  const initializeAccreditations = React.useEffectEvent(() => {
     fetchObras();
     fetchPersonal();
     fetchHistorialInterno();
@@ -121,7 +121,8 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     fetchProveedores();
     fetchColaboracionesObra();
     loadMandatoryDocsConfig();
-  }, []);
+  });
+  useEffect(() => { initializeAccreditations(); }, []);
 
     const loadMandatoryDocsConfig = async () => {
     try {

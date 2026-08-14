@@ -2,7 +2,7 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
-Avance actualizado: Etapa 1 99%; Etapa 2 90%; Etapa 3 65%; Etapa 4 67%; Etapa 5 65%; plan completo 77%.
+Avance actualizado: Etapa 1 99%; Etapa 2 90%; Etapa 3 65%; Etapa 4 80%; Etapa 5 75%; plan completo 82%.
 
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
@@ -137,3 +137,7 @@ La plataforma se considerará lista para producción cuando no existan política
 - Gobierno de permisos, informes del mandante, OX y escenarios predictivos estabilizados para reaccionar únicamente a cambios reales de identidad, empresa, obra o contrato.
 - Eliminado el fallback operativo silencioso de Proyección de Personal: un fallo de Supabase ahora se informa y no crea registros locales que aparenten estar sincronizados.
 - Advertencias de lint reducidas de 40 a 31, manteniendo 19 pruebas aprobadas y build productivo correcto.
+- Arquitectura de carga estabilizada en los componentes historicos principales: Obras, Personal, Maquinaria, Prevencion, Formularios, Acreditaciones, Presupuestos y Configuracion.
+- Consolidadas cargas duplicadas de Calidad y dependencias de contexto multiempresa en la aplicacion principal, sin alterar los flujos operativos existentes.
+- Deuda de lint reducida de 31 a 0 advertencias; acumulado desde la auditoria: 386 a 0, sin desactivar reglas ni agregar excepciones.
+- Verificacion integral del bloque completada con 19 de 19 pruebas aprobadas, lint limpio y build productivo correcto.

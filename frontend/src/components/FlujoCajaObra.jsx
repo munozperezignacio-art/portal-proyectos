@@ -8,7 +8,7 @@ const monthLabel = key => new Date(`${key}-15T12:00:00`).toLocaleDateString('es-
 const addMonths = (key, offset) => { const date = new Date(`${key}-01T12:00:00`); date.setMonth(date.getMonth() + offset); return date.toISOString().slice(0, 7); };
 const isGroup = item => item?.unidad === 'TITULO' || item?.unidad === 'GRUPO' || item?.es_titulo;
 
-export default function FlujoCajaObra({ obra, user, partidas = [], costos = [], liquidaciones = [], avances = [] }) {
+export default function FlujoCajaObra({ obra, user, partidas = [], costos = [], liquidaciones = [] }) {
   const [ajustes, setAjustes] = useState([]);
   const [estadosPago, setEstadosPago] = useState([]);
   const [loading, setLoading] = useState(true);

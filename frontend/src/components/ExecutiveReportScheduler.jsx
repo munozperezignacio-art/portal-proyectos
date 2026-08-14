@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
   CalendarClock,
@@ -131,7 +131,7 @@ export default function ExecutiveReportScheduler({
     ],
     [roles, users, user.empresa],
   );
-  const load = async () => {
+  const load = useCallback(async () => {
     const [a, b, c] = await Promise.all([
       supabase
         .from("informes_programaciones")
@@ -153,10 +153,10 @@ export default function ExecutiveReportScheduler({
     setSchedules(a.data || []);
     setRuns(b.data || []);
     setUsers(c.data || []);
-  };
+  }, [user.empresa]);
   useEffect(() => {
     load();
-  }, [user.empresa]);
+  }, [load]);
   const chooseTemplate = (code) => {
     const t = TEMPLATES.find((x) => x[0] === code);
     setForm((x) => ({

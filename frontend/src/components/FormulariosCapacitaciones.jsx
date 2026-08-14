@@ -88,14 +88,15 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     { id: Date.now(), pregunta: '¿Comprendió la charla?', opciones: ['Sí', 'No'], correcta: 0 }
   ]);
 
-  useEffect(() => {
+  const initializeForms = React.useEffectEvent(() => {
     fetchFormularios();
     fetchRespuestas();
     fetchCapacitaciones();
     fetchAvailableCargos();
     fetchAvailableCenters();
     fetchRiskMatrices();
-  }, [user?.empresa]);
+  });
+  useEffect(() => { initializeForms(); }, [user?.empresa]);
 
   const fetchRiskMatrices = async () => {
     const { data, error } = await supabase.from('prevencion_matrices_riesgo').select('id,nombre,codigo,version,columnas,obra_id').eq('empresa', user?.empresa || 'EMIN').in('estado', ['Borrador', 'Vigente']).order('updated_at', { ascending: false });

@@ -1,5 +1,5 @@
 import { obraxisLogoBase64 } from './obraxisLogoBase64';
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { 
   LogOut, LayoutDashboard, Building2, Users, Truck, ShieldAlert, Settings, Info, Menu, X, Loader2,
   Layers, Handshake, Receipt, Coins, ClipboardCheck, Boxes, BadgeCheck,
@@ -121,9 +121,9 @@ function App() {
   const [, setObrasLoading] = useState(false);
   const [selectedObraName, setSelectedObraName] = useState(null);
 
-  const activeUserContext = user 
+  const activeUserContext = useMemo(() => user
     ? (selectedCompanyOverride ? { ...user, empresa: selectedCompanyOverride } : user)
-    : null;
+    : null, [selectedCompanyOverride, user]);
 
   // Favoritos guardados en localStorage
   const [favorites, setFavorites] = useState(() => {
@@ -223,6 +223,21 @@ function App() {
   // Cargar identidad visual de la empresa activa
   useEffect(() => {
     if (!activeUserContext) return;
+    async function fetchObras() {
+      setObrasLoading(true);
+      try {
+        const { data, error } = await supabase.from('obras').select('*').eq('empresa', activeUserContext.empresa).order('nombre', { ascending: true });
+        if (error) throw error;
+        const permisoStr = activeUserContext.obras ? activeUserContext.obras.toString().trim().toLowerCase() : '';
+        const obrasPermitidasArr = permisoStr.split(',').map(item => item.trim());
+        const esTodas = obrasPermitidasArr.includes('todas') || (activeUserContext.rol_base || activeUserContext.rol || 'Inspector').toLowerCase() === 'superusuario';
+        setObras((data || []).filter(item => item.nombre && (esTodas || obrasPermitidasArr.includes(item.nombre.toString().trim().toLowerCase()))));
+      } catch (error) {
+        console.error('Error cargando obras en App:', error.message);
+      } finally {
+        setObrasLoading(false);
+      }
+    }
     async function fetchBranding() {
       try {
         let data = null;
@@ -264,35 +279,6 @@ function App() {
     fetchBranding();
     fetchObras();
   }, [activeUserContext]);
-
-  const fetchObras = async () => {
-    if (!activeUserContext) return;
-    setObrasLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('obras')
-        .select('*')
-        .eq('empresa', activeUserContext.empresa)
-        .order('nombre', { ascending: true });
-      if (error) throw error;
-
-      // Filtrar por permisos del usuario
-      const permisoStr = activeUserContext.obras ? activeUserContext.obras.toString().trim().toLowerCase() : '';
-      const obrasPermitidasArr = permisoStr.split(',').map(item => item.trim());
-      const esTodas = obrasPermitidasArr.includes('todas') || (activeUserContext.rol_base || activeUserContext.rol || 'Inspector').toLowerCase() === 'superusuario';
-
-      const filtradas = (data || []).filter(o => {
-        if (!o.nombre) return false;
-        return esTodas || obrasPermitidasArr.includes(o.nombre.toString().trim().toLowerCase());
-      });
-
-      setObras(filtradas);
-    } catch (err) {
-      console.error('Error cargando obras en App:', err.message);
-    } finally {
-      setObrasLoading(false);
-    }
-  };
 
   const toggleFavorite = (e, name) => {
     e.stopPropagation();

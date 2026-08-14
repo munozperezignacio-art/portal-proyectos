@@ -14,7 +14,7 @@ import PayrollAutomation from './PayrollAutomation';
 import WorkerBulkImport from './WorkerBulkImport';
 import WorkerDocumentsPanel from './WorkerDocumentsPanel';
 
-export const afpCommissionRates = {
+const afpCommissionRates = {
   'Habitat': { fondo: 10.00, comision: 1.27, total: 11.27 },
   'Capital': { fondo: 10.00, comision: 1.44, total: 11.44 },
   'Cuprum': { fondo: 10.00, comision: 1.44, total: 11.44 },
@@ -25,7 +25,7 @@ export const afpCommissionRates = {
   'Sin Previsión': { fondo: 0.00, comision: 0.00, total: 0.00 }
 };
 
-export const getAFPDetails = (afpName) => {
+const getAFPDetails = (afpName) => {
   if (!afpName) return afpCommissionRates['Habitat'];
   const clean = afpName.replace('AFP ', '').trim();
   return afpCommissionRates[clean] || afpCommissionRates['Habitat'];
@@ -190,11 +190,12 @@ function Personal({ user, onBack }) {
   const [showLiquidacionPDFModal, setShowLiquidacionPDFModal] = useState(false);
   const [selectedWorkerLiquidacion, setSelectedWorkerLiquidacion] = useState(null);
 
-  useEffect(() => {
+  const initializePersonal = React.useEffectEvent(() => {
     fetchData();
     fetchContractTemplates();
     fetchAIConfiguration();
-  }, []);
+  });
+  useEffect(() => { initializePersonal(); }, []);
 
   const fetchAIConfiguration = async () => {
     const { data } = await supabase.from('ia_config_empresas').select('habilitada,funciones').eq('empresa', user?.empresa).maybeSingle();

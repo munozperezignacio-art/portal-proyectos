@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, ClipboardCheck, FileCheck2, Mail, Plus, RefreshCw, Repeat2, ShieldCheck } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { registrarEventoBitacora } from '../utils/bitacoraService';
@@ -98,7 +98,7 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
   const clientEmail = obraActiva?.cliente_email || '';
   const clientPhone = obraActiva?.cliente_telefono || '';
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setMessage('');
     try {
@@ -133,14 +133,13 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
     } catch (error) {
       setMessage(error.message?.includes('calidad_') ? 'Falta habilitar Calidad en Supabase. Ejecuta schema_calidad_obras.sql y actualiza.' : `No fue posible cargar Calidad: ${error.message}`);
     } finally { setLoading(false); }
-  };
+  }, [empresa, obraInicial, obraNombre]);
 
-  useEffect(() => { load(); }, [empresa, obraInicial]);
-  useEffect(() => { if (obraNombre) load(); }, [obraNombre]);
+  useEffect(() => { load(); }, [load]);
   useEffect(() => { if (obraInicial && obraInicial !== obraNombre) setObraNombre(obraInicial); }, [obraInicial, obraNombre]);
   useEffect(() => {
     if (obraActiva && !rdiForm.inspector) setRdiForm(current => ({ ...current, inspector: obraActiva.admin_contrato || obraActiva.cliente || '' }));
-  }, [obraActiva]);
+  }, [obraActiva, rdiForm.inspector]);
 
   const savePac = async (e) => {
     e.preventDefault();
