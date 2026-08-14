@@ -101,16 +101,20 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
     setLoading(true);
     setMessage('');
     try {
-      const { data: obrasData, error: obrasError } = await supabase.from('obras').select('nombre, cliente, cliente_email, cliente_telefono, admin_contrato').eq('empresa', empresa).order('nombre');
+      const { data: obrasData, error: obrasError } = await supabase.from('obras').select('id, nombre, cliente, cliente_email, cliente_telefono, admin_contrato').eq('empresa', empresa).order('nombre');
       if (obrasError) throw obrasError;
       try { setProcedimientosEmpresa(JSON.parse(localStorage.getItem(`obraxis_procedimientos_${empresa || 'default'}`) || '[]')); } catch { setProcedimientosEmpresa([]); }
       const nextObras = obrasData || [];
       setObras(nextObras);
       const target = obraInicial || obraNombre || nextObras[0]?.nombre || '';
+      const targetWork = nextObras.find(item => item.nombre === target);
       if (!obraNombre && target) setObraNombre(target);
       if (!target) { setPacs([]); setRdis([]); setNcs([]); setRecepciones([]); setReceptionControls([]); setPartidas([]); return; }
+      const partidasQuery = targetWork?.id
+        ? supabase.from('partidas_obra').select('partida, unidad').eq('empresa', empresa).eq('obra_id', targetWork.id)
+        : supabase.from('partidas_obra').select('partida, unidad').eq('empresa', empresa).eq('obra_nombre', target);
       const [partidasRes, pacRes, rdiRes, ncRes, receptionRes, controlsRes] = await Promise.all([
-        supabase.from('partidas_obra').select('partida, unidad').eq('obra_nombre', target),
+        partidasQuery,
         supabase.from('calidad_pac').select('*').eq('empresa', empresa).eq('obra_nombre', target).order('created_at', { ascending: false }),
         supabase.from('calidad_rdi').select('*').eq('empresa', empresa).eq('obra_nombre', target).order('created_at', { ascending: false }),
         supabase.from('calidad_no_conformidades').select('*').eq('empresa', empresa).eq('obra_nombre', target).order('created_at', { ascending: false }),

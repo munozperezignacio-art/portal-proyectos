@@ -89,6 +89,7 @@ Deno.serve(async () => {
         db
           .from("avances_produccion_partidas")
           .select("obra_nombre,partida,cantidad,created_at")
+          .eq("empresa", s.empresa)
           .in("obra_nombre", names),
         db
           .from("asistencia_personal")
@@ -115,6 +116,7 @@ Deno.serve(async () => {
           .select(
             "obra_nombre,partida,cantidad_presupuestada,costo_por_dia,rendimiento_meta,fecha_inicio,fecha_termino",
           )
+          .eq("empresa", s.empresa)
           .in("obra_nombre", names),
         db.from("maquinaria_uso_diario").select("obra_nombre,equipo_id,equipo_patente,horas_trabajadas,created_at").eq("empresa", s.empresa).in("obra_nombre", names).gte("created_at", from.toISOString()),
         db.from("maquinaria_fallas").select("equipo_id,fecha,solucion,created_at").eq("empresa", s.empresa),

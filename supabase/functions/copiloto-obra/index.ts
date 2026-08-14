@@ -139,12 +139,9 @@ Deno.serve(async (req) => {
     if (!hasWorksiteAccess(profile, obraNombre)) return json({ error: "No tienes acceso autorizado a esta obra." }, 403);
     const { data: worksite } = await db.from("obras").select("id,nombre,empresa,estado,tipo,cliente").eq("nombre", obraNombre).eq("empresa", empresa).maybeSingle();
     if (!worksite) return json({ error: "La obra no existe o no pertenece a la empresa indicada." }, 404);
-    const { count: sameNameCount } = await db.from("obras").select("id", { count: "exact", head: true }).eq("nombre", obraNombre);
-    if (num(sameNameCount) > 1) return json({ error: "Esta obra comparte nombre con otra empresa. Para proteger el aislamiento de datos, asígnale un nombre único antes de consultar el Copiloto." }, 409);
-
     const [partsResult, advancesResult, costsResult, qualityResult, safetyResult, paymentsResult, restrictionsResult, machineryResult, machineryUseResult, failuresResult, assignmentsResult] = await Promise.all([
-      db.from("partidas_obra").select("id,partida,unidad,cantidad_presupuestada,costo_por_dia,fecha_inicio,fecha_termino").eq("obra_nombre", obraNombre),
-      db.from("avances_produccion_partidas").select("id,partida,cantidad,created_at").eq("obra_nombre", obraNombre),
+      db.from("partidas_obra").select("id,partida,unidad,cantidad_presupuestada,costo_por_dia,fecha_inicio,fecha_termino").eq("empresa", empresa).eq("obra_id", worksite.id),
+      db.from("avances_produccion_partidas").select("id,partida,cantidad,created_at").eq("empresa", empresa).eq("obra_id", worksite.id),
       db.from("costos_reales_obra").select("id,nombre,tipo_costo,monto,created_at").eq("obra_nombre", obraNombre).eq("empresa", empresa),
       db.from("calidad_no_conformidades").select("id,codigo,partida,descripcion,clasificacion,estado,fecha_compromiso,origen,impacto,correccion_inmediata,metodo_causa_raiz,causa_categoria,causa_raiz,accion_correctiva,eficacia_verificada,observacion_verificacion").eq("obra_nombre", obraNombre).eq("empresa", empresa),
       db.from("prevencion_respuestas").select("id,created_at,respuestas").eq("proyecto_nombre", obraNombre),

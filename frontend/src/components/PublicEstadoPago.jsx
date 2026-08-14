@@ -27,17 +27,13 @@ export default function PublicEstadoPago({ token, role }) {
   const loadSupportingData = async (payment) => {
     setItem(payment);
     setProposal((payment.items || []).map(line => ({ ...line, cantidad_propuesta: line.cantidad_propuesta ?? line.executed ?? 0, comentario_externo: line.comentario_externo || '' })));
-    const [statesResult, partidasResult] = await Promise.all([
-      supabase.from('estados_pago_obra').select('numero,monto_bruto,retencion_monto,anticipo_descontado,monto_neto,estado').eq('empresa', payment.empresa).eq('obra_nombre', payment.obra_nombre).lte('numero', payment.numero),
-      supabase.from('partidas_obra').select('cantidad_presupuestada,cantidad,costo_por_dia,pu').eq('obra_nombre', payment.obra_nombre),
-    ]);
+    const statesResult = await supabase.from('estados_pago_obra').select('numero,monto_bruto,retencion_monto,anticipo_descontado,monto_neto,estado').eq('empresa', payment.empresa).eq('obra_nombre', payment.obra_nombre).lte('numero', payment.numero);
     const valid = (statesResult.data || []).filter(row => row.estado !== 'Rechazado');
     const before = valid.filter(row => Number(row.numero) < Number(payment.numero));
     const total = field => valid.reduce((sum, row) => sum + Number(row[field] || 0), 0);
     const prior = field => before.reduce((sum, row) => sum + Number(row[field] || 0), 0);
-    const contractFromPartidas = (partidasResult.data || []).reduce((sum, row) => sum + Number(row.cantidad_presupuestada ?? row.cantidad ?? 0) * (Number(row.costo_por_dia) || Number(row.pu) || 0), 0);
-    const contractFromSnapshot = (payment.items || []).reduce((value, line) => value || Number(line.monto_contrato || 0), 0);
-    const contract = contractFromPartidas || contractFromSnapshot;
+    const contractFromSnapshot = (payment.items || []).reduce((sum, line) => sum + (Number(line.monto_contrato || 0) || Number(line.quantity || 0) * Number(line.unitPrice || 0)), 0);
+    const contract = contractFromSnapshot;
     setSummary({
       bruto_anterior: prior('monto_bruto'), bruto_acumulado: total('monto_bruto'), retencion_acumulada: total('retencion_monto'), anticipo_acumulado: total('anticipo_descontado'), neto_acumulado: total('monto_neto'),
       avance_periodo_pct: contract > 0 ? Number(payment.monto_bruto || 0) / contract * 100 : 0,

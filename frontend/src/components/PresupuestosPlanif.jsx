@@ -1322,14 +1322,17 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
         const { data: bData } = await supabase.from('presupuestos_proyectos').select('nombre').eq('id', selectedProyectoId).single();
         if (bData && bData.nombre) {
           const cleanBName = bData.nombre.trim().toLowerCase().replace(/^obra\s+/i, '');
-          const { data: allObras } = await supabase.from('obras').select('nombre');
+          const empresaActual = user?.empresa || 'Obraxis';
+          const { data: allObras } = await supabase.from('obras').select('id,nombre,empresa').eq('empresa', empresaActual);
           const matchObra = (allObras || []).find(o => o.nombre && o.nombre.trim().toLowerCase().includes(cleanBName));
 
           if (matchObra) {
-            await supabase.from('partidas_obra').delete().eq('obra_nombre', matchObra.nombre);
+            await supabase.from('partidas_obra').delete().eq('empresa', empresaActual).eq('obra_id', matchObra.id);
             const partidasObraPayload = itemsPresupuesto.map(it => {
               const isCap = isChapterRow(it, itemsPresupuesto);
               return {
+                obra_id: matchObra.id,
+                empresa: empresaActual,
                 obra_nombre: matchObra.nombre,
                 partida: it.partida || it.descripcion || it.nombre || 'Partida Presupuestada',
                 unidad: isCap ? 'TITULO' : (it.unidad || 'UND'),

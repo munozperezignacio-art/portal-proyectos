@@ -35,10 +35,18 @@ export default function CollaborativeContracts({ obra, user }) {
 
   const open = async contract => {
     setSelected(contract);
+    const principalScope = contract.obra_contratista_id
+      ? supabase.from('partidas_obra').select('id,codigo,partida,unidad,cantidad_presupuestada').eq('empresa', contract.empresa_contratista).eq('obra_id', contract.obra_contratista_id).order('id')
+      : supabase.from('partidas_obra').select('id,codigo,partida,unidad,cantidad_presupuestada').eq('empresa', contract.empresa_contratista).eq('obra_nombre', contract.obra_contratista_nombre).order('id');
+    const collaboratorScope = contract.obra_colaboradora_id
+      ? supabase.from('partidas_obra').select('id,codigo,partida,unidad,cantidad_presupuestada').eq('empresa', contract.empresa_colaboradora).eq('obra_id', contract.obra_colaboradora_id).order('id')
+      : contract.obra_colaboradora_nombre
+        ? supabase.from('partidas_obra').select('id,codigo,partida,unidad,cantidad_presupuestada').eq('empresa', contract.empresa_colaboradora).eq('obra_nombre', contract.obra_colaboradora_nombre).order('id')
+        : Promise.resolve({ data: [] });
     const [m, a, b] = await Promise.all([
       supabase.from('contratos_colaborativos_partidas').select('*').eq('contrato_id', contract.id).order('created_at'),
-      supabase.from('partidas_obra').select('id,codigo,partida,unidad,cantidad_presupuestada').eq('obra_nombre', contract.obra_contratista_nombre).order('id'),
-      contract.obra_colaboradora_nombre ? supabase.from('partidas_obra').select('id,codigo,partida,unidad,cantidad_presupuestada').eq('obra_nombre', contract.obra_colaboradora_nombre).order('id') : Promise.resolve({ data: [] })
+      principalScope,
+      collaboratorScope
     ]);
     const error = m.error || a.error || b.error;
     if (error) return setMessage(error.message);

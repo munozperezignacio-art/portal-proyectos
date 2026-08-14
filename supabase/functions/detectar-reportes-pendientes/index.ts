@@ -24,9 +24,9 @@ Deno.serve(async () => {
   for (const rule of dueRules) {
     try {
       const [{ data: works }, { data: users }, { data: advances }, { data: usage }, { data: legacyUsage }, { data: equipment }, { data: existing }, { data: mailConfig }] = await Promise.all([
-        db.from('obras').select('nombre,estado').eq('empresa', rule.empresa),
+        db.from('obras').select('id,nombre,estado').eq('empresa', rule.empresa),
         db.from('usuarios').select('id,usuario,nombre,correo,rol,obras').eq('empresa', rule.empresa),
-        db.from('avances_produccion_partidas').select('obra_nombre,created_at').gte('created_at', lookback),
+        db.from('avances_produccion_partidas').select('obra_id,obra_nombre,created_at').eq('empresa', rule.empresa).gte('created_at', lookback),
         db.from('maquinaria_uso_diario').select('obra_nombre,fecha,created_at').eq('empresa', rule.empresa).gte('created_at', lookback),
         db.from('reporte_maquinaria').select('obra_nombre,created_at').gte('created_at', lookback),
         db.from('inventario_maquinaria').select('obra_nombre,estado_equipo').eq('empresa', rule.empresa),
@@ -49,7 +49,8 @@ Deno.serve(async () => {
         if (assigned.size) names = names.filter((name: string) => assigned.has(name));
       }
 
-      const advanceReported = new Set((advances || []).filter((item: any) => localParts(new Date(item.created_at)).date === local.date).map((item: any) => item.obra_nombre));
+      const workNameById = new Map((works || []).map((work: any) => [String(work.id), work.nombre]));
+      const advanceReported = new Set((advances || []).filter((item: any) => localParts(new Date(item.created_at)).date === local.date).map((item: any) => item.obra_id ? workNameById.get(String(item.obra_id)) : item.obra_nombre).filter(Boolean));
       const machineryReported = new Set([
         ...(usage || []).filter((item: any) => item.fecha === local.date || localParts(new Date(item.created_at)).date === local.date).map((item: any) => item.obra_nombre),
         ...(legacyUsage || []).filter((item: any) => localParts(new Date(item.created_at)).date === local.date).map((item: any) => item.obra_nombre)

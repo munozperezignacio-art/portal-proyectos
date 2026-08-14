@@ -222,6 +222,7 @@ export default function ExecutiveReportScheduler({
       supabase
         .from("avances_produccion_partidas")
         .select("obra_nombre,partida,cantidad,created_at")
+        .eq("empresa", user.empresa)
         .in("obra_nombre", selected),
       supabase
         .from("asistencia_personal")
@@ -248,6 +249,7 @@ export default function ExecutiveReportScheduler({
         .select(
           "obra_nombre,partida,cantidad_presupuestada,costo_por_dia,rendimiento_meta,fecha_inicio,fecha_termino",
         )
+        .eq("empresa", user.empresa)
         .in("obra_nombre", selected),
       supabase.from("maquinaria_uso_diario").select("obra_nombre,equipo_id,equipo_patente,horas_trabajadas,created_at").eq("empresa", user.empresa).in("obra_nombre", selected).gte("created_at", since.toISOString()),
       supabase.from("maquinaria_fallas").select("equipo_id,fecha,solucion,created_at").eq("empresa", user.empresa),

@@ -100,6 +100,9 @@ export default function LibroObrasDigital({ user, obraNombre, obra }) {
     setLoading(true);
     setMessage("");
     try {
+      const partidasQuery = obra?.id
+        ? supabase.from("partidas_obra").select("partida, unidad").eq("empresa", empresa).eq("obra_id", obra.id)
+        : supabase.from("partidas_obra").select("partida, unidad").eq("empresa", empresa).eq("obra_nombre", obraNombre);
       const [entriesResult, partidasResult] = await Promise.all([
         supabase
           .from("libro_obra_digital")
@@ -108,10 +111,7 @@ export default function LibroObrasDigital({ user, obraNombre, obra }) {
           .eq("obra_nombre", obraNombre)
           .order("fecha", { ascending: false })
           .order("created_at", { ascending: false }),
-        supabase
-          .from("partidas_obra")
-          .select("partida, unidad")
-          .eq("obra_nombre", obraNombre),
+        partidasQuery,
       ]);
       if (entriesResult.error) throw entriesResult.error;
       if (partidasResult.error) throw partidasResult.error;

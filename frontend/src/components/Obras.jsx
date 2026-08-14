@@ -739,7 +739,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       if (partidaObj.id && !isNaN(parseInt(partidaObj.id))) {
         await supabase.from('partidas_obra').update({ fecha_inicio: newStartDate }).eq('id', partidaObj.id);
       } else if (selectedObra?.nombre && partidaObj.partida) {
-        await supabase.from('partidas_obra').update({ fecha_inicio: newStartDate }).eq('obra_nombre', selectedObra.nombre).eq('partida', partidaObj.partida);
+        await supabase.from('partidas_obra').update({ fecha_inicio: newStartDate }).eq('empresa', user?.empresa || 'Obraxis').eq('obra_nombre', selectedObra.nombre).eq('partida', partidaObj.partida);
       }
     } catch(err) {
       console.warn('Sync warning on partida fecha_inicio:', err);
@@ -802,7 +802,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       if (partidaObj.id && !isNaN(parseInt(partidaObj.id))) {
         await supabase.from('partidas_obra').update(payload).eq('id', partidaObj.id);
       } else if (selectedObra?.nombre && partidaObj.partida) {
-        await supabase.from('partidas_obra').update(payload).eq('obra_nombre', selectedObra.nombre).eq('partida', partidaObj.partida);
+        await supabase.from('partidas_obra').update(payload).eq('empresa', user?.empresa || 'Obraxis').eq('obra_nombre', selectedObra.nombre).eq('partida', partidaObj.partida);
       }
     } catch (err) {
       console.warn('Sync warning on partida dependency:', err);
@@ -1729,8 +1729,12 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
     // 3. Cargar partidas de obra
     try {
-      const { data: allPart } = await supabase.from('partidas_obra').select('*');
-      const listPart = (allPart || []).filter(p => isMatchObra(p.obra_nombre, obraNombre));
+      let partidasQuery = supabase.from('partidas_obra').select('*');
+      partidasQuery = selectedObra?.id
+        ? partidasQuery.eq('obra_id', selectedObra.id)
+        : partidasQuery.eq('empresa', user?.empresa || 'Obraxis').eq('obra_nombre', obraNombre);
+      const { data: allPart } = await partidasQuery;
+      const listPart = allPart || [];
 
       const savedLocalPartidasStr = localStorage.getItem(`partidas_${selectedObra?.id}`) || localStorage.getItem(`partidas_${obraNombre}`);
       let savedLocalPartidas = [];
@@ -1791,7 +1795,11 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     // 5. Avances de producción
     let fullAvances = [];
     try {
-      const { data: av1 } = await supabase.from('avances_produccion_partidas').select('*');
+      let avancesQuery = supabase.from('avances_produccion_partidas').select('*');
+      avancesQuery = selectedObra?.id
+        ? avancesQuery.eq('obra_id', selectedObra.id)
+        : avancesQuery.eq('empresa', user?.empresa || 'Obraxis').eq('obra_nombre', obraNombre);
+      const { data: av1 } = await avancesQuery;
       const { data: av2 } = await supabase.from('reportes_avance').select('*');
       const combinedAv = [...(av1 || []), ...(av2 || [])];
       fullAvances = combinedAv.filter(r => isMatchObra(r.obra_nombre, obraNombre));
@@ -2042,6 +2050,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       }
 
       const rowsToInsert = avanceItems.map(item => ({
+        obra_id: selectedObra.id || null,
+        empresa: user?.empresa || selectedObra.empresa || 'Obraxis',
         obra_nombre: selectedObra.nombre,
         supervisor: user?.nombre || user?.email || user?.usuario || 'Supervisor',
         frente: item.frente || 'Frente Principal',
@@ -6165,7 +6175,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                               if (p.id) {
                                                 await supabase.from('partidas_obra').delete().eq('id', p.id);
                                               } else {
-                                                await supabase.from('partidas_obra').delete().eq('obra_nombre', selectedObra?.nombre).eq('partida', p.partida);
+                                                await supabase.from('partidas_obra').delete().eq('empresa', user?.empresa || 'Obraxis').eq('obra_nombre', selectedObra?.nombre).eq('partida', p.partida);
                                               }
                                               setPartidasList(prev => prev.filter((_, i) => i !== idx));
                                             } catch (err) { alert('Error: ' + err.message); }
@@ -6257,7 +6267,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                           const { error: delErr } = await supabase.from('partidas_obra').delete().eq('id', p.id);
                                           if (delErr) throw delErr;
                                         } else {
-                                          const { error: delErr } = await supabase.from('partidas_obra').delete().eq('obra_nombre', selectedObra?.nombre).eq('partida', p.partida);
+                                          const { error: delErr } = await supabase.from('partidas_obra').delete().eq('empresa', user?.empresa || 'Obraxis').eq('obra_nombre', selectedObra?.nombre).eq('partida', p.partida);
                                           if (delErr) throw delErr;
                                         }
                                         setPartidasList(prev => prev.filter((_, i) => i !== idx));
@@ -9496,6 +9506,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                         const itemsToInsert = budgetItems.map(it => {
                           const cVal = parseFloat(it.cantidad) || 1;
                           return {
+                            obra_id: createdObra.id,
+                            empresa: user?.empresa || createdObra.empresa || 'Obraxis',
                             obra_nombre: createdObra.nombre,
                             partida: it.partida || it.descripcion || it.codigo,
                             unidad: it.unidad || 'UND',
@@ -9807,6 +9819,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
                   // Esqueleto estricto coincidente con el esquema SQL de partidas_obra
                   const dbPayload = {
+                    obra_id: selectedObra?.id || null,
+                    empresa: user?.empresa || selectedObra?.empresa || 'Obraxis',
                     obra_nombre: selectedObra?.nombre || 'Obra Principal',
                     partida: partidaFormData.partida.trim(),
                     unidad: partidaFormData.unidad || 'UND',
@@ -9833,6 +9847,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                       const { error: updErr } = await supabase
                         .from('partidas_obra')
                         .update(dbPayload)
+                        .eq('empresa', user?.empresa || 'Obraxis')
                         .eq('obra_nombre', selectedObra.nombre)
                         .eq('partida', editingPartida.partida);
                       if (updErr) throw updErr;
