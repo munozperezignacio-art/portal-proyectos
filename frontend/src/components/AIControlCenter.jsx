@@ -2,14 +2,19 @@ import React,{useEffect,useMemo,useState}from'react';
 import{AlertTriangle,Bot,Building2,CheckCircle2,CircleDollarSign,Database,Loader2,LockKeyhole,RefreshCw,Save,ShieldCheck,Users,Workflow}from'lucide-react';
 import{supabase}from'../supabaseClient';
 
-const DEFAULT_FEATURES={lectura_documental:true,maquinaria:false,rrhh:false,informes:false,copiloto:false,revision_legal:false};
+const DEFAULT_FEATURES={lectura_documental:true,maquinaria:false,rrhh:false,informes:false,copiloto:false,revision_legal:false,asistencia_planificacion:false,asistencia_calidad:false,asistencia_prevencion:false,asistencia_maquinaria:false,asistencia_rrhh:false};
 const FEATURES=[
  ['lectura_documental','Lectura documental','Boletas, facturas, guías y acreditaciones.'],
  ['maquinaria','IA para maquinaria','Lectura de medidores, anomalías y apoyo de mantenimiento.'],
  ['rrhh','IA para Recursos Humanos','Lectura documental y alertas de dotación, vigencias y asistencia.'],
  ['informes','Informes asistidos','Interpretación ejecutiva de indicadores reales.'],
  ['copiloto','Copiloto por obra','Consultas trazables sobre información autorizada.'],
- ['revision_legal','Revisión legal asistida','Contraste documental con reglas y normativa versionada.']
+ ['revision_legal','Revisión legal asistida','Contraste documental con reglas y normativa versionada.'],
+ ['asistencia_planificacion','Asistencia de planificación','Interpreta restricciones y recursos de Last Planner; nunca libera compromisos.'],
+ ['asistencia_calidad','Asistencia de calidad','Resume recurrencias y propone borradores de causa y acción para revisión profesional.'],
+ ['asistencia_prevencion','Asistencia de prevención','Sugiere controles y análisis preventivos sin clasificar ni cerrar eventos automáticamente.'],
+ ['asistencia_maquinaria','Asistencia de maquinaria','Sintetiza fallas y propone redistribución sin alterar equipos ni mantenciones.'],
+ ['asistencia_rrhh','Asistencia de Recursos Humanos','Explica brechas usando dotación agregada, sin enviar RUT ni datos personales.']
 ];
 const usd=value=>`US$ ${Number(value||0).toFixed(2)}`;
 const numberOrBlank=value=>value===''?'':Number(value);

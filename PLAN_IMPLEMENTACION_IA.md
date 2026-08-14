@@ -87,16 +87,18 @@ La IA asiste. Los cálculos, permisos, aprobaciones y registros oficiales contin
 
 La cobertura operativa determinística de esta fase está cerrada. Las interpretaciones IA indicadas como opcionales quedan como extensiones contratables y no reducen la funcionalidad base.
 
+Autorización específica recibida el 13-08-2026 para análisis bajo solicitud de usuarios autorizados en Last Planner, Calidad, Prevención, Maquinaria y Recursos Humanos. Se excluyen RUT, datos médicos, credenciales y acciones automáticas; RR. HH. se transmite únicamente de forma agregada por cargo.
+
 - [x] Base determinística de Planificación y Last Planner: semáforo por partida, restricciones, responsables, compromisos, criticidad y sugerencias de recuperación sin consumo de tokens.
-- [ ] Interpretación IA opcional de Planificación y Last Planner, sujeta a autorización específica para enviar restricciones y recursos a OpenAI.
+- [x] Interpretación IA opcional de Planificación y Last Planner, controlada por empresa, rol y presupuesto; entrega sugerencias sin liberar restricciones.
 - [x] Base determinística de Calidad: contención, análisis causal, recurrencia, acción correctiva, verificación de eficacia y cierre por etapas.
-- [ ] Asistencia IA opcional de Calidad para borradores de protocolos, síntesis de recurrencias y propuestas de causa/acción, sujeta a autorización específica.
+- [x] Asistencia IA opcional de Calidad para síntesis de recurrencias y propuestas de causa/acción, siempre sujetas a validación profesional.
 - [x] Base determinística de Prevención: clasificación del evento, potencial de gravedad, método de investigación, causas inmediata y raíz, referencia a matriz de riesgos, acciones con responsable/plazo/estado y verificación obligatoria antes del cierre.
-- [ ] Asistencia IA opcional de Prevención para borradores de AST, síntesis de recurrencias y sugerencias de controles, sujeta a autorización específica.
+- [x] Asistencia IA opcional de Prevención con datos sanitizados, síntesis de recurrencias y sugerencias de controles; no clasifica ni cierra eventos.
 - [x] Base determinística de Maquinaria: utilización, disponibilidad, índice de fallas, MTBF, costo horario, alertas de discontinuidad de lecturas y proyección de mantenciones por tiempo, horómetro o kilometraje.
-- [ ] Asistencia IA opcional de Maquinaria para síntesis de fallas recurrentes y recomendaciones de redistribución, sujeta a autorización específica.
+- [x] Asistencia IA opcional de Maquinaria para síntesis de fallas recurrentes y recomendaciones de redistribución, sin modificar equipos o mantenciones.
 - [x] Base determinística de Recursos Humanos: personal disponible, costo sin asignar, asistencia y horas extra de 30 días, brechas proyectadas por cargo y sugerencias de reasignación con confirmación humana.
-- [ ] Asistencia IA opcional de Recursos Humanos para explicar brechas y proponer escenarios de dotación, sujeta a autorización específica.
+- [x] Asistencia IA opcional de Recursos Humanos con dotación agregada por cargo, sin nombres, RUT ni antecedentes médicos.
 - [x] Bandeja transversal por obra: consolida prioridades de planificación, Last Planner, Calidad, Prevención, Maquinaria y RR. HH.; enlaza cada alerta con su registro responsable y no ejecuta cambios automáticos.
 - [x] Lectura asistida de horómetro/kilometraje con revisión humana.
 - [x] Anomalías de lecturas, fallas recurrentes, mantenimiento proyectado y sugerencias determinísticas de redistribución de maquinaria.

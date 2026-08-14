@@ -7,6 +7,15 @@ const num = (value: unknown) => Number(value || 0);
 const normalized = (value: unknown) => String(value || "").trim().toLocaleLowerCase("es-CL");
 const money = (value: number) => `$${Math.round(value).toLocaleString("es-CL")}`;
 const isClosed = (value: unknown) => ["cerrada", "cerrado", "resuelta", "resuelto", "aprobada", "aprobado"].includes(normalized(value));
+const specializedIntent = (question: string) => {
+  const q = normalized(question);
+  if (["last planner", "lookahead", "restric", "recuper", "planific"].some(term => q.includes(term))) return "asistencia_planificacion";
+  if (["calidad", "no conformidad", "protocolo", "causa raiz"].some(term => q.includes(term))) return "asistencia_calidad";
+  if (["prevenci", "seguridad", "incidente", "accidente", "ast", "riesgo"].some(term => q.includes(term))) return "asistencia_prevencion";
+  if (["maquinaria", "equipo", "mantenci", "falla", "horometro", "kilometraje"].some(term => q.includes(term))) return "asistencia_maquinaria";
+  if (["personal", "persona", "dotaci", "rrhh", "recurso humano", "asistencia", "turno"].some(term => q.includes(term))) return "asistencia_rrhh";
+  return "";
+};
 
 const schema = {
   type: "object", additionalProperties: false,
@@ -46,6 +55,7 @@ const decorate = (result: any, sources: Source[], mode: "IA" | "Determinístico"
 
 const deterministicAnswer = (question: string, context: Context) => {
   const q = normalized(question);
+  if (["analiza", "explica", "propone", "recomienda", "sugiere", "recurr", "causa", "escenario", "recuperacion", "recuperación", "borrador"].some(term => q.includes(term))) return null;
   if ((q.includes("menor avance") || q.includes("mayor atraso") || q.includes("más atras") || q.includes("mas atras")) && q.includes("partida")) {
     const ranked = context.partidas.filter(row => row.avance_pct !== null).sort((a, b) => a.avance_pct - b.avance_pct).slice(0, 5);
     return {
@@ -136,13 +146,13 @@ Deno.serve(async (req) => {
       db.from("partidas_obra").select("id,partida,unidad,cantidad_presupuestada,costo_por_dia,fecha_inicio,fecha_termino").eq("obra_nombre", obraNombre),
       db.from("avances_produccion_partidas").select("id,partida,cantidad,created_at").eq("obra_nombre", obraNombre),
       db.from("costos_reales_obra").select("id,nombre,tipo_costo,monto,created_at").eq("obra_nombre", obraNombre).eq("empresa", empresa),
-      db.from("calidad_no_conformidades").select("id,codigo,partida,clasificacion,estado,fecha_compromiso").eq("obra_nombre", obraNombre).eq("empresa", empresa),
-      db.from("prevencion_respuestas").select("id,created_at").eq("proyecto_nombre", obraNombre),
+      db.from("calidad_no_conformidades").select("id,codigo,partida,descripcion,clasificacion,estado,fecha_compromiso,origen,impacto,correccion_inmediata,metodo_causa_raiz,causa_categoria,causa_raiz,accion_correctiva,eficacia_verificada,observacion_verificacion").eq("obra_nombre", obraNombre).eq("empresa", empresa),
+      db.from("prevencion_respuestas").select("id,created_at,respuestas").eq("proyecto_nombre", obraNombre),
       db.from("estados_pago_obra").select("id,numero,fecha_corte,monto_bruto,monto_neto,estado,factura_estado").eq("obra_nombre", obraNombre).eq("empresa", empresa),
-      db.from("last_planner_recursos").select("id,partida,recurso,tipo,estado,responsable,fecha_compromiso,criticidad,observacion").eq("obra_nombre", obraNombre).eq("empresa", empresa),
+      db.from("last_planner_recursos").select("id,partida,recurso,tipo,unidad,cantidad_requerida,estado,responsable,fecha_compromiso,criticidad,observacion").eq("obra_nombre", obraNombre).eq("empresa", empresa),
       db.from("inventario_maquinaria").select("id,tipo,patente,marca,estado_equipo,horometro_inicial,planes_mantencion").eq("obra_nombre", obraNombre).eq("empresa", empresa),
       db.from("maquinaria_uso_diario").select("id,equipo_id,horas_trabajadas,fecha").eq("obra_nombre", obraNombre).eq("empresa", empresa),
-      db.from("maquinaria_fallas").select("id,equipo_id,equipo_patente,equipo_tipo,fecha,severidad,detuvo_equipo,horas_fuera_servicio,descripcion,solucion").eq("empresa", empresa),
+      db.from("maquinaria_fallas").select("id,equipo_id,equipo_patente,equipo_tipo,fecha,severidad,detuvo_equipo,horas_fuera_servicio,descripcion,causa,solucion").eq("empresa", empresa),
       db.from("rrhh_asignaciones_personal").select("id,trabajador_id,trabajador_nombre,cargo,fecha_inicio,fecha_termino").eq("obra_nombre", obraNombre).eq("empresa", empresa)
     ]);
     const parts = partsResult.data || [], advances = advancesResult.data || [], costs = costsResult.data || [], quality = qualityResult.data || [], prevention = safetyResult.data || [], payments = paymentsResult.data || [], restrictions = restrictionsResult.data || [], machinery = machineryResult.data || [], machineryUse = machineryUseResult.data || [], assignments = assignmentsResult.data || [];
@@ -171,10 +181,11 @@ Deno.serve(async (req) => {
       ...failures.slice(0, 30).map((row: any) => ({ id: `falla:${row.id}`, modulo: "Maquinaria", referencia: `Falla · ${row.equipo_patente || row.equipo_tipo || row.id}`, destino: "maquinaria", registro_id: row.id })),
       ...assignments.slice(0, 50).map((row: any) => ({ id: `personal:${row.id}`, modulo: "Recursos Humanos", referencia: `${row.trabajador_nombre} · ${row.cargo || "Sin cargo"}`, destino: "personal", registro_id: row.id }))
     ];
+    const preventionSafe = prevention.map((row: any) => { const answers = row.respuestas || {}, follow = answers.__seguimiento_accidente || {}; return { id: row.id, created_at: row.created_at, tipo: answers.tipo || answers.tipo_evento || "Registro preventivo", fecha_evento: answers.fecha_evento || null, descripcion: answers.descripcion || answers.observaciones || null, estado_caso: follow.estado_caso || null, investigacion_requerida: Boolean(follow.investigacion_requerida), clasificacion_evento: follow.clasificacion_evento || null, potencial_gravedad: follow.potencial_gravedad || null, metodologia_investigacion: follow.metodologia_investigacion || null, causa_inmediata: follow.causa_inmediata || null, causa_raiz: follow.causa_raiz || null, riesgo_matriz_referencia: follow.riesgo_matriz_referencia || null, medidas_correctivas: follow.medidas_correctivas || null, acciones: Array.isArray(follow.acciones) ? follow.acciones.map((action: any) => ({ descripcion: action.descripcion, tipo: action.tipo, fecha_compromiso: action.fecha_compromiso, estado: action.estado })) : [], verificacion_eficacia: follow.verificacion_eficacia || null, dias_perdidos: num(follow.dias_perdidos), fuente_id: `prevencion:${row.id}` }; });
     const context: Context = {
       obra: { nombre: worksite.nombre, estado: worksite.estado, tipo: worksite.tipo },
       resumen: { partidas_activas: activities.length, reportes_avance: advances.length, costo_real_total: costs.reduce((sum: number, row: any) => sum + num(row.monto), 0), no_conformidades_abiertas: quality.filter((row: any) => !isClosed(row.estado)).length, registros_prevencion: prevention.length, estados_pago: payments.length },
-      partidas: activitySummaries, costos_por_tipo: costByType, calidad: quality.slice(0, 25).map((row: any) => ({ ...row, fuente_id: `calidad:${row.id}` })), prevencion: prevention.slice(0, 25).map((row: any) => ({ ...row, fuente_id: `prevencion:${row.id}` })), estados_pago: payments.slice(0, 20).map((row: any) => ({ ...row, fuente_id: `estado_pago:${row.id}` })), restricciones: restrictions.slice(0, 40).map((row: any) => ({ ...row, fuente_id: `restriccion:${row.id}` })), maquinaria: machinery.slice(0, 40).map((row: any) => ({ ...row, horas_reportadas: useByEquipment[String(row.id)] || 0, fuente_id: `maquinaria:${row.id}` })), fallas_maquinaria: failures.slice(0, 30).map((row: any) => ({ ...row, fuente_id: `falla:${row.id}` })), personal_asignado: assignments.slice(0, 50).map((row: any) => ({ ...row, fuente_id: `personal:${row.id}` })), fuentes: sources
+      partidas: activitySummaries, costos_por_tipo: costByType, calidad: quality.slice(0, 25).map((row: any) => ({ ...row, fuente_id: `calidad:${row.id}` })), prevencion: preventionSafe.slice(0, 25), estados_pago: payments.slice(0, 20).map((row: any) => ({ ...row, fuente_id: `estado_pago:${row.id}` })), restricciones: restrictions.slice(0, 40).map((row: any) => ({ ...row, fuente_id: `restriccion:${row.id}` })), maquinaria: machinery.slice(0, 40).map((row: any) => ({ ...row, horas_reportadas: useByEquipment[String(row.id)] || 0, fuente_id: `maquinaria:${row.id}` })), fallas_maquinaria: failures.slice(0, 30).map((row: any) => ({ ...row, fuente_id: `falla:${row.id}` })), personal_asignado: assignments.slice(0, 50).map((row: any) => ({ ...row, fuente_id: `personal:${row.id}` })), fuentes: sources
     };
 
     const deterministic = deterministicAnswer(pregunta, context);
@@ -187,17 +198,24 @@ Deno.serve(async (req) => {
     const [{ data: globalConfig }, { data: companyConfig }] = await Promise.all([db.from("config_global_obraxis").select("ia_habilitada,ia_modelo").eq("id", 1).maybeSingle(), db.from("ia_config_empresas").select("*").eq("empresa", empresa).maybeSingle()]);
     if (globalConfig?.ia_habilitada === false || companyConfig?.habilitada !== true) return json({ error: "La IA está deshabilitada. Puedes usar las consultas rápidas determinísticas disponibles." }, 403);
     if (companyConfig?.funciones?.copiloto !== true) return json({ error: "El Copiloto por obra no está contratado o habilitado." }, 403);
-    const allowedRoles = companyConfig?.limites_funcion?.copiloto?.roles_autorizados || [];
+    const specializedKey = specializedIntent(pregunta);
+    if (specializedKey && companyConfig?.funciones?.[specializedKey] !== true) return json({ error: "La asistencia especializada solicitada no está habilitada para esta empresa." }, 403);
+    const functionKey = specializedKey || "copiloto";
+    const allowedRoles = companyConfig?.limites_funcion?.[functionKey]?.roles_autorizados || companyConfig?.limites_funcion?.copiloto?.roles_autorizados || [];
     if (allowedRoles.length && !allowedRoles.some((role: string) => normalized(role) === normalized(profile.rol))) return json({ error: "Tu rol no está autorizado para usar el Copiloto." }, 403);
     const openAIKey = Deno.env.get("OPENAI_API_KEY");
     if (!openAIKey) return json({ error: "La IA del Copiloto no está configurada en el servidor." }, 503);
     const model = companyConfig?.modelo || globalConfig?.ia_modelo || "gpt-4.1-mini";
-    const { data: reserved, error: reserveError } = await db.rpc("ia_reservar_consumo", { p_empresa: empresa, p_obra_nombre: obraNombre, p_auth_user_id: authData.user.id, p_usuario: profile.nombre || profile.usuario || profile.correo, p_funcion: "copiloto", p_modelo: model, p_reserva_usd: .02 });
+    const { data: reserved, error: reserveError } = await db.rpc("ia_reservar_consumo", { p_empresa: empresa, p_obra_nombre: obraNombre, p_auth_user_id: authData.user.id, p_usuario: profile.nombre || profile.usuario || profile.correo, p_funcion: functionKey, p_modelo: model, p_reserva_usd: .02 });
     if (reserveError) return json({ error: reserveError.message }, 429);
     reservationId = reserved;
     const aiSourceIds = new Set(["obra:resumen", "costos:resumen", "calidad:resumen", "prevencion:resumen", "estados_pago:resumen", ...activitySummaries.map((item: any) => item.fuente_id), ...quality.map((item: any) => `calidad:${item.id}`), ...prevention.map((item: any) => `prevencion:${item.id}`), ...payments.map((item: any) => `estado_pago:${item.id}`)]);
-    const aiContext = { obra: context.obra, resumen: context.resumen, partidas: context.partidas, costos_por_tipo: context.costos_por_tipo, calidad: context.calidad, prevencion: context.prevencion, estados_pago: context.estados_pago, fuentes: context.fuentes.filter(source => aiSourceIds.has(source.id)) };
-    const prompt = `Eres el Copiloto de Obraxis para control profesional de construcción. Responde SOLO con el contexto JSON de la obra autorizada. No inventes ni completes datos ausentes. Distingue hechos, cálculos y sugerencias. Para cada hecho usa exclusivamente un fuente_id existente en contexto.fuentes. Si no existe una fuente que respalde una afirmación, omítela o indícala como limitación. Sé breve. No ordenes cambios ni afirmes que modificaste registros: eres de solo lectura. Consulta: ${pregunta}`;
+    const aiContext: any = { obra: context.obra, resumen: context.resumen, partidas: context.partidas, costos_por_tipo: context.costos_por_tipo, calidad: context.calidad, prevencion: context.prevencion, estados_pago: context.estados_pago };
+    if (specializedKey === "asistencia_planificacion") { aiContext.restricciones = context.restricciones; context.restricciones.forEach((item: any) => aiSourceIds.add(item.fuente_id)); }
+    if (specializedKey === "asistencia_maquinaria") { aiContext.maquinaria = context.maquinaria.map(({ tipo, estado_equipo, horas_reportadas, planes_mantencion, fuente_id }: any) => ({ tipo, estado_equipo, horas_reportadas, planes_mantencion, fuente_id: "maquinaria:resumen" })); aiContext.fallas_maquinaria = context.fallas_maquinaria.map(({ equipo_tipo, fecha, severidad, detuvo_equipo, horas_fuera_servicio, descripcion, causa, solucion }: any) => ({ equipo_tipo, fecha, severidad, detuvo_equipo, horas_fuera_servicio, descripcion, causa, solucion, fuente_id: "maquinaria:resumen" })); aiSourceIds.add("maquinaria:resumen"); }
+    if (specializedKey === "asistencia_rrhh") { const today = new Date().toISOString().slice(0, 10); const active = context.personal_asignado.filter((item: any) => (!item.fecha_inicio || item.fecha_inicio <= today) && (!item.fecha_termino || item.fecha_termino >= today)); aiContext.dotacion_por_cargo = Object.entries(active.reduce((acc: Record<string, number>, item: any) => { const role = item.cargo || "Sin cargo"; acc[role] = (acc[role] || 0) + 1; return acc; }, {})).map(([cargo, total]) => ({ cargo, total, fuente_id: "personal:resumen" })); aiSourceIds.add("personal:resumen"); }
+    aiContext.fuentes = context.fuentes.filter(source => aiSourceIds.has(source.id));
+    const prompt = `Eres el Copiloto de Obraxis para control profesional de construcción. Responde SOLO con el contexto JSON de la obra autorizada. No inventes ni completes datos ausentes. Distingue hechos, cálculos y sugerencias. Para cada hecho usa exclusivamente un fuente_id existente en contexto.fuentes. Si no existe una fuente que respalde una afirmación, omítela o indícala como limitación. Sé breve. La asistencia especializada es solo una propuesta para validación profesional: no modifiques, apruebes, clasifiques ni cierres registros y no afirmes que ejecutaste acciones. Función autorizada: ${functionKey}. Consulta: ${pregunta}`;
     const response = await fetch("https://api.openai.com/v1/responses", { method: "POST", headers: { Authorization: `Bearer ${openAIKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ model, input: [{ role: "user", content: [{ type: "input_text", text: prompt }, { type: "input_text", text: JSON.stringify(aiContext) }] }], text: { format: { type: "json_schema", name: "copiloto_contextual_obra", strict: true, schema } } }) });
     const apiData = await response.json();
     if (!response.ok) throw new Error(apiData?.error?.message || "No fue posible consultar el Copiloto.");
