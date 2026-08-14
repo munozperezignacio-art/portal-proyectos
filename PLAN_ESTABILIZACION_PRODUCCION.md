@@ -2,19 +2,19 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
-Avance actualizado: Etapa 1 98%; plan completo 20%.
+Avance actualizado: Etapa 1 99%; plan completo 22%.
 
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
 ## Etapa 1 — Cierre de seguridad
 
-- [ ] Reemplazar políticas RLS abiertas por aislamiento real por empresa y obra.
-- [ ] Eliminar acceso anónimo directo no indispensable.
+- [x] Reemplazar políticas RLS abiertas por aislamiento real por empresa y obra.
+- [x] Eliminar acceso anónimo directo no indispensable.
 - [ ] Mover Resend completamente al servidor y rotar su clave.
 - [x] Eliminar claves de IA del navegador y de tablas expuestas.
 - [x] Proteger tareas Cron con un secreto interno en Vault independiente de la clave pública.
 - [ ] Activar protección de contraseñas filtradas en Supabase Auth.
-- [ ] Revisar `GRANT` y funciones `SECURITY DEFINER`.
+- [x] Revisar `GRANT` y funciones `SECURITY DEFINER`.
 - [ ] Verificar con pruebas cruzadas entre al menos dos empresas.
 
 ## Etapa 2 — Integridad y reproducibilidad
@@ -87,3 +87,8 @@ La plataforma se considerará lista para producción cuando no existan política
 - Estados de Pago y Libro de Obras externos migrados a una Edge Function protegida por enlace y clave; validación, decisiones, propuestas, trazabilidad y bitácora se procesan en servidor.
 - Configuración de correos normalizada por empresa y aislada mediante RLS; Estados de Pago y Libro de Obras también quedaron bajo políticas multiempresa.
 - Acceso anónimo directo retirado de las tres tablas anteriores; las políticas públicas abiertas bajaron de 6 a 3.
+- Marcación QR de asistencia encapsulada en una Edge Function con token aleatorio por obra, validación de RUT asignado, geolocalización, límite de frecuencia y fecha operacional de Chile.
+- Obras, maestro de personal y asistencia quedaron aislados por empresa; `anon` ya no posee privilegios sobre esas tablas.
+- Políticas públicas amplias reducidas de 3 a 0 y verificadas directamente en producción.
+- Control de lint reactivado en Windows; corregido el único error bloqueante de reglas de Hooks detectado en Bodega.
+- Auditoría de integridad multiempresa iniciada: quedan 19 avances, 4 partidas y 10 asistencias heredadas sin obra inequívoca; se mantienen identificadas para reasignación controlada, sin inventar relaciones ni eliminar registros.
