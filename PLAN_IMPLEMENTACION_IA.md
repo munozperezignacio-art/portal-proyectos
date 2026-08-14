@@ -10,7 +10,7 @@ La IA asiste. Los cálculos, permisos, aprobaciones y registros oficiales contin
 | 2. IA documental | Cerrada | 100% |
 | 3. Informes asistidos | Cerrada | 100% |
 | 4. Copiloto contextual por obra | Primera versión funcional | 70% |
-| 5. Asistencia especializada | Last Planner, Calidad e investigación preventiva operativos | 55% |
+| 5. Asistencia especializada | Last Planner, Calidad, Prevención y analítica de Maquinaria operativos | 70% |
 | 6. Predicción y optimización | Pendiente de historial confiable | 0% |
 
 ## Fase 1 — Gobierno y control de IA
@@ -86,6 +86,8 @@ La IA asiste. Los cálculos, permisos, aprobaciones y registros oficiales contin
 - [ ] Asistencia IA opcional de Calidad para borradores de protocolos, síntesis de recurrencias y propuestas de causa/acción, sujeta a autorización específica.
 - [x] Base determinística de Prevención: clasificación del evento, potencial de gravedad, método de investigación, causas inmediata y raíz, referencia a matriz de riesgos, acciones con responsable/plazo/estado y verificación obligatoria antes del cierre.
 - [ ] Asistencia IA opcional de Prevención para borradores de AST, síntesis de recurrencias y sugerencias de controles, sujeta a autorización específica.
+- [x] Base determinística de Maquinaria: utilización, disponibilidad, índice de fallas, MTBF, costo horario, alertas de discontinuidad de lecturas y proyección de mantenciones por tiempo, horómetro o kilometraje.
+- [ ] Asistencia IA opcional de Maquinaria para síntesis de fallas recurrentes y recomendaciones de redistribución, sujeta a autorización específica.
 - [x] Lectura asistida de horómetro/kilometraje con revisión humana.
 - [ ] Anomalías, fallas recurrentes, mantenimiento y redistribución de maquinaria.
 
@@ -102,4 +104,4 @@ No se inicia hasta disponer de volumen, calidad y continuidad histórica suficie
 
 ## Próximo bloque obligatorio
 
-Continuar Fase 5 con Maquinaria: anomalías de horómetro/kilometraje, mantenimiento, fallas recurrentes, utilización y costo horario; mantener decisiones como procesos determinísticos.
+Continuar Fase 5 con Recursos Humanos: capacidad disponible, personal no asignado, brechas de dotación, ausentismo y sugerencias de reasignación; mantener decisiones como procesos determinísticos.

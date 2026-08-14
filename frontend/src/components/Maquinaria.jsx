@@ -1012,6 +1012,55 @@ export default function Maquinaria({ user, onBack }) {
   const downtimeHours = statsFallas.reduce((sum, item) => sum + (Number(item.horas_fuera_servicio) || 0), 0);
   const failureRate = totalHours > 0 ? (statsFallas.length / totalHours) * 1000 : 0;
   const mtbf = statsFallas.length > 0 ? totalHours / statsFallas.length : totalHours;
+  const maintenanceCost = statsMantenciones.reduce((sum, item) => sum + (Number(item.costo) || 0), 0);
+  const distinctUsageDays = new Set(statsUso.map(log => `${log.equipo_id}-${log.fecha || String(log.created_at || '').slice(0, 10)}`)).size;
+  const availableHours = totalHours + downtimeHours;
+  const operationalAvailability = availableHours > 0 ? (totalHours / availableHours) * 100 : 100;
+  const utilizationCapacity = Math.max(1, distinctUsageDays * 8);
+  const utilizationRate = Math.min(100, (totalHours / utilizationCapacity) * 100);
+  const operatingCost = filteredStatsEquipment.reduce((sum, equipment) => {
+    const equipmentLogs = statsUso.filter(log => String(log.equipo_id) === String(equipment.id));
+    const hours = equipmentLogs.reduce((acc, log) => acc + (Number(log.horas_trabajadas) || Math.max(0, Number(log.horometro_final) - Number(log.horometro_inicial))), 0);
+    const days = new Set(equipmentLogs.map(log => log.fecha || String(log.created_at || '').slice(0, 10))).size;
+    const rate = Number(equipment.costo_interno) || 0;
+    if (equipment.unidad_costo_interno === '$/hr') return sum + rate * hours;
+    if (equipment.unidad_costo_interno === '$/mes') return sum + rate * (days / 30);
+    return sum + rate * days;
+  }, 0);
+  const totalFleetCost = operatingCost + maintenanceCost;
+  const costPerHour = totalHours > 0 ? totalFleetCost / totalHours : 0;
+  const readingAnomalies = filteredStatsEquipment.flatMap(equipment => {
+    const isMileage = (equipment.planes_mantencion || []).some(plan => plan.unidad === 'kilometros');
+    const logs = statsUso.filter(log => String(log.equipo_id) === String(equipment.id)).sort((a, b) => `${a.fecha || ''}${a.created_at || ''}`.localeCompare(`${b.fecha || ''}${b.created_at || ''}`));
+    return logs.flatMap((log, index) => {
+      const initial = Number(log.horometro_inicial) || 0;
+      const final = Number(log.horometro_final) || 0;
+      const delta = final - initial;
+      const previousFinal = index > 0 ? Number(logs[index - 1].horometro_final) : null;
+      const reasons = [];
+      if (final < initial) reasons.push('Lectura final inferior a la inicial');
+      if (previousFinal !== null && Math.abs(initial - previousFinal) > 0.1) reasons.push(`Discontinuidad respecto de ${previousFinal.toLocaleString('es-CL')}`);
+      if ((!isMileage && delta > 24) || (isMileage && delta > 1000)) reasons.push(`Variación diaria inusual: ${delta.toLocaleString('es-CL')} ${isMileage ? 'km' : 'h'}`);
+      if ((Number(log.combustible_cargado) || 0) > 0 && delta === 0) reasons.push('Combustible informado sin uso registrado');
+      return reasons.length ? [{ equipment, log, reasons }] : [];
+    });
+  });
+  const maintenanceForecast = filteredStatsEquipment.flatMap(equipment => (equipment.planes_mantencion || []).map(plan => {
+    const interval = Number(plan.intervalo) || 0;
+    const currentReading = Number(equipment.horometro_inicial) || 0;
+    const lastExecuted = statsMantenciones.find(item => String(item.equipo_id) === String(equipment.id) && (!plan.nombre || String(item.descripcion || '').toLowerCase().includes(String(plan.nombre).toLowerCase())));
+    if (plan.unidad === 'dias') {
+      const origin = new Date(lastExecuted?.fecha || plan.ultima_fecha || equipment.created_at || Date.now());
+      const due = new Date(origin); due.setDate(due.getDate() + interval);
+      const remaining = Math.ceil((due - new Date()) / 86400000);
+      return { equipment, plan, dueLabel: due.toLocaleDateString('es-CL'), remaining, status: remaining < 0 ? 'Vencida' : remaining <= 15 ? 'Próxima' : 'Programada' };
+    }
+    const baseReading = Number(lastExecuted?.horometro ?? plan.ultima_lectura ?? 0);
+    const dueReading = baseReading + interval;
+    const remaining = dueReading - currentReading;
+    return { equipment, plan, dueLabel: `${dueReading.toLocaleString('es-CL')} ${plan.unidad === 'kilometros' ? 'km' : plan.unidad}`, remaining, status: remaining <= 0 ? 'Vencida' : remaining <= interval * 0.15 ? 'Próxima' : 'Programada' };
+  })).sort((a, b) => a.remaining - b.remaining);
+  const urgentMaintenance = maintenanceForecast.filter(item => item.status !== 'Programada');
   const usageByEquipment = filteredStatsEquipment.map((equipment, index) => ({
     equipment,
     color: colorForEquipment(equipment, index),
@@ -1436,10 +1485,17 @@ export default function Maquinaria({ user, onBack }) {
                 <button onClick={() => { setMantencionForm({ equipo_id: statsEquipmentFilter || (maquinaria[0]?.id ?? ''), fecha: dateToISO(new Date()), tipo: 'Preventiva', horometro: '', descripcion: '', costo: '', proveedor: '', responsable: user?.nombre || '' }); setMantencionModalOpen(true); }} className="rounded-xl bg-indigo-700 px-4 py-2 text-xs font-black text-white flex items-center gap-1.5"><Wrench className="w-4 h-4" /> Registrar mantención</button>
               </div>
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mt-5">
-              {[['Horas de uso', `${totalHours.toLocaleString('es-CL')} h`, Gauge, 'text-emerald-700 bg-emerald-50'], ['Consumo', `${totalFuel.toLocaleString('es-CL')} L`, Fuel, 'text-amber-700 bg-amber-50'], ['Índice de fallas', `${failureRate.toFixed(2)} / 1.000 h`, AlertTriangle, 'text-rose-700 bg-rose-50'], ['MTBF', `${mtbf.toFixed(1)} h`, Activity, 'text-cyan-700 bg-cyan-50'], ['Horas detenidas', `${downtimeHours.toLocaleString('es-CL')} h`, Clock, 'text-indigo-700 bg-indigo-50']].map(([label,value,Icon,style]) => <div key={label} className="rounded-2xl border border-slate-200 p-4"><div className={`inline-flex p-2 rounded-xl ${style}`}><Icon className="w-4 h-4" /></div><p className="mt-3 text-[10px] font-black uppercase text-slate-500">{label}</p><p className="text-lg font-black text-slate-900">{value}</p></div>)}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-5">
+              {[['Horas de uso', `${totalHours.toLocaleString('es-CL')} h`, Gauge, 'text-emerald-700 bg-emerald-50'], ['Utilización', `${utilizationRate.toFixed(1)}%`, BarChart3, 'text-blue-700 bg-blue-50'], ['Disponibilidad', `${operationalAvailability.toFixed(1)}%`, Activity, 'text-cyan-700 bg-cyan-50'], ['Consumo', `${totalFuel.toLocaleString('es-CL')} L`, Fuel, 'text-amber-700 bg-amber-50'], ['Índice de fallas', `${failureRate.toFixed(2)} / 1.000 h`, AlertTriangle, 'text-rose-700 bg-rose-50'], ['MTBF', `${mtbf.toFixed(1)} h`, Activity, 'text-cyan-700 bg-cyan-50'], ['Costo por hora', `$${Math.round(costPerHour).toLocaleString('es-CL')}`, DollarSign, 'text-violet-700 bg-violet-50'], ['Horas detenidas', `${downtimeHours.toLocaleString('es-CL')} h`, Clock, 'text-indigo-700 bg-indigo-50']].map(([label,value,Icon,style]) => <div key={label} className="rounded-2xl border border-slate-200 p-4"><div className={`inline-flex p-2 rounded-xl ${style}`}><Icon className="w-4 h-4" /></div><p className="mt-3 text-[10px] font-black uppercase text-slate-500">{label}</p><p className="text-lg font-black text-slate-900">{value}</p></div>)}
             </div>
           </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            <div className="rounded-3xl border border-slate-200 bg-white p-5"><div className="flex items-start justify-between gap-3"><div><h4 className="text-xs font-black uppercase text-slate-900">Plan preventivo</h4><p className="mt-1 text-[10px] text-slate-500">Próximas mantenciones calculadas desde el plan y la última lectura disponible.</p></div><span className={`rounded-lg px-2 py-1 text-[10px] font-black ${urgentMaintenance.length ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800'}`}>{urgentMaintenance.length} requieren atención</span></div><div className="mt-4 space-y-2">{maintenanceForecast.length ? maintenanceForecast.slice(0, 10).map((item, index) => <div key={`${item.equipment.id}-${item.plan.id || index}`} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 p-3"><div><p className="text-xs font-bold text-slate-800">{item.equipment.patente} · {item.plan.nombre}</p><p className="mt-0.5 text-[10px] text-slate-500">Próxima referencia: {item.dueLabel}</p></div><span className={`rounded-lg px-2 py-1 text-[10px] font-black ${item.status === 'Vencida' ? 'bg-rose-100 text-rose-800' : item.status === 'Próxima' ? 'bg-amber-100 text-amber-900' : 'bg-blue-50 text-blue-700'}`}>{item.status}</span></div>) : <p className="rounded-xl bg-slate-50 p-4 text-center text-xs text-slate-500">No hay planes de mantención configurados para este alcance.</p>}</div></div>
+            <div className="rounded-3xl border border-slate-200 bg-white p-5"><div className="flex items-start justify-between gap-3"><div><h4 className="text-xs font-black uppercase text-slate-900">Control de lecturas</h4><p className="mt-1 text-[10px] text-slate-500">Discontinuidades y variaciones atípicas detectadas sin consumo de IA.</p></div><span className={`rounded-lg px-2 py-1 text-[10px] font-black ${readingAnomalies.length ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'}`}>{readingAnomalies.length} alertas</span></div><div className="mt-4 space-y-2">{readingAnomalies.length ? readingAnomalies.slice(0, 10).map((item, index) => <div key={`${item.equipment.id}-${item.log.id || index}`} className="rounded-xl border border-rose-100 bg-rose-50/60 p-3"><p className="text-xs font-bold text-slate-800">{item.equipment.patente} · {item.log.fecha || 'Sin fecha'}</p>{item.reasons.map(reason => <p key={reason} className="mt-1 text-[10px] text-rose-800">• {reason}</p>)}</div>) : <p className="rounded-xl bg-emerald-50 p-4 text-center text-xs font-semibold text-emerald-800">Las lecturas del alcance mantienen continuidad.</p>}</div></div>
+          </div>
+
+          <div className="rounded-3xl border border-violet-200 bg-violet-50/60 p-5"><h4 className="text-xs font-black uppercase text-violet-950">Lectura económica de la flota</h4><div className="mt-3 grid gap-3 sm:grid-cols-3"><div className="rounded-2xl bg-white p-4"><p className="text-[10px] font-black uppercase text-slate-500">Costo operacional imputable</p><p className="mt-1 text-lg font-black text-slate-900">${Math.round(operatingCost).toLocaleString('es-CL')}</p></div><div className="rounded-2xl bg-white p-4"><p className="text-[10px] font-black uppercase text-slate-500">Mantenciones ejecutadas</p><p className="mt-1 text-lg font-black text-slate-900">${Math.round(maintenanceCost).toLocaleString('es-CL')}</p></div><div className="rounded-2xl bg-white p-4"><p className="text-[10px] font-black uppercase text-slate-500">Costo total / hora</p><p className="mt-1 text-lg font-black text-violet-900">${Math.round(costPerHour).toLocaleString('es-CL')}</p></div></div><p className="mt-3 text-[10px] text-violet-800">El costo operacional utiliza la tarifa interna configurada por equipo y los días u horas efectivamente registrados. No incluye combustible mientras no exista un precio unitario validado.</p></div>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
             <div className="bg-white p-5 rounded-3xl border border-slate-200"><h4 className="text-xs font-black uppercase text-slate-900">Uso acumulado por equipo</h4><p className="text-[10px] text-slate-500 mb-4">Horas registradas en terreno.</p><div className="space-y-3 max-h-[390px] overflow-y-auto">{usageByEquipment.map(item => <div key={item.equipment.id}><div className="flex justify-between text-[10px] font-bold mb-1"><span>{item.equipment.tipo} · {item.equipment.patente}</span><span>{item.hours.toLocaleString('es-CL')} h</span></div><div className="h-3 rounded-full bg-slate-100 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${Math.max(item.hours > 0 ? 3 : 0, (item.hours / maxUsageHours) * 100)}%`, backgroundColor: item.color }} /></div></div>)}</div></div>
