@@ -95,7 +95,7 @@ const deterministicAnswer = (question: string, context: Context) => {
       limitaciones: ["La predicción de mantención requiere lecturas y planes de mantenimiento vigentes."]
     };
   }
-  if (q.includes("personal") || q.includes("dotaci") || q.includes("rrhh") || q.includes("recurso humano")) {
+  if (q.includes("persona") || q.includes("personal") || q.includes("dotaci") || q.includes("rrhh") || q.includes("recurso humano")) {
     const today = new Date().toISOString().slice(0, 10);
     const active = context.personal_asignado.filter(item => (!item.fecha_inicio || item.fecha_inicio <= today) && (!item.fecha_termino || item.fecha_termino >= today));
     const byRole = Object.entries(active.reduce((acc: Record<string, number>, item: any) => { const key = item.cargo || "Sin cargo"; acc[key] = (acc[key] || 0) + 1; return acc; }, {})).sort((a: any, b: any) => b[1] - a[1]);
