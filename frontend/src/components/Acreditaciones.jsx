@@ -129,62 +129,46 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
       const { data, error } = await supabase
         .from('acreditaciones_config_docs')
         .select('*')
-        .eq('id', 'global')
+        .eq('empresa', user?.empresa)
         .maybeSingle();
 
       if (!error && data) {
         if (data.company_docs) {
           setMandatoryCompanyDocs(data.company_docs);
-          localStorage.setItem('obraxis_mandatory_company_docs', JSON.stringify(data.company_docs));
         }
         if (data.worker_docs) {
           setMandatoryWorkerDocs(data.worker_docs);
-          localStorage.setItem('obraxis_mandatory_worker_docs', JSON.stringify(data.worker_docs));
         }
         if (data.equipo_docs) {
           setMandatoryEquipoDocs(data.equipo_docs);
-          localStorage.setItem('obraxis_mandatory_equipo_docs', JSON.stringify(data.equipo_docs));
         }
         if (data.supplier_docs) {
           setMandatorySupplierDocs(data.supplier_docs);
-          localStorage.setItem('obraxis_mandatory_supplier_docs', JSON.stringify(data.supplier_docs));
         }
         return;
       }
     } catch (e) {
-      console.warn('Fallback local para config docs');
+      setErrorMsg(`No fue posible cargar la configuración documental: ${e.message}`);
     }
-
-    const savedComp = localStorage.getItem('obraxis_mandatory_company_docs');
-    if (savedComp) setMandatoryCompanyDocs(JSON.parse(savedComp));
-
-    const savedWork = localStorage.getItem('obraxis_mandatory_worker_docs');
-    if (savedWork) setMandatoryWorkerDocs(JSON.parse(savedWork));
-
-    const savedEq = localStorage.getItem('obraxis_mandatory_equipo_docs');
-    if (savedEq) setMandatoryEquipoDocs(JSON.parse(savedEq));
   };
 
   const saveMandatoryDocsConfig = async (compDocs, workDocs, eqDocs, supDocs = mandatorySupplierDocs) => {
     if (!canConfigure) { setErrorMsg('Tu perfil no está autorizado para configurar documentos obligatorios.'); return; }
-    localStorage.setItem('obraxis_mandatory_company_docs', JSON.stringify(compDocs));
-    localStorage.setItem('obraxis_mandatory_worker_docs', JSON.stringify(workDocs));
-    localStorage.setItem('obraxis_mandatory_equipo_docs', JSON.stringify(eqDocs));
-    localStorage.setItem('obraxis_mandatory_supplier_docs', JSON.stringify(supDocs));
-
     try {
-      await supabase
+      const { error } = await supabase
         .from('acreditaciones_config_docs')
         .upsert([{
-          id: 'global',
+          empresa: user?.empresa,
           company_docs: compDocs,
           worker_docs: workDocs,
           equipo_docs: eqDocs,
           supplier_docs: supDocs,
           updated_at: new Date().toISOString()
-        }]);
+        }], { onConflict: 'empresa' });
+      if (error) throw error;
     } catch (e) {
-      console.warn('Error al guardar config docs en Supabase:', e);
+      setErrorMsg(`No fue posible guardar la configuración documental: ${e.message}`);
+      return;
     }
 
     setSuccessMsg('¡Listado de documentos obligatorios guardado y sincronizado con el Minisitio!');
@@ -262,6 +246,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     const pass = provForm.credencial_pass || Math.random().toString(36).substring(2, 8).toUpperCase();
 
     const newProv = {
+      empresa: user?.empresa,
       empresa_nombre: provForm.empresa_nombre,
       rut_empresa: formatRut(provForm.rut_empresa) || '77.000.000-0',
       obra_asociada: provForm.obra_asociada || selectedObra || 'Todas las Obras',
@@ -274,17 +259,11 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
 
     try {
       const { data, error } = await supabase.from('acreditaciones_proveedores').insert([newProv]).select();
-      if (!error && data) {
-        setProveedoresList([data[0], ...proveedoresList]);
-      } else {
-        const updated = [newProv, ...proveedoresList];
-        setProveedoresList(updated);
-        localStorage.setItem('obraxis_acreditaciones_proveedores', JSON.stringify(updated));
-      }
-    } catch (e) {
-      const updated = [newProv, ...proveedoresList];
-      setProveedoresList(updated);
-      localStorage.setItem('obraxis_acreditaciones_proveedores', JSON.stringify(updated));
+      if (error) throw error;
+      setProveedoresList([data[0], ...proveedoresList]);
+    } catch (error) {
+      setErrorMsg(`No fue posible crear el proveedor: ${error.message}`);
+      return;
     }
 
     setShowProvModal(false);
@@ -299,27 +278,22 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     return `${origin}/?acreditacion_proveedor=${cleanName}&token=${provItem.token_acceso}`;
   };
 
-  const openProvDetailModal = (provItem) => {
-    const savedDataStr = localStorage.getItem('obraxis_proveedor_data_' + provItem.token_acceso);
-    let provData = { companyDocs: {}, personalList: [], equiposList: [] };
-    if (savedDataStr) {
-      try { provData = JSON.parse(savedDataStr); } catch (err) {}
-    }
-
+  const openProvDetailModal = async (provItem) => {
+    const { data, error } = await supabase.from('acreditaciones_proveedores').select('*').eq('id', provItem.id).single();
+    if (error) { setErrorMsg(`No fue posible cargar la acreditación: ${error.message}`); return; }
     setSelectedProvDetail({
-      ...provItem,
-      companyDocs: provData.companyDocs || provItem.companyDocs || {},
-      personalList: provData.personalList || provItem.personalList || [],
-      equiposList: provData.equiposList || provItem.equiposList || []
+      ...data,
+      companyDocs: data.companyDocs || {},
+      personalList: data.personalList || [],
+      equiposList: data.equiposList || []
     });
     setSubModalTab('empresa');
     setRejectingKey(null);
     setRejectReasonInput('');
   };
 
-  const handleUpdateProvDocStatus = (category, docKey, status, itemIndex = null, reason = '') => {
+  const handleUpdateProvDocStatus = async (category, docKey, status, itemIndex = null, reason = '') => {
     if (!selectedProvDetail) return;
-    const token = selectedProvDetail.token_acceso;
 
     let nextCompanyDocs = { ...(selectedProvDetail.companyDocs || {}) };
     let nextPersonalList = [...(selectedProvDetail.personalList || [])];
@@ -367,29 +341,12 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
 
     setSelectedProvDetail(updatedProv);
 
-    const payload = {
-      companyDocs: nextCompanyDocs,
-      personalList: nextPersonalList,
-      equiposList: nextEquiposList,
-      progressPercent: progressPercent,
-      updated_at: new Date().toISOString()
-    };
-    localStorage.setItem('obraxis_proveedor_data_' + token, JSON.stringify(payload));
-
-    const localMaster = localStorage.getItem('obraxis_acreditaciones_proveedores');
-    let masterList = localMaster ? JSON.parse(localMaster) : [];
-    const provIdx = masterList.findIndex(s => s.token_acceso === token);
-    if (provIdx !== -1) {
-      masterList[provIdx] = {
-        ...masterList[provIdx],
-        estado_cumplimiento: progressPercent,
-        companyDocs: nextCompanyDocs,
-        personalList: nextPersonalList,
-        equiposList: nextEquiposList
-      };
-      setProveedoresList(masterList);
-      localStorage.setItem('obraxis_acreditaciones_proveedores', JSON.stringify(masterList));
-    }
+    const { error } = await supabase.from('acreditaciones_proveedores').update({
+      companyDocs: nextCompanyDocs, personalList: nextPersonalList, equiposList: nextEquiposList,
+      estado_cumplimiento: progressPercent, updated_at: new Date().toISOString()
+    }).eq('id', selectedProvDetail.id);
+    if (error) { setErrorMsg(`No fue posible guardar la revisión: ${error.message}`); return; }
+    setProveedoresList(current => current.map(item => item.id === selectedProvDetail.id ? updatedProv : item));
 
     setRejectingKey(null);
     setRejectReasonInput('');
@@ -443,32 +400,22 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
 
   const fetchProveedores = async () => {
     try {
-      const { data, error } = await supabase.from('acreditaciones_proveedores').select('id, empresa_nombre, rut_empresa, obra_asociada, correo_contacto, token_acceso, created_at, estado').order('created_at', { ascending: false });
-      if (!error && data) {
-        setProveedoresList(data);
-      } else {
-        const local = localStorage.getItem('obraxis_acreditaciones_proveedores');
-        if (local) setProveedoresList(JSON.parse(local));
-      }
-    } catch (e) {
-      const local = localStorage.getItem('obraxis_acreditaciones_proveedores');
-      if (local) setProveedoresList(JSON.parse(local));
+      const { data, error } = await supabase.from('acreditaciones_proveedores').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      setProveedoresList(data || []);
+    } catch (error) {
+      setErrorMsg(`No fue posible cargar proveedores: ${error.message}`);
     }
   };
 
   const fetchSubcontratos = async () => {
     setLoadingSubcontratos(true);
     try {
-      const { data, error } = await supabase.from('acreditaciones_subcontratos').select('id, empresa_nombre, rut_empresa, obra_asociada, correo_contacto, token_acceso, created_at, estado').order('created_at', { ascending: false });
-      if (!error && data) {
-        setSubcontratosList(data);
-      } else {
-        const local = localStorage.getItem('obraxis_acreditaciones_subcontratos');
-        if (local) setSubcontratosList(JSON.parse(local));
-      }
-    } catch (e) {
-      const local = localStorage.getItem('obraxis_acreditaciones_subcontratos');
-      if (local) setSubcontratosList(JSON.parse(local));
+      const { data, error } = await supabase.from('acreditaciones_subcontratos').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      setSubcontratosList(data || []);
+    } catch (error) {
+      setErrorMsg(`No fue posible cargar subcontratos: ${error.message}`);
     } finally {
       setLoadingSubcontratos(false);
     }
@@ -621,6 +568,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     const pass = subForm.credencial_pass || Math.random().toString(36).substring(2, 8).toUpperCase();
 
     const newSub = {
+      empresa: user?.empresa,
       empresa_nombre: subForm.empresa_nombre,
       rut_empresa: formatRut(subForm.rut_empresa),
       obra_asociada: subForm.obra_asociada || selectedObra || 'Todas las Obras',
@@ -635,18 +583,13 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
     let createdSub = newSub;
     try {
       const { data, error } = await supabase.from('acreditaciones_subcontratos').insert([newSub]).select();
-      if (!error && data) {
-        createdSub = { ...newSub, ...data[0] };
-        setSubcontratosList([createdSub, ...subcontratosList]);
-      } else {
-        const updated = [newSub, ...subcontratosList];
-        setSubcontratosList(updated);
-        localStorage.setItem('obraxis_acreditaciones_subcontratos', JSON.stringify(updated));
-      }
-    } catch (e) {
-      const updated = [newSub, ...subcontratosList];
-      setSubcontratosList(updated);
-      localStorage.setItem('obraxis_acreditaciones_subcontratos', JSON.stringify(updated));
+      if (error) throw error;
+      createdSub = { ...newSub, ...data[0] };
+      setSubcontratosList([createdSub, ...subcontratosList]);
+    } catch (error) {
+      setErrorMsg(`No fue posible crear el subcontrato: ${error.message}`);
+      setSendingSubInvite(false);
+      return;
     }
 
     let collaborationResult = null;
@@ -808,7 +751,6 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
   const updateSubcontractInList = (updatedSub) => {
     const next = subcontratosList.map(item => item.token_acceso === updatedSub.token_acceso ? updatedSub : item);
     setSubcontratosList(next);
-    localStorage.setItem('obraxis_acreditaciones_subcontratos', JSON.stringify(next));
   };
 
   const handleSaveSubcontractEdit = async (event) => {
@@ -832,12 +774,10 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
         if (error) throw error;
         if (updatedSub.credencial_pass) {
           const { error: credentialError } = await supabase.from('acreditaciones_subcontratos').update({ credencial_pass: updatedSub.credencial_pass }).eq('id', updatedSub.id);
-          if (credentialError) console.warn('La clave se conserva localmente hasta habilitar su columna:', credentialError.message);
+          if (credentialError) throw credentialError;
         }
       }
-    } catch (error) {
-      console.warn('Edición guardada localmente:', error.message);
-    }
+    } catch (error) { setErrorMsg(`No fue posible editar el subcontrato: ${error.message}`); return; }
     updateSubcontractInList(updatedSub);
     if (editingSub.integrar_en_obraxis) {
       const collaborationResult = await crearColaboracionObra(updatedSub);
@@ -858,9 +798,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
         const { error } = await supabase.from('acreditaciones_subcontratos').update({ estado: updatedSub.estado }).eq('id', subItem.id);
         if (error) throw error;
       }
-    } catch (error) {
-      console.warn('Archivo guardado localmente:', error.message);
-    }
+    } catch (error) { setErrorMsg(`No fue posible cambiar el estado: ${error.message}`); return; }
     updateSubcontractInList(updatedSub);
     setSuccessMsg(`${subItem.empresa_nombre} fue ${archived ? 'archivado' : 'reactivado'}.`);
     setTimeout(() => setSuccessMsg(''), 4000);
@@ -874,31 +812,23 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
         const { error } = await supabase.from('acreditaciones_subcontratos').delete().eq('id', subItem.id);
         if (error) throw error;
       }
-    } catch (error) {
-      console.warn('Eliminación aplicada localmente:', error.message);
-    }
+    } catch (error) { setErrorMsg(`No fue posible eliminar el subcontrato: ${error.message}`); return; }
     const next = subcontratosList.filter(item => item.token_acceso !== subItem.token_acceso);
     setSubcontratosList(next);
-    localStorage.setItem('obraxis_acreditaciones_subcontratos', JSON.stringify(next));
-    localStorage.removeItem('obraxis_subcontrato_data_' + subItem.token_acceso);
     setSuccessMsg(`${subItem.empresa_nombre} fue eliminado.`);
     setTimeout(() => setSuccessMsg(''), 4000);
   };
 
   const visibleSubcontracts = subcontratosList.filter(sub => showArchivedSubcontracts ? sub.estado === 'Archivado' : sub.estado !== 'Archivado');
 
-  const openSubDetailModal = (subItem) => {
-    const savedDataStr = localStorage.getItem('obraxis_subcontrato_data_' + subItem.token_acceso);
-    let subData = { companyDocs: {}, personalList: [], equiposList: [] };
-    if (savedDataStr) {
-      try { subData = JSON.parse(savedDataStr); } catch (err) {}
-    }
-
+  const openSubDetailModal = async (subItem) => {
+    const { data, error } = await supabase.from('acreditaciones_subcontratos').select('*').eq('id', subItem.id).single();
+    if (error) { setErrorMsg(`No fue posible cargar la acreditación: ${error.message}`); return; }
     setSelectedSubDetail({
-      ...subItem,
-      companyDocs: subData.companyDocs || subItem.companyDocs || {},
-      personalList: subData.personalList || subItem.personalList || [],
-      equiposList: subData.equiposList || subItem.equiposList || []
+      ...data,
+      companyDocs: data.companyDocs || {},
+      personalList: data.personalList || [],
+      equiposList: data.equiposList || []
     });
     setSubModalTab('empresa');
     setRejectingKey(null);
@@ -906,9 +836,8 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
   };
 
   // LÓGICA DE APROBACIÓN Y RECHAZO CON MOTIVO
-  const handleUpdateDocStatus = (category, docKey, status, itemIndex = null, reason = '') => {
+  const handleUpdateDocStatus = async (category, docKey, status, itemIndex = null, reason = '') => {
     if (!selectedSubDetail) return;
-    const token = selectedSubDetail.token_acceso;
 
     let nextCompanyDocs = { ...(selectedSubDetail.companyDocs || {}) };
     let nextPersonalList = [...(selectedSubDetail.personalList || [])];
@@ -956,29 +885,12 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
 
     setSelectedSubDetail(updatedSub);
 
-    const payload = {
-      companyDocs: nextCompanyDocs,
-      personalList: nextPersonalList,
-      equiposList: nextEquiposList,
-      progressPercent: progressPercent,
-      updated_at: new Date().toISOString()
-    };
-    localStorage.setItem('obraxis_subcontrato_data_' + token, JSON.stringify(payload));
-
-    const localMaster = localStorage.getItem('obraxis_acreditaciones_subcontratos');
-    let masterList = localMaster ? JSON.parse(localMaster) : [];
-    const subIdx = masterList.findIndex(s => s.token_acceso === token);
-    if (subIdx !== -1) {
-      masterList[subIdx] = {
-        ...masterList[subIdx],
-        estado_cumplimiento: progressPercent,
-        companyDocs: nextCompanyDocs,
-        personalList: nextPersonalList,
-        equiposList: nextEquiposList
-      };
-      setSubcontratosList(masterList);
-      localStorage.setItem('obraxis_acreditaciones_subcontratos', JSON.stringify(masterList));
-    }
+    const { error } = await supabase.from('acreditaciones_subcontratos').update({
+      companyDocs: nextCompanyDocs, personalList: nextPersonalList, equiposList: nextEquiposList,
+      estado_cumplimiento: progressPercent, updated_at: new Date().toISOString()
+    }).eq('id', selectedSubDetail.id);
+    if (error) { setErrorMsg(`No fue posible guardar la revisión: ${error.message}`); return; }
+    updateSubcontractInList(updatedSub);
 
     setRejectingKey(null);
     setRejectReasonInput('');
@@ -1411,17 +1323,11 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                     && item.obra_nombre === (sub.obra_asociada || 'Todas las Obras')
                   );
 
-                  const savedStr = localStorage.getItem('obraxis_subcontrato_data_' + sub.token_acceso);
-                  let savedData = { companyDocs: {}, personalList: [], equiposList: [] };
-                  if (savedStr) {
-                    try { savedData = JSON.parse(savedStr); } catch (e) {}
-                  }
-
-                  const empDocs = savedData.companyDocs || sub.companyDocs || {};
+                  const empDocs = sub.companyDocs || {};
                   const empApprovedCount = Object.values(empDocs).filter(d => d && d.status === 'Aprobado').length;
                   const percent = Math.round((empApprovedCount / mandatoryCompanyDocs.length) * 100) || 0;
-                  const personalRecords = savedData.personalList || sub.personalList || [];
-                  const equiposRecords = savedData.equiposList || sub.equiposList || [];
+                  const personalRecords = sub.personalList || [];
+                  const equiposRecords = sub.equiposList || [];
                   const personalDocs = personalRecords.flatMap(persona => Object.values(persona.docs || {}));
                   const equiposDocs = equiposRecords.flatMap(equipo => Object.values(equipo.docs || {}));
                   const personalApproved = personalDocs.filter(documento => documento && documento.status === 'Aprobado').length;
@@ -1574,13 +1480,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                 {proveedoresList.map((prov) => {
                   const minisiteUrl = getSupplierMinisiteUrl(prov);
 
-                  const savedStr = localStorage.getItem('obraxis_proveedor_data_' + prov.token_acceso);
-                  let savedData = { companyDocs: {}, personalList: [], equiposList: [] };
-                  if (savedStr) {
-                    try { savedData = JSON.parse(savedStr); } catch (e) {}
-                  }
-
-                  const empDocs = savedData.companyDocs || prov.companyDocs || {};
+                  const empDocs = prov.companyDocs || {};
                   const empApprovedCount = Object.values(empDocs).filter(d => d && d.status === 'Aprobado').length;
                   const percent = Math.round((empApprovedCount / mandatorySupplierDocs.length) * 100) || 0;
 
@@ -1605,8 +1505,8 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                           <div className="bg-emerald-500 h-full transition-all duration-300" style={{ width: `${percent}%` }}></div>
                         </div>
                         <div className="flex justify-between text-[9.5px] text-slate-500 pt-1 font-semibold">
-                          <span>Choferes/Personal: {(savedData.personalList || []).length} personas</span>
-                          <span>Vehículos: {(savedData.equiposList || []).length} camiones</span>
+                          <span>Choferes/Personal: {(prov.personalList || []).length} personas</span>
+                          <span>Vehículos: {(prov.equiposList || []).length} camiones</span>
                         </div>
                       </div>
 

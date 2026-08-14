@@ -2,7 +2,7 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
-Avance actualizado: Etapa 1 99%; Etapa 2 85%; Etapa 3 50%; plan completo 50%.
+Avance actualizado: Etapa 1 99%; Etapa 2 90%; Etapa 3 60%; plan completo 55%.
 
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
@@ -31,7 +31,7 @@ Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operac
 - [ ] Configurar pruebas unitarias, de integración y de interfaz (pruebas unitarias y humo HTTP operativos; interfaz automatizada pendiente).
 - [x] Probar aislamiento entre empresas y permisos por rol.
 - [ ] Cubrir Auth, estados de pago, Libro de Obras, calidad y prevención.
-- [ ] Cubrir formularios públicos, subcontratos, mandante y acreditaciones.
+- [x] Cubrir formularios públicos, subcontratos, mandante y acreditaciones en pruebas de arquitectura y humo HTTP; quedan pendientes recorridos E2E visuales.
 - [ ] Cubrir bodega, DTE, centros de gestión, OX, IA, Cron y correos.
 - [x] Incorporar y ejecutar pruebas de humo repetibles sobre los portales y servicios externos críticos desplegados.
 
@@ -88,6 +88,10 @@ La plataforma se considerará lista para producción cuando no existan política
 - Configuración de correos normalizada por empresa y aislada mediante RLS; Estados de Pago y Libro de Obras también quedaron bajo políticas multiempresa.
 - Acceso anónimo directo retirado de las tres tablas anteriores; las políticas públicas abiertas bajaron de 6 a 3.
 - Marcación QR de asistencia encapsulada en una Edge Function con token aleatorio por obra, validación de RUT asignado, geolocalización, límite de frecuencia y fecha operacional de Chile.
+- Acreditaciones de subcontratistas y proveedores convertidas desde una simulación local a tablas reales con RLS por empresa y persistencia centralizada.
+- Portales externos de acreditación encapsulados en `acreditacion-publica`, con token y clave, límite de frecuencia, tamaño máximo y rechazo de empresas archivadas.
+- Revisión, aprobación y rechazo documental conectados a la misma fuente persistente; eliminadas las credenciales universales y los respaldos operativos silenciosos del navegador.
+- Pruebas de arquitectura incorporadas para impedir secretos en frontend, escrituras directas desde portales públicos y llamadas a Edge Functions no versionadas.
 - Obras, maestro de personal y asistencia quedaron aislados por empresa; `anon` ya no posee privilegios sobre esas tablas.
 - Políticas públicas amplias reducidas de 3 a 0 y verificadas directamente en producción.
 - Control de lint reactivado en Windows; corregido el único error bloqueante de reglas de Hooks detectado en Bodega.

@@ -13,6 +13,7 @@ const cases = [
   ['formulario-publico', [404]],
   ['capacitacion-publica', [404]],
   ['maquinaria-publica', [404]],
+  ['acreditacion-publica', [401]],
 ];
 
 for (const [name, expected] of cases) {

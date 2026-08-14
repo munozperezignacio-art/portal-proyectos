@@ -276,20 +276,6 @@ export default function PublicFormFiller({ formToken }) {
 
       if (insErr) throw insErr;
 
-      if (form.tipo_registro === 'incidente_accidente') {
-        // El aviso inicial queda guardado en prevencion_respuestas, que es la
-        // fuente trazable del formulario. El seguimiento (mutual, reposo y
-        // medidas) se complementa posteriormente desde la ficha de la obra.
-        // La tabla histórica de accidentes puede no existir en instalaciones
-        // antiguas, por lo que no debe impedir que el informante envíe el caso.
-        try {
-          const typeMap = { Accidente: 'STP', Incidente: 'STP' };
-          await supabase.from('accidentes_prevencion_obra').insert([{ fecha: finalAnswers.fecha_evento || new Date().toISOString().slice(0, 10), tipo: typeMap[finalAnswers.tipo] || 'STP', trabajador: finalAnswers.persona || fillMetadata.inspector || '', dias_perdidos: 0, descripcion: finalAnswers.descripcion || '', obra_nombre: fillMetadata.proyecto_nombre || '', empresa: form.empresa || 'OBRAXIS' }]);
-        } catch (incidentSyncError) {
-          console.warn('El aviso quedó registrado en el formulario; la sincronización histórica se omitió:', incidentSyncError.message);
-        }
-      }
-
       setSubmittedSuccess(true);
     } catch (err) {
       setError('Error al enviar respuestas: ' + err.message);

@@ -52,95 +52,18 @@ export default function PublicSupplierAcreditacion({ token, companyNameParam }) 
   const [savingSync, setSavingSync] = useState(false);
 
   useEffect(() => {
-    loadMandatoryDocsConfig();
-    loadSupplierData();
+    setAuthenticated(false);
+    setSubInfo(null);
+    setPassInput('');
+    setCompanyDocs({});
+    setPersonalList([]);
+    setEquiposList([]);
   }, [token]);
 
-  const loadMandatoryDocsConfig = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('acreditaciones_config_docs')
-        .select('*')
-        .eq('id', 'global')
-        .maybeSingle();
-
-      if (!error && data) {
-        if (data.supplier_docs && data.supplier_docs.length > 0) {
-          setMandatoryCompanyDocs(data.supplier_docs);
-          localStorage.setItem('obraxis_mandatory_supplier_docs', JSON.stringify(data.supplier_docs));
-        }
-        if (data.supplier_worker_docs && data.supplier_worker_docs.length > 0) {
-          setMandatoryWorkerDocs(data.supplier_worker_docs);
-        } else if (data.worker_docs) {
-          setMandatoryWorkerDocs(data.worker_docs);
-        }
-        if (data.supplier_equipo_docs && data.supplier_equipo_docs.length > 0) {
-          setMandatoryEquipoDocs(data.supplier_equipo_docs);
-        } else if (data.equipo_docs) {
-          setMandatoryEquipoDocs(data.equipo_docs);
-        }
-        return;
-      }
-    } catch (e) {
-      console.warn('Fallback local para minisitio proveedor mandatory docs');
-    }
-
-    const savedComp = localStorage.getItem('obraxis_mandatory_supplier_docs');
-    if (savedComp) setMandatoryCompanyDocs(JSON.parse(savedComp));
-  };
-
-  const loadSupplierData = async () => {
-    if (!token) return;
-
-    let currentSubInfo = null;
-
-    try {
-      const { data, error } = await supabase
-        .from('acreditaciones_proveedores')
-        .select('*')
-        .eq('token_acceso', token)
-        .maybeSingle();
-
-      if (!error && data) {
-        currentSubInfo = data;
-      }
-    } catch (e) {
-      console.warn('Error al buscar en Supabase, buscando en localStorage');
-    }
-
-    if (!currentSubInfo) {
-      const local = localStorage.getItem('obraxis_acreditaciones_proveedores');
-      if (local) {
-        const list = JSON.parse(local);
-        const found = list.find(s => s.token_acceso === token);
-        if (found) currentSubInfo = found;
-      }
-    }
-
-    if (!currentSubInfo) {
-      const cleanName = decodeURIComponent(companyNameParam || 'Proveedor Comercial SpA').replace(/-/g, ' ').toUpperCase();
-      currentSubInfo = {
-        empresa_nombre: cleanName,
-        rut_empresa: '77.888.999-0',
-        obra_asociada: 'Obra Principal Obraxis',
-        credencial_pass: 'PROV123',
-        token_acceso: token
-      };
-    }
-
-    setSubInfo(currentSubInfo);
-
-    const savedDataStr = localStorage.getItem('obraxis_proveedor_data_' + token);
-    if (savedDataStr) {
-      try {
-        const savedData = JSON.parse(savedDataStr);
-        if (savedData.companyDocs) setCompanyDocs(savedData.companyDocs);
-        if (savedData.personalList) setPersonalList(savedData.personalList);
-        if (savedData.equiposList) setEquiposList(savedData.equiposList);
-      } catch (err) {
-        console.error('Error parseando datos guardados:', err);
-      }
-    }
+  const invokePortal = async (action, payload = {}) => {
+    const { data, error } = await supabase.functions.invoke('acreditacion-publica', { body: { tipo: 'proveedor', action, token, clave: passInput.trim().toUpperCase(), ...payload } });
+    if (error || data?.error) throw new Error(data?.error || error?.message || 'No fue posible conectar con el portal.');
+    return data;
   };
 
   // BOTÓN DE GUARDAR Y SINCRONIZAR CON EL PORTAL OBRAXIS
@@ -151,73 +74,34 @@ export default function PublicSupplierAcreditacion({ token, companyNameParam }) 
     const empApprovedCount = Object.values(companyDocs).filter(d => d && d.status === 'Aprobado').length;
     const progressPercent = Math.round((empApprovedCount / mandatoryCompanyDocs.length) * 100) || 0;
 
-    const payload = {
-      companyDocs: companyDocs,
-      personalList: personalList,
-      equiposList: equiposList,
-      progressPercent: progressPercent,
-      updated_at: new Date().toISOString()
-    };
-
-    // 1. Guardar en LocalStorage para persistencia instantánea
-    localStorage.setItem('obraxis_proveedor_data_' + token, JSON.stringify(payload));
-
-    const localMaster = localStorage.getItem('obraxis_acreditaciones_proveedores');
-    let masterList = localMaster ? JSON.parse(localMaster) : [];
-    const subIdx = masterList.findIndex(s => s.token_acceso === token);
-
-    if (subIdx !== -1) {
-      masterList[subIdx] = {
-        ...masterList[subIdx],
-        estado_cumplimiento: progressPercent,
-        companyDocs: companyDocs,
-        personalList: personalList,
-        equiposList: equiposList
-      };
-    } else if (subInfo) {
-      masterList.push({
-        ...subInfo,
-        estado_cumplimiento: progressPercent,
-        companyDocs: companyDocs,
-        personalList: personalList,
-        equiposList: equiposList
-      });
-    }
-
-    localStorage.setItem('obraxis_acreditaciones_proveedores', JSON.stringify(masterList));
-
-    // 2. Intentar Sincronizar en Supabase
     try {
-      await supabase
-        .from('acreditaciones_proveedores')
-        .update({
-          estado_cumplimiento: progressPercent,
-          companyDocs: companyDocs,
-          personalList: personalList,
-          equiposList: equiposList,
-          updated_at: new Date().toISOString()
-        })
-        .eq('token_acceso', token);
-    } catch (err) {
-      console.warn('Sincronización Supabase secundario en localStorage.');
-    }
-
-    setTimeout(() => {
-      setSavingSync(false);
+      await invokePortal('guardar', { companyDocs, personalList, equiposList, progressPercent });
       setSuccessMsg('¡Acreditación de Proveedor guardada y sincronizada exitosamente con el Portal Obraxis!');
-      setTimeout(() => setSuccessMsg(''), 5000);
-    }, 400);
+    } catch (err) {
+      setSuccessMsg('');
+      alert(err.message);
+    } finally {
+      setSavingSync(false);
+    }
+    setTimeout(() => setSuccessMsg(''), 5000);
   };
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (!subInfo) return;
-    const expectedPass = (subInfo.credencial_pass || '').trim().toUpperCase();
-    const entered = passInput.trim().toUpperCase();
-    if (entered === expectedPass || entered === '1234' || entered === 'PROV123' || !subInfo.credencial_pass) {
+    try {
+      const response = await invokePortal('ingresar');
+      const entity = response.entidad;
+      const config = response.configuracion || {};
+      setSubInfo(entity);
+      setCompanyDocs(entity.companyDocs || {});
+      setPersonalList(entity.personalList || []);
+      setEquiposList(entity.equiposList || []);
+      if (config.supplier_docs?.length) setMandatoryCompanyDocs(config.supplier_docs);
+      if ((config.supplier_worker_docs || config.worker_docs)?.length) setMandatoryWorkerDocs(config.supplier_worker_docs?.length ? config.supplier_worker_docs : config.worker_docs);
+      if ((config.supplier_equipo_docs || config.equipo_docs)?.length) setMandatoryEquipoDocs(config.supplier_equipo_docs?.length ? config.supplier_equipo_docs : config.equipo_docs);
       setAuthenticated(true);
-    } else {
-      alert('Clave de acceso incorrecta. Verifique la credencial otorgada por Obraxis.');
+    } catch (error) {
+      alert(error.message);
     }
   };
 

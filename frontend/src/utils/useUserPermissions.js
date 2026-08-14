@@ -5,24 +5,29 @@ import { mergePermissions } from './permissionsCatalog';
 export default function useUserPermissions(user) {
   const [permissions, setPermissions] = useState(user?.permisos || {});
   const [loading, setLoading] = useState(Boolean(user));
+  const userId = user?.id;
+  const company = user?.empresa;
+  const role = user?.rol;
+  const baseRole = user?.rol_base;
+  const inheritedPermissions = user?.permisos;
 
   useEffect(() => {
     let active = true;
     const load = async () => {
-      if (!user) { setPermissions({}); setLoading(false); return; }
+      if (!userId) { setPermissions({}); setLoading(false); return; }
       setLoading(true);
-      const roleName = user.rol || user.rol_base || '';
+      const roleName = role || baseRole || '';
       const [roleResult, userResult] = await Promise.all([
-        roleName ? supabase.from('roles').select('permisos').eq('empresa', user.empresa).eq('nombre', roleName).maybeSingle() : Promise.resolve({ data: null }),
-        user.id ? supabase.from('usuarios').select('permisos').eq('id', user.id).maybeSingle() : Promise.resolve({ data: null }),
+        roleName ? supabase.from('roles').select('permisos').eq('empresa', company).eq('nombre', roleName).maybeSingle() : Promise.resolve({ data: null }),
+        userId ? supabase.from('usuarios').select('permisos').eq('id', userId).maybeSingle() : Promise.resolve({ data: null }),
       ]);
       if (!active) return;
-      setPermissions(mergePermissions(roleResult.data?.permisos, userResult.data?.permisos, user.permisos));
+      setPermissions(mergePermissions(roleResult.data?.permisos, userResult.data?.permisos, inheritedPermissions));
       setLoading(false);
     };
     load();
     return () => { active = false; };
-  }, [user?.id, user?.empresa, user?.rol, user?.rol_base]);
+  }, [userId, company, role, baseRole, inheritedPermissions]);
 
   return { permissions, loading };
 }

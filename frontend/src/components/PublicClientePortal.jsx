@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { BarChart3, BookOpen, Building2, CalendarDays, CheckCircle2, ClipboardCheck, Clock3, FileCheck2, HardHat, KeyRound, Loader2, LogOut, MessageSquare, Send, ShieldCheck } from 'lucide-react';
+import React, { useState } from 'react';
+import { BarChart3, BookOpen, Building2, CalendarDays, ClipboardCheck, Clock3, FileCheck2, HardHat, KeyRound, Loader2, LogOut, MessageSquare, Send, ShieldCheck } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import PublicObraxisHeader from './PublicObraxisHeader';
 
@@ -37,11 +37,11 @@ export default function PublicClientePortal({ token }) {
   };
   const current = data?.obras?.[obraIndex];
   const p = current?.permisos || {};
-  const tabs = useMemo(() => current ? [
+  const tabs = current ? [
     ['resumen','Resumen',Building2,true], ['avance','Avance',BarChart3,p.avance], ['programacion','Programación',CalendarDays,p.programacion],
     ['bitacora','Bitácora',Clock3,p.bitacora], ['calidad','Calidad',FileCheck2,p.calidad], ['prevencion','Prevención',HardHat,p.prevencion],
     ['estados_pago','Estados de pago',ClipboardCheck,p.estados_pago], ['libro_obra','Libro de obra',BookOpen,p.libro_obra],
-  ].filter(x => x[3]) : [], [current]);
+  ].filter(x => x[3]) : [];
   const brand = data?.branding || {};
   const primary = brand.color_primario || '#0f172a';
 
