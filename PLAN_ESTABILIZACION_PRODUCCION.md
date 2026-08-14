@@ -2,7 +2,7 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
-Avance actualizado: Etapa 1 61%; plan completo 12%.
+Avance actualizado: Etapa 1 65%; plan completo 13%.
 
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
@@ -69,3 +69,6 @@ La plataforma se considerará lista para producción cuando no existan política
 - Datos internos de personal y correos de notificación excluidos de la respuesta pública.
 - Políticas permisivas abiertas reducidas de 22 a 20 en esta iteración.
 - RLS multiempresa cerrado para Bitácora y las tablas operativas de Calidad, incluidos los controles dependientes de cada recepción.
+- Configuración corporativa cerrada a acceso anónimo y aislada por empresa; sólo administradores autorizados pueden modificarla.
+- Corregida la función transversal de acceso multiempresa: un superusuario de una empresa cliente ya no obtiene acceso global; ese alcance queda reservado a Obraxis.
+- Importador de presupuestos migrado localmente a una Edge Function con control de IA, presupuesto y auditoría; su despliegue espera autorización explícita para enviar presupuestos a OpenAI.
