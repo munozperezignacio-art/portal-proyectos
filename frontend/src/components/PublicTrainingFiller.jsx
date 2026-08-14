@@ -26,22 +26,15 @@ export default function PublicTrainingFiller({ trainingToken }) {
     setLoading(true);
     setError('');
     try {
-      let query = supabase.from('prevencion_capacitaciones').select('*');
-      
-      const isNum = !isNaN(trainingToken);
-      if (isNum) {
-        query = query.eq('id', parseInt(trainingToken, 10));
-      } else {
-        query = query.eq('publico_token', trainingToken);
-      }
-
-      const { data, error: err } = await query.maybeSingle();
+      const { data, error: err } = await supabase.functions.invoke('capacitacion-publica', {
+        body: { action: 'cargar', token: trainingToken }
+      });
       if (err) throw err;
 
-      if (!data) {
+      if (!data?.capacitacion) {
         setError('La capacitación solicitada no existe o fue dada de baja.');
       } else {
-        setTraining(data);
+        setTraining(data.capacitacion);
       }
     } catch (err) {
       setError('Error cargando capacitación: ' + err.message);
@@ -116,43 +109,13 @@ export default function PublicTrainingFiller({ trainingToken }) {
 
     setSubmitting(true);
     try {
-      let puntajeObtenido = 0;
-      let puntajeMaximo = 0;
-
-      preguntas.forEach((preg, idx) => {
-        const puntos = parseFloat(preg.puntos) || 1;
-        puntajeMaximo += puntos;
-
-        const answerIndexSelected = answers[idx];
-        if (answerIndexSelected === parseInt(preg.correct_idx)) {
-          puntajeObtenido += puntos;
-        }
+      const { data, error: insErr } = await supabase.functions.invoke('capacitacion-publica', {
+        body: { action: 'enviar', token: trainingToken, nombre_trabajador: workerName, rut_trabajador: workerRut, respuestas: answers }
       });
-
-      const notaFinal = calculateChileanGrade(puntajeObtenido, puntajeMaximo);
-      const aprobado = notaFinal >= 4.0;
-
-      const { error: insErr } = await supabase
-        .from('prevencion_capacitaciones_intentos')
-        .insert([{
-          capacitacion_id: training.id,
-          nombre_trabajador: workerName,
-          rut_trabajador: workerRut,
-          respuestas: answers,
-          puntaje_obtenido: puntajeObtenido,
-          puntaje_maximo: puntajeMaximo,
-          nota: notaFinal,
-          aprobado: aprobado
-        }]);
 
       if (insErr) throw insErr;
-
-      setAttemptResult({
-        puntaje_obtenido: puntajeObtenido,
-        puntaje_maximo: puntajeMaximo,
-        nota: notaFinal,
-        aprobado: aprobado
-      });
+      if (!data?.resultado) throw new Error(data?.error || 'No fue posible registrar la evaluación.');
+      setAttemptResult(data.resultado);
 
     } catch (err) {
       alert("Error al guardar la evaluación: " + err.message);

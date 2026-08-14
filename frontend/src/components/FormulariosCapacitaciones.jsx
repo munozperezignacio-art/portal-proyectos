@@ -399,13 +399,10 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     const newCap = {
       titulo: capTitle,
       descripcion: capDesc,
-      tipo: capTipo,
-      modulo_asignado: capModulo,
       preguntas: capQuiz,
-      token_publico: token,
-      creador_email: user?.email || 'admin@obraxis.cl',
-      empresa: user?.empresa || 'EMIN',
-      created_at: new Date().toISOString()
+      publico_token: token,
+      creado_por: user?.correo || user?.email || user?.usuario || 'admin@obraxis.cl',
+      empresa: user?.empresa || 'Obraxis'
     };
 
     try {

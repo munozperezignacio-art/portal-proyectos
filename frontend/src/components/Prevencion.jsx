@@ -370,6 +370,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
       const { data, error } = await supabase
         .from('prevencion_capacitaciones')
         .select('*')
+        .eq('empresa', user?.empresa)
         .order('created_at', { ascending: false });
       if (error) throw error;
       setCapacitaciones(data || []);
@@ -386,6 +387,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
       const { data, error } = await supabase
         .from('prevencion_capacitaciones_intentos')
         .select('*, prevencion_capacitaciones(titulo)')
+        .eq('empresa', user?.empresa)
         .order('created_at', { ascending: false });
       if (error) throw error;
       setIntentosEvaluaciones(data || []);
@@ -894,7 +896,8 @@ export default function Prevencion({ user, onBack, companyBranding }) {
         descripcion: capDescripcion,
         video_url: capVideoUrl,
         contenido_texto: capContenidoTexto,
-        creado_por: user ? (user.correo || user.usuario) : 'Prevencionista'
+        creado_por: user ? (user.correo || user.usuario) : 'Prevencionista',
+        empresa: user?.empresa
       };
 
       if (capId) {
