@@ -12,6 +12,8 @@ import { canConfigureEmails, canEditItem, getUserLevel } from '../utils/userLeve
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
 import BudgetExcelImporter from './BudgetExcelImporter';
+import ScheduleFileImporter from './ScheduleFileImporter';
+import * as XLSX from 'xlsx';
 
 const RESOURCE_CATEGORY_SUGGESTIONS = ['Obras preliminares', 'Movimiento de tierras', 'Hormigones', 'Enfierradura', 'Moldajes', 'Estructura', 'Instalaciones', 'Terminaciones', 'Urbanización', 'Gastos generales', 'Subcontratos'];
 
@@ -1940,7 +1942,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
     setCronograma(prev => prev.filter(t => t.id !== id));
   };
 
-  const handleSaveCronograma = async () => {
+  const handleSaveCronograma = async (importedCronograma = null) => {
     if (!canEdit) { setErrorMsg('Tu perfil no está autorizado para modificar la programación.'); return; }
     if (!selectedProyectoId) return;
     setTasksLoading(true);
@@ -1990,10 +1992,11 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
         };
       };
 
-      const resolvedList = cronograma.map(task => {
-        const isChapter = isChapterRow(task, cronograma);
+      const sourceCronograma = Array.isArray(importedCronograma) ? importedCronograma : cronograma;
+      const resolvedList = sourceCronograma.map(task => {
+        const isChapter = isChapterRow(task, sourceCronograma);
         if (isChapter) {
-          return resolveChapterTask(task, cronograma);
+          return resolveChapterTask(task, sourceCronograma);
         }
         return { ...task, is_chapter: false };
       });
@@ -2064,7 +2067,7 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
         if (insErr) throw insErr;
       }
 
-      setSuccessMsg('Planificación guardada con éxito.');
+      setSuccessMsg(Array.isArray(importedCronograma) ? 'Planificación importada y guardada con éxito.' : 'Planificación guardada con éxito.');
       fetchCronograma(selectedProyectoId);
     } catch (err) {
       setErrorMsg('Error al guardar planificación: ' + err.message);
@@ -3745,6 +3748,12 @@ IMPORTANTE: Retorna ÚNICAMENTE el objeto JSON válido. No rodees el resultado c
                           </div>
                         </div>
                       </div>
+
+                      <ScheduleFileImporter
+                        disabled={!canEdit || tasksLoading}
+                        calculateEndDate={(start, duration) => calculateEndDateWithCalendar(start, duration, calendarConfig)}
+                        onApply={handleSaveCronograma}
+                      />
 
                       {/* Layout Principal Gantt */}
                       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
