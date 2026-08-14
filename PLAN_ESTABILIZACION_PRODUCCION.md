@@ -2,7 +2,7 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
-Avance actualizado: Etapa 1 94%; plan completo 19%.
+Avance actualizado: Etapa 1 98%; plan completo 20%.
 
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
@@ -84,3 +84,6 @@ La plataforma se considerará lista para producción cuando no existan política
 - Portal de capacitaciones migrado a una Edge Function con token, límite de frecuencia y evaluación calculada en servidor; las respuestas correctas ya no se exponen al navegador.
 - Capacitaciones e intentos normalizados con empresa obligatoria y RLS multiempresa; se eliminaron cuatro políticas públicas redundantes.
 - Políticas públicas abiertas reducidas de 10 a 6 y portal público validado en producción mediante prueba de humo.
+- Estados de Pago y Libro de Obras externos migrados a una Edge Function protegida por enlace y clave; validación, decisiones, propuestas, trazabilidad y bitácora se procesan en servidor.
+- Configuración de correos normalizada por empresa y aislada mediante RLS; Estados de Pago y Libro de Obras también quedaron bajo políticas multiempresa.
+- Acceso anónimo directo retirado de las tres tablas anteriores; las políticas públicas abiertas bajaron de 6 a 3.
