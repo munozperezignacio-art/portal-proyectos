@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
-import { sendSystemEmail } from '../utils/emailService';
-import { generateFormPdf } from '../utils/pdfGenerator';
 import { 
   ShieldAlert, Send, CheckCircle2, Camera, PenTool, AlertCircle, Loader2, Check, Plus 
 } from 'lucide-react';
@@ -32,7 +30,6 @@ export default function PublicFormFiller({ formToken }) {
   const [centrosGestion, setCentrosGestion] = useState([]);
   const [maquinariaList, setMaquinariaList] = useState([]);
   const [formCompanyBranding, setFormCompanyBranding] = useState(null);
-  const [personalMaestro, setPersonalMaestro] = useState([]);
   const [linkedCatalogs, setLinkedCatalogs] = useState({});
 
   // Formularios anteriores guardan un arreglo; los nuevos guardan además el
@@ -79,21 +76,10 @@ export default function PublicFormFiller({ formToken }) {
     setLoading(true);
     setError('');
     try {
-      const isNum = !isNaN(formToken);
-      let data;
-      let err;
-      if (isNum) {
-        ({ data, error: err } = await supabase.from('prevencion_formularios').select('*').eq('id', parseInt(formToken, 10)).maybeSingle());
-      } else {
-        // Existen formularios históricos con ambos nombres de columna.
-        // Intentamos primero el actual y luego el nombre legado.
-        ({ data, error: err } = await supabase.from('prevencion_formularios').select('*').eq('token_publico', formToken).maybeSingle());
-        if (err || !data) {
-          const legacy = await supabase.from('prevencion_formularios').select('*').eq('publico_token', formToken).maybeSingle();
-          data = legacy.data;
-          err = legacy.error;
-        }
-      }
+      const { data: publicPayload, error: err } = await supabase.functions.invoke('formulario-publico', {
+        body: { action: 'cargar', token: String(formToken) }
+      });
+      const data = publicPayload?.form;
       if (err) throw err;
 
       if (!data) {
@@ -101,30 +87,17 @@ export default function PublicFormFiller({ formToken }) {
       } else {
         const normalizedForm = normalizeForm(data);
         setForm(normalizedForm);
+        setFormCompanyBranding(publicPayload?.branding || null);
         
         // Cargar marca de la empresa propietaria y catálogos vinculados.
         let loadedWorks = [];
         try {
-          const { data: config } = await supabase
-            .from('config_empresa')
-            .select('logo_base64, color_primario, color_secundario')
-            .eq('empresa', data.empresa || 'Obraxis')
-            .maybeSingle();
-          if (config) setFormCompanyBranding(config);
-
           const { data: centerCatalog, error: centerError } = await supabase.rpc('formulario_centros_gestion', { p_token: String(formToken) });
           if (centerError) throw centerError;
           const centers = Array.isArray(centerCatalog) ? centerCatalog : [];
           setCentrosGestion(centers);
           loadedWorks = centers.filter(center => center.obra_id).map(center => ({ id: center.obra_id, nombre: center.obra_nombre, centro_gestion_id: center.id }));
           setObrasList(loadedWorks);
-
-          const { data: personal } = await supabase
-            .from('maestro_personal')
-            .select('nombre, rut, cargo')
-            .eq('empresa', data.empresa || 'Obraxis')
-            .order('nombre');
-          if (personal) setPersonalMaestro(personal);
 
           const linkedFields = (normalizedForm.campos || []).filter(field => field.type === 'data_lookup');
           const catalogs = await Promise.all(linkedFields.map(async field => {
@@ -310,19 +283,17 @@ export default function PublicFormFiller({ formToken }) {
         finalAnswers[signatureField.id] = mainSignatureDataUrl;
       }
 
-      const { error: insErr } = await supabase
-        .from('prevencion_respuestas')
-        .insert([
-          {
-            formulario_id: form.id,
-            centro_gestion_id: fillMetadata.centro_gestion_id ? Number(fillMetadata.centro_gestion_id) : null,
-            obra_id: fillMetadata.obra_id ? Number(fillMetadata.obra_id) : null,
-            proyecto_nombre: fillMetadata.proyecto_nombre.trim() || 'Terreno',
-            inspector: fillMetadata.inspector.trim() || 'Trabajador Terreno',
-            respuestas: finalAnswers,
-            firma_url: mainSignatureDataUrl
-          }
-        ]);
+      const { error: insErr } = await supabase.functions.invoke('formulario-publico', {
+        body: {
+          action: 'enviar', token: String(formToken),
+          centro_gestion_id: fillMetadata.centro_gestion_id ? Number(fillMetadata.centro_gestion_id) : null,
+          obra_id: fillMetadata.obra_id ? Number(fillMetadata.obra_id) : null,
+          proyecto_nombre: fillMetadata.proyecto_nombre.trim() || 'Terreno',
+          inspector: fillMetadata.inspector.trim() || 'Trabajador Terreno',
+          respuestas: finalAnswers,
+          firma_url: mainSignatureDataUrl || null
+        }
+      });
 
       if (insErr) throw insErr;
 
@@ -346,151 +317,6 @@ export default function PublicFormFiller({ formToken }) {
         } catch (incidentSyncError) {
           console.warn('El aviso quedó registrado en el formulario; la sincronización histórica se omitió:', incidentSyncError.message);
         }
-      }
-
-      // --- Despachar Reporte de Prevención y Seguridad por Correo ---
-      try {
-        let destinationEmails = form.correos_notificacion;
-
-        if (!destinationEmails) {
-          const { data: configAlertas } = await supabase
-            .from('config_correos')
-            .select('correos')
-            .eq('tipo', 'Prevencion y Seguridad')
-            .maybeSingle();
-          if (configAlertas && configAlertas.correos) {
-            destinationEmails = configAlertas.correos;
-          }
-        }
-
-        if (destinationEmails) {
-          // Construir HTML del reporte
-          let tableRowsHtml = "";
-          (form.campos || []).forEach((field) => {
-            const ans = finalAnswers[field.id];
-            let formattedAns = "";
-            if (field.type === 'repeater') {
-              if (Array.isArray(ans)) {
-                formattedAns = `<table style="width: 100%; border-collapse: collapse; margin-top: 5px;">`;
-                ans.forEach((instance, idx) => {
-                  formattedAns += `<tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 5px; font-size: 11px; font-weight: bold; color: #64748b;">Instancia ${idx + 1}:</td><td style="padding: 5px;">`;
-                  Object.entries(instance).forEach(([subId, subVal]) => {
-                    const subField = field.subFields?.find(sf => sf.id === subId);
-                    const subLabel = subField ? subField.label : subId;
-                    if ((subField?.type === 'signature' || subField?.type === 'photo') && subVal) {
-                      formattedAns += `<b>${subLabel}:</b> <img src="${subVal}" style="max-height: 40px; vertical-align: middle;" /><br/>`;
-                    } else if (subField?.type === 'checkbox') {
-                      formattedAns += `<b>${subLabel}:</b> ${Array.isArray(subVal) && subVal.length ? subVal.join(', ') : 'Sin alternativas marcadas'}<br/>`;
-                    } else {
-                      formattedAns += `<b>${subLabel}:</b> ${subVal || 'N/R'}<br/>`;
-                    }
-                  });
-                  formattedAns += `</td></tr>`;
-                });
-                formattedAns += `</table>`;
-              } else {
-                formattedAns = '<span style="color: #94a3b8; font-style: italic;">Sin respuestas</span>';
-              }
-            } else if (field.type === 'signature') {
-              formattedAns = ans ? `<img src="${ans}" style="max-height: 50px;" />` : '<span style="color: #94a3b8; font-style: italic;">No firmado</span>';
-            } else if (field.type === 'photo') {
-              formattedAns = ans ? `<img src="${ans}" style="max-height: 160px; border-radius: 8px;" />` : '<span style="color: #94a3b8; font-style: italic;">Sin evidencia fotográfica</span>';
-            } else if (field.type === 'data_lookup' && ans) {
-              const columns = field.sourceColumns || [];
-              formattedAns = Object.entries(ans).filter(([key]) => !key.startsWith('_')).map(([key, value]) => `<b>${columns.find(column => column.key === key)?.label || key}:</b> ${value || 'N/R'}`).join('<br/>');
-            } else if (field.type === 'checkbox') {
-              formattedAns = Array.isArray(ans) && ans.length ? ans.join(', ') : 'Sin alternativas marcadas';
-            } else {
-              formattedAns = ans || 'N/R';
-            }
-
-            tableRowsHtml += `
-              <tr style="border-bottom: 1px solid #e2e8f0;">
-                <td style="padding: 10px 12px; font-size: 11px; font-weight: bold; color: #334155; width: 40%; background-color: #f8fafc;">${field.label}</td>
-                <td style="padding: 10px 12px; font-size: 11px; color: #0f172a;">${formattedAns}</td>
-              </tr>
-            `;
-          });
-
-          // Firma principal
-          let mainSignatureHtml = "";
-          if (mainSignatureDataUrl && !(form.campos || []).some(field => field.type === 'signature')) {
-            mainSignatureHtml = `
-              <h3 style="color: #0f172a; font-size: 13px; margin: 20px 0 10px 0; border-left: 4px solid #2563eb; padding-left: 8px; text-transform: uppercase; letter-spacing: 0.03em;">Firma del Inspector</h3>
-              <div style="border: 1px solid #e2e8f0; border-radius: 12px; padding: 15px; display: inline-block; background-color: #f8fafc;">
-                <img src="${mainSignatureDataUrl}" style="max-height: 80px;" alt="Firma Inspector" />
-              </div>
-            `;
-          }
-
-          // HTML global del Mail
-          const mailHtml = `
-            <div style="font-family: 'Inter', sans-serif; max-width: 650px; margin: auto; border: 1px solid #e2e8f0; border-radius: 16px; padding: 30px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);">
-              <div style="text-align: center; margin-bottom: 25px;">
-                <h1 style="color: #0f172a; font-size: 18px; font-weight: 800; margin: 0; text-transform: uppercase; letter-spacing: 0.05em;">Reporte de Prevención de Riesgos</h1>
-                <p style="color: #64748b; font-size: 11px; margin: 5px 0 0 0;">Portal de Proyectos Obraxis</p>
-              </div>
-
-              <h3 style="color: #0f172a; font-size: 13px; margin: 0 0 10px 0; border-left: 4px solid #2563eb; padding-left: 8px; text-transform: uppercase; letter-spacing: 0.03em;">Información General</h3>
-              <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
-                <tr style="border-bottom: 1px solid #e2e8f0;">
-                  <td style="padding: 8px 10px; font-size: 11px; color: #64748b; font-weight: bold; width: 35%; background-color: #f8fafc;">Formulario:</td>
-                  <td style="padding: 8px 10px; font-size: 11px; color: #0f172a; font-weight: bold;">${form.titulo}</td>
-                </tr>
-                <tr style="border-bottom: 1px solid #e2e8f0;">
-                  <td style="padding: 8px 10px; font-size: 11px; color: #64748b; font-weight: bold; background-color: #f8fafc;">Categoría:</td>
-                  <td style="padding: 8px 10px; font-size: 11px; color: #0f172a;">${form.categoria || 'Inspección'}</td>
-                </tr>
-                <tr style="border-bottom: 1px solid #e2e8f0;">
-                  <td style="padding: 8px 10px; font-size: 11px; color: #64748b; font-weight: bold; background-color: #f8fafc;">Proyecto / Obra:</td>
-                  <td style="padding: 8px 10px; font-size: 11px; color: #0f172a;">${fillMetadata.proyecto_nombre || 'General'}</td>
-                </tr>
-                <tr style="border-bottom: 1px solid #e2e8f0;">
-                  <td style="padding: 8px 10px; font-size: 11px; color: #64748b; font-weight: bold; background-color: #f8fafc;">Inspector / Autor:</td>
-                  <td style="padding: 8px 10px; font-size: 11px; color: #0f172a;">${fillMetadata.inspector || 'Anónimo'}</td>
-                </tr>
-                <tr>
-                  <td style="padding: 8px 10px; font-size: 11px; color: #64748b; font-weight: bold; background-color: #f8fafc;">Fecha de Registro:</td>
-                  <td style="padding: 8px 10px; font-size: 11px; color: #0f172a;">${new Date().toLocaleDateString('es-CL')} ${new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</td>
-                </tr>
-              </table>
-
-              <h3 style="color: #0f172a; font-size: 13px; margin: 15px 0 10px 0; border-left: 4px solid #2563eb; padding-left: 8px; text-transform: uppercase; letter-spacing: 0.03em;">Registro</h3>
-              <table style="width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
-                ${tableRowsHtml}
-              </table>
-
-              ${mainSignatureHtml}
-
-              <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 25px 0;" />
-              <p style="font-size: 10px; color: #94a3b8; text-align: center; margin: 0;">Este es un reporte automático enviado por el Portal de Proyectos de Obraxis.cl</p>
-            </div>
-          `;
-
-          const pdfBase64 = generateFormPdf({
-            form: form,
-            metadata: fillMetadata,
-            answers: finalAnswers,
-            mainSignature: mainSignatureDataUrl,
-            companyLogo: formCompanyBranding?.logo_base64
-          });
-
-          await sendSystemEmail({
-            to: destinationEmails,
-            subject: `Nuevo Registro: "${form.titulo}" - ${fillMetadata.proyecto_nombre || 'General'}`,
-            htmlContent: mailHtml,
-            attachments: [
-              {
-                content: pdfBase64,
-                filename: `${form.titulo.replace(/[^a-zA-Z0-9]/g, '_')}_Reporte.pdf`,
-                content_type: 'application/pdf'
-              }
-            ]
-          });
-        }
-      } catch (errMail) {
-        console.error('Error al despachar correo público de prevención:', errMail.toString());
-        alert('Error al enviar correo: ' + errMail.toString());
       }
 
       setSubmittedSuccess(true);
@@ -611,25 +437,10 @@ export default function PublicFormFiller({ formToken }) {
             </div>
             <div>
               <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Inspector / Trabajador *</label>
-              <select
-                required
-                value={fillMetadata.inspector}
+              <input required value={fillMetadata.inspector}
                 onChange={(e) => setFillMetadata({ ...fillMetadata, inspector: e.target.value })}
-                className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-semibold uppercase text-slate-800 focus:outline-none focus:border-primary cursor-pointer"
-              >
-                <option value="">-- Selecciona Trabajador --</option>
-                {(() => {
-                  const selectedCargosArr = form.cargos_obligados 
-                    ? form.cargos_obligados.split(',').map(c => c.trim().toLowerCase()) 
-                    : [];
-                  const filteredPersonnel = selectedCargosArr.length > 0 
-                    ? personalMaestro.filter(p => p.cargo && selectedCargosArr.includes(p.cargo.trim().toLowerCase()))
-                    : personalMaestro;
-                  return filteredPersonnel.map((p, pIdx) => (
-                    <option key={pIdx} value={p.nombre}>{p.nombre} ({p.cargo || 'Sin Cargo'})</option>
-                  ));
-                })()}
-              </select>
+                placeholder="Nombre del responsable"
+                className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-semibold uppercase text-slate-800 focus:outline-none focus:border-primary" />
             </div>
           </div>
 
