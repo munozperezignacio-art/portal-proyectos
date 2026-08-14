@@ -2,7 +2,7 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
-Avance actualizado: Etapa 1 70%; plan completo 14%.
+Avance actualizado: Etapa 1 72%; plan completo 14%.
 
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
@@ -73,3 +73,4 @@ La plataforma se considerará lista para producción cuando no existan política
 - Corregida la función transversal de acceso multiempresa: un superusuario de una empresa cliente ya no obtiene acceso global; ese alcance queda reservado a Obraxis.
 - Importador de presupuestos migrado a una Edge Function autenticada con control por empresa, presupuesto de IA y auditoría; la vista previa exige confirmación humana antes de guardar.
 - Credenciales heredadas de Gemini eliminadas del frontend y del esquema público; OpenAI permanece exclusivamente en Supabase Secrets.
+- Condiciones contractuales de estados de pago aisladas por empresa; se retiró su acceso anónimo abierto.
