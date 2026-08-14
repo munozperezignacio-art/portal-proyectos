@@ -48,6 +48,7 @@ const PublicLibroObra = lazyWithRetry(() => import('./components/PublicLibroObra
 const ClientesPortal = lazyWithRetry(() => import('./components/ClientesPortal'), 'clientes');
 const GestionMandante = lazyWithRetry(() => import('./components/GestionMandante'), 'mandante');
 const PublicClientePortal = lazyWithRetry(() => import('./components/PublicClientePortal'), 'portal-cliente');
+const PublicMandantePortal = lazyWithRetry(() => import('./components/PublicMandantePortal'), 'portal-mandante');
 const FloatingOX = lazyWithRetry(() => import('./components/FloatingOX'), 'ox');
 
 function ModuleLoader() {
@@ -339,6 +340,10 @@ function App() {
   const publicEstadoPagoToken = urlParams.get('estado_pago');
   const publicLibroObraToken = urlParams.get('libro_obra');
   const publicClienteToken = urlParams.get('cliente_portal');
+  const publicMandanteToken = urlParams.get('mandante_portal');
+  if (publicMandanteToken) {
+    return <React.Suspense fallback={<ModuleLoader />}><PublicMandantePortal token={publicMandanteToken} /></React.Suspense>;
+  }
   if (publicClienteToken) {
     return <React.Suspense fallback={<ModuleLoader />}><PublicClientePortal token={publicClienteToken} /></React.Suspense>;
   }
