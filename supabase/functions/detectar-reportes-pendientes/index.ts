@@ -102,9 +102,10 @@ Deno.serve(async () => {
 });
 
 async function processCompliancePending(db: any, rule: any, local: { date: string; time: string }, now: Date) {
-  const [{ data: assignments, error: assignmentError }, { data: users }] = await Promise.all([
+  const [{ data: assignments, error: assignmentError }, { data: users }, { data: mailConfig }] = await Promise.all([
     db.from('prevencion_cumplimiento_asignaciones').select('id,empresa,usuario_id,formulario_id,trabajador_nombre,registro_nombre,frecuencia,hora_limite,dia_semana,dia_mes').eq('empresa', rule.empresa).eq('activo', true).eq('notificar_pendiente', true),
-    db.from('usuarios').select('id,nombre,correo,rol').eq('empresa', rule.empresa)
+    db.from('usuarios').select('id,nombre,correo,rol').eq('empresa', rule.empresa),
+    db.from('config_empresa').select('email_api_key,email_sender').eq('empresa', 'Obraxis').maybeSingle()
   ]);
   if (assignmentError) throw assignmentError;
 
@@ -155,10 +156,31 @@ async function processCompliancePending(db: any, rule: any, local: { date: strin
     ...pending.map((item: any) => String(item.usuario_id)),
     ...(users || []).filter((person: any) => roleSet.has(person.rol) || idSet.has(String(person.id))).map((person: any) => String(person.id))
   ].filter(Boolean))];
+  const emailRecipients = [...new Set([
+    ...pending.map((item: any) => (users || []).find((person: any) => String(person.id) === String(item.usuario_id))?.correo),
+    ...(users || []).filter((person: any) => roleSet.has(person.rol) || idSet.has(String(person.id))).map((person: any) => person.correo),
+    ...asArray(rule.correos_adicionales)
+  ].filter(Boolean))];
   const title = 'Cumplimientos preventivos pendientes';
+  const html = `<div style="font-family:Arial,sans-serif;max-width:680px;margin:auto;color:#17233b"><div style="background:#102b5c;color:white;padding:22px;border-radius:16px 16px 0 0"><h2 style="margin:0">${title}</h2><p style="margin:6px 0 0;color:#cbd5e1">${escapeHtml(rule.empresa)} · ${local.date}</p></div><div style="padding:22px;border:1px solid #dbe3ef;border-top:0;border-radius:0 0 16px 16px"><p>Existen cumplimientos preventivos pendientes al cierre configurado.</p><p>Ingresa a Obraxis para consultar el detalle según tus permisos.</p><p style="margin-top:18px;font-size:12px;color:#64748b">Este aviso no incluye respuestas ni detalles del formulario y no modifica registros automáticamente.</p></div></div>`;
+  let emailState = 'Omitido';
+  let errorDetail: string | null = null;
+  if (rule.canal_email && emailRecipients.length) {
+    if (!mailConfig?.email_api_key) throw new Error('Resend no está configurado');
+    const responses = await Promise.all(emailRecipients.map((recipient: string) => fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${mailConfig.email_api_key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: `Obraxis <${mailConfig.email_sender || 'notificaciones@obraxis.cl'}>`, to: [recipient], subject: `${title} · ${rule.empresa}`, html })
+    })));
+    emailState = responses.every(response => response.ok) ? 'Enviada' : 'Error';
+    if (emailState === 'Error') errorDetail = (await Promise.all(responses.filter(response => !response.ok).map(response => response.text()))).join(' | ');
+  }
   const deliveries = pending.flatMap((item: any) => {
     const payload = { asignacion_id: item.id, formulario_id: item.formulario_id, usuario_id: item.usuario_id, periodo: periodFor(item), fecha_control: local.date };
-    return rule.canal_plataforma ? platformRecipients.map((recipient: string) => ({ regla_id: rule.id, empresa: rule.empresa, evento_codigo: rule.evento_codigo, canal: 'Plataforma', destinatario: recipient, asunto: recipient === String(item.usuario_id) ? `${item.registro_nombre} pendiente` : title, estado: 'Pendiente', payload, programada_para: now.toISOString() })) : [];
+    return [
+      ...(rule.canal_plataforma ? platformRecipients.map((recipient: string) => ({ regla_id: rule.id, empresa: rule.empresa, evento_codigo: rule.evento_codigo, canal: 'Plataforma', destinatario: recipient, asunto: recipient === String(item.usuario_id) ? `${item.registro_nombre} pendiente` : title, estado: 'Pendiente', payload, programada_para: now.toISOString() })) : []),
+      ...(rule.canal_email ? emailRecipients.map((recipient: string) => ({ regla_id: rule.id, empresa: rule.empresa, evento_codigo: rule.evento_codigo, canal: 'Email', destinatario: recipient, asunto: title, estado: emailState, error_detalle: errorDetail, payload, programada_para: now.toISOString(), enviada_at: emailState === 'Enviada' ? now.toISOString() : null })) : [])
+    ];
   });
   if (deliveries.length) await db.from('notificaciones_entregas').insert(deliveries);
   return { rule: rule.id, pending: pending.length, deliveries: deliveries.length };
