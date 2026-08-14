@@ -2,7 +2,7 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
-Avance actualizado: Etapa 1 99%; Etapa 2 35%; plan completo 28%.
+Avance actualizado: Etapa 1 99%; Etapa 2 60%; plan completo 33%.
 
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
@@ -19,12 +19,12 @@ Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operac
 
 ## Etapa 2 — Integridad y reproducibilidad
 
-- [ ] Reasignar partidas y avances sin `empresa` u `obra_id`.
-- [ ] Hacer obligatorios los identificadores multiempresa donde corresponda.
+- [x] Eliminar o reasignar partidas, avances y registros sin `empresa` u `obra_id`.
+- [x] Hacer obligatorios los identificadores multiempresa donde corresponde.
 - [ ] Consolidar toda la historia en `supabase/migrations`.
 - [x] Sincronizar el inventario de Edge Functions locales y desplegadas.
 - [ ] Corregir automatizaciones del mandante que responden 401.
-- [ ] Incorporar índices de claves foráneas según uso real.
+- [x] Incorporar índices de claves foráneas según uso real en las tablas operativas normalizadas.
 
 ## Etapa 3 — Pruebas
 
@@ -94,4 +94,6 @@ La plataforma se considerará lista para producción cuando no existan política
 - Auditoría de integridad multiempresa iniciada: quedan 19 avances, 4 partidas y 10 asistencias heredadas sin obra inequívoca; se mantienen identificadas para reasignación controlada, sin inventar relaciones ni eliminar registros.
 - Recuperada en Git la función productiva `subcontrato-operacion`, que no estaba versionada.
 - Desplegada `analizar-formato-laboral-ia`, antes presente sólo en Git, con autenticación, permisos por empresa, presupuesto de IA y auditoría de consumo.
-- Preparada y validada la migración de cuarentena para datos heredados sin obra; su aplicación queda sujeta a autorización específica por reasignar registros e imponer identificadores obligatorios.
+- Eliminados, por autorización expresa, 4 partidas, 19 avances, 10 asistencias, 2 asignaciones preventivas vacías y sus 2 registros dependientes heredados sin origen válido.
+- Las 5 respuestas preventivas antiguas con nombre de obra inequívoco fueron enlazadas a su obra real; no se creó una obra de cuarentena.
+- `empresa` y `obra_id` quedaron obligatorios en partidas y avances; `obra_id` también quedó obligatorio en asistencia, con índices compuestos para los accesos por empresa, obra y fecha.
