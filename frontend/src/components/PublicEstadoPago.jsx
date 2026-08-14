@@ -1,18 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { CheckCircle2, FileText, LockKeyhole, Send, XCircle } from 'lucide-react';
 import { supabase } from '../supabaseClient';
-import { registrarEventoBitacora } from '../utils/bitacoraService';
-import { appendAudit, auditActor } from '../utils/documentAudit';
 import PublicObraxisHeader from './PublicObraxisHeader';
 
 const money = value => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(Number(value || 0));
 const percent = value => `${Number(value || 0).toFixed(2)}%`;
-const hashAccessCode = async (value) => {
-  const bytes = new TextEncoder().encode(String(value || '').trim().toUpperCase());
-  const hash = await crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(hash)).map(byte => byte.toString(16).padStart(2, '0')).join('');
-};
-
 export default function PublicEstadoPago({ token, role }) {
   const [item, setItem] = useState(null);
   const [summary, setSummary] = useState({});
@@ -59,13 +51,6 @@ export default function PublicEstadoPago({ token, role }) {
     const server = await supabase.functions.invoke('documento-publico', { body: { tipo: 'estado_pago', accion: 'resolver', token, clave: accessCode, rol: role, aprobado: approved, comentario: note } });
     if (server.error || !server.data?.ok) setMessage(`No fue posible registrar la decisión: ${server.error?.message || server.data?.error || 'Error desconocido'}`);
     else { setMessage(approved ? 'Decisión registrada correctamente.' : 'El Estado de Pago fue devuelto con observaciones.'); await reload(); }
-    return;
-    const estado = approved ? (role === 'aprobacion' ? 'Aprobado' : 'En aprobación') : 'Observado';
-    const field = role === 'aprobacion' ? 'observacion_aprobacion' : 'observacion_revision';
-    const actor = role === 'aprobacion' ? item.aprobador_nombre || 'Aprobador externo' : item.revisor_nombre || 'Revisor externo';
-    const { data: savedDecision, error } = await supabase.from('estados_pago_obra').update({ estado, [field]: note || null, trazabilidad: appendAudit(item.trazabilidad, auditActor({ nombre: actor, empresa: item.empresa, cargo: role === 'aprobacion' ? 'Aprobador externo' : 'Revisor externo' }, approved ? (role === 'aprobacion' ? 'Estado de Pago aprobado' : 'Revisión técnica conforme') : 'Estado de Pago observado', estado, note)) }).eq('id', item.id).select('id,estado').maybeSingle();
-    if (error || !savedDecision || savedDecision.estado !== estado) setMessage(`No fue posible registrar la decisión${error?.message ? `: ${error.message}` : '. El registro no fue actualizado.'}`);
-    else { await registrarEventoBitacora({ empresa: item.empresa, obraNombre: item.obra_nombre, categoria: 'Estados de Pago', accion: `EP N° ${item.numero} ${approved ? (role === 'aprobacion' ? 'aprobado' : 'revisado conforme') : 'observado'}`, detalle: note || null, actor: role === 'aprobacion' ? item.aprobador_nombre || 'Aprobador externo' : item.revisor_nombre || 'Revisor externo' }); setMessage(approved ? 'Decisión registrada correctamente.' : 'El Estado de Pago fue devuelto con observaciones.'); await reload(); }
   };
   const submitProposal = async () => {
     const hasProposal = proposal.some(line => Number(line.cantidad_propuesta) !== Number(line.executed) || line.comentario_externo.trim());
@@ -73,10 +58,6 @@ export default function PublicEstadoPago({ token, role }) {
     const server = await supabase.functions.invoke('documento-publico', { body: { tipo: 'estado_pago', accion: 'proponer', token, clave: accessCode, rol: role, items: proposal, comentario: note } });
     if (server.error || !server.data?.ok) setMessage(`No fue posible enviar la propuesta: ${server.error?.message || server.data?.error || 'Error desconocido'}`);
     else { setMessage('Propuesta enviada al preparador para su revisión.'); await reload(); }
-    return;
-    const { error } = await supabase.from('estados_pago_obra').update({ estado: 'Observado', items: proposal, observacion_revision: note || 'Se recibió una propuesta de ajuste por partidas.', trazabilidad: appendAudit(item.trazabilidad, auditActor({ nombre: item.revisor_nombre || 'Revisor externo', empresa: item.empresa, cargo: 'Revisor externo' }, 'Propuesta externa de ajuste', 'Observado', note || 'Se propusieron ajustes por partidas.')) }).eq('id', item.id);
-    if (error) setMessage(`No fue posible enviar la propuesta: ${error.message}`);
-    else { await registrarEventoBitacora({ empresa: item.empresa, obraNombre: item.obra_nombre, categoria: 'Estados de Pago', accion: `EP N° ${item.numero} observado con propuesta`, detalle: note || 'El revisor propuso ajustes por partidas.', actor: item.revisor_nombre || 'Revisor externo' }); setMessage('Propuesta enviada al preparador para su revisión.'); await reload(); }
   };
 
   if (!authorised) return <main className="min-h-screen bg-slate-100 p-4 sm:p-8"><PublicObraxisHeader /><section className="mx-auto mt-12 max-w-md rounded-2xl bg-white p-6 shadow-sm"><div className="flex items-center gap-3"><div className="rounded-xl bg-emerald-100 p-2 text-emerald-800"><LockKeyhole className="h-5 w-5" /></div><div><h1 className="font-black text-slate-900">Acceso protegido</h1><p className="text-xs text-slate-500">Estado de Pago · {typeLabel}</p></div></div><p className="mt-5 text-sm text-slate-600">Ingresa la clave de 8 caracteres enviada al correo junto con este enlace.</p><form onSubmit={verifyAccess} className="mt-4 space-y-3"><input autoFocus value={accessCode} onChange={event => setAccessCode(event.target.value.toUpperCase())} maxLength={8} placeholder="Ej.: 7K4M9P2R" className="w-full rounded-xl border border-slate-300 px-4 py-3 text-center font-mono text-lg font-black tracking-[0.25em] uppercase focus:border-emerald-600 focus:outline-none" /><button disabled={loading} className="w-full rounded-xl bg-emerald-700 py-3 text-sm font-black text-white disabled:opacity-60">{loading ? 'Validando…' : 'Ingresar al Estado de Pago'}</button></form>{message && <p className="mt-4 text-xs font-semibold text-rose-700">{message}</p>}</section></main>;

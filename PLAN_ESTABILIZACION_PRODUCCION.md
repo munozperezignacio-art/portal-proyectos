@@ -114,4 +114,5 @@ La plataforma se considerará lista para producción cuando no existan política
 - Trazabilidad documental cubierta con pruebas de identidad, empresa, acción, estado, fecha y conservación inmutable del historial.
 - Prueba de humo HTTP versionada para once Edge Functions críticas: Auth, formularios, capacitación, maquinaria, asistencia, cliente, mandante, subcontratos, correo, documentos y OX.
 - Corregido un fallo de ejecución detectado por lint en el portal público de capacitaciones: el icono de envío ahora se importa explícitamente.
+- Eliminada del portal externo de Estados de Pago la ruta heredada e inaccesible de escritura directa; decisiones y propuestas operan exclusivamente mediante la Edge Function protegida.
 - Batería actual consolidada en 16 pruebas unitarias y 11 verificaciones HTTP; lint sin errores y build productivo correcto.
