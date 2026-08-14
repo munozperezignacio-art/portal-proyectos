@@ -14,11 +14,10 @@ const escapeHtml = (value: unknown) => String(value ?? '').replace(/[&<>'"]/g, c
 const isoDate = (date: Date) => date.toISOString().slice(0, 10);
 
 Deno.serve(async (req) => {
-  const cronSecret = Deno.env.get('CRON_SECRET');
-  if (!cronSecret || req.headers.get('x-cron-secret') !== cronSecret) {
-    return json({ error: 'No autorizado' }, 401);
-  }
   const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
+  const suppliedSecret = req.headers.get('x-cron-secret') || '';
+  const { data: cronAuthorized, error: cronAuthError } = await db.rpc('verify_internal_cron_secret', { p_secret: suppliedSecret });
+  if (cronAuthError || cronAuthorized !== true) return json({ error: 'No autorizado' }, 401);
   const now = new Date();
   const local = localParts(now);
   const lookback = new Date(now.getTime() - 36 * 60 * 60 * 1000).toISOString();

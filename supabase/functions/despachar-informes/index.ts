@@ -39,15 +39,19 @@ const nextRun = (s: any, now = new Date()) => {
 };
 
 Deno.serve(async (req) => {
-  const cronSecret = Deno.env.get("CRON_SECRET");
-  if (!cronSecret || req.headers.get("x-cron-secret") !== cronSecret) {
-    return json({ error: "No autorizado" }, 401);
-  }
   const db = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     { auth: { persistSession: false } },
   );
+  const suppliedSecret = req.headers.get("x-cron-secret") || "";
+  const { data: cronAuthorized, error: cronAuthError } = await db.rpc(
+    "verify_internal_cron_secret",
+    { p_secret: suppliedSecret },
+  );
+  if (cronAuthError || cronAuthorized !== true) {
+    return json({ error: "No autorizado" }, 401);
+  }
   const { data: schedules, error } = await db
     .from("informes_programaciones")
     .select("*")

@@ -2,6 +2,8 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
+Avance actualizado: Etapa 1 28%; plan completo 6%.
+
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
 ## Etapa 1 — Cierre de seguridad
@@ -10,7 +12,7 @@ Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operac
 - [ ] Eliminar acceso anónimo directo no indispensable.
 - [ ] Mover Resend completamente al servidor y rotar su clave.
 - [ ] Eliminar claves de IA del navegador y de tablas expuestas.
-- [ ] Proteger tareas Cron con un secreto interno independiente de la clave pública.
+- [x] Proteger tareas Cron con un secreto interno en Vault independiente de la clave pública.
 - [ ] Activar protección de contraseñas filtradas en Supabase Auth.
 - [ ] Revisar `GRANT` y funciones `SECURITY DEFINER`.
 - [ ] Verificar con pruebas cruzadas entre al menos dos empresas.
@@ -52,3 +54,11 @@ Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operac
 ## Criterio de término
 
 La plataforma se considerará lista para producción cuando no existan políticas abiertas en datos privados, ningún secreto llegue al navegador, el esquema sea reconstruible desde migraciones, las funciones desplegadas coincidan con Git y los flujos críticos cuenten con pruebas automatizadas.
+
+## Avances ejecutados
+
+- Cron de informes y notificaciones autenticado mediante secreto generado en Vault.
+- Edge Functions rechazan invocaciones sin el secreto interno.
+- Resend eliminado de las tablas en las automatizaciones de informes, prevención y mandante intervenidas.
+- RLS multiempresa cerrado para roles, relación obra–presupuesto y nueve tablas financieras heredadas.
+- Acceso `anon`, `TRUNCATE`, `TRIGGER` y `REFERENCES` retirado de esas tablas.
