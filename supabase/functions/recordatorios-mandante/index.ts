@@ -21,8 +21,8 @@ Deno.serve(async req=>{
     const {data:rows,error:rowsError}=await db.from("mandante_obligaciones").select("id,contrato_id,tipo,nombre,periodicidad,proxima_fecha,responsable,correo_responsable,notificar_dias_antes,mandante_contratos!inner(codigo,nombre,empresa_contratista,empresa_mandante,proyecto_id)").eq("empresa_mandante",empresa).eq("activa",true).not("correo_responsable","is",null).not("proxima_fecha","is",null);
     if(rowsError)throw rowsError;
     const due=(rows||[]).filter(item=>{const warning=new Date(`${item.proxima_fecha}T12:00:00Z`);warning.setUTCDate(warning.getUTCDate()-Number(item.notificar_dias_antes||0));return warning<=new Date(`${today}T23:59:59Z`);});
-    const {data:config}=await db.from("config_empresa").select("email_api_key,email_sender").eq("empresa","Obraxis").maybeSingle();
-    const apiKey=Deno.env.get("RESEND_API_KEY")||config?.email_api_key;
+    const {data:config}=await db.from("config_empresa").select("email_sender").eq("empresa","Obraxis").maybeSingle();
+    const apiKey=Deno.env.get("RESEND_API_KEY");
     if(!apiKey)return reply({error:"Resend no está configurado en el servidor."},503);
     let enviados=0,omitidos=0;
     for(const item of due){

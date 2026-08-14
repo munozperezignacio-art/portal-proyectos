@@ -38,7 +38,11 @@ const nextRun = (s: any, now = new Date()) => {
   throw new Error("No fue posible calcular la próxima ejecución");
 };
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  const cronSecret = Deno.env.get("CRON_SECRET");
+  if (!cronSecret || req.headers.get("x-cron-secret") !== cronSecret) {
+    return json({ error: "No autorizado" }, 401);
+  }
   const db = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -125,7 +129,7 @@ Deno.serve(async () => {
         db.from("usuarios").select("id,correo,rol").eq("empresa", s.empresa),
         db
           .from("config_empresa")
-          .select("email_api_key,email_sender")
+          .select("email_sender")
           .eq("empresa", "Obraxis")
           .maybeSingle(),
       ]);
@@ -180,13 +184,14 @@ Deno.serve(async () => {
         ),
       ];
       const shouldEmail = s.incluir_correo !== false;
-      if (shouldEmail && !mailConfig?.email_api_key)
+      const resendApiKey = Deno.env.get("RESEND_API_KEY");
+      if (shouldEmail && !resendApiKey)
         throw new Error("Resend no está configurado");
       if (shouldEmail && !recipients.length) throw new Error("Sin destinatarios");
       const response = shouldEmail ? await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${mailConfig.email_api_key}`,
+          Authorization: `Bearer ${resendApiKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({

@@ -13,7 +13,11 @@ const activeWork = (state: unknown) => !['inactiva', 'terminada', 'cerrada', 'fi
 const escapeHtml = (value: unknown) => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char] || char));
 const isoDate = (date: Date) => date.toISOString().slice(0, 10);
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  const cronSecret = Deno.env.get('CRON_SECRET');
+  if (!cronSecret || req.headers.get('x-cron-secret') !== cronSecret) {
+    return json({ error: 'No autorizado' }, 401);
+  }
   const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
   const now = new Date();
   const local = localParts(now);
@@ -37,7 +41,7 @@ Deno.serve(async () => {
         db.from('reporte_maquinaria').select('obra_nombre,created_at').gte('created_at', lookback),
         db.from('inventario_maquinaria').select('obra_nombre,estado_equipo').eq('empresa', rule.empresa),
         db.from('notificaciones_entregas').select('id,created_at,payload').eq('regla_id', rule.id).gte('created_at', lookback),
-        db.from('config_empresa').select('email_api_key,email_sender').eq('empresa', 'Obraxis').maybeSingle()
+        db.from('config_empresa').select('email_sender').eq('empresa', 'Obraxis').maybeSingle()
       ]);
 
       if ((existing || []).some((item: any) => item.payload?.fecha_control === local.date || localParts(new Date(item.created_at)).date === local.date)) {
@@ -82,8 +86,9 @@ Deno.serve(async () => {
       let emailState = 'Omitido';
       let errorDetail: string | null = null;
       if (rule.canal_email && recipients.length) {
-        if (!mailConfig?.email_api_key) throw new Error('Resend no está configurado');
-        const response = await fetch('https://api.resend.com/emails', { method: 'POST', headers: { Authorization: `Bearer ${mailConfig.email_api_key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ from: `Obraxis <${mailConfig.email_sender || 'notificaciones@obraxis.cl'}>`, to: recipients, subject: `${title} · ${rule.empresa}`, html }) });
+        const resendApiKey = Deno.env.get('RESEND_API_KEY');
+        if (!resendApiKey) throw new Error('Resend no está configurado');
+        const response = await fetch('https://api.resend.com/emails', { method: 'POST', headers: { Authorization: `Bearer ${resendApiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ from: `Obraxis <${mailConfig?.email_sender || 'notificaciones@obraxis.cl'}>`, to: recipients, subject: `${title} · ${rule.empresa}`, html }) });
         emailState = response.ok ? 'Enviada' : 'Error';
         if (!response.ok) errorDetail = await response.text();
       }
@@ -105,7 +110,7 @@ async function processCompliancePending(db: any, rule: any, local: { date: strin
   const [{ data: assignments, error: assignmentError }, { data: users }, { data: mailConfig }] = await Promise.all([
     db.from('prevencion_cumplimiento_asignaciones').select('id,empresa,usuario_id,formulario_id,trabajador_nombre,registro_nombre,frecuencia,hora_limite,dia_semana,dia_mes').eq('empresa', rule.empresa).eq('activo', true).eq('notificar_pendiente', true),
     db.from('usuarios').select('id,nombre,correo,rol').eq('empresa', rule.empresa),
-    db.from('config_empresa').select('email_api_key,email_sender').eq('empresa', 'Obraxis').maybeSingle()
+    db.from('config_empresa').select('email_sender').eq('empresa', 'Obraxis').maybeSingle()
   ]);
   if (assignmentError) throw assignmentError;
 
@@ -166,10 +171,11 @@ async function processCompliancePending(db: any, rule: any, local: { date: strin
   let emailState = 'Omitido';
   let errorDetail: string | null = null;
   if (rule.canal_email && emailRecipients.length) {
-    if (!mailConfig?.email_api_key) throw new Error('Resend no está configurado');
+    const resendApiKey = Deno.env.get('RESEND_API_KEY');
+    if (!resendApiKey) throw new Error('Resend no está configurado');
     const responses = await Promise.all(emailRecipients.map((recipient: string) => fetch('https://api.resend.com/emails', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${mailConfig.email_api_key}`, 'Content-Type': 'application/json' },
+      headers: { Authorization: `Bearer ${resendApiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: `Obraxis <${mailConfig.email_sender || 'notificaciones@obraxis.cl'}>`, to: [recipient], subject: `${title} · ${rule.empresa}`, html })
     })));
     emailState = responses.every(response => response.ok) ? 'Enviada' : 'Error';
