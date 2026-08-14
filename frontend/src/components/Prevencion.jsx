@@ -158,6 +158,10 @@ export default function Prevencion({ user, onBack, companyBranding }) {
   const [asigFormularioId, setAsigFormularioId] = useState('');
   const [asigFrecuencia, setAsigFrecuencia] = useState('Diario');
   const [asigFormType, setAsigFormType] = useState('');
+  const [asigHoraLimite, setAsigHoraLimite] = useState('17:00');
+  const [asigDiaSemana, setAsigDiaSemana] = useState('4');
+  const [asigDiaMes, setAsigDiaMes] = useState('20');
+  const [asigNotificar, setAsigNotificar] = useState(true);
 
   // Registrar Cumplimiento (Log)
   const [showLogModal, setShowLogModal] = useState(false);
@@ -698,6 +702,10 @@ export default function Prevencion({ user, onBack, companyBranding }) {
         trabajador_nombre: asigTrabajadorNombre.trim(),
         registro_nombre: asigRegistroNombre.trim(),
         frecuencia: asigFrecuencia,
+        hora_limite: asigHoraLimite,
+        dia_semana: asigFrecuencia === 'Semanal' ? Number(asigDiaSemana) : null,
+        dia_mes: asigFrecuencia === 'Mensual' ? Number(asigDiaMes) : null,
+        notificar_pendiente: asigNotificar,
         activo: true
       };
 
@@ -716,6 +724,10 @@ export default function Prevencion({ user, onBack, companyBranding }) {
       setAsigFormularioId('');
       setAsigFrecuencia('Diario');
       setAsigFormType('');
+      setAsigHoraLimite('17:00');
+      setAsigDiaSemana('4');
+      setAsigDiaMes('20');
+      setAsigNotificar(true);
 
       fetchAsignacionesCumplimiento();
     } catch (err) {
@@ -3356,6 +3368,32 @@ export default function Prevencion({ user, onBack, companyBranding }) {
                     )}
                   </div>
 
+                  <div className={`grid gap-3 ${asigFrecuencia === 'Diario' ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                    {asigFrecuencia === 'Semanal' && (
+                      <label className="space-y-1">
+                        <span className="text-[9px] font-bold uppercase text-slate-550 block">Día de aviso</span>
+                        <select value={asigDiaSemana} onChange={(e) => setAsigDiaSemana(e.target.value)} className="w-full border border-slate-250 rounded-xl p-2.5 bg-white text-xs font-semibold text-slate-700 focus:outline-none focus:border-primary">
+                          <option value="1">Lunes</option><option value="2">Martes</option><option value="3">Miércoles</option><option value="4">Jueves</option><option value="5">Viernes</option>
+                        </select>
+                      </label>
+                    )}
+                    {asigFrecuencia === 'Mensual' && (
+                      <label className="space-y-1">
+                        <span className="text-[9px] font-bold uppercase text-slate-550 block">Día del mes</span>
+                        <input type="number" min="1" max="28" value={asigDiaMes} onChange={(e) => setAsigDiaMes(e.target.value)} className="w-full border border-slate-250 rounded-xl p-2.5 bg-white text-xs font-semibold text-slate-700 focus:outline-none focus:border-primary" />
+                      </label>
+                    )}
+                    <label className="space-y-1">
+                      <span className="text-[9px] font-bold uppercase text-slate-550 block">Hora límite</span>
+                      <input type="time" value={asigHoraLimite} onChange={(e) => setAsigHoraLimite(e.target.value)} className="w-full border border-slate-250 rounded-xl p-2.5 bg-white text-xs font-semibold text-slate-700 focus:outline-none focus:border-primary" />
+                    </label>
+                  </div>
+
+                  <label className="flex items-start gap-2 rounded-xl border border-blue-100 bg-blue-50/70 p-3 text-[10px] font-semibold text-blue-900">
+                    <input type="checkbox" checked={asigNotificar} onChange={(e) => setAsigNotificar(e.target.checked)} className="mt-0.5" />
+                    <span>Avisar si el formulario continúa pendiente al llegar la fecha y hora configuradas.</span>
+                  </label>
+
                   <button
                     onClick={handleSaveAsignacion}
                     disabled={savingForm}
@@ -3397,6 +3435,9 @@ export default function Prevencion({ user, onBack, companyBranding }) {
                                 <td className="p-3">
                                   <span className="text-[9px] font-black uppercase bg-slate-100 text-slate-550 px-2 py-0.5 rounded">
                                     {a.frecuencia}
+                                  </span>
+                                  <span className="mt-1 block text-[9px] text-slate-500">
+                                    {a.frecuencia === 'Semanal' ? `${['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'][Number(a.dia_semana ?? 4)]} · ` : a.frecuencia === 'Mensual' ? `Día ${a.dia_mes ?? 20} · ` : ''}{String(a.hora_limite || '17:00').slice(0, 5)}{a.notificar_pendiente === false ? ' · Sin aviso' : ''}
                                   </span>
                                 </td>
                                 <td className="p-3 text-center">

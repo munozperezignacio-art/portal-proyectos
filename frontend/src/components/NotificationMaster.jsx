@@ -22,6 +22,7 @@ const CATALOG = [
   { code: 'incidente_accidente', module: 'Prevención', name: 'Incidente o accidente informado', description: 'Notificación inmediata de un evento preventivo.', frequency: 'Inmediata' },
   { code: 'prevencion_accion_vencida', module: 'Prevención', name: 'Acción preventiva vencida', description: 'Escala medidas correctivas sin cierre dentro del plazo.', frequency: 'Diaria' },
   { code: 'prevencion_registro_recibido', module: 'Prevención', name: 'Nuevo registro preventivo', description: 'Informa inspecciones, PARE, AST y registros recibidos.', frequency: 'Inmediata' },
+  { code: 'prevencion_cumplimiento_pendiente', module: 'Prevención', name: 'Cumplimiento preventivo pendiente', description: 'Avisa al usuario responsable y escala a los destinatarios configurados cuando un formulario diario, semanal o mensual no fue completado al vencimiento.', frequency: 'Diaria' },
   { code: 'prevencion_cumplimiento_bajo', module: 'Prevención', name: 'Cumplimiento preventivo bajo meta', description: 'Alerta cuando una obra o actividad cae bajo el estándar configurado.', frequency: 'Semanal' },
   { code: 'rdi_pendiente', module: 'Calidad', name: 'RDI pendiente de respuesta', description: 'Recuerda solicitudes RDI sin respuesta dentro del plazo.', frequency: 'Diaria' },
   { code: 'recepcion_observada', module: 'Calidad', name: 'Recepción observada o rechazada', description: 'Informa observaciones y rechazos de partidas.', frequency: 'Inmediata' },
@@ -140,7 +141,7 @@ export default function NotificationMaster({ user, obras = [], roles = [] }) {
     if (form.alcance_tipo === 'seleccionadas' && !form.obras_seleccionadas.length) {
       setMessage('Selecciona al menos una obra para este alcance.'); return;
     }
-    if (!form.roles.length && !form.usuarios.length && !form.correos.some(Boolean)) {
+    if (form.template_code !== 'prevencion_cumplimiento_pendiente' && !form.roles.length && !form.usuarios.length && !form.correos.some(Boolean)) {
       setMessage('Selecciona al menos un rol, usuario o correo adicional.'); return;
     }
     const payload = {

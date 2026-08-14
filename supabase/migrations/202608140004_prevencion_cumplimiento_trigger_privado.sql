@@ -1,0 +1,4 @@
+-- Esta función solo debe ejecutarse por su trigger, nunca como RPC pública.
+revoke all on function public.asegurar_regla_cumplimiento_preventivo() from public;
+revoke all on function public.asegurar_regla_cumplimiento_preventivo() from anon;
+revoke all on function public.asegurar_regla_cumplimiento_preventivo() from authenticated;
