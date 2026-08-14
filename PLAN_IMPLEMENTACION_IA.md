@@ -110,13 +110,13 @@ Autorización específica recibida el 13-08-2026 para análisis bajo solicitud d
 No se inicia hasta disponer de volumen, calidad y continuidad histórica suficientes.
 
 - [x] Diagnóstico determinístico de preparación por empresa, con umbrales visibles de volumen, continuidad y obras comparables; no consume tokens ni habilita predicciones automáticamente.
-- [ ] Fecha probable de término y costo final.
-- [ ] Riesgo de sobrecosto y de incumplimiento de hitos.
-- [ ] Flujo de caja.
+- [x] Fecha probable de término y costo final en escenarios favorable, base y adverso; se identifica como simulación mientras la historia no alcance el umbral.
+- [x] Riesgo determinístico de sobrecosto y de incumplimiento de hitos, sin modificar la línea base.
+- [x] Flujo mensual orientativo del costo restante para el escenario base.
 - [ ] Accidentabilidad y no conformidades.
 - [ ] Utilización y fallas de equipos.
 - [ ] Comparación interna anonimizada entre obras.
 
 ## Próximo bloque obligatorio
 
-Mantener las extensiones IA opcionales de la Fase 5 como funciones contratables y preparar la Fase 6 solo cuando exista historia suficiente, continua y confiable.
+Completar escenarios de accidentabilidad, calidad y maquinaria. Las obras ficticias se utilizan para validar interfaz y fórmulas en modo simulación; una predicción estadística se habilita únicamente al cumplir los umbrales visibles de continuidad y volumen.
