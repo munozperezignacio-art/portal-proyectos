@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { useAuth } from '@/auth/AuthProvider';
@@ -6,7 +7,44 @@ import { Badge, Card, Empty, ErrorBox, Header, Loading, Screen, Segments } from 
 import { useSupabaseList } from '@/hooks/useSupabaseList';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
-type Row=Record<string,any>;
-export default function Forms(){const{profile}=useAuth();const[tab,setTab]=useState('biblioteca');const[q,setQ]=useState('');const state=useSupabaseList<Row>(async()=>{const[f,r]=await Promise.all([supabase.from('prevencion_formularios').select('id,titulo,descripcion,categoria,codigo,revision,publico_token,created_at').eq('empresa',profile!.empresa).order('created_at',{ascending:false}),supabase.from('prevencion_respuestas').select('id,formulario_id,proyecto_nombre,inspector,created_at,prevencion_formularios!inner(titulo,categoria,empresa)').eq('prevencion_formularios.empresa',profile!.empresa).order('created_at',{ascending:false}).limit(100)]);if(f.error)throw f.error;if(r.error)throw r.error;return[{forms:f.data||[],answers:r.data||[]}];},profile?.empresa);const data=state.data[0]||{forms:[],answers:[]};const filtered=useMemo(()=>data.forms.filter((x:Row)=>`${x.titulo} ${x.codigo} ${x.categoria}`.toLowerCase().includes(q.toLowerCase())),[q,data.forms]);return <Screen refreshing={state.loading} onRefresh={state.refresh}><Header title="Formularios y registros" subtitle="Biblioteca operacional de la empresa." icon="clipboard-outline"/><Segments value={tab} options={[{key:'biblioteca',label:'Biblioteca'},{key:'registros',label:'Registros'}]} onChange={setTab}/><View style={s.search}><Ionicons name="search" size={18} color={colors.muted}/><TextInput value={q} onChangeText={setQ} placeholder="Buscar formulario" placeholderTextColor="#98A2B3" style={s.input}/></View><ErrorBox text={state.error}/>{state.loading&&!state.data.length?<Loading/>:tab==='biblioteca'?(!filtered.length?<Empty text="No hay formularios en la biblioteca."/>:filtered.map((x:Row)=><Card key={x.id}><View style={s.top}><Badge>{x.codigo||x.categoria||'Formulario'}</Badge><Text style={s.rev}>Rev. {x.revision||'0'}</Text></View><Text style={s.name}>{x.titulo}</Text><Text style={s.meta}>{x.descripcion||'Sin descripciÃ³n'}</Text>{x.publico_token?<Text style={s.available}>â— Disponible para responder</Text>:null}</Card>)):(!data.answers.length?<Empty text="AÃºn no existen registros respondidos."/>:data.answers.map((x:Row)=><Card key={x.id}><Text style={s.name}>{x.prevencion_formularios?.titulo||'Registro'}</Text><Text style={s.meta}>{x.proyecto_nombre||'Nivel empresa'} Â· {x.inspector||'Sin informante'}</Text><Text style={s.date}>{new Date(x.created_at).toLocaleString('es-CL')}</Text></Card>))}</Screen>}
-const s=StyleSheet.create({search:{height:50,borderWidth:1,borderColor:colors.line,borderRadius:14,backgroundColor:'white',paddingHorizontal:14,flexDirection:'row',alignItems:'center',gap:9},input:{flex:1,fontSize:13,color:colors.ink},top:{flexDirection:'row',justifyContent:'space-between',alignItems:'center'},rev:{fontSize:10,fontWeight:'800',color:colors.muted},name:{fontSize:14,fontWeight:'900',color:colors.ink},meta:{fontSize:11,color:colors.muted,lineHeight:16},available:{fontSize:10,fontWeight:'800',color:colors.green},date:{fontSize:10,color:colors.blue,fontWeight:'700'}});
 
+type Row=Record<string,any>;
+
+export default function Forms(){
+  const{profile}=useAuth();
+  const[tab,setTab]=useState('biblioteca');
+  const[q,setQ]=useState('');
+  const state=useSupabaseList<Row>(async()=>{
+    const[f,r]=await Promise.all([
+      supabase.from('prevencion_formularios').select('id,titulo,descripcion,categoria,codigo,revision,publico_token,created_at').eq('empresa',profile!.empresa).order('created_at',{ascending:false}),
+      supabase.from('prevencion_respuestas').select('id,formulario_id,proyecto_nombre,inspector,created_at,prevencion_formularios!inner(titulo,categoria,empresa)').eq('prevencion_formularios.empresa',profile!.empresa).order('created_at',{ascending:false}).limit(100)
+    ]);
+    if(f.error)throw f.error;
+    if(r.error)throw r.error;
+    return[{forms:f.data||[],answers:r.data||[]}];
+  },profile?.empresa);
+  const data=state.data[0]||{forms:[],answers:[]};
+  const filtered=useMemo(()=>data.forms.filter((x:Row)=>`${x.titulo} ${x.codigo} ${x.categoria}`.toLowerCase().includes(q.toLowerCase())),[q,data.forms]);
+
+  return <Screen refreshing={state.loading} onRefresh={state.refresh}>
+    <Header title="Formularios y registros" subtitle="Biblioteca operacional de la empresa." icon="clipboard-outline"/>
+    <Segments value={tab} options={[{key:'biblioteca',label:'Biblioteca'},{key:'registros',label:'Registros'}]} onChange={setTab}/>
+    <View style={s.search}><Ionicons name="search" size={18} color={colors.muted}/><TextInput value={q} onChangeText={setQ} placeholder="Buscar formulario" placeholderTextColor="#98A2B3" style={s.input}/></View>
+    <ErrorBox text={state.error}/>
+    {state.loading&&!state.data.length?<Loading/>:tab==='biblioteca'?(
+      !filtered.length?<Empty text="No hay formularios en la biblioteca."/>:filtered.map((x:Row)=><Card key={x.id} onPress={()=>router.push({pathname:'/formulario/[id]',params:{id:String(x.id)}})}>
+        <View style={s.top}><Badge>{x.codigo||x.categoria||'Formulario'}</Badge><Text style={s.rev}>Rev. {x.revision||'0'}</Text></View>
+        <Text style={s.name}>{x.titulo}</Text><Text style={s.meta}>{x.descripcion||'Sin descripción'}</Text>
+        {x.publico_token?<Text style={s.available}>● Toca para responder</Text>:<Text style={s.unavailable}>Sin publicación disponible</Text>}
+      </Card>)
+    ):(
+      !data.answers.length?<Empty text="Aún no existen registros respondidos."/>:data.answers.map((x:Row)=><Card key={x.id}>
+        <Text style={s.name}>{x.prevencion_formularios?.titulo||'Registro'}</Text>
+        <Text style={s.meta}>{x.proyecto_nombre||'Nivel empresa'} · {x.inspector||'Sin informante'}</Text>
+        <Text style={s.date}>{new Date(x.created_at).toLocaleString('es-CL')}</Text>
+      </Card>)
+    )}
+  </Screen>;
+}
+
+const s=StyleSheet.create({search:{height:50,borderWidth:1,borderColor:colors.line,borderRadius:14,backgroundColor:'white',paddingHorizontal:14,flexDirection:'row',alignItems:'center',gap:9},input:{flex:1,fontSize:13,color:colors.ink},top:{flexDirection:'row',justifyContent:'space-between',alignItems:'center'},rev:{fontSize:10,fontWeight:'800',color:colors.muted},name:{fontSize:14,fontWeight:'900',color:colors.ink},meta:{fontSize:11,color:colors.muted,lineHeight:16},available:{fontSize:10,fontWeight:'800',color:colors.green},unavailable:{fontSize:10,fontWeight:'700',color:colors.muted},date:{fontSize:10,color:colors.blue,fontWeight:'700'}});
