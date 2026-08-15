@@ -2,7 +2,7 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
-Avance actualizado: Etapa 1 99%; Etapa 2 90%; Etapa 3 74%; Etapa 4 88%; Etapa 5 94%; plan completo 89%.
+Avance actualizado: Etapa 1 99%; Etapa 2 90%; Etapa 3 79%; Etapa 4 88%; Etapa 5 94%; plan completo 90%.
 
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
@@ -151,3 +151,5 @@ La plataforma se considerará lista para producción cuando no existan política
 - Motores Excel, PDF y Word centralizados en `documentEngines`; ningun modulo puede importarlos directamente y cada motor conserva una unica carga diferida compartida.
 - SheetJS actualizado desde su distribucion oficial a `xlsx 0.20.3`; auditoria npm de produccion cerrada con cero vulnerabilidades.
 - GitHub Actions incorpora un control obligatorio reproducible con `npm ci`, auditoria, lint, 21 pruebas y build; el flujo Android reutiliza la misma version de Node y ejecuta la calidad antes de compilar el APK.
+- Playwright incorporado con recorridos E2E en escritorio y movil para portada, acceso, formulario comercial y control de desborde responsive; 5 recorridos efectivos aprobados y uno omitido por no corresponder al viewport.
+- Ejecutor E2E local administra Vite y Chromium sin dejar procesos abiertos; GitHub instala el navegador y ejecuta los mismos recorridos antes del build productivo.

@@ -38,6 +38,12 @@ jobs:
       - name: Ejecutar pruebas
         run: npm test
 
+      - name: Instalar navegador de pruebas
+        run: npx playwright install --with-deps chromium
+
+      - name: Probar interfaz publica
+        run: npm run test:e2e
+
       - name: Compilar produccion
         env:
           VITE_SUPABASE_URL: https://wegphblwwcfidvdbdtdq.supabase.co
