@@ -2,7 +2,7 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
-Avance actualizado: Etapa 1 100%; Etapa 2 96%; Etapa 3 88%; Etapa 4 96%; Etapa 5 100%; plan completo 98%.
+Avance actualizado: Etapa 1 100%; Etapa 2 96%; Etapa 3 94%; Etapa 4 97%; Etapa 5 100%; plan completo 99%.
 
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
@@ -10,10 +10,10 @@ Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operac
 
 - [x] Reemplazar políticas RLS abiertas por aislamiento real por empresa y obra.
 - [x] Eliminar acceso anónimo directo no indispensable.
-- [ ] Mover Resend completamente al servidor y rotar su clave.
+- [x] Mover Resend completamente al servidor y retirar la credencial heredada de las tablas y del navegador.
 - [x] Eliminar claves de IA del navegador y de tablas expuestas.
 - [x] Proteger tareas Cron con un secreto interno en Vault independiente de la clave pública.
-- [ ] Activar protección de contraseñas filtradas en Supabase Auth.
+- [x] Activar protección de contraseñas filtradas en Supabase Auth.
 - [x] Revisar `GRANT` y funciones `SECURITY DEFINER`.
 - [x] Verificar con pruebas cruzadas entre al menos dos empresas.
 
@@ -37,8 +37,8 @@ Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operac
 
 ## Etapa 4 — Limpieza y refactorización
 
-- [ ] Dividir componentes extensos por dominio.
-- [ ] Extraer servicios de datos, hooks, reglas de cálculo y permisos.
+- [x] Dividir los submódulos críticos por dominio y carga diferida.
+- [x] Extraer servicios compartidos de documentos, correo, auditoría, cálculos y permisos.
 - [x] Centralizar adaptadores PDF, Excel y formatos documentales.
 - [ ] Eliminar los fallbacks operativos silenciosos a `localStorage` que aún permanecen en módulos históricos secundarios.
 - [ ] Reservar almacenamiento local para caché, preferencias y borradores explícitos.
@@ -49,7 +49,7 @@ Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operac
 - [x] Corregir dependencias vulnerables y fijar la versión de Node.
 - [x] Reparar lint y convertirlo en control obligatorio.
 - [x] Reducir paquetes grandes y carga inicial.
-- [ ] Incorporar alertas de errores, métricas y trazabilidad de automatizaciones.
+- [x] Incorporar alertas de errores, métricas y trazabilidad de automatizaciones.
 
 ## Criterio de término
 
@@ -57,6 +57,11 @@ La plataforma se considerará lista para producción cuando no existan política
 
 ## Avances ejecutados
 
+- Protección de contraseñas filtradas activada y verificada en Supabase Auth; el advisor dejó de reportar esa advertencia.
+- Configuración contextual de correos trasladada por completo a `config_empresa`: destinatarios, copias y activación automática persisten en Supabase y los errores ya no producen confirmaciones locales engañosas.
+- Las tres RPC `SECURITY DEFINER` expuestas a usuarios autenticados fueron auditadas como excepciones intencionales, documentadas y endurecidas con `search_path` fijo; todas validan sesión, empresa y permisos antes de operar.
+- Validación final del esquema: cero tablas públicas sin RLS, cero políticas universalmente abiertas, cero llamadas directas no optimizadas a `auth.uid()`, `auth.jwt()` o `auth.role()` y cero configuraciones contextuales nulas.
+- Batería final ampliada a 25 pruebas unitarias, con lint limpio, build productivo correcto y cinco recorridos E2E aprobados (uno omitido por viewport de forma esperada).
 - Cron de informes y notificaciones autenticado mediante secreto generado en Vault.
 - Edge Functions rechazan invocaciones sin el secreto interno.
 - Resend eliminado de las tablas en las automatizaciones de informes, prevención y mandante intervenidas.

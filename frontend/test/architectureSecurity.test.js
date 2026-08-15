@@ -101,6 +101,15 @@ test('maquinaria confirma operaciones solo despuÃ©s de persistirlas en Supabas
   assert.doesNotMatch(source, /guardad[oa]\s+(?:localmente|en este dispositivo)/i);
 });
 
+test('la configuración contextual de correos usa Supabase como única fuente operativa', () => {
+  const path = join(sourceRoot, 'components', 'ContextualEmailConfigModal.jsx');
+  const source = readFileSync(path, 'utf8');
+  assert.doesNotMatch(source, /localStorage/);
+  assert.match(source, /correos_contextuales/);
+  assert.match(source, /if \(saveError\) throw saveError/);
+  assert.match(source, /notificaciones_automaticas/);
+});
+
 test('los errores no controlados se registran mediante el RPC seguro de observabilidad', () => {
   const reporter = readFileSync(join(sourceRoot, 'services', 'clientErrorReporter.js'), 'utf8');
   const main = readFileSync(join(sourceRoot, 'main.jsx'), 'utf8');

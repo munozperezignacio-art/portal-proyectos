@@ -18,44 +18,31 @@ export default function ContextualEmailConfigModal({
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState({ type: '', text: '' });
 
-  const storageKey = `emails_config_${user?.empresa || 'Obraxis'}_${moduloKey}_${obraNombre || 'global'}`;
+  const contextKey = `${moduloKey}:${obraNombre || 'global'}`;
 
   const loadConfig = useCallback(async () => {
     setLoading(true);
     setMsg({ type: '', text: '' });
     try {
-      // 1. Cargar primero de localStorage
-      const local = localStorage.getItem(storageKey);
-      if (local) {
-        const parsed = JSON.parse(local);
-        setEmails(parsed.emails || []);
-        setEmailsCC(parsed.emailsCC || []);
-        setAutoNotify(parsed.autoNotify !== undefined ? parsed.autoNotify : true);
-      }
-
-      // 2. Cargar de Supabase config_empresa si existe
       if (user?.empresa) {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('config_empresa')
-          .select('email_notificaciones, email_notificaciones_cc')
+          .select('email_notificaciones, email_notificaciones_cc, notificaciones_automaticas, correos_contextuales')
           .eq('empresa', user.empresa)
           .single();
+        if (error) throw error;
 
-        if (data && !local) {
-          if (data.email_notificaciones) {
-            setEmails(data.email_notificaciones.split(',').map(e => e.trim()).filter(Boolean));
-          }
-          if (data.email_notificaciones_cc) {
-            setEmailsCC(data.email_notificaciones_cc.split(',').map(e => e.trim()).filter(Boolean));
-          }
-        }
+        const contextual = data?.correos_contextuales?.[contextKey];
+        setEmails(contextual?.emails || data?.email_notificaciones?.split(',').map(e => e.trim()).filter(Boolean) || []);
+        setEmailsCC(contextual?.emailsCC || data?.email_notificaciones_cc?.split(',').map(e => e.trim()).filter(Boolean) || []);
+        setAutoNotify(contextual?.autoNotify ?? data?.notificaciones_automaticas ?? true);
       }
     } catch (e) {
-      console.warn("Aviso al cargar correos:", e);
+      setMsg({ type: 'error', text: e.message || 'No fue posible cargar la configuración de correos.' });
     } finally {
       setLoading(false);
     }
-  }, [storageKey, user?.empresa]);
+  }, [contextKey, user?.empresa]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -91,28 +78,31 @@ export default function ContextualEmailConfigModal({
     setLoading(true);
     setMsg({ type: '', text: '' });
     try {
-      const configObj = {
-        emails,
-        emailsCC,
-        autoNotify,
-        updatedAt: new Date().toISOString()
+      if (!user?.empresa) throw new Error('No existe una empresa activa para guardar esta configuración.');
+
+      const { data: current, error: loadError } = await supabase
+        .from('config_empresa')
+        .select('correos_contextuales')
+        .eq('empresa', user.empresa)
+        .single();
+      if (loadError) throw loadError;
+
+      const contexts = {
+        ...(current?.correos_contextuales || {}),
+        [contextKey]: { emails, emailsCC, autoNotify, updatedAt: new Date().toISOString() }
       };
 
-      // Guardar localmente para respuesta instantánea
-      localStorage.setItem(storageKey, JSON.stringify(configObj));
-
-      // Intentar sincronizar con Supabase
-      if (user?.empresa) {
-        const toStr = emails.join(', ');
-        const ccStr = emailsCC.join(', ');
-        await supabase
-          .from('config_empresa')
-          .update({
-            email_notificaciones: toStr,
-            email_notificaciones_cc: ccStr
-          })
-          .eq('empresa', user.empresa);
-      }
+      const { error: saveError } = await supabase
+        .from('config_empresa')
+        .update({
+          email_notificaciones: emails.join(', '),
+          email_notificaciones_cc: emailsCC.join(', '),
+          notificaciones_automaticas: autoNotify,
+          correos_contextuales: contexts,
+          updated_at: new Date().toISOString()
+        })
+        .eq('empresa', user.empresa);
+      if (saveError) throw saveError;
 
       setMsg({ type: 'success', text: 'Configuración de correos guardada exitosamente.' });
       setTimeout(() => {
