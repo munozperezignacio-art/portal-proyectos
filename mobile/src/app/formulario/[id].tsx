@@ -6,6 +6,7 @@ import { Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from 'reac
 import SignatureCanvas from 'react-native-signature-canvas';
 import { useAuth } from '@/auth/AuthProvider';
 import { Badge, Card, ErrorBox, Header, Loading, Screen } from '@/components/ui';
+import { invokeResilient } from '@/lib/offlineQueue';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
 
@@ -40,9 +41,10 @@ export default function FormFill(){
     if(missing.length)return Alert.alert('Faltan respuestas',`Completa: ${missing.map(field=>field.label).join(', ')}`);
     setSaving(true);setError('');
     const signature=fields.find(field=>field.type==='signature');
-    const{error:sendError}=await supabase.functions.invoke('formulario-publico',{body:{action:'enviar',token:String(form.publico_token),centro_gestion_id:center?.id||null,obra_id:center?.obra_id||null,proyecto_nombre:center?.obra_nombre||'Nivel empresa',inspector:profile?.nombre||profile?.usuario||'Usuario Obraxis',respuestas:answers,firma_url:signature?answers[signature.id]||null:null}});
+    const result=await invokeResilient('formulario-publico',{action:'enviar',token:String(form.publico_token),centro_gestion_id:center?.id||null,obra_id:center?.obra_id||null,proyecto_nombre:center?.obra_nombre||'Nivel empresa',inspector:profile?.nombre||profile?.usuario||'Usuario Obraxis',respuestas:answers,firma_url:signature?answers[signature.id]||null:null});
     setSaving(false);
-    if(sendError){setError(sendError.message);return}
+    if(result.error){setError(result.error.message);return}
+    if(result.queued){Alert.alert('Formulario pendiente','Quedó guardado en el dispositivo y se enviará automáticamente al recuperar conexión.',[{text:'Aceptar',onPress:()=>router.back()}]);return}
     Alert.alert('Formulario enviado','El registro quedó sincronizado con Obraxis.',[{text:'Aceptar',onPress:()=>router.back()}]);
   };
 

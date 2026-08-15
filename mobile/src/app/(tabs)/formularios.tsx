@@ -38,7 +38,7 @@ export default function Forms(){
         {x.publico_token?<Text style={s.available}>● Toca para responder</Text>:<Text style={s.unavailable}>Sin publicación disponible</Text>}
       </Card>)
     ):(
-      !data.answers.length?<Empty text="Aún no existen registros respondidos."/>:data.answers.map((x:Row)=><Card key={x.id}>
+      !data.answers.length?<Empty text="Aún no existen registros respondidos."/>:data.answers.map((x:Row)=><Card key={x.id} onPress={()=>router.push({pathname:'/registro/[id]',params:{id:String(x.id)}})}>
         <Text style={s.name}>{x.prevencion_formularios?.titulo||'Registro'}</Text>
         <Text style={s.meta}>{x.proyecto_nombre||'Nivel empresa'} · {x.inspector||'Sin informante'}</Text>
         <Text style={s.date}>{new Date(x.created_at).toLocaleString('es-CL')}</Text>
