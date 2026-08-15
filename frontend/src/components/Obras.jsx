@@ -11120,7 +11120,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         user={user}
       />
 
-      <FloatingOX user={user} obra={selectedObra} onNavigate={(destination) => {
+      <FloatingOX user={user} obra={selectedObra} moduleContext={{ id: 'obras', label: selectedObra?.nombre ? `Obras · ${selectedObra.nombre}` : 'Proyectos y Obras' }} onNavigate={(destination) => {
         if (destination === 'calidad') setObraActiveSubmodule('calidad');
         else if (destination === 'prevencion') setObraActiveSubmodule('prevencion');
         else if (destination === 'estados_pago') setObraActiveSubmodule('estados_pago');

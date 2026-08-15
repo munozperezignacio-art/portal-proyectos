@@ -891,6 +891,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
             plazo_estimado: parseInt(newProjectData.plazo_estimado, 10) || 0,
             presupuesto_estimado: parseFloat(newProjectData.presupuesto_estimado) || 0,
             tipo_proyecto: tipoWithCurrency,
+            moneda_base: newProjectData.moneda_base,
             comuna: newProjectData.comuna,
             empresa: user?.empresa || 'Obraxis'
           }

@@ -9,7 +9,7 @@ import { appendAudit, auditActor } from '../utils/documentAudit';
 import DocumentAuditTrail from './DocumentAuditTrail';
 import { canDispatchPayment } from '../utils/workflowRules';
 
-const normalise = (value) => String(value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+const normalise = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase('es-CL').replace(/[^a-z0-9]/g, '');
 const matchesPartida = (a, b) => {
   const left = normalise(a); const right = normalise(b);
   return left && right && (left === right || left.includes(right) || right.includes(left));
@@ -52,6 +52,8 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
   const [invoicePayment, setInvoicePayment] = useState(null);
   const [invoiceForm, setInvoiceForm] = useState(initialInvoiceForm);
   const [savingInvoice, setSavingInvoice] = useState(false);
+  const [contractCurrency, setContractCurrency] = useState('CLP');
+  const [exchangeRate, setExchangeRate] = useState({ value: 1, date: form.fecha_corte, source: 'Contrato en CLP', loading: false });
   const canViewPayments = can(user, permissions, 'obras.estados_pago.ver');
   const canPreparePayment = can(user, permissions, 'obras.estados_pago.crear') || can(user, permissions, 'obras.estados_pago.editar');
   const canDeletePayment = can(user, permissions, 'obras.estados_pago.eliminar');
@@ -79,13 +81,14 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
       const avancesQuery = obra?.id
         ? supabase.from('avances_produccion_partidas').select('*').eq('empresa', empresa).eq('obra_id', obra.id)
         : supabase.from('avances_produccion_partidas').select('*').eq('empresa', empresa).eq('obra_nombre', obraNombre);
-      const [partidasResult, avancesResult, rdiResult, estadosResult, condicionesResult] = await Promise.all([
+      const [partidasResult, avancesResult, rdiResult, estadosResult, condicionesResult, relationResult] = await Promise.all([
         partidasQuery,
         // La tabla vigente de reportes por partida; `reportes_avance` fue una tabla heredada.
         avancesQuery,
         supabase.from('calidad_rdi').select('partida, cantidad, estado').eq('obra_nombre', obraNombre),
         supabase.from('estados_pago_obra').select('*').eq('empresa', empresa).eq('obra_nombre', obraNombre).order('numero', { ascending: false }),
         supabase.from('condiciones_pago_obra').select('*').eq('empresa', empresa).eq('obra_nombre', obraNombre).maybeSingle(),
+        supabase.from('obra_presupuestos').select('presupuesto_id').eq('empresa', empresa).eq('obra_nombre', obraNombre).maybeSingle(),
       ]);
       if (partidasResult.error) throw partidasResult.error;
       if (avancesResult.error) throw avancesResult.error;
@@ -113,12 +116,34 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
       setCondiciones(condicionesResult.data || null);
       setAnticipoPct(String(condicionesResult.data?.anticipo_pct || 0));
       setContactos({ revisor_nombre: condicionesResult.data?.revisor_nombre || '', revisor_email: condicionesResult.data?.revisor_email || '', aprobador_nombre: condicionesResult.data?.aprobador_nombre || '', aprobador_email: condicionesResult.data?.aprobador_email || '' });
+      if (relationResult.data?.presupuesto_id) {
+        const { data: budget } = await supabase.from('presupuestos_proyectos').select('moneda_base,tipo_proyecto').eq('id', relationResult.data.presupuesto_id).eq('empresa', empresa).maybeSingle();
+        const legacyCurrency = String(budget?.tipo_proyecto || '').match(/MONEDA:(CLP|UF|USD)/)?.[1];
+        setContractCurrency(budget?.moneda_base || legacyCurrency || 'CLP');
+      } else setContractCurrency('CLP');
     } catch (error) {
       setMessage(error.message?.includes('estados_pago_obra') ? 'Falta habilitar Estados de Pago en Supabase. Ejecuta schema_estados_pago.sql y actualiza.' : `No fue posible cargar Estados de Pago: ${error.message}`);
     } finally { setLoading(false); }
   }, [empresa, obra?.id, obraNombre]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (contractCurrency === 'CLP') { setExchangeRate({ value: 1, date: form.fecha_corte, source: 'Contrato en CLP', loading: false }); return; }
+    let active = true;
+    const loadRate = async () => {
+      setExchangeRate(current => ({ ...current, loading: true }));
+      try {
+        const indicator = contractCurrency === 'UF' ? 'uf' : 'dolar';
+        const [year, month, day] = form.fecha_corte.split('-');
+        const response = await fetch(`https://mindicador.cl/api/${indicator}/${day}-${month}-${year}`);
+        if (!response.ok) throw new Error('Indicador no disponible');
+        const payload = await response.json(); const value = Number(payload?.serie?.[0]?.valor || 0);
+        if (!value) throw new Error('Sin valor publicado para la fecha');
+        if (active) setExchangeRate({ value, date: form.fecha_corte, source: 'mindicador.cl (indicador publicado)', loading: false });
+      } catch (error) { if (active) setExchangeRate(current => ({ ...current, loading: false, source: `Valor pendiente de confirmar: ${error.message}` })); }
+    };
+    loadRate(); return () => { active = false; };
+  }, [contractCurrency, form.fecha_corte]);
 
   const valuation = useMemo(() => partidas.map(partida => {
     const quantity = Number(partida.cantidad_presupuestada ?? partida.cantidad ?? 0);
@@ -129,15 +154,16 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
     const approvedRdi = rdis.filter(rdi => matchesPartida(rdi.partida, partida.partida) && ['Aprobada', 'Cerrada'].includes(rdi.estado))
       .reduce((sum, rdi) => sum + Number(rdi.cantidad || 0), 0);
     const executed = Math.min(quantity, reported);
-    const accumulatedAmount = Math.round(executed * unitPrice);
+    const accumulatedAmount = Math.round(executed * unitPrice * Number(exchangeRate.value || 1));
     const alreadyValuated = Math.max(0, ...estados.filter(item => item.estado !== 'Rechazado').map(item => (item.items || []).filter(row => matchesPartida(row.partida, partida.partida)).reduce((max, row) => Math.max(max, Number(row.monto_acumulado ?? row.amount ?? 0)), 0)));
     const amount = Math.max(0, accumulatedAmount - alreadyValuated);
     return { partida: partida.partida, unidad: partida.unidad, quantity, unitPrice, executed, amount, monto_anterior: alreadyValuated, monto_acumulado: accumulatedAmount, avance_pct: quantity > 0 ? (executed / quantity) * 100 : 0, approvedRdi, requiresReview: approvedRdi > 0 && approvedRdi < executed };
-  }).filter(line => line.executed > 0 || line.monto_anterior > 0), [partidas, avances, rdis, estados, form.fecha_corte]);
+  }).filter(line => line.executed > 0 || line.monto_anterior > 0), [partidas, avances, rdis, estados, form.fecha_corte, exchangeRate.value]);
 
   const periodValuation = valuation.filter(line => line.amount > 0);
   const gross = periodValuation.reduce((sum, line) => sum + line.amount, 0);
-  const contractAmount = partidas.reduce((sum, partida) => sum + (Number(partida.cantidad_presupuestada ?? partida.cantidad ?? 0) * (Number(partida.costo_por_dia) || Number(partida.pu) || 0)), 0);
+  const contractAmountOriginal = partidas.reduce((sum, partida) => sum + (Number(partida.cantidad_presupuestada ?? partida.cantidad ?? 0) * (Number(partida.costo_por_dia) || Number(partida.pu) || 0)), 0);
+  const contractAmount = Math.round(contractAmountOriginal * Number(exchangeRate.value || 1));
   const advanceRate = Math.max(0, Math.min(100, Number(condiciones?.anticipo_pct || 0)));
   const contractAdvance = Math.round(contractAmount * advanceRate / 100);
   const priorStates = estados.filter(item => item.estado !== 'Rechazado');
@@ -169,6 +195,7 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
 
   const createPayment = async () => {
     if (!canPreparePayment) { setMessage('Tu perfil no está autorizado para preparar estados de pago.'); return; }
+    if (contractCurrency !== 'CLP' && Number(exchangeRate.value || 0) <= 0) { setMessage(`Confirma el tipo de cambio ${contractCurrency}/CLP antes de crear el estado de pago.`); return; }
     if (!periodValuation.length) { setMessage('No hay avance valorizable al corte seleccionado.'); return; }
     try {
       const number = Math.max(0, ...estados.map(item => Number(item.numero) || 0)) + 1;
@@ -180,6 +207,8 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
         trazabilidad: [auditActor(user, 'Estado de Pago emitido', 'Borrador', `EP N° ${number} preparado.`)],
         revisor_nombre: contactos.revisor_nombre || null, revisor_email: contactos.revisor_email || null, aprobador_nombre: contactos.aprobador_nombre || null, aprobador_email: contactos.aprobador_email || null,
         token_revision: token(), token_aprobacion: token(),
+        moneda_contrato: contractCurrency, tipo_cambio_clp: Number(exchangeRate.value || 1), fecha_tipo_cambio: form.fecha_corte,
+        fuente_tipo_cambio: exchangeRate.source, monto_bruto_moneda_origen: gross / Number(exchangeRate.value || 1), monto_neto_moneda_origen: net / Number(exchangeRate.value || 1),
       };
       const { error } = await supabase.from('estados_pago_obra').insert(payload);
       if (error) throw error;
@@ -311,6 +340,7 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
       <section className="max-w-2xl space-y-3 rounded-2xl border border-slate-200 bg-white p-5">
         <h3 className="flex items-center gap-2 text-sm font-black text-slate-800"><FileText className="h-4 w-4 text-emerald-700" />Nuevo estado de pago</h3>
         <label className="block text-[11px] font-bold text-slate-600">Fecha de corte<input type="date" value={form.fecha_corte} onChange={event => setForm({ ...form, fecha_corte: event.target.value })} className={`${input} mt-1`} /></label>
+        <div className={`rounded-xl border p-3 ${contractCurrency === 'CLP' ? 'border-slate-200 bg-slate-50' : 'border-amber-200 bg-amber-50'}`}><div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-black uppercase text-slate-500">Moneda contractual</p><p className="text-sm font-black text-slate-900">{contractCurrency} · cobro siempre en CLP</p></div>{contractCurrency !== 'CLP' && <input aria-label="Tipo de cambio a CLP" type="number" min="0.01" step="0.01" value={exchangeRate.value || ''} onChange={event => setExchangeRate(current => ({ ...current, value: Number(event.target.value || 0), source: 'Valor confirmado manualmente' }))} className="w-36 rounded-lg border bg-white px-3 py-2 text-right text-xs font-black" />}</div>{contractCurrency !== 'CLP' && <p className="mt-2 text-[10px] text-amber-800">1 {contractCurrency} = {money(exchangeRate.value)} CLP · {exchangeRate.date} · {exchangeRate.loading ? 'Consultando…' : exchangeRate.source}</p>}</div>
         <div className="grid grid-cols-2 gap-2"><label className="text-[11px] font-bold text-slate-600">Retención (%)<input type="number" min="0" max="100" step="0.1" value={form.retencion_pct} onChange={event => setForm({ ...form, retencion_pct: event.target.value })} className={`${input} mt-1`} /></label><div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2"><p className="text-[10px] font-bold text-emerald-800">Descuento anticipo</p><p className="mt-1 text-xs font-black text-emerald-800">{money(advanceDeduction)}</p></div></div>
         <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 space-y-2"><div className="flex items-end gap-2"><label className="min-w-0 flex-1 text-[11px] font-bold text-blue-900">Anticipo de contrato (%)<input type="number" min="0" max="100" step="0.1" value={anticipoPct} onChange={event => setAnticipoPct(event.target.value)} className={`${input} mt-1`} /></label><button onClick={saveConditions} type="button" className="rounded-lg bg-blue-800 px-3 py-2 text-[11px] font-black text-white">Guardar</button></div><div className="grid grid-cols-2 gap-2"><input placeholder="Nombre revisor externo" value={contactos.revisor_nombre} onChange={e => setContactos({...contactos,revisor_nombre:e.target.value})} className={input}/><input type="email" placeholder="Correo revisor" value={contactos.revisor_email} onChange={e => setContactos({...contactos,revisor_email:e.target.value})} className={input}/><input placeholder="Nombre aprobador externo" value={contactos.aprobador_nombre} onChange={e => setContactos({...contactos,aprobador_nombre:e.target.value})} className={input}/><input type="email" placeholder="Correo aprobador" value={contactos.aprobador_email} onChange={e => setContactos({...contactos,aprobador_email:e.target.value})} className={input}/></div><p className="text-[10px] text-blue-800">Anticipo contractual: {money(contractAdvance)} · Pendiente: {money(advanceAvailable)}. Este EP representa {paymentProgressPct.toFixed(2)}% de avance neto; se recupera esa misma proporción del anticipo.</p></div>
         <textarea rows={3} placeholder="Observaciones del estado de pago" value={form.observaciones} onChange={event => setForm({ ...form, observaciones: event.target.value })} className={input} />
