@@ -7027,6 +7027,10 @@ export type Database = {
         }
         Returns: Json
       }
+      registrar_error_cliente: {
+        Args: { p_contexto?: Json; p_mensaje: string; p_stack?: string }
+        Returns: number
+      }
       revisar_documento_ep_subcontrato: {
         Args: {
           p_documento_id: number
@@ -7172,4 +7176,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-

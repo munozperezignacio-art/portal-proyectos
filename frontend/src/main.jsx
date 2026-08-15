@@ -3,11 +3,18 @@ import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App.jsx';
 import { recoverFromStaleChunk } from './utils/staleChunkRecovery';
+import { reportClientError } from './services/clientErrorReporter';
 
 // Los nombres de los archivos JS cambian en cada despliegue. Si una pestaña
 // conserva una versión anterior, se solicita una sola vez el index vigente.
-window.addEventListener('unhandledrejection', (event) => recoverFromStaleChunk(event.reason));
-window.addEventListener('error', (event) => recoverFromStaleChunk(event.error || event.message));
+window.addEventListener('unhandledrejection', (event) => {
+  const recovered = recoverFromStaleChunk(event.reason);
+  if (!recovered) void reportClientError(event.reason, 'unhandledrejection');
+});
+window.addEventListener('error', (event) => {
+  const recovered = recoverFromStaleChunk(event.error || event.message);
+  if (!recovered) void reportClientError(event.error || event.message, 'window.error');
+});
 
 const forceFreshReload = () => {
   const url = new URL(window.location.href);
@@ -27,6 +34,7 @@ class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     console.error('Error no capturado:', error, errorInfo);
+    void reportClientError(error, errorInfo?.componentStack || 'ErrorBoundary');
   }
 
   render() {

@@ -53,9 +53,8 @@ export default function WorkforceProjection({ user, personal = [], obras = [], c
   const remove = async row => {
     if (!window.confirm(`¿Eliminar la proyección de ${row.cargo} para ${row.obra_nombre}?`)) return;
     const { error: deleteError } = await supabase.from('rrhh_proyecciones_dotacion').delete().eq('id', row.id);
-    if (deleteError && !String(row.id).startsWith('local_')) { setError(deleteError.message); return; }
+    if (deleteError) { setError(deleteError.message); return; }
     setRows(current => current.filter(item => item.id !== row.id));
-    localStorage.setItem(localKey, JSON.stringify(rows.filter(item => item.id !== row.id)));
   };
 
   return <div className="space-y-5">

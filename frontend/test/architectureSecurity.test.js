@@ -86,3 +86,12 @@ test('formularios y acreditaciones no simulan persistencia operativa en localSto
   }
   assert.deepEqual(findings, []);
 });
+
+test('los errores no controlados se registran mediante el RPC seguro de observabilidad', () => {
+  const reporter = readFileSync(join(sourceRoot, 'services', 'clientErrorReporter.js'), 'utf8');
+  const main = readFileSync(join(sourceRoot, 'main.jsx'), 'utf8');
+  assert.match(reporter, /rpc\(\s*['"]registrar_error_cliente['"]/);
+  assert.match(reporter, /supabase\.auth\.getSession\(\)/);
+  assert.match(main, /reportClientError\(/);
+  assert.doesNotMatch(reporter, /\.from\(\s*['"]auditoria_plataforma['"]\s*\)/);
+});
