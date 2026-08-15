@@ -2,7 +2,7 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
-Avance actualizado: Etapa 1 100%; Etapa 2 99%; Etapa 3 100%; Etapa 4 100%; Etapa 5 100%; plan completo verificable 99,8%.
+Avance actualizado: Etapa 1 100%; Etapa 2 100%; Etapa 3 100%; Etapa 4 100%; Etapa 5 100%; plan completo verificable 100%.
 
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
@@ -21,7 +21,7 @@ Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operac
 
 - [x] Eliminar o reasignar partidas, avances y registros sin `empresa` u `obra_id`.
 - [x] Hacer obligatorios los identificadores multiempresa donde corresponde.
-- [ ] Consolidar toda la historia en `supabase/migrations`.
+- [x] Consolidar toda la historia en `supabase/migrations`.
 - [x] Sincronizar el inventario de Edge Functions locales y desplegadas.
 - [x] Corregir y verificar automatizaciones internas y del mandante que respondían 401.
 - [x] Incorporar índices de claves foráneas según uso real en las tablas operativas normalizadas.
@@ -176,4 +176,5 @@ La plataforma se considerará lista para producción cuando no existan política
 - Manifiesto de las 111 migraciones productivas versionado y contrato TypeScript regenerado desde el esquema vigente.
 - Cierre automatizado aprobado: 26 pruebas unitarias/arquitectónicas, 12 pruebas HTTP de Edge Functions, lint limpio, build productivo y cinco recorridos E2E efectivos.
 - Invariantes finales de Supabase: cero tablas públicas sin RLS, cero políticas universalmente abiertas y cero evaluaciones directas no optimizadas de Auth.
-- Queda una única operación de infraestructura para alcanzar reproducibilidad absoluta: generar el `pg_dump` baseline con una sesión autenticada de Supabase CLI; la sesión del conector no expone ese secreto a la CLI local.
+- Supabase CLI autenticado y proyecto productivo enlazado; las 111 migraciones se recuperaron directamente desde `supabase_migrations.schema_migrations` mediante `supabase migration fetch` y reemplazan las versiones locales abreviadas.
+- La historia versionada coincide ahora con los identificadores, nombres y sentencias registrados en producción, sin renumerar ni reparar artificialmente el historial remoto.

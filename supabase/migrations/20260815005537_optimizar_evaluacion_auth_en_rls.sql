@@ -1,6 +1,3 @@
--- Evalúa las funciones de autenticación una sola vez por sentencia en las
--- 24 políticas detectadas por el advisor de Supabase. La guarda impide que
--- esta migración cambie políticas adicionales si el esquema no es el esperado.
 do $$
 declare
   policy_record record;
@@ -57,4 +54,4 @@ begin
     );
   end loop;
 end
-$$;
+$$;;

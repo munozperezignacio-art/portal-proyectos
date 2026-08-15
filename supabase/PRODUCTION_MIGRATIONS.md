@@ -2,9 +2,16 @@
 
 Proyecto: `wegphblwwcfidvdbdtdq`
 Snapshot verificado: 15 de agosto de 2026
-Total: 107 migraciones registradas en `supabase_migrations.schema_migrations`.
+Total: 111 migraciones registradas en `supabase_migrations.schema_migrations` y recuperadas con Supabase CLI.
 
-Este inventario es el contrato de correspondencia entre producción y Git. No se deben renumerar ni marcar artificialmente migraciones históricas. Los archivos `schema_*.sql` previos se conservan como fuentes de la etapa inicial; las migraciones incrementales posteriores viven en `supabase/migrations`.
+Este inventario es el contrato de correspondencia entre producción y Git. No se deben renumerar ni marcar artificialmente migraciones históricas. Desde el cierre del 15 de agosto de 2026, `supabase/migrations` contiene las 111 sentencias exactas recuperadas del historial productivo; los archivos `schema_*.sql` previos se conservan sólo como referencias históricas y no deben ejecutarse sobre una instalación migrada.
+
+Verificación recomendada:
+
+```powershell
+npx.cmd --yes supabase link --project-ref wegphblwwcfidvdbdtdq
+npx.cmd --yes supabase migration list --linked
+```
 
 | Versión | Nombre |
 |---|---|
@@ -115,7 +122,7 @@ Este inventario es el contrato de correspondencia entre producción y Git. No se
 | 20260815010453 | cerrar_configuracion_correos_y_endurecer_rpcs |
 | 20260815012300 | completar_ficha_rrhh_y_procedimientos |
 | 20260815012450 | persistir_orden_partidas_presupuesto |
-| 20260815020500 | eliminar_indices_duplicados_finales |
-| 20260815021800 | persistir_programacion_partidas_obra |
-| 20260815023000 | persistir_cuadrillas_y_liquidaciones_obra |
-| 20260815024500 | persistir_fechas_operativas_obra |
+| 20260815013329 | eliminar_indices_duplicados_finales |
+| 20260815013419 | persistir_programacion_partidas_obra |
+| 20260815013636 | persistir_cuadrillas_y_liquidaciones_obra |
+| 20260815014504 | persistir_fechas_operativas_obra |

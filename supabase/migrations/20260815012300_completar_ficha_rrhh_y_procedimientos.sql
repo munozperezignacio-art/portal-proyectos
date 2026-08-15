@@ -1,3 +1,4 @@
+
 alter table public.maestro_personal
   add column if not exists gratificacion text;
 
@@ -17,10 +18,8 @@ create table if not exists public.prevencion_procedimientos (
   updated_at timestamptz not null default now(),
   constraint prevencion_procedimientos_empresa_codigo_key unique (empresa,codigo)
 );
-
 create index if not exists prevencion_procedimientos_empresa_idx
   on public.prevencion_procedimientos (empresa, codigo);
-
 alter table public.prevencion_procedimientos enable row level security;
 drop policy if exists prevencion_procedimientos_empresa on public.prevencion_procedimientos;
 create policy prevencion_procedimientos_empresa
@@ -28,7 +27,7 @@ on public.prevencion_procedimientos
 for all to authenticated
 using ((select private.obraxis_actor_can_access_company(empresa)))
 with check ((select private.obraxis_actor_can_access_company(empresa)));
-
 revoke all on table public.prevencion_procedimientos from anon;
-grant select, insert, update, delete on table public.prevencion_procedimientos to authenticated;
-grant usage, select on sequence public.prevencion_procedimientos_id_seq to authenticated;
+grant select,insert,update,delete on table public.prevencion_procedimientos to authenticated;
+grant usage,select on sequence public.prevencion_procedimientos_id_seq to authenticated;
+;

@@ -1,24 +1,18 @@
 # Migraciones de Supabase
 
-Esta carpeta contiene las migraciones incrementales versionadas de Obraxis desde
-la incorporación de OX y la estabilización multiempresa.
+Esta carpeta contiene el historial SQL productivo versionado de Obraxis.
 
 ## Estado de reproducibilidad
 
-- Producción mantiene además migraciones históricas creadas entre el 10 y el 13
-  de agosto de 2026.
-- Sus fuentes originales están conservadas temporalmente como `schema_*.sql` en
-  la raíz del repositorio.
-- Esos archivos no deben copiarse ni ejecutarse nuevamente como migraciones:
-  varios representan estados acumulados y podrían duplicar objetos o datos.
-- La consolidación pendiente debe realizarse mediante un `supabase db pull` o
-  un volcado de esquema limpio desde producción, comparado en una base vacía.
-- El proyecto productivo registra las migraciones históricas en
-  `supabase_migrations.schema_migrations`; no se deben renumerar ni marcar como
-  reparadas sin disponer primero de un volcado verificable.
-- La CLI local debe enlazarse expresamente con `supabase link --project-ref
-  wegphblwwcfidvdbdtdq` antes de generar el baseline. El archivo `config.toml`
-  identifica el proyecto para configuración, pero no sustituye ese enlace.
+- Las 111 migraciones fueron recuperadas directamente desde
+  `supabase_migrations.schema_migrations` mediante `supabase migration fetch`.
+- Sus versiones, nombres y sentencias coinciden con el historial aplicado en el
+  proyecto productivo `wegphblwwcfidvdbdtdq`.
+- Los archivos `schema_*.sql` de la raíz se conservan como referencia histórica;
+  no deben ejecutarse sobre una instalación que use este historial.
+- No se deben renumerar, duplicar ni marcar artificialmente migraciones como
+  reparadas. La comparación oficial se realiza con
+  `supabase migration list --linked`.
 
 ## Regla operativa
 

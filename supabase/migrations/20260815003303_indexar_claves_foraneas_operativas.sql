@@ -1,6 +1,3 @@
--- Índices de soporte para claves foráneas detectadas por el advisor de Supabase.
--- Reducen bloqueos y escaneos completos al actualizar/eliminar registros padre.
-
 create index if not exists idx_asistencia_personal_obra_nombre on public.asistencia_personal (obra_nombre);
 create index if not exists idx_avances_produccion_partidas_obra_nombre on public.avances_produccion_partidas (obra_nombre);
 create index if not exists idx_calidad_no_conformidades_rdi_id on public.calidad_no_conformidades (rdi_id);
@@ -39,11 +36,11 @@ create index if not exists idx_prevencion_capacitaciones_intentos_capacitacion_i
 create index if not exists idx_prevencion_cumplimiento_asignaciones_formulario_id on public.prevencion_cumplimiento_asignaciones (formulario_id);
 create index if not exists idx_prevencion_cumplimiento_asignaciones_usuario_id on public.prevencion_cumplimiento_asignaciones (usuario_id);
 create index if not exists idx_prevencion_cumplimiento_registros_asignacion_id on public.prevencion_cumplimiento_registros (asignacion_id);
-create index if not exists idx_prevencion_matriz_riesgo_filas_matriz_empresa on public.prevencion_matriz_riesgo_filas (matriz_id, empresa);
+create index if not exists idx_prevencion_matriz_riesgo_filas_matriz_id_empresa on public.prevencion_matriz_riesgo_filas (matriz_id, empresa);
 create index if not exists idx_reporte_maquinaria_obra_nombre on public.reporte_maquinaria (obra_nombre);
 create index if not exists idx_rrhh_asignaciones_personal_centro_gestion_id on public.rrhh_asignaciones_personal (centro_gestion_id);
 create index if not exists idx_rrhh_nomina_items_trabajador_id on public.rrhh_nomina_items (trabajador_id);
 create index if not exists idx_subcontrato_asistencia_obra_origen_id on public.subcontrato_asistencia (obra_origen_id);
 create index if not exists idx_subcontrato_avances_enlace_partida_id on public.subcontrato_avances (enlace_partida_id);
 create index if not exists idx_subcontrato_avances_obra_origen_id on public.subcontrato_avances (obra_origen_id);
-create index if not exists idx_subcontrato_estados_pago_obra_origen_id on public.subcontrato_estados_pago (obra_origen_id);
+create index if not exists idx_subcontrato_estados_pago_obra_origen_id on public.subcontrato_estados_pago (obra_origen_id);;

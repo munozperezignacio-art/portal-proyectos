@@ -1,0 +1,11 @@
+create schema if not exists private;
+revoke all on schema private from public, anon;
+grant usage on schema private to authenticated;
+alter function public.obraxis_actor_can_access_company(text) set schema private;
+alter function public.obraxis_actor_can_manage_company(text) set schema private;
+alter function public.obraxis_sync_usuario_auth() set schema private;
+revoke all on function private.obraxis_actor_can_access_company(text) from public,anon;
+revoke all on function private.obraxis_actor_can_manage_company(text) from public,anon;
+grant execute on function private.obraxis_actor_can_access_company(text) to authenticated;
+grant execute on function private.obraxis_actor_can_manage_company(text) to authenticated;
+revoke all on function private.obraxis_sync_usuario_auth() from public,anon,authenticated;;

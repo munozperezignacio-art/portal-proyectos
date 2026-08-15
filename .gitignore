@@ -46,3 +46,4 @@ frontend/debug_users.js
 frontend/debug_login.js
 frontend/import_csv.js
 frontend/find_lines.js
+supabase/.temp/

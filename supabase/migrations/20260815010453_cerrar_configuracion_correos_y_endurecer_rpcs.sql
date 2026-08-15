@@ -1,3 +1,4 @@
+
 alter table public.config_empresa
   add column if not exists email_notificaciones text,
   add column if not exists email_notificaciones_cc text,
@@ -20,3 +21,4 @@ comment on function public.revisar_documento_ep_subcontrato(bigint, text, text) 
   'RPC SECURITY DEFINER intencional para usuarios autenticados; valida sesión, empresa, estado y permisos antes de revisar.';
 comment on function public.registrar_error_cliente(text, text, jsonb) is
   'RPC SECURITY DEFINER intencional de observabilidad; exige usuario activo, aplica límite de frecuencia y sanea el contenido.';
+;
