@@ -386,15 +386,11 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
   const fetchHistorialInterno = async () => {
     try {
       const { data, error } = await supabase.from('acreditaciones_internas').select('*').order('created_at', { ascending: false });
-      if (!error && data) {
-        setHistorialInterno(data);
-      } else {
-        const local = localStorage.getItem('obraxis_acreditaciones_internas');
-        if (local) setHistorialInterno(JSON.parse(local));
-      }
-    } catch {
-      const local = localStorage.getItem('obraxis_acreditaciones_internas');
-      if (local) setHistorialInterno(JSON.parse(local));
+      if (error) throw error;
+      setHistorialInterno(data || []);
+    } catch (error) {
+      setHistorialInterno([]);
+      setErrorMsg(`No fue posible cargar el historial interno: ${error.message}`);
     }
   };
 
@@ -524,15 +520,13 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
         created_at: new Date().toISOString()
       };
 
-      try {
-        await supabase.from('acreditaciones_internas').insert([newRecord]);
-      } catch {
-        console.warn('Fallback a localStorage');
-      }
-
-      const updatedHist = [newRecord, ...historialInterno];
-      setHistorialInterno(updatedHist);
-      localStorage.setItem('obraxis_acreditaciones_internas', JSON.stringify(updatedHist));
+      const { data: savedRecord, error: saveError } = await supabase
+        .from('acreditaciones_internas')
+        .insert([newRecord])
+        .select()
+        .single();
+      if (saveError) throw saveError;
+      setHistorialInterno([savedRecord, ...historialInterno]);
 
       setSuccessMsg('¡Solicitud de Acreditación enviada exitosamente por correo!');
       setSelectedWorkers([]);

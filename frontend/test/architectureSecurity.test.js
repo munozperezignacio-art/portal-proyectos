@@ -67,3 +67,22 @@ test('la versión activa de Node cumple el contrato del proyecto', () => {
   const [major, minor] = process.versions.node.split('.').map(Number);
   assert.ok(major > 22 || (major === 22 && minor >= 12), `Node ${process.versions.node} no cumple >=22.12.0`);
 });
+
+test('formularios y acreditaciones no simulan persistencia operativa en localStorage', () => {
+  const forbiddenKeys = [
+    'obraxis_acreditaciones_internas',
+    'obraxis_formularios_dinamicos',
+    'obraxis_respuestas_formularios',
+    'obraxis_capacitaciones_charlas'
+  ];
+  const protectedFiles = [
+    join(sourceRoot, 'components', 'Acreditaciones.jsx'),
+    join(sourceRoot, 'components', 'FormulariosCapacitaciones.jsx')
+  ];
+  const findings = [];
+  for (const path of protectedFiles) {
+    const source = readFileSync(path, 'utf8');
+    for (const key of forbiddenKeys) if (source.includes(key)) findings.push(`${relative(sourceRoot, path)}: ${key}`);
+  }
+  assert.deepEqual(findings, []);
+});

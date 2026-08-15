@@ -2,7 +2,7 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
-Avance actualizado: Etapa 1 99%; Etapa 2 92%; Etapa 3 82%; Etapa 4 88%; Etapa 5 96%; plan completo 92%.
+Avance actualizado: Etapa 1 99%; Etapa 2 92%; Etapa 3 84%; Etapa 4 91%; Etapa 5 96%; plan completo 94%.
 
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
@@ -157,3 +157,5 @@ La plataforma se considerará lista para producción cuando no existan política
 - Las 46 claves foráneas públicas sin índice de soporte quedaron cubiertas mediante una migración idempotente; la verificación posterior informa cero pendientes.
 - Agregada una prueba estructural de Supabase que bloquea tablas públicas sin RLS, políticas universalmente abiertas, claves foráneas sin índice y tablas sin política fuera de cuatro bitácoras privadas expresamente permitidas.
 - Documentado el enlace obligatorio de la CLI y la prohibición de renumerar o reparar artificialmente las 99 migraciones históricas de producción antes de generar un baseline verificable.
+- Formularios, capacitaciones y acreditaciones internas dejaron de simular operaciones exitosas en `localStorage`: los errores de Supabase ahora se muestran y ningún registro inexistente aparece como sincronizado.
+- Añadido un control arquitectónico para impedir que regresen los cuatro almacenes locales operativos retirados; la batería queda en 22 pruebas unitarias.

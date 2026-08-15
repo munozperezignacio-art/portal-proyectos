@@ -126,19 +126,11 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
         .eq('empresa', user?.empresa || 'EMIN')
         .order('created_at', { ascending: false });
 
-      if (!error && data) {
-        setFormularios(data);
-      } else {
-        const local = localStorage.getItem('obraxis_formularios_dinamicos');
-        if (local) {
-          try { setFormularios(JSON.parse(local)); } catch { setFormularios([]); }
-        }
-      }
-    } catch {
-      const local = localStorage.getItem('obraxis_formularios_dinamicos');
-      if (local) {
-        try { setFormularios(JSON.parse(local)); } catch { setFormularios([]); }
-      }
+      if (error) throw error;
+      setFormularios(data || []);
+    } catch (error) {
+      setFormularios([]);
+      setErrorMsg(`No fue posible cargar los formularios: ${error.message}`);
     }
   };
 
@@ -149,19 +141,11 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
         .select('*, prevencion_formularios(titulo, categoria, empresa)')
         .order('created_at', { ascending: false });
 
-      if (!error && data) {
-        setRespuestas(data.filter(response => !response.prevencion_formularios?.empresa || response.prevencion_formularios.empresa === (user?.empresa || 'EMIN')));
-      } else {
-        const local = localStorage.getItem('obraxis_respuestas_formularios');
-        if (local) {
-          try { setRespuestas(JSON.parse(local)); } catch { setRespuestas([]); }
-        }
-      }
-    } catch {
-      const local = localStorage.getItem('obraxis_respuestas_formularios');
-      if (local) {
-        try { setRespuestas(JSON.parse(local)); } catch { setRespuestas([]); }
-      }
+      if (error) throw error;
+      setRespuestas((data || []).filter(response => !response.prevencion_formularios?.empresa || response.prevencion_formularios.empresa === (user?.empresa || 'EMIN')));
+    } catch (error) {
+      setRespuestas([]);
+      setErrorMsg(`No fue posible cargar las respuestas: ${error.message}`);
     }
   };
 
@@ -173,19 +157,11 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
         .eq('empresa', user?.empresa || 'EMIN')
         .order('created_at', { ascending: false });
 
-      if (!error && data) {
-        setCapacitaciones(data);
-      } else {
-        const local = localStorage.getItem('obraxis_capacitaciones_charlas');
-        if (local) {
-          try { setCapacitaciones(JSON.parse(local)); } catch { setCapacitaciones([]); }
-        }
-      }
-    } catch {
-      const local = localStorage.getItem('obraxis_capacitaciones_charlas');
-      if (local) {
-        try { setCapacitaciones(JSON.parse(local)); } catch { setCapacitaciones([]); }
-      }
+      if (error) throw error;
+      setCapacitaciones(data || []);
+    } catch (error) {
+      setCapacitaciones([]);
+      setErrorMsg(`No fue posible cargar las capacitaciones: ${error.message}`);
     }
   };
 
@@ -294,11 +270,9 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     const existingIncident = formularios.find(form => form.titulo === incidentTemplate.titulo);
     if (existingIncident) {
       const refreshed = { ...existingIncident, descripcion: incidentTemplate.descripcion, campos: incidentTemplate.campos };
-      if (existingIncident.id) await supabase.from('prevencion_formularios').update({ descripcion: refreshed.descripcion, campos: refreshed.campos }).eq('id', existingIncident.id);
-      else {
-        const local = formularios.map(form => form === existingIncident ? refreshed : form);
-        setFormularios(local); localStorage.setItem('obraxis_formularios_dinamicos', JSON.stringify(local));
-      }
+      if (!existingIncident.id) { setErrorMsg('La plantilla no está sincronizada con Supabase. Vuelve a cargar antes de actualizarla.'); return; }
+      const { error: updateError } = await supabase.from('prevencion_formularios').update({ descripcion: refreshed.descripcion, campos: refreshed.campos }).eq('id', existingIncident.id);
+      if (updateError) { setErrorMsg(`No fue posible actualizar la plantilla: ${updateError.message}`); return; }
     }
     const existingTitles = new Set(formularios.map(form => form.titulo));
     const pending = templates.filter(template => !existingTitles.has(template.titulo));
@@ -309,9 +283,8 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       if (error) throw error;
       await fetchFormularios();
       setSuccessMsg(`${pending.length} plantillas operacionales instaladas.`);
-    } catch {
-      const updated = [...pending, ...formularios]; setFormularios(updated); localStorage.setItem('obraxis_formularios_dinamicos', JSON.stringify(updated));
-      setSuccessMsg('Plantillas instaladas localmente.');
+    } catch (error) {
+      setErrorMsg(`No fue posible instalar las plantillas: ${error.message}`);
     } finally { setLoading(false); setTimeout(() => setSuccessMsg(''), 4000); }
   };
 
@@ -359,13 +332,9 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       const { error } = await request;
       if (error) throw error;
       setSuccessMsg(editingForm ? 'Formulario actualizado con éxito.' : '¡Formulario creado y asignado con éxito!');
-      fetchFormularios();
+      await fetchFormularios();
     } catch (err) {
-      console.warn('Guardando formulario en localStorage:', err);
-      const updated = [newForm, ...formularios];
-      setFormularios(updated);
-      localStorage.setItem('obraxis_formularios_dinamicos', JSON.stringify(updated));
-      setSuccessMsg('¡Formulario creado localmente!');
+      setErrorMsg(`No fue posible guardar el formulario: ${err.message}`);
     } finally {
       setLoading(false);
       setFormTitle('');
@@ -408,13 +377,9 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       const { error } = await supabase.from('prevencion_capacitaciones').insert([newCap]);
       if (error) throw error;
       setSuccessMsg('¡Capacitación registrada y publicada!');
-      fetchCapacitaciones();
+      await fetchCapacitaciones();
     } catch (err) {
-      console.warn('Guardando capacitación en localStorage:', err);
-      const updated = [newCap, ...capacitaciones];
-      setCapacitaciones(updated);
-      localStorage.setItem('obraxis_capacitaciones_charlas', JSON.stringify(updated));
-      setSuccessMsg('¡Capacitación registrada localmente!');
+      setErrorMsg(`No fue posible guardar la capacitación: ${err.message}`);
     } finally {
       setLoading(false);
       setCapTitle('');
@@ -442,8 +407,6 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       };
       const { error } = await supabase.from('prevencion_formularios').insert([payload]);
       if (error) throw error;
-      const local = JSON.parse(localStorage.getItem('obraxis_formularios_dinamicos') || '[]').filter(item => item.token_publico !== form.token_publico && item.publico_token !== form.publico_token);
-      localStorage.setItem('obraxis_formularios_dinamicos', JSON.stringify(local));
       await fetchFormularios();
       setSuccessMsg('Formulario publicado. Ahora su enlace es público.');
     } catch (error) {
@@ -462,7 +425,6 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       }
       const updated = formularios.filter(item => item !== form && item.id !== form.id);
       setFormularios(updated);
-      localStorage.setItem('obraxis_formularios_dinamicos', JSON.stringify(updated.filter(item => !item.id)));
       setSuccessMsg('Formulario eliminado.');
     } catch (error) {
       setErrorMsg(`No se pudo eliminar el formulario: ${error.message}`);
