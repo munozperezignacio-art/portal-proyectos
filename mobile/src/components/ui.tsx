@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { PropsWithChildren, ReactNode } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, shadow } from '@/lib/theme';
 
 export function Screen({ children, refreshing=false, onRefresh }: PropsWithChildren<{refreshing?:boolean;onRefresh?:()=>void}>) {
-  return <ScrollView style={s.screen} contentContainerStyle={s.content} refreshControl={onRefresh?<RefreshControl refreshing={refreshing} onRefresh={onRefresh}/>:undefined}>{children}</ScrollView>;
+  return <SafeAreaView style={s.screen} edges={['top']}><ScrollView style={s.screen} contentContainerStyle={s.content} refreshControl={onRefresh?<RefreshControl refreshing={refreshing} onRefresh={onRefresh}/>:undefined}>{children}</ScrollView></SafeAreaView>;
 }
 export function Header({ title, subtitle, icon, action }: {title:string;subtitle?:string;icon:keyof typeof Ionicons.glyphMap;action?:ReactNode}) {
   return <View style={s.header}><View style={s.iconBox}><Ionicons name={icon} size={24} color={colors.orange}/></View><View style={{flex:1}}><Text style={s.title}>{title}</Text>{subtitle?<Text style={s.subtitle}>{subtitle}</Text>:null}</View>{action}</View>;
