@@ -225,32 +225,24 @@ export default function Maquinaria({ user, onBack }) {
         .eq('empresa', user.empresa)
         .order('tipo', { ascending: true });
       if (errMaq) throw errMaq;
-      const localStr = localStorage.getItem('obraxis_inventario_maquinaria');
-      const localItems = localStr ? JSON.parse(localStr) : [];
-
       const isReal = (n) => n && typeof n === 'string' && n.trim() !== '' && !n.toLowerCase().includes('bodega') && n.toLowerCase() !== 'libre';
       const mergedData = (dataMaq || []).map(remoteItem => {
-        const loc = localItems.find(l => (l && l.id && remoteItem.id && l.id.toString() === remoteItem.id.toString()) || (l && l.patente && remoteItem.patente && l.patente.toUpperCase() === remoteItem.patente.toUpperCase()));
-        
         const finalObraNombre = isReal(remoteItem.obra_nombre) 
           ? remoteItem.obra_nombre.trim() 
-          : (isReal(loc?.obra_nombre) ? loc.obra_nombre.trim() : (remoteItem.obra_nombre || loc?.obra_nombre || 'Bodega Central / Libre'));
+          : (remoteItem.obra_nombre || 'Bodega Central / Libre');
 
         const rCosto = parseFloat(remoteItem.costo_interno !== undefined && remoteItem.costo_interno !== null ? remoteItem.costo_interno : remoteItem.costo);
-        const lCosto = parseFloat(loc?.costo_interno !== undefined && loc?.costo_interno !== null ? loc?.costo_interno : loc?.costo);
-        const finalCosto = (!isNaN(rCosto) && rCosto > 0) ? rCosto : ((!isNaN(lCosto) && lCosto > 0) ? lCosto : 0);
+        const finalCosto = (!isNaN(rCosto) && rCosto > 0) ? rCosto : 0;
 
         return {
-          ...loc,
           ...remoteItem,
           obra_nombre: finalObraNombre,
           costo_interno: finalCosto,
-          unidad_costo_interno: remoteItem.unidad_costo_interno || loc?.unidad_costo_interno || remoteItem.unidad_tarifa || loc?.unidad_tarifa || '$/día'
+          unidad_costo_interno: remoteItem.unidad_costo_interno || remoteItem.unidad_tarifa || '$/día'
         };
       });
 
       setMaquinaria(mergedData);
-      localStorage.setItem('obraxis_inventario_maquinaria', JSON.stringify(mergedData));
 
       const { data: dataObras, error: errObras } = await supabase
         .from('obras')
@@ -260,11 +252,7 @@ export default function Maquinaria({ user, onBack }) {
       if (errObras) throw errObras;
       setObras(dataObras || []);
     } catch (err) {
-      console.warn('Cargando inventario local:', err.message);
-      const local = localStorage.getItem('obraxis_inventario_maquinaria');
-      if (local) {
-        try { setMaquinaria(JSON.parse(local)); } catch {}
-      }
+      setErrorMsg(`No fue posible cargar el inventario de maquinaria: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -276,74 +264,38 @@ export default function Maquinaria({ user, onBack }) {
         .from('maquinaria_uso_diario')
         .select('*')
         .order('created_at', { ascending: false });
-      if (!error && data) {
-        setUsoList(data);
-      } else {
-        const local = localStorage.getItem('obraxis_maquinaria_uso');
-        if (local) setUsoList(JSON.parse(local));
-      }
-    } catch {
-      const local = localStorage.getItem('obraxis_maquinaria_uso');
-      if (local) try { setUsoList(JSON.parse(local)); } catch {}
+      if (error) throw error;
+      setUsoList(data || []);
+    } catch (error) {
+      setErrorMsg(`No fue posible cargar los registros de uso: ${error.message}`);
     }
   };
 
   const fetchReservasLogs = async () => {
-    let localItems = [];
-    const local = localStorage.getItem('obraxis_maquinaria_reservas');
-    if (local) {
-      try { localItems = JSON.parse(local); } catch {}
-    }
-
     try {
       const { data, error } = await supabase
         .from('maquinaria_reservas')
         .select('*')
         .order('fecha_inicio', { ascending: true });
 
-      if (!error && data && data.length > 0) {
-        const ids = new Set(data.map(d => d.id || d.created_at));
-        const missingLocal = localItems.filter(l => !ids.has(l.id || l.created_at));
-        const merged = [...data, ...missingLocal];
-        setReservasList(merged);
-        localStorage.setItem('obraxis_maquinaria_reservas', JSON.stringify(merged));
-      } else if (localItems.length > 0) {
-        setReservasList(localItems);
-      } else {
-        setReservasList(data || []);
-      }
-    } catch {
-      setReservasList(localItems);
+      if (error) throw error;
+      setReservasList(data || []);
+    } catch (error) {
+      setErrorMsg(`No fue posible cargar las reservas: ${error.message}`);
     }
   };
 
   const fetchArriendosLogs = async () => {
-    let localItems = [];
-    const local = localStorage.getItem('obraxis_maquinaria_arriendos');
-    if (local) {
-      try { localItems = JSON.parse(local); } catch {}
-    }
-
     try {
       const { data, error } = await supabase
         .from('maquinaria_arriendos')
         .select('*')
         .order('fecha_inicio', { ascending: false });
 
-      if (!error && data && data.length > 0) {
-        // Combinar datos remotos con locales para no perder arriendos
-        const ids = new Set(data.map(d => d.id || d.created_at));
-        const missingLocal = localItems.filter(l => !ids.has(l.id || l.created_at));
-        const merged = [...data, ...missingLocal];
-        setArriendosList(merged);
-        localStorage.setItem('obraxis_maquinaria_arriendos', JSON.stringify(merged));
-      } else if (localItems.length > 0) {
-        setArriendosList(localItems);
-      } else {
-        setArriendosList(data || []);
-      }
-    } catch {
-      setArriendosList(localItems);
+      if (error) throw error;
+      setArriendosList(data || []);
+    } catch (error) {
+      setErrorMsg(`No fue posible cargar los arriendos: ${error.message}`);
     }
   };
 
@@ -492,24 +444,8 @@ export default function Maquinaria({ user, onBack }) {
         }
       }
 
-      if (!success && lastError) console.warn("Aviso Supabase:", lastError.message);
+      if (!success) throw lastError || new Error('No fue posible guardar el equipo en Supabase.');
       
-      const newEquipObj = {
-        ...(editingEquip || {}),
-        ...dataToSave,
-        id: editingEquip ? editingEquip.id : (Date.now().toString())
-      };
-
-      let currentLocal = JSON.parse(localStorage.getItem('obraxis_inventario_maquinaria') || '[]');
-      if (editingEquip) {
-        currentLocal = currentLocal.map(item => item.id.toString() === editingEquip.id.toString() ? newEquipObj : item);
-      } else {
-        currentLocal.push(newEquipObj);
-      }
-
-      localStorage.setItem('obraxis_inventario_maquinaria', JSON.stringify(currentLocal));
-      setMaquinaria(currentLocal);
-
       setSuccessMsg(editingEquip ? "Ficha de equipo actualizada." : "Equipo registrado exitosamente.");
       fetchData();
       setTimeout(() => setModalOpen(false), 1200);
@@ -543,26 +479,6 @@ export default function Maquinaria({ user, onBack }) {
     try {
       const finalObraName = targetObraName || 'Bodega Central / Libre';
 
-      // 1. Guardado síncrono e inmediato en React State y localStorage
-      const localStr = localStorage.getItem('obraxis_inventario_maquinaria');
-      let currentLocal = localStr ? JSON.parse(localStr) : [...maquinaria];
-
-      const updatedEquip = {
-        ...selectedEquipToAssign,
-        obra_nombre: finalObraName,
-        fecha_hasta_estimada: assignFechaHasta || null
-      };
-
-      currentLocal = currentLocal.map(item => 
-        (item.id && item.id.toString() === selectedEquipToAssign.id.toString()) || item.patente === selectedEquipToAssign.patente
-          ? updatedEquip 
-          : item
-      );
-
-      localStorage.setItem('obraxis_inventario_maquinaria', JSON.stringify(currentLocal));
-      setMaquinaria(currentLocal);
-
-      // 2. Guardado resiliente en Supabase
       let updatePayload = { 
         obra_nombre: finalObraName,
         fecha_hasta_estimada: assignFechaHasta || null
@@ -590,13 +506,13 @@ export default function Maquinaria({ user, onBack }) {
         }
       }
 
+      if (!success) throw new Error('No fue posible guardar la asignación en Supabase.');
       setSuccessMsg(`¡Equipo ${selectedEquipToAssign.patente} asignado a ${finalObraName}${assignFechaHasta ? ` hasta el ${assignFechaHasta}` : ''}!`);
       fetchData();
       setAssignModalOpen(false);
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err) {
-      console.warn('Asignación efectuada en almacenamiento local:', err.message);
-      setAssignModalOpen(false);
+      setErrorMsg(`No fue posible asignar el equipo: ${err.message}`);
     } finally {
       setModalLoading(false);
     }
@@ -640,11 +556,8 @@ export default function Maquinaria({ user, onBack }) {
       await supabase.from('inventario_maquinaria').update({ horometro_inicial: hFin }).eq('id', usoForm.equipo_id).eq('empresa', user?.empresa);
       setSuccessMsg('Registro de uso y horómetro guardado.');
       fetchUsoLogs();
-    } catch {
-      const updated = [newLog, ...usoList];
-      setUsoList(updated);
-      localStorage.setItem('obraxis_maquinaria_uso', JSON.stringify(updated));
-      setSuccessMsg('Registro de uso guardado localmente.');
+    } catch (error) {
+      setErrorMsg(`No fue posible guardar el registro de uso: ${error.message}`);
     } finally {
       setUsoModalOpen(false);
       setTimeout(() => setSuccessMsg(''), 3000);
@@ -699,16 +612,8 @@ export default function Maquinaria({ user, onBack }) {
         setSuccessMsg('Reserva agendada exitosamente.');
       }
       fetchReservasLogs();
-    } catch {
-      let updated;
-      if (editingReserva) {
-        updated = reservasList.map(r => r.id === editingReserva.id ? { ...r, ...payloadReserva } : r);
-      } else {
-        updated = [payloadReserva, ...reservasList];
-      }
-      setReservasList(updated);
-      localStorage.setItem('obraxis_maquinaria_reservas', JSON.stringify(updated));
-      setSuccessMsg('Reserva guardada.');
+    } catch (error) {
+      setErrorMsg(`No fue posible guardar la reserva: ${error.message}`);
     } finally {
       setEditingReserva(null);
       setReservaModalOpen(false);
@@ -722,11 +627,11 @@ export default function Maquinaria({ user, onBack }) {
 
     try {
       if (res.id) {
-        await supabase.from('maquinaria_reservas').delete().eq('id', res.id);
+        const { error } = await supabase.from('maquinaria_reservas').delete().eq('id', res.id);
+        if (error) throw error;
       }
       const updated = reservasList.filter(r => r !== res && r.id !== res.id);
       setReservasList(updated);
-      localStorage.setItem('obraxis_maquinaria_reservas', JSON.stringify(updated));
       setSuccessMsg('Reserva eliminada.');
     } catch (e) {
       alert('Error al eliminar reserva: ' + e.message);
@@ -872,26 +777,18 @@ export default function Maquinaria({ user, onBack }) {
       created_at: new Date().toISOString()
     };
 
-    // Guardar inmediatamente en estado local y localStorage para cero pérdidas
-    let updatedLocal;
-    if (editingArriendo) {
-      updatedLocal = arriendosList.map(a => (a === editingArriendo || a.id === editingArriendo.id) ? { ...a, ...newArriendo } : a);
-    } else {
-      updatedLocal = [newArriendo, ...arriendosList];
-    }
-    setArriendosList(updatedLocal);
-    localStorage.setItem('obraxis_maquinaria_arriendos', JSON.stringify(updatedLocal));
-
     try {
       if (editingArriendo && editingArriendo.id) {
-        await supabase.from('maquinaria_arriendos').update(newArriendo).eq('id', editingArriendo.id);
+        const { error } = await supabase.from('maquinaria_arriendos').update(newArriendo).eq('id', editingArriendo.id);
+        if (error) throw error;
       } else {
-        await supabase.from('maquinaria_arriendos').insert([newArriendo]);
+        const { error } = await supabase.from('maquinaria_arriendos').insert([newArriendo]);
+        if (error) throw error;
       }
       setSuccessMsg(editingArriendo ? 'Contrato de arriendo actualizado.' : 'Contrato de arriendo registrado con éxito.');
+      await fetchArriendosLogs();
     } catch (err) {
-      console.warn('Guardado en localStorage por falta de tabla remota:', err.message);
-      setSuccessMsg('Contrato de arriendo guardado en este dispositivo.');
+      setErrorMsg(`No fue posible guardar el contrato de arriendo: ${err.message}`);
     } finally {
       setEditingArriendo(null);
       setArriendoModalOpen(false);
@@ -928,11 +825,11 @@ export default function Maquinaria({ user, onBack }) {
 
     try {
       if (extenderArriendo.id) {
-        await supabase.from('maquinaria_arriendos').update({ fecha_fin: nuevaFechaFin }).eq('id', extenderArriendo.id);
+        const { error } = await supabase.from('maquinaria_arriendos').update({ fecha_fin: nuevaFechaFin }).eq('id', extenderArriendo.id);
+        if (error) throw error;
       }
       const updated = arriendosList.map(a => a === extenderArriendo || a.id === extenderArriendo.id ? { ...a, fecha_fin: nuevaFechaFin } : a);
       setArriendosList(updated);
-      localStorage.setItem('obraxis_maquinaria_arriendos', JSON.stringify(updated));
       setSuccessMsg(`Contrato de ${extenderArriendo.empresa_arrendataria} extendido hasta el ${nuevaFechaFin}.`);
       fetchArriendosLogs();
     } catch (err) {

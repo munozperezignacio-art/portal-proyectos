@@ -87,6 +87,20 @@ test('formularios y acreditaciones no simulan persistencia operativa en localSto
   assert.deepEqual(findings, []);
 });
 
+test('maquinaria confirma operaciones solo despuÃ©s de persistirlas en Supabase', () => {
+  const path = join(sourceRoot, 'components', 'Maquinaria.jsx');
+  const source = readFileSync(path, 'utf8');
+  const forbiddenKeys = [
+    'obraxis_inventario_maquinaria',
+    'obraxis_maquinaria_uso',
+    'obraxis_maquinaria_reservas',
+    'obraxis_maquinaria_arriendos'
+  ];
+  const findings = forbiddenKeys.filter(key => source.includes(key));
+  assert.deepEqual(findings, []);
+  assert.doesNotMatch(source, /guardad[oa]\s+(?:localmente|en este dispositivo)/i);
+});
+
 test('los errores no controlados se registran mediante el RPC seguro de observabilidad', () => {
   const reporter = readFileSync(join(sourceRoot, 'services', 'clientErrorReporter.js'), 'utf8');
   const main = readFileSync(join(sourceRoot, 'main.jsx'), 'utf8');
