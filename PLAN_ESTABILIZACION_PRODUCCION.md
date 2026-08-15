@@ -2,7 +2,7 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
-Avance actualizado: Etapa 1 99%; Etapa 2 94%; Etapa 3 88%; Etapa 4 96%; Etapa 5 99%; plan completo 97%.
+Avance actualizado: Etapa 1 100%; Etapa 2 96%; Etapa 3 88%; Etapa 4 96%; Etapa 5 100%; plan completo 98%.
 
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
@@ -159,6 +159,7 @@ La plataforma se considerará lista para producción cuando no existan política
 - Documentado el enlace obligatorio de la CLI y la prohibición de renumerar o reparar artificialmente las 99 migraciones históricas de producción antes de generar un baseline verificable.
 - Formularios, capacitaciones y acreditaciones internas dejaron de simular operaciones exitosas en `localStorage`: los errores de Supabase ahora se muestran y ningún registro inexistente aparece como sincronizado.
 - Maquinaria utiliza Supabase como fuente única para inventario, uso, asignaciones, reservas y arriendos: se retiraron las mezclas con registros locales, los identificadores ficticios y las confirmaciones de éxito cuando la persistencia remota falla.
+- Optimizadas en producción y versionadas 24 políticas RLS de 20 tablas: `auth.uid()`, `auth.jwt()` y `auth.role()` se evalúan una vez por sentencia, manteniendo sin cambios sus roles, condiciones y alcance.
 - Añadido un control arquitectónico para impedir que regresen los cuatro almacenes locales operativos retirados; la batería queda en 22 pruebas unitarias.
 - Observabilidad del navegador conectada a la Auditoría General: errores no controlados, promesas rechazadas y fallos de componentes se registran mediante un RPC autenticado, limitado a diez eventos por minuto y sin permitir escritura directa sobre la auditoría.
 - El RPC de errores exige usuario activo, conserva empresa y actor, limita mensaje y stack, fija `search_path`, deniega ejecución anónima y concede solamente a `authenticated`.
