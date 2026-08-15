@@ -489,7 +489,8 @@ export default function Prevencion({ user, onBack, companyBranding }) {
 
   const handleDownloadPdfReport = async () => {
     try {
-      const { jsPDF } = await import('jspdf');
+      const { loadPdfEngine } = await import('../services/documentEngines');
+      const jsPDF = await loadPdfEngine();
       const doc = new jsPDF({
         orientation: 'p',
         unit: 'mm',
@@ -1362,7 +1363,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
           `;
 
           const { generateFormPdf } = await import('../utils/pdfGenerator');
-          const pdfBase64 = generateFormPdf({
+          const pdfBase64 = await generateFormPdf({
             form: selectedFormToFill,
             metadata: fillMetadata,
             answers: finalAnswers,

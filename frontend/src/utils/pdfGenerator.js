@@ -1,10 +1,11 @@
-import { jsPDF } from 'jspdf';
+import { loadPdfEngine } from '../services/documentEngines';
 
 /**
  * Genera un archivo PDF a partir del formulario y las respuestas dadas.
  * Retorna la representación en string Base64 del archivo PDF generado.
  */
-export function generateFormPdf({ form, metadata, answers, mainSignature, companyLogo }) {
+export async function generateFormPdf({ form, metadata, answers, mainSignature, companyLogo }) {
+  const jsPDF = await loadPdfEngine();
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',

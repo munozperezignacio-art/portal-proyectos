@@ -2,7 +2,7 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
-Avance actualizado: Etapa 1 99%; Etapa 2 90%; Etapa 3 68%; Etapa 4 84%; Etapa 5 88%; plan completo 85%.
+Avance actualizado: Etapa 1 99%; Etapa 2 90%; Etapa 3 74%; Etapa 4 88%; Etapa 5 94%; plan completo 89%.
 
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
@@ -39,14 +39,14 @@ Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operac
 
 - [ ] Dividir componentes extensos por dominio.
 - [ ] Extraer servicios de datos, hooks, reglas de cálculo y permisos.
-- [ ] Centralizar adaptadores PDF, Excel y formatos documentales.
+- [x] Centralizar adaptadores PDF, Excel y formatos documentales.
 - [ ] Eliminar fallbacks operativos silenciosos a `localStorage`.
 - [ ] Reservar almacenamiento local para caché, preferencias y borradores explícitos.
 
 ## Etapa 5 — Rendimiento y observabilidad
 
-- [ ] Sustituir o aislar `xlsx`.
-- [ ] Corregir dependencias vulnerables y fijar la versión de Node (versión mínima fijada; actualización del entorno local pendiente).
+- [x] Sustituir o aislar `xlsx`.
+- [x] Corregir dependencias vulnerables y fijar la versión de Node.
 - [x] Reparar lint y convertirlo en control obligatorio.
 - [x] Reducir paquetes grandes y carga inicial.
 - [ ] Incorporar alertas de errores, métricas y trazabilidad de automatizaciones.
@@ -147,3 +147,7 @@ La plataforma se considerará lista para producción cuando no existan política
 - React, Supabase e iconos separados en paquetes cacheables; el paquete inicial principal bajo de 697,90 kB a 292,68 kB y ya no existen paquetes JavaScript superiores a 500 kB.
 - Version minima de Node declarada en `package.json` y `.nvmrc`; se agrego una prueba arquitectonica que impide reintroducir imports estaticos de bibliotecas documentales pesadas.
 - Bateria automatizada ampliada a 20 pruebas, con lint limpio y build productivo sin advertencias de tamano de paquetes.
+- Node actualizado localmente a 22.23.1 y npm a 10.9.8; el contrato `>=22.12.0` ahora se valida tambien mediante prueba automatizada.
+- Motores Excel, PDF y Word centralizados en `documentEngines`; ningun modulo puede importarlos directamente y cada motor conserva una unica carga diferida compartida.
+- SheetJS actualizado desde su distribucion oficial a `xlsx 0.20.3`; auditoria npm de produccion cerrada con cero vulnerabilidades.
+- GitHub Actions incorpora un control obligatorio reproducible con `npm ci`, auditoria, lint, 21 pruebas y build; el flujo Android reutiliza la misma version de Node y ejecuta la calidad antes de compilar el APK.

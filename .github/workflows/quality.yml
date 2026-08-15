@@ -1,0 +1,45 @@
+name: Calidad y seguridad frontend
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Obtener codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Instalar dependencias reproducibles
+        run: npm ci
+
+      - name: Auditar dependencias de produccion
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Verificar calidad estatica
+        run: npm run lint
+
+      - name: Ejecutar pruebas
+        run: npm test
+
+      - name: Compilar produccion
+        env:
+          VITE_SUPABASE_URL: https://wegphblwwcfidvdbdtdq.supabase.co
+          VITE_SUPABASE_ANON_KEY: sb_publishable_LKC9XEmI711b7nm7rVPalQ_FxZPKis2
+        run: npm run build

@@ -139,7 +139,8 @@ export default function ScheduleFileImporter({ calculateEndDate, onApply, disabl
   } : null, [preview]);
 
   const downloadTemplate = async () => {
-    const XLSX = await import('xlsx');
+    const { loadSpreadsheetEngine } = await import('../services/documentEngines');
+    const XLSX = await loadSpreadsheetEngine();
     const wb = XLSX.utils.book_new();
     const guide = XLSX.utils.aoa_to_sheet([
       ['PLANTILLA OFICIAL DE PLANIFICACIÓN OBRAXIS'],
@@ -172,7 +173,8 @@ export default function ScheduleFileImporter({ calculateEndDate, onApply, disabl
         const parsed = parseProjectXml(await file.text(), calculateEndDate);
         tasks = parsed.tasks; sourceWarnings = parsed.warnings;
       } else if (['xlsx', 'xls'].includes(extension)) {
-        const XLSX = await import('xlsx');
+        const { loadSpreadsheetEngine } = await import('../services/documentEngines');
+        const XLSX = await loadSpreadsheetEngine();
         const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
         const sheet = wb.Sheets.Cronograma || wb.Sheets[wb.SheetNames[0]];
         tasks = normalizeExcelRows(XLSX.utils.sheet_to_json(sheet, { defval: '', raw: true }), calculateEndDate);

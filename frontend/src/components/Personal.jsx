@@ -238,7 +238,8 @@ function Personal({ user, onBack }) {
     try {
       let body;
       if (extension === 'docx') {
-        const mammoth = await import('mammoth/mammoth.browser');
+        const { loadWordTextEngine } = await import('../services/documentEngines');
+        const mammoth = await loadWordTextEngine();
         const extracted = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
         if (!extracted.value.trim()) throw new Error('El documento Word no contiene texto legible.');
         body = { text: extracted.value, file_name: file.name, mime_type: file.type || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', empresa: user?.empresa };
@@ -582,7 +583,8 @@ function Personal({ user, onBack }) {
         };
       });
 
-      const XLSX = await import('xlsx');
+      const { loadSpreadsheetEngine } = await import('../services/documentEngines');
+      const XLSX = await loadSpreadsheetEngine();
       const workbook = XLSX.utils.book_new();
       const summary = XLSX.utils.aoa_to_sheet([
         ['HISTORIAL DE ASIGNACIONES DE PERSONAL'],

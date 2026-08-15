@@ -124,7 +124,8 @@ export function HrStatistics({ personal = [], obras = [], canDownload = false, c
     }));
   const uncoveredGap = activeNeeds.reduce((sum, need) => sum + need.gap, 0) - reassignmentSuggestions.length;
   const downloadStatistics = async () => {
-    const XLSX = await import('xlsx');
+    const { loadSpreadsheetEngine } = await import('../services/documentEngines');
+    const XLSX = await loadSpreadsheetEngine();
     const workbook = XLSX.utils.book_new();
     const date = new Date().toISOString().slice(0, 10);
     const summary = [

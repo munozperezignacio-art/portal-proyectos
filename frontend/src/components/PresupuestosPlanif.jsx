@@ -472,7 +472,8 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
       let mimeType = file.type || "application/octet-stream";
 
       if (['xlsx', 'xls', 'csv'].includes(fileType)) {
-        const XLSX = await import('xlsx');
+        const { loadSpreadsheetEngine } = await import('../services/documentEngines');
+        const XLSX = await loadSpreadsheetEngine();
         const data = await file.arrayBuffer();
         const workbook = XLSX.read(data, { type: 'array' });
         workbook.SheetNames.forEach(sheetName => {
@@ -1251,7 +1252,8 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
     setSuccessMsg('');
 
     try {
-      const XLSX = await import('xlsx');
+      const { loadSpreadsheetEngine } = await import('../services/documentEngines');
+      const XLSX = await loadSpreadsheetEngine();
       const itemIds = itemsPresupuesto.filter(i => typeof i.id === 'number').map(i => i.id);
       let allApuLinks = [];
       if (itemIds.length > 0) {

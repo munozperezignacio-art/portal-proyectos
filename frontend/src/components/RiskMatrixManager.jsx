@@ -87,7 +87,8 @@ export default function RiskMatrixManager({ user, obras = [], canCreate = false,
     setAttachment(file); setMessage('');
     if (!/\.(xlsx|xls|csv)$/i.test(file.name)) { setMessage('El archivo quedará adjunto. La lectura automática está disponible para Excel y CSV.'); return; }
     try {
-      const XLSX = await import('xlsx');
+      const { loadSpreadsheetEngine } = await import('../services/documentEngines');
+      const XLSX = await loadSpreadsheetEngine();
       const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const grid = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false });
@@ -156,7 +157,8 @@ export default function RiskMatrixManager({ user, obras = [], canCreate = false,
     const link = document.createElement('a'); link.href = URL.createObjectURL(data); link.download = matrix.archivo_nombre || 'matriz-riesgo'; link.click(); URL.revokeObjectURL(link.href);
   };
   const downloadTemplate = async () => {
-    const XLSX = await import('xlsx');
+    const { loadSpreadsheetEngine } = await import('../services/documentEngines');
+    const XLSX = await loadSpreadsheetEngine();
     const sheet = XLSX.utils.json_to_sheet([Object.fromEntries(BASE_COLUMNS.map(column => [column.label, '']))]);
     const workbook = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(workbook, sheet, 'Matriz IPER'); XLSX.writeFile(workbook, 'Plantilla_MIPER_Obraxis_ISP.xlsx');
   };

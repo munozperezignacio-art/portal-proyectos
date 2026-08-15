@@ -58,7 +58,8 @@ export default function BudgetExcelImporter({ presupuestoId, projectCurrency = '
   const summary = useMemo(() => preview ? { titles: preview.partidas.filter(row => row.es_titulo).length, parts: preview.partidas.filter(row => !row.es_titulo).length, resources: preview.recursos.length, total: preview.partidas.reduce((sum,row) => sum + number(row.cantidad) * number(row.costo_unitario), 0) } : null, [preview]);
 
   const downloadTemplate = async () => {
-    const XLSX = await import('xlsx');
+    const { loadSpreadsheetEngine } = await import('../services/documentEngines');
+    const XLSX = await loadSpreadsheetEngine();
     const wb = XLSX.utils.book_new();
     const instructions = XLSX.utils.aoa_to_sheet([
       ['PLANTILLA OFICIAL DE PRESUPUESTOS OBRAXIS'],
@@ -89,7 +90,8 @@ export default function BudgetExcelImporter({ presupuestoId, projectCurrency = '
     const file = event.target.files?.[0]; if (!file) return;
     setErrors([]); setPreview(null);
     try {
-      const XLSX = await import('xlsx');
+      const { loadSpreadsheetEngine } = await import('../services/documentEngines');
+      const XLSX = await loadSpreadsheetEngine();
       const wb = XLSX.read(await file.arrayBuffer(), { type:'array', cellDates:true });
       if (!wb.Sheets.Partidas || !wb.Sheets.Recursos) throw new Error('El archivo debe contener las hojas “Partidas” y “Recursos”.');
       const rawParts = XLSX.utils.sheet_to_json(wb.Sheets.Partidas, { defval:'' }).map(headerMap);

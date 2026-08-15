@@ -522,7 +522,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     const resolved = await resolveResponseForm(response);
     const form = responseForm(resolved);
     const { generateFormPdf } = await import('../utils/pdfGenerator');
-    const base64 = generateFormPdf({ form, metadata: { proyecto_nombre: response.proyecto_nombre || '', inspector: response.inspector || '' }, answers: response.respuestas || {}, mainSignature: response.firma_url, companyLogo: companyBranding?.logo_base64 });
+    const base64 = await generateFormPdf({ form, metadata: { proyecto_nombre: response.proyecto_nombre || '', inspector: response.inspector || '' }, answers: response.respuestas || {}, mainSignature: response.firma_url, companyLogo: companyBranding?.logo_base64 });
     const bytes = Uint8Array.from(atob(base64), char => char.charCodeAt(0));
     const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
     const link = document.createElement('a'); link.href = url; link.download = `${(form.titulo || 'Formulario').replace(/[^a-zA-Z0-9]/g, '_')}_${new Date(response.created_at || Date.now()).toISOString().slice(0, 10)}.pdf`; link.click(); URL.revokeObjectURL(url);

@@ -57,7 +57,8 @@ export default function WorkerBulkImport({ companyName, personal = [], obras = [
   const workersByRut = useMemo(() => new Map(personal.filter(item => item.rut && (!item.empresa || item.empresa === companyName)).map(item => [compactRut(item.rut), item])), [personal, companyName]);
 
   const downloadTemplate = async () => {
-    const XLSX = await import('xlsx');
+    const { loadSpreadsheetEngine } = await import('../services/documentEngines');
+    const XLSX = await loadSpreadsheetEngine();
     const example = [{ RUT: '12345678-5', 'Nombre completo': 'María González Soto', Cargo: 'Jornal', Teléfono: '+56912345678', Correo: 'maria@empresa.cl', 'Obra asignada': 'Sin asignar', 'Fecha de asignación': '', 'Centro de trabajo': 'Oficina Central', Área: 'Operaciones', 'Sueldo base': 650000, 'Tipo de contrato': 'Indefinido', 'Fecha de ingreso': '13-08-2026', 'Fecha de término': '', Banco: 'BancoEstado', 'Tipo de cuenta': 'CuentaRUT', 'Número de cuenta': '', AFP: 'Habitat', Salud: 'FONASA', Colación: 0, Movilización: 0 }];
     const instructions = [
       ['IMPORTACIÓN MASIVA DE TRABAJADORES — OBRAXIS'], ['Complete la hoja Trabajadores y reemplace o elimine la fila de ejemplo.'], [],
@@ -82,7 +83,8 @@ export default function WorkerBulkImport({ companyName, personal = [], obras = [
     const file = event.target.files?.[0]; if (!file) return;
     setBusy(true); setMessage(null);
     try {
-      const XLSX = await import('xlsx');
+      const { loadSpreadsheetEngine } = await import('../services/documentEngines');
+      const XLSX = await loadSpreadsheetEngine();
       const book = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
       const sheetName = book.SheetNames.includes('Trabajadores') ? 'Trabajadores' : book.SheetNames[0];
       const matrix = XLSX.utils.sheet_to_json(book.Sheets[sheetName], { header: 1, defval: '', raw: true });
@@ -127,7 +129,8 @@ export default function WorkerBulkImport({ companyName, personal = [], obras = [
   const importable = totals.created + totals.updates;
 
   const downloadErrors = async () => {
-    const XLSX = await import('xlsx');
+    const { loadSpreadsheetEngine } = await import('../services/documentEngines');
+    const XLSX = await loadSpreadsheetEngine();
     const rows = validated.filter(item => item.errors.length).map(item => ({ Fila: item.row, RUT: item.data.rut, Nombre: item.data.nombre, Cargo: item.data.cargo, Errores: item.errors.join(' | ') }));
     const book = XLSX.utils.book_new(); const sheet = XLSX.utils.json_to_sheet(rows); sheet['!cols'] = [{ wch: 8 }, { wch: 18 }, { wch: 32 }, { wch: 25 }, { wch: 70 }];
     XLSX.utils.book_append_sheet(book, sheet, 'Errores'); XLSX.writeFile(book, `Errores_Importacion_RRHH_${new Date().toISOString().slice(0, 10)}.xlsx`);

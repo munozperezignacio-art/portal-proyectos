@@ -1246,7 +1246,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     if (!form) return;
     const normalizedForm = { ...form, campos: getPrevencionFormFields(form) };
     const { generateFormPdf } = await import('../utils/pdfGenerator');
-    const base64 = generateFormPdf({ form: normalizedForm, metadata: { proyecto_nombre: response.proyecto_nombre || selectedObra?.nombre || '', inspector: response.inspector || '' }, answers: response.respuestas || {}, mainSignature: response.firma_url, companyLogo: companyBranding?.logo_base64 });
+    const base64 = await generateFormPdf({ form: normalizedForm, metadata: { proyecto_nombre: response.proyecto_nombre || selectedObra?.nombre || '', inspector: response.inspector || '' }, answers: response.respuestas || {}, mainSignature: response.firma_url, companyLogo: companyBranding?.logo_base64 });
     const bytes = Uint8Array.from(atob(base64), char => char.charCodeAt(0));
     const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
     const link = document.createElement('a');

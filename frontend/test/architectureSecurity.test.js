@@ -47,17 +47,23 @@ test('cada Edge Function invocada literalmente por el frontend está versionada'
   assert.ok(invoked.size >= 10, 'La prueba debe cubrir un conjunto significativo de funciones');
 });
 
-test('las bibliotecas documentales pesadas se cargan solo bajo demanda', () => {
+test('las bibliotecas documentales pesadas se cargan solo mediante el adaptador compartido', () => {
   const heavyPackages = ['xlsx', 'jspdf', 'mammoth/mammoth.browser'];
   const findings = [];
   for (const path of sourceFiles) {
-    if (relative(sourceRoot, path) === join('utils', 'pdfGenerator.js')) continue;
+    if (relative(sourceRoot, path) === join('services', 'documentEngines.js')) continue;
     const source = readFileSync(path, 'utf8');
     for (const packageName of heavyPackages) {
       const escapedName = packageName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const staticImport = new RegExp(`^\\s*import\\s+.+?\\s+from\\s+['"]${escapedName}['"]`, 'm');
-      if (staticImport.test(source)) findings.push(`${relative(sourceRoot, path)}: ${packageName}`);
+      const dynamicImport = new RegExp(`import\\(\\s*['"]${escapedName}['"]\\s*\\)`);
+      if (staticImport.test(source) || dynamicImport.test(source)) findings.push(`${relative(sourceRoot, path)}: ${packageName}`);
     }
   }
   assert.deepEqual(findings, []);
+});
+
+test('la versión activa de Node cumple el contrato del proyecto', () => {
+  const [major, minor] = process.versions.node.split('.').map(Number);
+  assert.ok(major > 22 || (major === 22 && minor >= 12), `Node ${process.versions.node} no cumple >=22.12.0`);
 });
