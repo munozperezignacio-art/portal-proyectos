@@ -189,8 +189,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   useEffect(() => {
     if (selectedObra?.nombre) {
       const defaults = getObraDateRange(selectedObra);
-      const savedStart = localStorage.getItem('obraxis_fecha_inicio_real_' + selectedObra.nombre) || defaults.start;
-      const savedEnd = localStorage.getItem('obraxis_fecha_termino_est_' + selectedObra.nombre) || defaults.end;
+      const savedStart = selectedObra.fecha_inicio_real || defaults.start;
+      const savedEnd = selectedObra.fecha_termino_estimada || defaults.end;
       setFechaInicioReal(savedStart);
       setFechaTerminoEstimada(savedEnd);
 
@@ -399,13 +399,19 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [showAccidenteModal, setShowAccidenteModal] = useState(false);
   const [accidenteFormData, setAccidenteFormData] = useState({ fecha: new Date().toISOString().substring(0, 10), tipo: 'STP', trabajador: '', dias_perdidos: 0, descripcion: '' });
 
-  const [fechaInicioReal, setFechaInicioReal] = useState(() => {
-    return localStorage.getItem('obraxis_fecha_inicio_real_' + (selectedObra?.nombre || '')) || getObraDateRange(selectedObra).start;
-  });
+  const [fechaInicioReal, setFechaInicioReal] = useState(() => getObraDateRange(selectedObra).start);
 
-  const [fechaTerminoEstimada, setFechaTerminoEstimada] = useState(() => {
-    return localStorage.getItem('obraxis_fecha_termino_est_' + (selectedObra?.nombre || '')) || getObraDateRange(selectedObra).end;
-  });
+  const [fechaTerminoEstimada, setFechaTerminoEstimada] = useState(() => getObraDateRange(selectedObra).end);
+
+  const persistObraDates = async (inicio = fechaInicioReal, termino = fechaTerminoEstimada) => {
+    if (!selectedObra?.id) throw new Error('La obra no tiene un identificador persistente.');
+    const { error } = await supabase.from('obras').update({
+      fecha_inicio_real: inicio || null,
+      fecha_termino_estimada: termino || null
+    }).eq('id', selectedObra.id);
+    if (error) throw error;
+    setSelectedObra(prev => prev ? { ...prev, fecha_inicio_real: inicio, fecha_termino_estimada: termino } : prev);
+  };
 
   const [customSalariesMap, setCustomSalariesMap] = useState(() => {
     try {
@@ -621,25 +627,17 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       return p;
     });
 
-    setPartidasList(updatedPartidas);
-
     try {
-      if (selectedObra?.id) {
-        localStorage.setItem(`partidas_${selectedObra.id}`, JSON.stringify(updatedPartidas));
-      }
-      if (selectedObra?.nombre) {
-        localStorage.setItem(`partidas_${selectedObra.nombre}`, JSON.stringify(updatedPartidas));
-      }
-    } catch {}
-
-    try {
+      let result;
       if (partidaObj.id && !isNaN(parseInt(partidaObj.id))) {
-        await supabase.from('partidas_obra').update({ fecha_inicio: newStartDate }).eq('id', partidaObj.id);
+        result = await supabase.from('partidas_obra').update({ fecha_inicio: newStartDate }).eq('id', partidaObj.id);
       } else if (selectedObra?.nombre && partidaObj.partida) {
-        await supabase.from('partidas_obra').update({ fecha_inicio: newStartDate }).eq('empresa', user?.empresa || 'Obraxis').eq('obra_nombre', selectedObra.nombre).eq('partida', partidaObj.partida);
+        result = await supabase.from('partidas_obra').update({ fecha_inicio: newStartDate }).eq('empresa', user?.empresa || 'Obraxis').eq('obra_nombre', selectedObra.nombre).eq('partida', partidaObj.partida);
       }
+      if (result?.error) throw result.error;
+      setPartidasList(updatedPartidas);
     } catch(err) {
-      console.warn('Sync warning on partida fecha_inicio:', err);
+      setErrorMsg(`No fue posible actualizar la fecha: ${err.message}`);
     }
   };
 
@@ -679,52 +677,36 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       return p;
     });
 
-    setPartidasList(updatedPartidas);
-
-    try {
-      if (selectedObra?.id) {
-        localStorage.setItem(`partidas_${selectedObra.id}`, JSON.stringify(updatedPartidas));
-      }
-      if (selectedObra?.nombre) {
-        localStorage.setItem(`partidas_${selectedObra.nombre}`, JSON.stringify(updatedPartidas));
-      }
-    } catch {}
-
     try {
       const payload = {
         predecesora: predecesora || null,
         tipo_relacion: tipoRelacion || 'FS',
         desfase_dias: parseInt(desfaseDias, 10) || 0
       };
+      let result;
       if (partidaObj.id && !isNaN(parseInt(partidaObj.id))) {
-        await supabase.from('partidas_obra').update(payload).eq('id', partidaObj.id);
+        result = await supabase.from('partidas_obra').update(payload).eq('id', partidaObj.id);
       } else if (selectedObra?.nombre && partidaObj.partida) {
-        await supabase.from('partidas_obra').update(payload).eq('empresa', user?.empresa || 'Obraxis').eq('obra_nombre', selectedObra.nombre).eq('partida', partidaObj.partida);
+        result = await supabase.from('partidas_obra').update(payload).eq('empresa', user?.empresa || 'Obraxis').eq('obra_nombre', selectedObra.nombre).eq('partida', partidaObj.partida);
       }
+      if (result?.error) throw result.error;
+      setPartidasList(updatedPartidas);
     } catch (err) {
-      console.warn('Sync warning on partida dependency:', err);
+      setErrorMsg(`No fue posible actualizar la dependencia: ${err.message}`);
     }
   };
 
   const handleDeleteCostoReal = async (costoItem, index) => {
     if (!window.confirm(`¿Estás seguro de eliminar el registro de costo "${costoItem.nombre}"?`)) return;
 
-    const updatedCostos = costosList.filter((_, i) => i !== index);
-    setCostosList(updatedCostos);
-
-    try {
-      const obraKey = selectedObra?.nombre || selectedObra?.id || 'default';
-      localStorage.setItem(`obraxis_costos_${obraKey}`, JSON.stringify(updatedCostos));
-      if (selectedObra?.id) localStorage.setItem(`obraxis_costos_${selectedObra.id}`, JSON.stringify(updatedCostos));
-      if (selectedObra?.nombre) localStorage.setItem(`obraxis_costos_${selectedObra.nombre}`, JSON.stringify(updatedCostos));
-    } catch {}
-
     try {
       if (costoItem.id) {
-        await supabase.from('costos_reales_obra').delete().eq('id', costoItem.id);
+        const { error } = await supabase.from('costos_reales_obra').delete().eq('id', costoItem.id);
+        if (error) throw error;
       }
+      setCostosList(costosList.filter((_, i) => i !== index));
     } catch (err) {
-      console.warn('Sync warning on delete costos_reales_obra:', err);
+      setErrorMsg(`No fue posible eliminar el costo: ${err.message}`);
     }
   };
 
@@ -782,7 +764,6 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const handleSaveAccidente = async (e) => {
     e.preventDefault();
     const newAcc = {
-      id: Date.now(),
       fecha: accidenteFormData.fecha,
       tipo: accidenteFormData.tipo,
       trabajador: accidenteFormData.trabajador.trim(),
@@ -790,15 +771,14 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       descripcion: accidenteFormData.descripcion.trim(),
       obra_nombre: selectedObra?.nombre || ''
     };
-    const updated = [...accidentesPrevencionList, newAcc];
-    setAccidentesPrevencionList(updated);
     try {
-      const key = selectedObra?.nombre || 'default';
-      localStorage.setItem(`obraxis_accidentes_${key}`, JSON.stringify(updated));
-    } catch {}
-    try {
-      await supabase.from('accidentes_prevencion_obra').insert([newAcc]);
-    } catch {}
+      const { data, error } = await supabase.from('accidentes_prevencion_obra').insert([newAcc]).select().single();
+      if (error) throw error;
+      setAccidentesPrevencionList(prev => [...prev, data]);
+    } catch (error) {
+      setErrorMsg(`No fue posible registrar el accidente: ${error.message}`);
+      return;
+    }
     await registrarEventoBitacora({ empresa: user?.empresa, obraNombre: newAcc.obra_nombre, categoria: 'Prevención', accion: `${newAcc.tipo} registrado`, detalle: `${newAcc.trabajador || 'Sin trabajador informado'} · ${newAcc.dias_perdidos} día(s) perdidos. ${newAcc.descripcion || ''}`, actor: user?.nombre || user?.email || 'Prevención de riesgos', fecha: newAcc.fecha });
     setShowAccidenteModal(false);
     alert('Incidente / Accidente registrado con éxito.');
@@ -1019,19 +999,20 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [maquinariaList, setMaquinariaList] = useState([]);
   const [maquinariaUsoObra, setMaquinariaUsoObra] = useState([]);
   const [partidasList, setPartidasList] = useState([]);
-  const handleReorderPartidaObra = (fromIdx, toIdx) => {
+  const handleReorderPartidaObra = async (fromIdx, toIdx) => {
     if (fromIdx === toIdx || toIdx < 0 || toIdx >= partidasList.length) return;
     const updated = [...partidasList];
     const [movedItem] = updated.splice(fromIdx, 1);
     updated.splice(toIdx, 0, movedItem);
-    setPartidasList(updated);
-
-    const obraName = selectedObra?.nombre;
-    if (obraName) {
-      try {
-        const orderNames = updated.map(p => p.partida);
-        localStorage.setItem(`obraxis_obra_partidas_order_${obraName}`, JSON.stringify(orderNames));
-      } catch {}
+    try {
+      const results = await Promise.all(updated.map((partida, orden) =>
+        supabase.from('partidas_obra').update({ orden }).eq('id', partida.id)
+      ));
+      const failed = results.find(result => result.error);
+      if (failed?.error) throw failed.error;
+      setPartidasList(updated.map((partida, orden) => ({ ...partida, orden })));
+    } catch (error) {
+      setErrorMsg(`No fue posible guardar el orden de las partidas: ${error.message}`);
     }
   };
 
@@ -1082,10 +1063,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         .select('*')
         .eq('empresa', user?.empresa || 'EMIN')
         .order('created_at', { ascending: false });
-      if (!error) forms = data || [];
-      if (!forms.length) {
-        try { forms = JSON.parse(localStorage.getItem('obraxis_formularios_dinamicos') || '[]'); } catch { forms = []; }
-      }
+      if (error) throw error;
+      forms = data || [];
 
       const applicableForms = forms.filter(form => {
         const module = String(form.categoria || form.modulo_asignado || 'general').toLowerCase();
@@ -1099,21 +1078,20 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         .select('*')
         .eq('proyecto_nombre', obraNombre)
         .order('created_at', { ascending: false });
-      if (!responseResult.error) responses = responseResult.data || [];
-      if (!responses.length) {
-        try {
-          responses = JSON.parse(localStorage.getItem('obraxis_respuestas_formularios') || '[]')
-            .filter(response => isThisObra(response.proyecto_nombre));
-        } catch { responses = []; }
-      }
+      if (responseResult.error) throw responseResult.error;
+      responses = responseResult.data || [];
       const formById = new window.Map(applicableForms.map(form => [String(form.id), form]));
       setRespuestasPrevencionObra(responses.filter(response => formById.has(String(response.formulario_id))).map(response => ({
         ...response,
         formulario: formById.get(String(response.formulario_id))
       })));
 
-      let pts = [];
-      try { pts = JSON.parse(localStorage.getItem(`obraxis_procedimientos_${user?.empresa || 'default'}`) || '[]'); } catch { pts = []; }
+      const { data: pts = [], error: ptsError } = await supabase
+        .from('prevencion_procedimientos')
+        .select('*')
+        .eq('empresa', user?.empresa || 'Obraxis')
+        .order('codigo');
+      if (ptsError) throw ptsError;
       setProcedimientosPrevencionObra(pts.filter(ptsItem => {
         const assigned = String(ptsItem.obra_nombre || '').toLowerCase();
         return !assigned || assigned.includes('biblioteca') || isThisObra(ptsItem.obra_nombre);
@@ -1299,35 +1277,9 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     }
   };
 
-    // Helper infalible para obtener equipos asignados a la obra actual
+  // La maquinaria asignada proviene exclusivamente de Supabase.
   const getEquiposParaObraActual = () => {
-    if (maquinariaList && maquinariaList.length > 0) return maquinariaList;
-
-    const targetName = (selectedObra?.nombre || '').trim().toLowerCase();
-    if (!targetName) return [];
-
-    const localStr = localStorage.getItem('obraxis_inventario_maquinaria');
-    const localItems = localStr ? JSON.parse(localStr) : [];
-
-    const isEquipForObra = (item) => {
-      if (!item || !item.obra_nombre) return false;
-      const rawObra = String(item.obra_nombre).trim().toLowerCase();
-      if (!rawObra || rawObra.includes('bodega') || rawObra === 'libre') return false;
-
-      if (rawObra === targetName) return true;
-
-      const normObra = rawObra.replace(/[^a-z0-9]/g, '');
-      const normTarget = targetName.replace(/[^a-z0-9]/g, '');
-
-      if (normObra === normTarget || (normTarget && normObra.includes(normTarget)) || (normObra && normTarget.includes(normObra))) return true;
-
-      const coreObra = normObra.replace(/^(obra|proyecto)/, '');
-      const coreTarget = normTarget.replace(/^(obra|proyecto)/, '');
-
-      return coreObra === coreTarget || (coreTarget && coreObra.includes(coreTarget)) || (coreObra && coreTarget.includes(coreObra));
-    };
-
-    return localItems.filter(isEquipForObra);
+    return maquinariaList || [];
   };
 
   const fetchObraDetails = async (obraNombre) => {
@@ -1368,14 +1320,17 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       setPersonalList(listPers);
 
       try {
-        const savedProjRrhh = localStorage.getItem(`obraxis_proj_rrhh_${obraNombre}`);
-        if (savedProjRrhh) setProyeccionesRrhhList(JSON.parse(savedProjRrhh));
-        const savedLiq = localStorage.getItem(`obraxis_liquidaciones_${obraNombre}`);
-        if (savedLiq) setLiquidacionesList(JSON.parse(savedLiq));
-        const savedCostosStr = localStorage.getItem(`obraxis_costos_${obraNombre}`) || localStorage.getItem(`obraxis_costos_${selectedObra?.id}`) || localStorage.getItem(`costos_reales_${obraNombre}`);
-        if (savedCostosStr) {
-          try { setCostosList(JSON.parse(savedCostosStr)); } catch {}
-        }
+        const [proyeccionesResult, liquidacionesResult, costosResult] = await Promise.all([
+          supabase.from('rrhh_proyecciones_dotacion').select('*').eq('empresa', user?.empresa || 'Obraxis').eq('obra_nombre', obraNombre).order('fecha_inicio'),
+          supabase.from('obra_liquidaciones').select('*').eq('empresa', user?.empresa || 'Obraxis').eq('obra_nombre', obraNombre).order('periodo', { ascending: false }),
+          supabase.from('costos_reales_obra').select('*').eq('empresa', user?.empresa || 'Obraxis').eq('obra_nombre', obraNombre).order('created_at', { ascending: false })
+        ]);
+        if (proyeccionesResult.error) throw proyeccionesResult.error;
+        if (liquidacionesResult.error) throw liquidacionesResult.error;
+        if (costosResult.error) throw costosResult.error;
+        setProyeccionesRrhhList(proyeccionesResult.data || []);
+        setLiquidacionesList(liquidacionesResult.data || []);
+        setCostosList(costosResult.data || []);
         try {
           const { data: facturasObra, error: facturasError } = await supabase
             .from('facturacion_documentos')
@@ -1414,28 +1369,25 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         }
         // Cargar Mantenciones, Paralizaciones y Accidentes de la Obra
         try {
-          const savedMant = localStorage.getItem(`obraxis_mantenciones_${obraNombre}`);
-          if (savedMant) setMantencionesMaquinariaList(JSON.parse(savedMant));
-          const { data: allMant } = await supabase.from('mantenciones_maquinaria').select('*');
+          const { data: allMant, error: mantError } = await supabase.from('mantenciones_maquinaria').select('*');
+          if (mantError) throw mantError;
           const supaMant = (allMant || []).filter(m => isMatchObra(m.obra_nombre, obraNombre));
-          if (supaMant && supaMant.length > 0) setMantencionesMaquinariaList(supaMant);
-        } catch {}
+          setMantencionesMaquinariaList(supaMant);
+        } catch (error) { console.warn('No fue posible cargar mantenciones:', error); }
 
         try {
-          const savedPara = localStorage.getItem(`obraxis_paralizaciones_${obraNombre}`);
-          if (savedPara) setParalizacionesMaquinariaList(JSON.parse(savedPara));
-          const { data: allPara } = await supabase.from('paralizaciones_maquinaria').select('*');
+          const { data: allPara, error: paraError } = await supabase.from('paralizaciones_maquinaria').select('*');
+          if (paraError) throw paraError;
           const supaPara = (allPara || []).filter(p => isMatchObra(p.obra_nombre, obraNombre));
-          if (supaPara && supaPara.length > 0) setParalizacionesMaquinariaList(supaPara);
-        } catch {}
+          setParalizacionesMaquinariaList(supaPara);
+        } catch (error) { console.warn('No fue posible cargar paralizaciones:', error); }
 
         try {
-          const savedAcc = localStorage.getItem(`obraxis_accidentes_${obraNombre}`);
-          if (savedAcc) setAccidentesPrevencionList(JSON.parse(savedAcc));
-          const { data: allAcc } = await supabase.from('accidentes_prevencion_obra').select('*');
+          const { data: allAcc, error: accError } = await supabase.from('accidentes_prevencion_obra').select('*');
+          if (accError) throw accError;
           const supaAcc = (allAcc || []).filter(a => isMatchObra(a.obra_nombre, obraNombre));
-          if (supaAcc && supaAcc.length > 0) setAccidentesPrevencionList(supaAcc);
-        } catch {}
+          setAccidentesPrevencionList(supaAcc);
+        } catch (error) { console.warn('No fue posible cargar accidentes:', error); }
       } catch {}
     } catch (e) {
       console.warn('Aviso personal:', e);
@@ -1443,72 +1395,12 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
     // 2. Cargar maquinaria asignada (TOTALMENTE AISLADO DE OTRAS CONSULTAS)
     try {
-      const localMaqStr = localStorage.getItem('obraxis_inventario_maquinaria');
-      const localMaq = localMaqStr ? JSON.parse(localMaqStr) : [];
-
-      let allRemoteMaq = [];
-      try {
-        const { data } = await supabase.from('inventario_maquinaria').select('*');
-        if (data && data.length > 0) allRemoteMaq = data;
-      } catch (e) {
-        console.warn('Error leyendo inventario_maquinaria:', e);
-      }
-
-      const mapEquip = new window.Map();
-      const getEquipKey = (item) => {
-        if (!item) return '';
-        if (item.patente && item.patente.toString().trim()) return item.patente.toString().trim().toUpperCase();
-        if (item.id) return 'ID_' + item.id;
-        return '';
-      };
-
-      (localMaq || []).forEach(item => {
-        if (!item || typeof item !== 'object') return;
-        const k = getEquipKey(item);
-        if (k) mapEquip.set(k, item);
-        if (item.id !== undefined && item.id !== null) mapEquip.set('ID_' + item.id, item);
-      });
-
-      (allRemoteMaq || []).forEach(item => {
-        if (!item || typeof item !== 'object') return;
-        const patK = getEquipKey(item);
-        const idK = (item.id !== undefined && item.id !== null) ? 'ID_' + item.id : null;
-        
-        const localItem = (patK ? mapEquip.get(patK) : null) || (idK ? mapEquip.get(idK) : null) || {};
-
-        const isRealObra = (n) => n && typeof n === 'string' && n.trim() !== '' && !n.toLowerCase().includes('bodega') && n.toLowerCase() !== 'libre';
-        const finalObraNombre = isRealObra(item.obra_nombre) 
-          ? item.obra_nombre.trim() 
-          : (isRealObra(localItem.obra_nombre) ? localItem.obra_nombre.trim() : (item.obra_nombre || localItem.obra_nombre || 'Bodega Central / Libre'));
-
-        const rCosto = parseFloat(item.costo_interno !== undefined && item.costo_interno !== null ? item.costo_interno : item.costo);
-        const lCosto = parseFloat(localItem.costo_interno !== undefined && localItem.costo_interno !== null ? localItem.costo_interno : localItem.costo);
-        const finalCosto = (!isNaN(rCosto) && rCosto > 0) ? rCosto : ((!isNaN(lCosto) && lCosto > 0) ? lCosto : 0);
-
-        const merged = {
-          ...localItem,
-          ...item,
-          obra_nombre: finalObraNombre,
-          costo_interno: finalCosto,
-          unidad_costo_interno: item.unidad_costo_interno || localItem.unidad_costo_interno || item.unidad_tarifa || localItem.unidad_tarifa || '$/día'
-        };
-
-        if (patK) mapEquip.set(patK, merged);
-        if (idK) mapEquip.set(idK, merged);
-      });
-
-      const uniqueMap = new window.Map();
-      Array.from(mapEquip.values()).forEach(item => {
-        const k = getEquipKey(item);
-        if (k) uniqueMap.set(k, item);
-      });
-
-      const combinedFleet = Array.from(uniqueMap.values());
-      try {
-        localStorage.setItem('obraxis_inventario_maquinaria', JSON.stringify(combinedFleet));
-      } catch {}
-
-      const finalMaqObra = combinedFleet.filter(item => isMatchObra(item.obra_nombre, obraNombre));
+      const { data: allRemoteMaq, error: maquinariaError } = await supabase
+        .from('inventario_maquinaria')
+        .select('*')
+        .eq('empresa', user?.empresa || 'OBRAXIS');
+      if (maquinariaError) throw maquinariaError;
+      const finalMaqObra = (allRemoteMaq || []).filter(item => isMatchObra(item.obra_nombre, obraNombre));
       setMaquinariaCount(finalMaqObra.length);
       setMaquinariaList(finalMaqObra);
 
@@ -1536,16 +1428,12 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         .select('*')
         .eq('empresa', user?.empresa || 'OBRAXIS')
         .order('fecha', { ascending: false });
-      let usos = usosError ? [] : (usosRemotos || []);
-      if (!usos.length) {
-        try { usos = JSON.parse(localStorage.getItem('obraxis_maquinaria_uso') || '[]'); } catch { usos = []; }
-      }
+      if (usosError) throw usosError;
+      const usos = usosRemotos || [];
       setMaquinariaUsoObra(usos.filter(registro => isMatchObra(registro.obra_nombre, obraNombre)));
-    } catch {
-      try {
-        const locales = JSON.parse(localStorage.getItem('obraxis_maquinaria_uso') || '[]');
-        setMaquinariaUsoObra(locales.filter(registro => isMatchObra(registro.obra_nombre, obraNombre)));
-      } catch { setMaquinariaUsoObra([]); }
+    } catch (error) {
+      console.warn('No fue posible cargar el uso de maquinaria:', error);
+      setMaquinariaUsoObra([]);
     }
 
     // 3. Cargar partidas de obra
@@ -1583,20 +1471,14 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       partidasQuery = selectedObra?.id
         ? partidasQuery.eq('obra_id', selectedObra.id)
         : partidasQuery.eq('empresa', user?.empresa || 'Obraxis').eq('obra_nombre', obraNombre);
-      const { data: allPart } = await partidasQuery;
+      const { data: allPart, error: partidasError } = await partidasQuery.order('orden', { ascending: true });
+      if (partidasError) throw partidasError;
       const listPart = allPart || [];
-
-      const savedLocalPartidasStr = localStorage.getItem(`partidas_${selectedObra?.id}`) || localStorage.getItem(`partidas_${obraNombre}`);
-      let savedLocalPartidas = [];
-      try {
-        if (savedLocalPartidasStr) savedLocalPartidas = JSON.parse(savedLocalPartidasStr);
-      } catch {}
 
       const projectStartDate = getObraDateRange(selectedObra).start;
       const normalizePlanningText = value => String(value || '').trim().toLocaleLowerCase('es-CL').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       const scheduleByCode = new window.Map(linkedSchedule.map(row => [String(row.codigo || '').trim(), row]));
       let normalizedListPart = (listPart || []).map((p) => {
-        const localMatch = savedLocalPartidas.find(lp => lp.partida === p.partida || (lp.id && String(lp.id) === String(p.id)));
         const isTit = p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo || (p.partida && /^[0-9]\./.test(p.partida.trim()));
         const budgetMatch = linkedBudgetItems.find(item => normalizePlanningText(item.partida) === normalizePlanningText(p.partida));
         const scheduleMatch = (budgetMatch?.codigo && scheduleByCode.get(String(budgetMatch.codigo).trim()))
@@ -1612,31 +1494,15 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           pu: isTit ? 0 : (parseFloat(p.costo_por_dia !== undefined && p.costo_por_dia !== null && p.costo_por_dia !== 0 ? p.costo_por_dia : p.pu) || 0),
           rendimiento: p.rendimiento_meta || p.rendimiento || '10',
           // Si aún no existe programación por partida, usar inicio real de la obra; nunca fechas de una obra de prueba.
-          fecha_inicio: scheduleMatch?.fecha_inicio || localMatch?.fecha_inicio || p.fecha_inicio || p.fecha_inicio_programada || projectStartDate,
+          fecha_inicio: scheduleMatch?.fecha_inicio || p.fecha_inicio || p.fecha_inicio_programada || projectStartDate,
           fecha_termino: scheduleMatch?.fecha_fin || p.fecha_termino || null,
           duracion_programada: scheduleMatch?.duracion ?? null,
-          predecesora: predecessorMatch?.[1] || (localMatch?.predecesora !== undefined ? localMatch.predecesora : (p.predecesora || null)),
-          tipo_relacion: predecessorMatch?.[2]?.toUpperCase() === 'CC' ? 'SS' : (localMatch?.tipo_relacion || p.tipo_relacion || 'FS'),
-          desfase_dias: predecessorMatch?.[3] ? parseInt(predecessorMatch[3], 10) : (localMatch?.desfase_dias !== undefined ? localMatch.desfase_dias : (p.desfase_dias || 0)),
+          predecesora: predecessorMatch?.[1] || p.predecesora || null,
+          tipo_relacion: predecessorMatch?.[2]?.toUpperCase() === 'CC' ? 'SS' : (p.tipo_relacion || 'FS'),
+          desfase_dias: predecessorMatch?.[3] ? parseInt(predecessorMatch[3], 10) : (p.desfase_dias || 0),
           origen_planificacion: scheduleMatch ? 'Presupuesto / archivo importado' : 'Obra'
         };
       });
-
-      // Respetar orden guardado en memoria local para esta obra
-      try {
-        const savedOrderStr = localStorage.getItem(`obraxis_obra_partidas_order_${obraNombre}`);
-        if (savedOrderStr) {
-          const savedNames = JSON.parse(savedOrderStr);
-          normalizedListPart.sort((a, b) => {
-            const idxA = savedNames.indexOf(a.partida);
-            const idxB = savedNames.indexOf(b.partida);
-            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-            if (idxA !== -1) return -1;
-            if (idxB !== -1) return 1;
-            return 0;
-          });
-        }
-      } catch {}
 
       setPartidasList(normalizedListPart);
     } catch (e) {
@@ -1697,18 +1563,9 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
     // 8. Arriendos de maquinaria
     try {
-      const { data: aData } = await supabase.from('arriendos_maquinaria').select('*').eq('obra_nombre', obraNombre).order('created_at', { ascending: false });
-
-      const savedAStr = localStorage.getItem(`arriendos_${selectedObra?.id || selectedObra?.nombre}`) || localStorage.getItem(`arriendos_${obraNombre}`);
-      const savedA = savedAStr ? JSON.parse(savedAStr) : [];
-
-      const mergedMap = new window.Map();
-      (savedA || []).forEach(item => {
-        const key = String(item.id || `${item.equipo}_${item.patente}`);
-        mergedMap.set(key, item);
-      });
-
-      (aData || []).forEach(item => {
+      const { data: aData, error: arriendosError } = await supabase.from('arriendos_maquinaria').select('*').eq('obra_nombre', obraNombre).order('created_at', { ascending: false });
+      if (arriendosError) throw arriendosError;
+      const finalArriendos = (aData || []).map(item => {
         const normalizedItem = {
           id: String(item.id),
           equipo: item.equipo || item.nombre_equipo || 'Equipo',
@@ -1722,18 +1579,12 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
           fechaTermino: item.fecha_termino || item.fechaTermino || '',
           observaciones: item.observaciones || ''
         };
-        const key = String(normalizedItem.id || `${normalizedItem.equipo}_${normalizedItem.patente}`);
-        mergedMap.set(key, normalizedItem);
+        return normalizedItem;
       });
-
-      const finalArriendos = Array.from(mergedMap.values());
       setArriendosList(finalArriendos);
-      if (selectedObra?.id) {
-        localStorage.setItem(`arriendos_${selectedObra.id}`, JSON.stringify(finalArriendos));
-      }
-    } catch {
-      const savedAStr = localStorage.getItem(`arriendos_${selectedObra?.id || selectedObra?.nombre}`) || localStorage.getItem(`arriendos_${obraNombre}`);
-      if (savedAStr) setArriendosList(JSON.parse(savedAStr));
+    } catch (error) {
+      console.warn('No fue posible cargar los arriendos:', error);
+      setArriendosList([]);
     }
 
     // 8. Asistencias QR
@@ -1812,7 +1663,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     }
   };
 
-  // Guardar Coordenadas GPS de la Obra (con persistencia híbrida segura)
+  // Guardar coordenadas GPS de la obra en la fuente corporativa.
   const handleSaveObraGPS = async (e) => {
     e.preventDefault();
     setModalLoading(true);
@@ -1826,19 +1677,6 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       const latVal = isNaN(lat) ? null : lat;
       const lngVal = isNaN(lng) ? null : lng;
       const radVal = isNaN(rad) ? 200 : rad;
-
-      // Persistencia local en dispositivo para disponibilidad 100% garantizada
-      if (selectedObra?.id) {
-        try {
-          localStorage.setItem(`obra_gps_${selectedObra.id}`, JSON.stringify({
-            latitud: latVal,
-            longitud: lngVal,
-            radio_cobertura_m: radVal
-          }));
-        } catch (errLocal) {
-          console.warn("No se pudo escribir en localStorage:", errLocal);
-        }
-      }
 
       // Sincronizar con la base de datos Supabase de forma segura
       try {
@@ -1932,19 +1770,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       // --- DISPARAR NOTIFICACIÓN VÍA CORREO ELECTRÓNICO CON RESEND ---
       try {
         const obraNombre = selectedObra?.nombre || 'Obra';
-        const storageKey = `emails_config_${user?.empresa || 'Obraxis'}_obras_${obraNombre}`;
-        const localConfig = localStorage.getItem(storageKey);
-
         let recipients = [];
-        if (localConfig) {
-          const parsed = JSON.parse(localConfig);
-          if (parsed.emails && parsed.emails.length > 0) {
-            recipients = [...parsed.emails, ...(parsed.emailsCC || [])];
-          }
-        }
-
-        // Si no hay correos en localStorage de la obra, buscar en config_empresa
-        if (recipients.length === 0 && user?.empresa) {
+        if (user?.empresa) {
           const { data: cData } = await supabase
             .from('config_empresa')
             .select('email_notificaciones, email_notificaciones_cc')
@@ -2116,13 +1943,12 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   };
 
   // 4. Eliminar Cuadrilla de Trabajo
-  const handleDeleteCuadrilla = (cuadrillaId) => {
+  const handleDeleteCuadrilla = async (cuadrillaId) => {
     if (!canManageRecordsAccess) return alert('No tienes permisos de Nivel 0, 1 o 2 para eliminar cuadrillas.');
     if (!window.confirm('¿Estás seguro de eliminar esta cuadrilla de trabajo?')) return;
-    const key = `cuadrillas_${selectedObra.id}`;
-    const newList = cuadrillasList.filter(c => c.id !== cuadrillaId);
-    setCuadrillasList(newList);
-    localStorage.setItem(key, JSON.stringify(newList));
+    const { error } = await supabase.from('obra_cuadrillas').delete().eq('id', cuadrillaId);
+    if (error) return setErrorMsg(`No fue posible eliminar la cuadrilla: ${error.message}`);
+    setCuadrillasList(prev => prev.filter(c => c.id !== cuadrillaId));
   };
 
   // --- HANDLERS DE EDICIÓN ---
@@ -2203,21 +2029,15 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     if (!canManageRecordsAccess) return alert('No tienes permisos para eliminar registros.');
     if (!window.confirm('¿Estás seguro de eliminar este registro de arriendo?')) return;
 
-    const updated = arriendosList.filter(a => String(a.id) !== String(arriendoId));
-    setArriendosList(updated);
-
-    try {
-      localStorage.setItem(`arriendos_${selectedObra.id}`, JSON.stringify(updated));
-      if (selectedObra?.nombre) {
-        localStorage.setItem(`arriendos_${selectedObra.nombre}`, JSON.stringify(updated));
-      }
-    } catch {}
-
     try {
       if (arriendoId && !isNaN(parseInt(arriendoId))) {
-        await supabase.from('arriendos_maquinaria').delete().eq('id', arriendoId);
+        const { error } = await supabase.from('arriendos_maquinaria').delete().eq('id', arriendoId);
+        if (error) throw error;
       }
-    } catch {}
+      setArriendosList(arriendosList.filter(a => String(a.id) !== String(arriendoId)));
+    } catch (error) {
+      setErrorMsg(`No fue posible eliminar el arriendo: ${error.message}`);
+    }
   };
 
   // 6. Generar / Descargar Documento Oficial del Libro Digital de Asistencia (con Firma Base64)
@@ -2322,21 +2142,21 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
     printWindow.document.close();
   };
 
-  const handleSaveCuadrilla = (e) => {
+  const handleSaveCuadrilla = async (e) => {
     e.preventDefault();
     if (!cuadrillaData.nombre.trim()) return;
     const newCuadrilla = {
-      id: Date.now().toString(),
+      empresa: user?.empresa || 'Obraxis',
+      obra_id: selectedObra?.id || null,
+      obra_nombre: selectedObra?.nombre || '',
       nombre: cuadrillaData.nombre.trim(),
       lider: cuadrillaData.lider.trim() || 'Sin líder',
       especialidad: cuadrillaData.especialidad || 'General',
       miembros: cuadrillaData.miembros || []
     };
-    const updated = [...cuadrillasList, newCuadrilla];
-    setCuadrillasList(updated);
-    try {
-      localStorage.setItem(`cuadrillas_${selectedObra.id}`, JSON.stringify(updated));
-    } catch {}
+    const { data, error } = await supabase.from('obra_cuadrillas').insert(newCuadrilla).select().single();
+    if (error) return setErrorMsg(`No fue posible guardar la cuadrilla: ${error.message}`);
+    setCuadrillasList(prev => [...prev, data]);
     setShowCuadrillaModal(false);
     setCuadrillaData({ nombre: '', lider: '', especialidad: 'Hormigón', miembros: [] });
   };
@@ -2349,7 +2169,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       return;
     }
 
-    const targetId = editingRecordId || Date.now().toString();
+    const targetId = editingRecordId || null;
 
     const newArriendo = {
       id: targetId,
@@ -2365,25 +2185,6 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
       fechaTermino: arriendoData.fechaTermino || '',
       observaciones: arriendoData.observaciones || ''
     };
-
-    const exists = arriendosList.some(item => String(item.id) === String(targetId));
-    let updated = [];
-    if (exists) {
-      updated = arriendosList.map(item => String(item.id) === String(targetId) ? newArriendo : item);
-    } else {
-      updated = [newArriendo, ...arriendosList];
-    }
-
-    setArriendosList(updated);
-
-    try {
-      if (selectedObra?.id) {
-        localStorage.setItem(`arriendos_${selectedObra.id}`, JSON.stringify(updated));
-      }
-      if (selectedObra?.nombre) {
-        localStorage.setItem(`arriendos_${selectedObra.nombre}`, JSON.stringify(updated));
-      }
-    } catch {}
 
     try {
       const payloadSupabase = {
@@ -2402,13 +2203,23 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         empresa: user?.empresa || 'EMIN'
       };
 
+      let savedArriendo;
       if (editingRecordId && !isNaN(parseInt(editingRecordId))) {
-        await supabase.from('arriendos_maquinaria').update(payloadSupabase).eq('id', editingRecordId);
+        const { data, error } = await supabase.from('arriendos_maquinaria').update(payloadSupabase).eq('id', editingRecordId).select().single();
+        if (error) throw error;
+        savedArriendo = data;
       } else {
-        await supabase.from('arriendos_maquinaria').insert([payloadSupabase]);
+        const { data, error } = await supabase.from('arriendos_maquinaria').insert([payloadSupabase]).select().single();
+        if (error) throw error;
+        savedArriendo = data;
       }
+      const normalized = { ...newArriendo, ...savedArriendo, id: savedArriendo.id };
+      setArriendosList(prev => editingRecordId
+        ? prev.map(item => String(item.id) === String(editingRecordId) ? normalized : item)
+        : [normalized, ...prev]);
     } catch(err) {
-      console.warn('Sync warning:', err);
+      setErrorMsg(`No fue posible guardar el arriendo: ${err.message}`);
+      return;
     }
 
     setShowArriendoModal(false);
@@ -2418,60 +2229,19 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
 
   // Cargar Cuadrillas y Arriendos desde localStorage cuando cambia la obra
   useEffect(() => {
-    if (selectedObra?.nombre || selectedObra?.id) {
-      try {
-        const obraKey = selectedObra.id ? `cuadrillas_${selectedObra.id}` : `cuadrillas_${selectedObra.nombre}`;
-        const savedC = localStorage.getItem(obraKey) || localStorage.getItem(`cuadrillas_${selectedObra.nombre}`) || localStorage.getItem(`cuadrillas_${selectedObra.id}`);
-        
-        if (savedC && JSON.parse(savedC).length > 0) {
-          setCuadrillasList(JSON.parse(savedC));
-        } else if (personalAsignadoList && personalAsignadoList.length > 0) {
-          // Filtrar staff administrativo/directivo
-          const isStaff = (p) => {
-            const cargo = (p.cargo || p.funcion || '').toLowerCase();
-            return cargo.includes('administrad') || cargo.includes('jef') || cargo.includes('prevencion') || cargo.includes('oficina') || cargo.includes('rrhh') || cargo.includes('director');
-          };
-          
-          const operarios = personalAsignadoList.filter(p => !isStaff(p));
-          if (operarios.length > 0) {
-            const capatazObj = operarios.find(p => p.cargo?.toLowerCase().includes('capataz')) || operarios[0];
-            const pavimentadorObj = operarios.find(p => p.cargo?.toLowerCase().includes('instalad') || p.cargo?.toLowerCase().includes('paviment')) || operarios[1] || operarios[0];
-            const riegoObj = operarios.find(p => p.cargo?.toLowerCase().includes('riego') || p.cargo?.toLowerCase().includes('técnic')) || operarios[2] || operarios[0];
-
-            const autoCuadrillas = [
-              {
-                id: 101,
-                nombre: 'Cuadrilla 1: Movimiento de Tierras & Maquinaria',
-                lider: capatazObj?.nombre || 'Claudio Bravo Soto',
-                especialidad: 'Movimiento de Tierras & Mov. Maquinaria',
-                miembros: operarios.filter(p => p.cargo?.toLowerCase().includes('operad') || p.cargo?.toLowerCase().includes('topóg') || p.cargo?.toLowerCase().includes('capataz')).map(p => p.nombre)
-              },
-              {
-                id: 102,
-                nombre: 'Cuadrilla 2: Obras Civiles & Pavimentos',
-                lider: pavimentadorObj?.nombre || 'Gabriel Oyarzún',
-                especialidad: 'Pavimentos, Adoquines & Hormigón',
-                miembros: operarios.filter(p => p.cargo?.toLowerCase().includes('instalad') || p.cargo?.toLowerCase().includes('concret') || p.cargo?.toLowerCase().includes('paviment')).map(p => p.nombre)
-              },
-              {
-                id: 103,
-                nombre: 'Cuadrilla 3: Riego Automatizado & Paisajismo',
-                lider: riegoObj?.nombre || 'Mauricio Sanhueza',
-                especialidad: 'Red de Riego & Áreas Verdes',
-                miembros: operarios.filter(p => p.cargo?.toLowerCase().includes('riego') || p.cargo?.toLowerCase().includes('jornal')).map(p => p.nombre)
-              }
-            ];
-            setCuadrillasList(autoCuadrillas);
-            try { localStorage.setItem(obraKey, JSON.stringify(autoCuadrillas)); } catch {}
-          }
-        }
-
-        const savedA = localStorage.getItem(`arriendos_${selectedObra.id}`) || localStorage.getItem(`arriendos_${selectedObra.nombre}`);
-        if (savedA) setArriendosList(JSON.parse(savedA));
-        else setArriendosList([]);
-      } catch {}
-    }
-  }, [selectedObra, personalAsignadoList]);
+    if (!selectedObra?.nombre) return;
+    let active = true;
+    supabase.from('obra_cuadrillas').select('*')
+      .eq('empresa', user?.empresa || 'Obraxis')
+      .eq('obra_nombre', selectedObra.nombre)
+      .order('created_at')
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) setErrorMsg(`No fue posible cargar las cuadrillas: ${error.message}`);
+        else setCuadrillasList(data || []);
+      });
+    return () => { active = false; };
+  }, [selectedObra, user?.empresa]);
 
   // Enviar Uso Maquinaria
   const submitMaquinaria = async (e) => {
@@ -4204,11 +3974,9 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             onChange={(e) => {
                               const newVal = e.target.value;
                               setFechaInicioReal(newVal);
-                              const nameKey = selectedObra?.nombre || 'default';
-                              localStorage.setItem('obraxis_fecha_inicio_real_' + nameKey, newVal);
-                              localStorage.setItem('obraxis_global_fecha_inicio_real', newVal);
                               setSelectedObra(prev => prev ? { ...prev, fecha_inicio_real: newVal, fecha_inicio: newVal } : prev);
                             }}
+                            onBlur={() => persistObraDates().catch(error => setErrorMsg(`No fue posible guardar las fechas: ${error.message}`))}
                             className="bg-white text-slate-900 font-mono font-bold text-xs outline-none"
                           />
                         </div>
@@ -4346,11 +4114,9 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                             onChange={(e) => {
                               const newVal = e.target.value;
                               setFechaTerminoEstimada(newVal);
-                              const nameKey = selectedObra?.nombre || 'default';
-                              localStorage.setItem('obraxis_fecha_termino_est_' + nameKey, newVal);
-                              localStorage.setItem('obraxis_global_fecha_termino_est', newVal);
-                              setSelectedObra(prev => prev ? { ...prev, fecha_termino: newVal } : prev);
+                              setSelectedObra(prev => prev ? { ...prev, fecha_termino_estimada: newVal } : prev);
                             }}
+                            onBlur={() => persistObraDates().catch(error => setErrorMsg(`No fue posible guardar las fechas: ${error.message}`))}
                             className="bg-white text-slate-900 font-mono font-bold text-xs outline-none"
                           />
                         </div>
@@ -7130,12 +6896,10 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                 </td>
                                 <td className="p-2.5 text-center">
                                   <button
-                                    onClick={() => {
-                                      setLiquidacionesList(prev => {
-                                        const updated = prev.filter((_, i) => i !== idx);
-                                        localStorage.setItem(`obraxis_liquidaciones_${selectedObra?.nombre}`, JSON.stringify(updated));
-                                        return updated;
-                                      });
+                                    onClick={async () => {
+                                      const { error } = await supabase.from('obra_liquidaciones').delete().eq('id', liq.id);
+                                      if (error) return setErrorMsg(`No fue posible eliminar la liquidación: ${error.message}`);
+                                      setLiquidacionesList(prev => prev.filter((_, i) => i !== idx));
                                     }}
                                     className="p-1 text-slate-500 hover:text-red-700 cursor-pointer"
                                     title="Eliminar Liquidación"
@@ -7484,12 +7248,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                                                             onClick={() => {
                                                               if (confirm(`¿Eliminar el gasto "${item.nombre_item || 'Gasto'}"?`)) {
                                                                 setProyeccionesList(prev => {
-                                                                  const updated = prev.filter(x => x.id !== item.id);
-                                                                  try {
-                                                                    const key = `obraxis_proyecciones_obras_${selectedObra?.nombre}`;
-                                                                    localStorage.setItem(key, JSON.stringify(updated));
-                                                                  } catch {}
-                                                                  return updated;
+                                                                  return prev.filter(x => x.id !== item.id);
                                                                 });
                                                               }
                                                             }}
@@ -9653,6 +9412,8 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                     obra_nombre: selectedObra?.nombre || 'Obra Principal',
                     partida: partidaFormData.partida.trim(),
                     unidad: partidaFormData.unidad || 'UND',
+                    orden: editingPartida?.orden ?? partidasList.length,
+                    es_titulo: Boolean(partidaFormData.es_titulo),
                     cantidad_presupuestada: cantVal,
                     costo_por_dia: puVal,
                     rendimiento_meta: rendVal
@@ -9697,21 +9458,6 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                         return p;
                       });
 
-                      if (selectedObra?.nombre) {
-                        try {
-                          const savedOrderStr = localStorage.getItem(`obraxis_obra_partidas_order_${selectedObra.nombre}`);
-                          let savedNames = savedOrderStr ? JSON.parse(savedOrderStr) : [];
-                          const idx = savedNames.indexOf(oldPartidaName);
-                          if (idx !== -1) {
-                            savedNames[idx] = newPartidaName;
-                          } else {
-                            savedNames = updated.map(p => p.partida);
-                          }
-                          localStorage.setItem(`obraxis_obra_partidas_order_${selectedObra.nombre}`, JSON.stringify(savedNames));
-                          localStorage.setItem(`partidas_${selectedObra.nombre}`, JSON.stringify(updated));
-                          if (selectedObra.id) localStorage.setItem(`partidas_${selectedObra.id}`, JSON.stringify(updated));
-                        } catch {}
-                      }
                       return updated;
                     });
 
@@ -9736,11 +9482,6 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                           });
                           return { ...c, imputaciones: newImps };
                         });
-                        if (selectedObra?.nombre) {
-                          try {
-                            localStorage.setItem(`obraxis_costos_${selectedObra.nombre}`, JSON.stringify(updatedCostos));
-                          } catch {}
-                        }
                         return updatedCostos;
                       });
                     }
@@ -9755,15 +9496,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                       if (insData) savedPart = { ...insData, cantidad: cantVal, pu: puVal };
                     }
                     setPartidasList(prev => {
-                      const updated = (dbPayload.unidad === 'TITULO' || partidaFormData.es_titulo) ? [savedPart, ...prev] : [...prev, savedPart];
-                      if (selectedObra?.nombre) {
-                        try {
-                          const orderNames = updated.map(p => p.partida);
-                          localStorage.setItem(`obraxis_obra_partidas_order_${selectedObra.nombre}`, JSON.stringify(orderNames));
-                          localStorage.setItem(`partidas_${selectedObra.nombre}`, JSON.stringify(updated));
-                          if (selectedObra.id) localStorage.setItem(`partidas_${selectedObra.id}`, JSON.stringify(updated));
-                        } catch {}
-                      }
+                      const updated = [...prev, savedPart];
                       return updated;
                     });
                   }
@@ -9903,10 +9636,13 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
             </div>
 
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
-                localStorage.setItem('obraxis_fecha_inicio_real_' + (selectedObra?.nombre || ''), fechaInicioReal);
-                localStorage.setItem('obraxis_fecha_termino_est_' + (selectedObra?.nombre || ''), fechaTerminoEstimada);
+                try {
+                  await persistObraDates();
+                } catch (error) {
+                  return setErrorMsg(`No fue posible guardar las fechas: ${error.message}`);
+                }
                 setShowFechasObraModal(false);
                 alert('Fechas de Inicio Real y Hito: Fecha de Término de Obra guardadas con éxito.');
               }}
@@ -10421,13 +10157,21 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
             </div>
 
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
-                setLiquidacionesList(prev => {
-                  const updated = [...prev, liquidacionFormData];
-                  localStorage.setItem(`obraxis_liquidaciones_${selectedObra?.nombre}`, JSON.stringify(updated));
-                  return updated;
-                });
+                const payload = {
+                  empresa: user?.empresa || 'Obraxis',
+                  obra_id: selectedObra?.id || null,
+                  obra_nombre: selectedObra?.nombre || '',
+                  trabajador: liquidacionFormData.trabajador,
+                  periodo: liquidacionFormData.periodo,
+                  num_folio: liquidacionFormData.num_folio || null,
+                  monto_real: parseFloat(liquidacionFormData.monto_real) || 0,
+                  partida: liquidacionFormData.partida || null
+                };
+                const { data, error } = await supabase.from('obra_liquidaciones').insert(payload).select().single();
+                if (error) return setErrorMsg(`No fue posible guardar la liquidación: ${error.message}`);
+                setLiquidacionesList(prev => [...prev, data]);
                 setShowLiquidacionModal(false);
               }}
               className="space-y-4 text-xs"
@@ -10528,12 +10272,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   const itemId = proyeccionFormData.id || ('proj-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6));
                   const newItem = { ...proyeccionFormData, id: itemId };
                   const exists = prev.some(x => x.id === itemId);
-                  const updated = exists ? prev.map(x => x.id === itemId ? newItem : x) : [...prev, newItem];
-                  try {
-                    const key = `obraxis_proyecciones_obras_${selectedObra?.nombre}`;
-                    localStorage.setItem(key, JSON.stringify(updated));
-                  } catch {}
-                  return updated;
+                  return exists ? prev.map(x => x.id === itemId ? newItem : x) : [...prev, newItem];
                 });
                 setShowProyeccionModal(false);
               }}
@@ -10728,7 +10467,7 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                 if (!costoFormData.nombre.trim() || !costoFormData.monto) return;
                 
                 const newCosto = {
-                  id: editingCosto ? editingCosto.id : Date.now(),
+                  ...(editingCosto?.id ? { id: editingCosto.id } : {}),
                   nombre: costoFormData.nombre.trim(),
                   tipo_costo: costoFormData.tipo_costo,
                   asociar_factura: costoFormData.asociar_factura,
@@ -10737,30 +10476,20 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
                   imputaciones: costoFormData.imputaciones || []
                 };
 
-                let updatedCostos = [];
-                if (editingCosto) {
-                  updatedCostos = costosList.map(c => c.id === editingCosto.id ? newCosto : c);
-                } else {
-                  updatedCostos = [...costosList, newCosto];
-                }
-
-                setCostosList(updatedCostos);
-
-                try {
-                  const obraKey = selectedObra?.nombre || selectedObra?.id || 'default';
-                  localStorage.setItem(`obraxis_costos_${obraKey}`, JSON.stringify(updatedCostos));
-                  if (selectedObra?.id) localStorage.setItem(`obraxis_costos_${selectedObra.id}`, JSON.stringify(updatedCostos));
-                  if (selectedObra?.nombre) localStorage.setItem(`obraxis_costos_${selectedObra.nombre}`, JSON.stringify(updatedCostos));
-                } catch {}
-
                 try {
                   const payload = {
                     ...newCosto,
+                    empresa: user?.empresa || 'Obraxis',
                     obra_nombre: selectedObra?.nombre || ''
                   };
-                  await supabase.from('costos_reales_obra').upsert(payload);
+                  const { data, error } = await supabase.from('costos_reales_obra').upsert(payload).select().single();
+                  if (error) throw error;
+                  setCostosList(prev => editingCosto
+                    ? prev.map(c => c.id === editingCosto.id ? data : c)
+                    : [...prev, data]);
                 } catch (err) {
-                  console.warn('Sync warning on costos_reales_obra:', err);
+                  setErrorMsg(`No fue posible guardar el costo: ${err.message}`);
+                  return;
                 }
 
                 setShowCostoModal(false);

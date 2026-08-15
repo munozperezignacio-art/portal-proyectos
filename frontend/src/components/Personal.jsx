@@ -335,26 +335,14 @@ function Personal({ user, onBack }) {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // 1. Cargar personal y fusionar con ficha extendida local en caso de columnas faltantes
+      // 1. Supabase es la fuente única de la ficha del trabajador.
       const { data: dataPers, error: errPers } = await supabase
         .from('maestro_personal')
         .select('*')
         .order('nombre', { ascending: true });
       if (errPers) throw errPers;
 
-      const mergedPersonal = (dataPers || []).map(w => {
-        const key = `worker_extended_${w.id || w.rut || w.nombre}`;
-        const local = localStorage.getItem(key);
-        if (local) {
-          try {
-            const ext = JSON.parse(local);
-            return { ...ext, ...w, ...ext };
-          } catch {}
-        }
-        return w;
-      });
-
-      setPersonal(mergedPersonal);
+      setPersonal(dataPers || []);
 
       // 2. Cargar obras
       const [{ data: dataObras, error: errObras }, { data: dataCentros, error: errCentros }] = await Promise.all([
@@ -524,16 +512,7 @@ function Personal({ user, onBack }) {
         .from('maestro_personal')
         .update(payload)
         .eq('id', assignModalData.workerId);
-      if (error) {
-        console.warn("Columna fecha_asig no disponible directamente en DB, actualizando obra_nombre:", error.message);
-        await supabase.from('maestro_personal').update({ obra_nombre: assignModalData.obraNombre }).eq('id', assignModalData.workerId);
-      }
-      try {
-        const localKey = 'obraxis_worker_details_' + assignModalData.workerId;
-        const existing = localStorage.getItem(localKey);
-        const parsed = existing ? JSON.parse(existing) : {};
-        localStorage.setItem(localKey, JSON.stringify({ ...parsed, ...payload }));
-      } catch {}
+      if (error) throw error;
 
       setPersonal(prev => prev.map(p => p.id === assignModalData.workerId ? { ...p, ...payload } : p));
       setShowAssignObraModal(false);
@@ -656,41 +635,17 @@ function Personal({ user, onBack }) {
       empresa: user?.empresa || 'Obraxis'
     };
 
-    const basePayload = {
-      nombre: fullDataToSave.nombre,
-      rut: fullDataToSave.rut,
-      cargo: fullDataToSave.cargo,
-      obra_nombre: fullDataToSave.obra_nombre,
-      empresa: fullDataToSave.empresa,
-      colacion: fullDataToSave.colacion,
-      movilizacion: fullDataToSave.movilizacion,
-      inicio: fullDataToSave.fecha_inicio_contrato,
-      termino: fullDataToSave.fecha_vencimiento_contrato
-    };
-
     try {
       let savedResult = null;
       if (editingWorker) {
         const { data: uData, error: uErr } = await supabase.from('maestro_personal').update(fullDataToSave).eq('id', editingWorker.id).select();
-        if (uErr) {
-          console.warn("Columna no encontrada en Supabase, guardando base payload:", uErr.message);
-          const { data: uBaseData, error: uBaseErr } = await supabase.from('maestro_personal').update(basePayload).eq('id', editingWorker.id).select();
-          if (uBaseErr) throw uBaseErr;
-          savedResult = uBaseData ? uBaseData[0] : { id: editingWorker.id, ...fullDataToSave };
-        } else {
-          savedResult = uData ? uData[0] : { id: editingWorker.id, ...fullDataToSave };
-        }
+        if (uErr) throw uErr;
+        savedResult = uData ? uData[0] : { id: editingWorker.id, ...fullDataToSave };
         setSuccessMsg('Ficha de trabajador actualizada correctamente.');
       } else {
         const { data: iData, error: iErr } = await supabase.from('maestro_personal').insert([fullDataToSave]).select();
-        if (iErr) {
-          console.warn("Columna no encontrada en Supabase, insertando base payload:", iErr.message);
-          const { data: iBaseData, error: iBaseErr } = await supabase.from('maestro_personal').insert([basePayload]).select();
-          if (iBaseErr) throw iBaseErr;
-          savedResult = iBaseData ? iBaseData[0] : { ...fullDataToSave };
-        } else {
-          savedResult = iData ? iData[0] : { ...fullDataToSave };
-        }
+        if (iErr) throw iErr;
+        savedResult = iData ? iData[0] : { ...fullDataToSave };
         setSuccessMsg('Trabajador registrado en la Ficha Empresa con éxito.');
       }
 
@@ -703,12 +658,6 @@ function Personal({ user, onBack }) {
         centroGestionId: fullDataToSave.centro_gestion_id,
         fechaInicio: fullDataToSave.fecha_asig
       });
-
-      // Guardar perfil extendido en localStorage para persistencia inmediata sin errores
-      const keyId = savedResult?.id || savedResult?.rut || savedResult?.nombre;
-      if (keyId) {
-        localStorage.setItem(`worker_extended_${keyId}`, JSON.stringify({ ...savedResult, ...fullDataToSave }));
-      }
 
       fetchData();
       setTimeout(() => setModalOpen(false), 1200);

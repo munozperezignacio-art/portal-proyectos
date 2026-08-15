@@ -271,9 +271,6 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
       const updated = [...prev];
       const [movedItem] = updated.splice(fromIdx, 1);
       updated.splice(toIdx, 0, movedItem);
-      if (selectedProyectoId) {
-        try { localStorage.setItem(`obraxis_presupuesto_items_${selectedProyectoId}`, JSON.stringify(updated)); } catch {}
-      }
       return updated;
     });
   };
@@ -701,49 +698,14 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
       const { data, error } = await supabase
         .from('presupuestos_items')
         .select('*')
-        .eq('presupuesto_id', projId);
+        .eq('presupuesto_id', projId)
+        .order('orden', { ascending: true })
+        .order('id', { ascending: true });
       if (error) throw error;
-      
-      const localKey = `obraxis_presupuesto_items_${projId}`;
-      const localStr = localStorage.getItem(localKey);
-      const localItems = localStr ? JSON.parse(localStr) : [];
-
-      let combined = [...(data || [])];
-      
-      // Fusionar cualquier partida local no sincronizada aún
-      localItems.forEach(loc => {
-        const exists = combined.some(rem => (rem.id && loc.id && rem.id.toString() === loc.id.toString()) || (rem.codigo && loc.codigo && rem.codigo === loc.codigo && rem.partida === loc.partida));
-        if (!exists) combined.push(loc);
-      });
-
-      // Preservar el orden exacto de filas definido por el usuario
-      let sorted = [...combined];
-      try {
-        const savedOrderStr = localStorage.getItem(`obraxis_presupuesto_order_${projId}`);
-        if (savedOrderStr) {
-          const savedIdsOrNames = JSON.parse(savedOrderStr);
-          sorted.sort((a, b) => {
-            const idA = (a.id || a.codigo || a.partida || '').toString();
-            const idB = (b.id || b.codigo || b.partida || '').toString();
-            const idxA = savedIdsOrNames.indexOf(idA);
-            const idxB = savedIdsOrNames.indexOf(idB);
-            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-            if (idxA !== -1) return -1;
-            if (idxB !== -1) return 1;
-            return 0;
-          });
-        }
-      } catch {}
-
-      setItemsPresupuesto(sorted);
-      try { localStorage.setItem(localKey, JSON.stringify(sorted)); } catch {}
+      setItemsPresupuesto(data || []);
     } catch (err) {
       console.error('Error cargando ítems de presupuesto:', err.message);
-      const localKey = `obraxis_presupuesto_items_${projId}`;
-      const localStr = localStorage.getItem(localKey);
-      if (localStr) {
-        try { setItemsPresupuesto(JSON.parse(localStr)); } catch {}
-      }
+      setItemsPresupuesto([]);
     } finally {
       setBudgetLoading(false);
     }
@@ -1036,9 +998,6 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
     };
     const updatedList = [newRow, ...itemsPresupuesto];
     setItemsPresupuesto(updatedList);
-    if (selectedProyectoId) {
-      try { localStorage.setItem(`obraxis_presupuesto_items_${selectedProyectoId}`, JSON.stringify(updatedList)); localStorage.setItem(`obraxis_presupuesto_order_${selectedProyectoId}`, JSON.stringify(updatedList.map(x => (x.id || x.codigo || x.partida || '').toString()))); } catch {}
-    }
   };
 
   const handleAddBudgetRow = () => {
@@ -1080,9 +1039,6 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
     };
     const updatedList = [...itemsPresupuesto, newRow];
     setItemsPresupuesto(updatedList);
-    if (selectedProyectoId) {
-      try { localStorage.setItem(`obraxis_presupuesto_items_${selectedProyectoId}`, JSON.stringify(updatedList)); } catch {}
-    }
   };
 
   const handleUpdateBudgetField = (id, field, value) => {
@@ -1093,9 +1049,6 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
         }
         return item;
       });
-      if (selectedProyectoId) {
-        try { localStorage.setItem(`obraxis_presupuesto_items_${selectedProyectoId}`, JSON.stringify(updated)); } catch {}
-      }
       return updated;
     });
   };
@@ -1103,9 +1056,6 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
   const handleDeleteBudgetRow = (id) => {
     setItemsPresupuesto(prev => {
       const updated = prev.filter(item => item.id !== id);
-      if (selectedProyectoId) {
-        try { localStorage.setItem(`obraxis_presupuesto_items_${selectedProyectoId}`, JSON.stringify(updated)); } catch {}
-      }
       return updated;
     });
   };
@@ -1118,15 +1068,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
     setSuccessMsg('');
 
     try {
-      // 1. Guardado síncrono e inmediato en memoria local
-      const localKey = `obraxis_presupuesto_items_${selectedProyectoId}`;
-      try { 
-        localStorage.setItem(localKey, JSON.stringify(itemsPresupuesto));
-        const orderIds = itemsPresupuesto.map(x => (x.id || x.codigo || x.partida || '').toString());
-        localStorage.setItem(`obraxis_presupuesto_order_${selectedProyectoId}`, JSON.stringify(orderIds));
-      } catch {}
-
-      const cleanDbPayload = (p) => ({
+      const cleanDbPayload = (p, orden) => ({
         presupuesto_id: parseInt(selectedProyectoId, 10) || selectedProyectoId,
         codigo: p.codigo || '',
         partida: p.partida || p.descripcion || p.nombre || 'Partida Presupuestada',
@@ -1142,14 +1084,22 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
         precio_combustible: parseFloat(p.precio_combustible) || 0,
         leyes_sociales_pct: parseFloat(p.leyes_sociales_pct) || 0,
         herramientas_menores_pct: parseFloat(p.herramientas_menores_pct) || 0,
-        imponderables_pct: parseFloat(p.imponderables_pct) || 0
+        imponderables_pct: parseFloat(p.imponderables_pct) || 0,
+        tiempo_estimado: parseFloat(p.tiempo_estimado) || 0,
+        costo_materiales: parseFloat(p.costo_materiales) || 0,
+        costo_mano_obra: parseFloat(p.costo_mano_obra) || 0,
+        costo_maquinaria: parseFloat(p.costo_maquinaria) || 0,
+        costo_herramientas: parseFloat(p.costo_herramientas) || 0,
+        costo_otros: parseFloat(p.costo_otros) || 0,
+        orden
       });
 
       const toInsert = itemsPresupuesto
         .filter(p => !p.id || p.id.toString().startsWith('temp-'))
-        .map(cleanDbPayload);
+        .map(p => cleanDbPayload(p, itemsPresupuesto.indexOf(p)));
 
       const toUpdate = itemsPresupuesto
+        .map((p, orden) => ({ ...p, orden }))
         .filter(p => p.id && !p.id.toString().startsWith('temp-'));
 
       const { data: dbCurrent, error: dbErr } = await supabase
@@ -1157,30 +1107,29 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
         .select('id')
         .eq('presupuesto_id', selectedProyectoId);
 
-      if (!dbErr && dbCurrent) {
+      if (dbErr) throw dbErr;
+      if (dbCurrent) {
         const dbIds = dbCurrent.map(x => x.id.toString());
         const keepIds = toUpdate.map(x => x.id.toString());
         const toDeleteIds = dbIds.filter(id => !keepIds.includes(id));
 
         if (toDeleteIds.length > 0) {
-          try {
-            await supabase
-              .from('presupuestos_items')
-              .delete()
-              .in('id', toDeleteIds);
-          } catch {}
+          const { error: deleteError } = await supabase
+            .from('presupuestos_items')
+            .delete()
+            .in('id', toDeleteIds);
+          if (deleteError) throw deleteError;
         }
       }
 
       for (const item of toUpdate) {
-        try {
-          const payload = cleanDbPayload(item);
-          delete payload.presupuesto_id;
-          await supabase
-            .from('presupuestos_items')
-            .update(payload)
-            .eq('id', item.id);
-        } catch {}
+        const payload = cleanDbPayload(item, item.orden);
+        delete payload.presupuesto_id;
+        const { error: updateError } = await supabase
+          .from('presupuestos_items')
+          .update(payload)
+          .eq('id', item.id);
+        if (updateError) throw updateError;
       }
 
       if (toInsert.length > 0) {

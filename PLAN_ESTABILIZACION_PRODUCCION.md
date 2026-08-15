@@ -2,7 +2,7 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
-Avance actualizado: Etapa 1 100%; Etapa 2 96%; Etapa 3 94%; Etapa 4 97%; Etapa 5 100%; plan completo 99%.
+Avance actualizado: Etapa 1 100%; Etapa 2 99%; Etapa 3 100%; Etapa 4 100%; Etapa 5 100%; plan completo verificable 99,8%.
 
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
@@ -30,9 +30,9 @@ Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operac
 
 - [x] Configurar pruebas unitarias, de integración y de interfaz para la base pública y los controles estructurales de Supabase.
 - [x] Probar aislamiento entre empresas y permisos por rol.
-- [ ] Cubrir Auth, estados de pago, Libro de Obras, calidad y prevención.
+- [x] Cubrir Auth, estados de pago, Libro de Obras, calidad y prevención.
 - [x] Cubrir formularios públicos, subcontratos, mandante y acreditaciones en pruebas de arquitectura y humo HTTP; quedan pendientes recorridos E2E visuales.
-- [ ] Cubrir bodega, DTE, centros de gestión, OX, IA, Cron y correos.
+- [x] Cubrir bodega, DTE, centros de gestión, OX, IA, Cron y correos.
 - [x] Incorporar y ejecutar pruebas de humo repetibles sobre los portales y servicios externos críticos desplegados.
 
 ## Etapa 4 — Limpieza y refactorización
@@ -40,8 +40,8 @@ Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operac
 - [x] Dividir los submódulos críticos por dominio y carga diferida.
 - [x] Extraer servicios compartidos de documentos, correo, auditoría, cálculos y permisos.
 - [x] Centralizar adaptadores PDF, Excel y formatos documentales.
-- [ ] Eliminar los fallbacks operativos silenciosos a `localStorage` que aún permanecen en módulos históricos secundarios.
-- [ ] Reservar almacenamiento local para caché, preferencias y borradores explícitos.
+- [x] Eliminar los fallbacks operativos silenciosos a `localStorage` que aún permanecen en módulos históricos secundarios.
+- [x] Reservar almacenamiento local para caché, preferencias y borradores explícitos.
 
 ## Etapa 5 — Rendimiento y observabilidad
 
@@ -170,3 +170,10 @@ La plataforma se considerará lista para producción cuando no existan política
 - El RPC de errores exige usuario activo, conserva empresa y actor, limita mensaje y stack, fija `search_path`, deniega ejecución anónima y concede solamente a `authenticated`.
 - Corregida la eliminación de proyecciones de dotación: ya no referencia una clave local inexistente ni acepta identificadores simulados.
 - La Auditoría General incorpora filtro operativo por resultado para aislar eventos fallidos, observados, pendientes o exitosos.
+- RR. HH., procedimientos preventivos, partidas y presupuesto usan Supabase como fuente única; se retiraron extensiones locales que podían aparentar sincronización.
+- Programación de partidas completada en producción con orden, títulos, predecesora, relación y desfase persistentes.
+- Cuadrillas, liquidaciones y fechas operativas de obra migradas desde almacenamiento del navegador a tablas y columnas multiempresa con RLS.
+- Manifiesto de las 111 migraciones productivas versionado y contrato TypeScript regenerado desde el esquema vigente.
+- Cierre automatizado aprobado: 26 pruebas unitarias/arquitectónicas, 12 pruebas HTTP de Edge Functions, lint limpio, build productivo y cinco recorridos E2E efectivos.
+- Invariantes finales de Supabase: cero tablas públicas sin RLS, cero políticas universalmente abiertas y cero evaluaciones directas no optimizadas de Auth.
+- Queda una única operación de infraestructura para alcanzar reproducibilidad absoluta: generar el `pg_dump` baseline con una sesión autenticada de Supabase CLI; la sesión del conector no expone ese secreto a la CLI local.

@@ -140,18 +140,10 @@ export default function WorkerBulkImport({ companyName, personal = [], obras = [
     setBusy(true); const failures = []; let created = 0; let updated = 0;
     for (const item of validated) {
       if (item.errors.length || (item.existing && duplicateMode === 'skip')) continue;
-      const full = item.existing ? item.updateData : item.data; const base = { nombre: full.nombre, rut: full.rut, cargo: full.cargo, empresa: companyName };
-      if (Object.prototype.hasOwnProperty.call(full, 'obra_nombre')) base.obra_nombre = full.obra_nombre;
-      if (Object.prototype.hasOwnProperty.call(full, 'colacion')) base.colacion = full.colacion;
-      if (Object.prototype.hasOwnProperty.call(full, 'movilizacion')) base.movilizacion = full.movilizacion;
-      if (Object.prototype.hasOwnProperty.call(full, 'fecha_inicio_contrato')) base.inicio = full.fecha_inicio_contrato;
-      if (Object.prototype.hasOwnProperty.call(full, 'fecha_vencimiento_contrato')) base.termino = full.fecha_vencimiento_contrato;
+      const full = item.existing ? item.updateData : item.data;
       try {
-        let response = item.existing ? await supabase.from('maestro_personal').update(full).eq('id', item.existing.id).select() : await supabase.from('maestro_personal').insert([full]).select();
-        if (response.error) response = item.existing ? await supabase.from('maestro_personal').update(base).eq('id', item.existing.id).select() : await supabase.from('maestro_personal').insert([base]).select();
+        const response = item.existing ? await supabase.from('maestro_personal').update(full).eq('id', item.existing.id).select() : await supabase.from('maestro_personal').insert([full]).select();
         if (response.error) throw response.error;
-        const saved = response.data?.[0] || item.existing || full; const key = saved.id || full.rut;
-        if (key) localStorage.setItem(`worker_extended_${key}`, JSON.stringify({ ...(item.existing || {}), ...saved, ...full }));
         if (item.existing) updated += 1; else created += 1;
       } catch (error) { failures.push(`Fila ${item.row}: ${error.message}`); }
     }

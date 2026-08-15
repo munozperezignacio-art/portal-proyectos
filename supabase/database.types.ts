@@ -14,6 +14,96 @@ export type Database = {
   }
   public: {
     Tables: {
+      acreditaciones_config_docs: {
+        Row: {
+          company_docs: Json
+          empresa: string
+          equipo_docs: Json
+          id: number
+          supplier_docs: Json
+          supplier_equipo_docs: Json
+          supplier_worker_docs: Json
+          updated_at: string
+          worker_docs: Json
+        }
+        Insert: {
+          company_docs?: Json
+          empresa: string
+          equipo_docs?: Json
+          id?: number
+          supplier_docs?: Json
+          supplier_equipo_docs?: Json
+          supplier_worker_docs?: Json
+          updated_at?: string
+          worker_docs?: Json
+        }
+        Update: {
+          company_docs?: Json
+          empresa?: string
+          equipo_docs?: Json
+          id?: number
+          supplier_docs?: Json
+          supplier_equipo_docs?: Json
+          supplier_worker_docs?: Json
+          updated_at?: string
+          worker_docs?: Json
+        }
+        Relationships: []
+      }
+      acreditaciones_proveedores: {
+        Row: {
+          companyDocs: Json
+          correo_contacto: string | null
+          created_at: string
+          credencial_pass: string
+          empresa: string
+          empresa_nombre: string
+          equiposList: Json
+          estado: string
+          estado_cumplimiento: number
+          id: number
+          obra_asociada: string | null
+          personalList: Json
+          rut_empresa: string
+          token_acceso: string
+          updated_at: string
+        }
+        Insert: {
+          companyDocs?: Json
+          correo_contacto?: string | null
+          created_at?: string
+          credencial_pass: string
+          empresa: string
+          empresa_nombre: string
+          equiposList?: Json
+          estado?: string
+          estado_cumplimiento?: number
+          id?: number
+          obra_asociada?: string | null
+          personalList?: Json
+          rut_empresa: string
+          token_acceso: string
+          updated_at?: string
+        }
+        Update: {
+          companyDocs?: Json
+          correo_contacto?: string | null
+          created_at?: string
+          credencial_pass?: string
+          empresa?: string
+          empresa_nombre?: string
+          equiposList?: Json
+          estado?: string
+          estado_cumplimiento?: number
+          id?: number
+          obra_asociada?: string | null
+          personalList?: Json
+          rut_empresa?: string
+          token_acceso?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       acreditaciones_resumen_obra: {
         Row: {
           categoria: string
@@ -165,6 +255,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      acreditaciones_subcontratos: {
+        Row: {
+          companyDocs: Json
+          correo_contacto: string | null
+          created_at: string
+          credencial_pass: string
+          empresa: string
+          empresa_nombre: string
+          equiposList: Json
+          estado: string
+          estado_cumplimiento: number
+          id: number
+          obra_asociada: string | null
+          personalList: Json
+          rut_empresa: string
+          token_acceso: string
+          updated_at: string
+        }
+        Insert: {
+          companyDocs?: Json
+          correo_contacto?: string | null
+          created_at?: string
+          credencial_pass: string
+          empresa: string
+          empresa_nombre: string
+          equiposList?: Json
+          estado?: string
+          estado_cumplimiento?: number
+          id?: number
+          obra_asociada?: string | null
+          personalList?: Json
+          rut_empresa: string
+          token_acceso: string
+          updated_at?: string
+        }
+        Update: {
+          companyDocs?: Json
+          correo_contacto?: string | null
+          created_at?: string
+          credencial_pass?: string
+          empresa?: string
+          empresa_nombre?: string
+          equiposList?: Json
+          estado?: string
+          estado_cumplimiento?: number
+          id?: number
+          obra_asociada?: string | null
+          personalList?: Json
+          rut_empresa?: string
+          token_acceso?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       asistencia_personal: {
         Row: {
@@ -1367,8 +1511,11 @@ export type Database = {
           comuna: string | null
           configuracion_completa: boolean
           correo_administrador: string | null
+          correos_contextuales: Json
           created_at: string | null
           direccion: string | null
+          email_notificaciones: string | null
+          email_notificaciones_cc: string | null
           email_sender: string | null
           empresa: string
           giro: string | null
@@ -1376,6 +1523,7 @@ export type Database = {
           logo_base64: string | null
           modulos_activos: string | null
           moneda: string
+          notificaciones_automaticas: boolean
           pais: string
           razon_social: string | null
           rut: string | null
@@ -1391,8 +1539,11 @@ export type Database = {
           comuna?: string | null
           configuracion_completa?: boolean
           correo_administrador?: string | null
+          correos_contextuales?: Json
           created_at?: string | null
           direccion?: string | null
+          email_notificaciones?: string | null
+          email_notificaciones_cc?: string | null
           email_sender?: string | null
           empresa: string
           giro?: string | null
@@ -1400,6 +1551,7 @@ export type Database = {
           logo_base64?: string | null
           modulos_activos?: string | null
           moneda?: string
+          notificaciones_automaticas?: boolean
           pais?: string
           razon_social?: string | null
           rut?: string | null
@@ -1415,8 +1567,11 @@ export type Database = {
           comuna?: string | null
           configuracion_completa?: boolean
           correo_administrador?: string | null
+          correos_contextuales?: Json
           created_at?: string | null
           direccion?: string | null
+          email_notificaciones?: string | null
+          email_notificaciones_cc?: string | null
           email_sender?: string | null
           empresa?: string
           giro?: string | null
@@ -1424,6 +1579,7 @@ export type Database = {
           logo_base64?: string | null
           modulos_activos?: string | null
           moneda?: string
+          notificaciones_automaticas?: boolean
           pais?: string
           razon_social?: string | null
           rut?: string | null
@@ -3661,6 +3817,7 @@ export type Database = {
           fecha_inicio_contrato: string | null
           fecha_vencimiento_contrato: string | null
           fono: string | null
+          gratificacion: string | null
           id: number
           inicio: string | null
           movilizacion: number | null
@@ -3690,6 +3847,7 @@ export type Database = {
           fecha_inicio_contrato?: string | null
           fecha_vencimiento_contrato?: string | null
           fono?: string | null
+          gratificacion?: string | null
           id?: number
           inicio?: string | null
           movilizacion?: number | null
@@ -3719,6 +3877,7 @@ export type Database = {
           fecha_inicio_contrato?: string | null
           fecha_vencimiento_contrato?: string | null
           fono?: string | null
+          gratificacion?: string | null
           id?: number
           inicio?: string | null
           movilizacion?: number | null
@@ -4886,6 +5045,100 @@ export type Database = {
         }
         Relationships: []
       }
+      obra_cuadrillas: {
+        Row: {
+          created_at: string
+          empresa: string
+          especialidad: string | null
+          id: number
+          lider: string | null
+          miembros: Json
+          nombre: string
+          obra_id: number | null
+          obra_nombre: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          empresa: string
+          especialidad?: string | null
+          id?: number
+          lider?: string | null
+          miembros?: Json
+          nombre: string
+          obra_id?: number | null
+          obra_nombre: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          empresa?: string
+          especialidad?: string | null
+          id?: number
+          lider?: string | null
+          miembros?: Json
+          nombre?: string
+          obra_id?: number | null
+          obra_nombre?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "obra_cuadrillas_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "obras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      obra_liquidaciones: {
+        Row: {
+          created_at: string
+          empresa: string
+          id: number
+          monto_real: number
+          num_folio: string | null
+          obra_id: number | null
+          obra_nombre: string
+          partida: string | null
+          periodo: string
+          trabajador: string
+        }
+        Insert: {
+          created_at?: string
+          empresa: string
+          id?: number
+          monto_real?: number
+          num_folio?: string | null
+          obra_id?: number | null
+          obra_nombre: string
+          partida?: string | null
+          periodo: string
+          trabajador: string
+        }
+        Update: {
+          created_at?: string
+          empresa?: string
+          id?: number
+          monto_real?: number
+          num_folio?: string | null
+          obra_id?: number | null
+          obra_nombre?: string
+          partida?: string | null
+          periodo?: string
+          trabajador?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "obra_liquidaciones_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "obras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       obra_presupuestos: {
         Row: {
           created_at: string | null
@@ -4927,6 +5180,8 @@ export type Database = {
           created_at: string | null
           empresa: string | null
           estado: string | null
+          fecha_inicio_real: string | null
+          fecha_termino_estimada: string | null
           fecha_termino_real: string | null
           id: number
           imagen_base64: string | null
@@ -4954,6 +5209,8 @@ export type Database = {
           created_at?: string | null
           empresa?: string | null
           estado?: string | null
+          fecha_inicio_real?: string | null
+          fecha_termino_estimada?: string | null
           fecha_termino_real?: string | null
           id?: number
           imagen_base64?: string | null
@@ -4981,6 +5238,8 @@ export type Database = {
           created_at?: string | null
           empresa?: string | null
           estado?: string | null
+          fecha_inicio_real?: string | null
+          fecha_termino_estimada?: string | null
           fecha_termino_real?: string | null
           id?: number
           imagen_base64?: string | null
@@ -5054,14 +5313,19 @@ export type Database = {
           codigo: string | null
           costo_por_dia: number | null
           created_at: string | null
+          desfase_dias: number
           empresa: string
+          es_titulo: boolean
           fecha_inicio: string | null
           fecha_termino: string | null
           id: number
           obra_id: number
           obra_nombre: string | null
+          orden: number
           partida: string
+          predecesora: string | null
           rendimiento_meta: number | null
+          tipo_relacion: string
           unidad: string | null
         }
         Insert: {
@@ -5069,14 +5333,19 @@ export type Database = {
           codigo?: string | null
           costo_por_dia?: number | null
           created_at?: string | null
+          desfase_dias?: number
           empresa: string
+          es_titulo?: boolean
           fecha_inicio?: string | null
           fecha_termino?: string | null
           id?: number
           obra_id: number
           obra_nombre?: string | null
+          orden?: number
           partida: string
+          predecesora?: string | null
           rendimiento_meta?: number | null
+          tipo_relacion?: string
           unidad?: string | null
         }
         Update: {
@@ -5084,14 +5353,19 @@ export type Database = {
           codigo?: string | null
           costo_por_dia?: number | null
           created_at?: string | null
+          desfase_dias?: number
           empresa?: string
+          es_titulo?: boolean
           fecha_inicio?: string | null
           fecha_termino?: string | null
           id?: number
           obra_id?: number
           obra_nombre?: string | null
+          orden?: number
           partida?: string
+          predecesora?: string | null
           rendimiento_meta?: number | null
+          tipo_relacion?: string
           unidad?: string | null
         }
         Relationships: [
@@ -5351,6 +5625,7 @@ export type Database = {
           id: number
           imponderables_pct: number | null
           leyes_sociales_pct: number | null
+          orden: number | null
           partida: string
           precio_combustible: number | null
           presupuesto_id: number | null
@@ -5377,6 +5652,7 @@ export type Database = {
           id?: number
           imponderables_pct?: number | null
           leyes_sociales_pct?: number | null
+          orden?: number | null
           partida: string
           precio_combustible?: number | null
           presupuesto_id?: number | null
@@ -5403,6 +5679,7 @@ export type Database = {
           id?: number
           imponderables_pct?: number | null
           leyes_sociales_pct?: number | null
+          orden?: number | null
           partida?: string
           precio_combustible?: number | null
           presupuesto_id?: number | null
@@ -5863,6 +6140,54 @@ export type Database = {
             referencedColumns: ["id", "empresa"]
           },
         ]
+      }
+      prevencion_procedimientos: {
+        Row: {
+          archivo_base64: string | null
+          archivo_nombre: string | null
+          archivo_tamano: string | null
+          area: string | null
+          codigo: string
+          created_at: string
+          empresa: string
+          fecha: string
+          id: number
+          nombre: string
+          obra_nombre: string | null
+          updated_at: string
+          version: string
+        }
+        Insert: {
+          archivo_base64?: string | null
+          archivo_nombre?: string | null
+          archivo_tamano?: string | null
+          area?: string | null
+          codigo: string
+          created_at?: string
+          empresa: string
+          fecha?: string
+          id?: number
+          nombre: string
+          obra_nombre?: string | null
+          updated_at?: string
+          version?: string
+        }
+        Update: {
+          archivo_base64?: string | null
+          archivo_nombre?: string | null
+          archivo_tamano?: string | null
+          area?: string | null
+          codigo?: string
+          created_at?: string
+          empresa?: string
+          fecha?: string
+          id?: number
+          nombre?: string
+          obra_nombre?: string | null
+          updated_at?: string
+          version?: string
+        }
+        Relationships: []
       }
       prevencion_respuestas: {
         Row: {

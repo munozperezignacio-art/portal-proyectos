@@ -80,7 +80,23 @@ export default function Prevencion({ user, onBack, companyBranding }) {
     archivo_tamano: ''
   });
   useEffect(() => {
-    try { setProcedimientosList(JSON.parse(localStorage.getItem(`obraxis_procedimientos_${user?.empresa || 'default'}`) || '[]')); } catch { setProcedimientosList([]); }
+    let active = true;
+    const loadProcedimientos = async () => {
+      const { data, error } = await supabase
+        .from('prevencion_procedimientos')
+        .select('*')
+        .eq('empresa', user?.empresa || 'Obraxis')
+        .order('codigo');
+      if (!active) return;
+      if (error) {
+        console.error('No fue posible cargar los procedimientos:', error);
+        setProcedimientosList([]);
+        return;
+      }
+      setProcedimientosList(data || []);
+    };
+    loadProcedimientos();
+    return () => { active = false; };
   }, [user?.empresa]);
 
   const [obrasList, setObrasList] = useState([]);
@@ -4289,8 +4305,8 @@ export default function Prevencion({ user, onBack, companyBranding }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-150 text-[11px]">
-                    {procedimientosList.map((pts, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50">
+                    {procedimientosList.map((pts) => (
+                      <tr key={pts.id || pts.codigo} className="hover:bg-slate-50">
                         <td className="p-3 font-mono font-bold text-rose-900">{pts.codigo}</td>
                         <td className="p-3 font-bold text-slate-800">{pts.nombre}</td>
                         <td className="p-3 font-semibold text-slate-600">{pts.area}</td>
@@ -4316,7 +4332,12 @@ export default function Prevencion({ user, onBack, companyBranding }) {
                         </td>
                         <td className="p-3 text-center">
                           <button
-                            onClick={() => setProcedimientosList(prev => { const next = prev.filter((_, i) => i !== idx); localStorage.setItem(`obraxis_procedimientos_${user?.empresa || 'default'}`, JSON.stringify(next)); return next; })}
+                            onClick={async () => {
+                              if (!window.confirm(`¿Eliminar el procedimiento ${pts.codigo}?`)) return;
+                              const { error } = await supabase.from('prevencion_procedimientos').delete().eq('id', pts.id);
+                              if (error) return alert(`No fue posible eliminar el procedimiento: ${error.message}`);
+                              setProcedimientosList(prev => prev.filter(item => item.id !== pts.id));
+                            }}
                             className="text-[10px] bg-slate-100 hover:bg-red-50 hover:text-red-700 text-slate-700 font-bold px-2 py-1 rounded cursor-pointer transition"
                           >
                             Eliminar
@@ -4342,15 +4363,17 @@ export default function Prevencion({ user, onBack, companyBranding }) {
             </div>
 
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
                 if (!newPtsForm.nombre.trim()) return;
-                const nextProcedimientos = [...procedimientosList, {
+                const payload = {
                   ...newPtsForm,
-                  fecha: new Date().toLocaleDateString('es-CL')
-                }];
-                setProcedimientosList(nextProcedimientos);
-                localStorage.setItem(`obraxis_procedimientos_${user?.empresa || 'default'}`, JSON.stringify(nextProcedimientos));
+                  empresa: user?.empresa || 'Obraxis',
+                  fecha: new Date().toISOString().slice(0, 10)
+                };
+                const { data, error } = await supabase.from('prevencion_procedimientos').insert(payload).select().single();
+                if (error) return alert(`No fue posible guardar el procedimiento: ${error.message}`);
+                setProcedimientosList(prev => [...prev, data]);
                 setShowPtsModal(false);
                 setNewPtsForm({
                   codigo: 'PTS-OBR-' + String(procedimientosList.length + 2).padStart(3, '0'),

@@ -110,6 +110,39 @@ test('la configuración contextual de correos usa Supabase como única fuente op
   assert.match(source, /notificaciones_automaticas/);
 });
 
+test('RRHH, procedimientos y presupuestos no simulan extensiones operativas locales', () => {
+  const protectedFiles = [
+    join(sourceRoot, 'components', 'Personal.jsx'),
+    join(sourceRoot, 'components', 'WorkerBulkImport.jsx'),
+    join(sourceRoot, 'components', 'Prevencion.jsx'),
+    join(sourceRoot, 'components', 'CalidadObras.jsx'),
+    join(sourceRoot, 'components', 'PresupuestosPlanif.jsx'),
+    join(sourceRoot, 'components', 'Obras.jsx')
+  ];
+  const forbiddenKeys = [
+    'worker_extended_',
+    'obraxis_worker_details_',
+    'obraxis_procedimientos_',
+    'obraxis_presupuesto_items_',
+    'obraxis_presupuesto_order_',
+    'obraxis_formularios_dinamicos',
+    'obraxis_respuestas_formularios',
+    'obraxis_inventario_maquinaria',
+    'obraxis_maquinaria_uso',
+    'obraxis_obra_partidas_order_',
+    'obraxis_costos_',
+    'arriendos_${',
+    'cuadrillas_${',
+    'obraxis_liquidaciones_'
+  ];
+  const findings = [];
+  for (const path of protectedFiles) {
+    const source = readFileSync(path, 'utf8');
+    for (const key of forbiddenKeys) if (source.includes(key)) findings.push(`${relative(sourceRoot, path)}: ${key}`);
+  }
+  assert.deepEqual(findings, []);
+});
+
 test('los errores no controlados se registran mediante el RPC seguro de observabilidad', () => {
   const reporter = readFileSync(join(sourceRoot, 'services', 'clientErrorReporter.js'), 'utf8');
   const main = readFileSync(join(sourceRoot, 'main.jsx'), 'utf8');

@@ -102,9 +102,13 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
     setLoading(true);
     setMessage('');
     try {
-      const { data: obrasData, error: obrasError } = await supabase.from('obras').select('id, nombre, cliente, cliente_email, cliente_telefono, admin_contrato').eq('empresa', empresa).order('nombre');
+      const [{ data: obrasData, error: obrasError }, { data: procedimientosData, error: procedimientosError }] = await Promise.all([
+        supabase.from('obras').select('id, nombre, cliente, cliente_email, cliente_telefono, admin_contrato').eq('empresa', empresa).order('nombre'),
+        supabase.from('prevencion_procedimientos').select('*').eq('empresa', empresa).order('codigo')
+      ]);
       if (obrasError) throw obrasError;
-      try { setProcedimientosEmpresa(JSON.parse(localStorage.getItem(`obraxis_procedimientos_${empresa || 'default'}`) || '[]')); } catch { setProcedimientosEmpresa([]); }
+      if (procedimientosError) throw procedimientosError;
+      setProcedimientosEmpresa(procedimientosData || []);
       const nextObras = obrasData || [];
       setObras(nextObras);
       const target = obraInicial || obraNombre || nextObras[0]?.nombre || '';
