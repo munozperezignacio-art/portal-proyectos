@@ -1,7 +1,7 @@
 # Historial de migraciones de producción
 
-Proyecto: `wegphblwwcfidvdbdtdq`  
-Snapshot verificado: 15 de agosto de 2026  
+Proyecto: `wegphblwwcfidvdbdtdq`
+Snapshot verificado: 15 de agosto de 2026
 Total: 107 migraciones registradas en `supabase_migrations.schema_migrations`.
 
 Este inventario es el contrato de correspondencia entre producción y Git. No se deben renumerar ni marcar artificialmente migraciones históricas. Los archivos `schema_*.sql` previos se conservan como fuentes de la etapa inicial; las migraciones incrementales posteriores viven en `supabase/migrations`.
