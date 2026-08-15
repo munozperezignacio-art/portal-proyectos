@@ -13,12 +13,24 @@ la incorporación de OX y la estabilización multiempresa.
   varios representan estados acumulados y podrían duplicar objetos o datos.
 - La consolidación pendiente debe realizarse mediante un `supabase db pull` o
   un volcado de esquema limpio desde producción, comparado en una base vacía.
+- El proyecto productivo registra las migraciones históricas en
+  `supabase_migrations.schema_migrations`; no se deben renumerar ni marcar como
+  reparadas sin disponer primero de un volcado verificable.
+- La CLI local debe enlazarse expresamente con `supabase link --project-ref
+  wegphblwwcfidvdbdtdq` antes de generar el baseline. El archivo `config.toml`
+  identifica el proyecto para configuración, pero no sustituye ese enlace.
 
 ## Regla operativa
 
 Toda modificación nueva debe tener un único archivo en esta carpeta, aplicarse
 transaccionalmente, verificarse con consultas posteriores y coincidir con el
 registro de `supabase_migrations.schema_migrations`.
+
+Después de cada migración deben ejecutarse `../tests/schema_invariants.sql` y
+`../tests/rls_multiempresa.sql`. La primera impide publicar tablas sin RLS,
+políticas abiertas o claves foráneas sin índice. Las cuatro tablas de intentos
+incluidas en su lista privada no tienen políticas de cliente deliberadamente:
+sólo `service_role` puede operar sobre ellas.
 
 Las Edge Functions que usan autenticación personalizada mediante secretos de
 Vault están declaradas en `../config.toml`; desactivar `verify_jwt` en esos casos

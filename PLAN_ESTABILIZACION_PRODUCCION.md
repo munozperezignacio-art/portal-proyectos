@@ -2,7 +2,7 @@
 
 Estado inicial de la auditoría: 14 de agosto de 2026.
 
-Avance actualizado: Etapa 1 99%; Etapa 2 90%; Etapa 3 79%; Etapa 4 88%; Etapa 5 94%; plan completo 90%.
+Avance actualizado: Etapa 1 99%; Etapa 2 92%; Etapa 3 82%; Etapa 4 88%; Etapa 5 96%; plan completo 92%.
 
 Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operación productiva segura, reproducible, verificable y mantenible, sin eliminar funciones existentes.
 
@@ -28,7 +28,7 @@ Objetivo: llevar Obraxis desde una plataforma funcionalmente amplia a una operac
 
 ## Etapa 3 — Pruebas
 
-- [ ] Configurar pruebas unitarias, de integración y de interfaz (pruebas unitarias y humo HTTP operativos; interfaz automatizada pendiente).
+- [x] Configurar pruebas unitarias, de integración y de interfaz para la base pública y los controles estructurales de Supabase.
 - [x] Probar aislamiento entre empresas y permisos por rol.
 - [ ] Cubrir Auth, estados de pago, Libro de Obras, calidad y prevención.
 - [x] Cubrir formularios públicos, subcontratos, mandante y acreditaciones en pruebas de arquitectura y humo HTTP; quedan pendientes recorridos E2E visuales.
@@ -153,3 +153,7 @@ La plataforma se considerará lista para producción cuando no existan política
 - GitHub Actions incorpora un control obligatorio reproducible con `npm ci`, auditoria, lint, 21 pruebas y build; el flujo Android reutiliza la misma version de Node y ejecuta la calidad antes de compilar el APK.
 - Playwright incorporado con recorridos E2E en escritorio y movil para portada, acceso, formulario comercial y control de desborde responsive; 5 recorridos efectivos aprobados y uno omitido por no corresponder al viewport.
 - Ejecutor E2E local administra Vite y Chromium sin dejar procesos abiertos; GitHub instala el navegador y ejecuta los mismos recorridos antes del build productivo.
+- Auditoría productiva de Supabase ejecutada sobre tablas, políticas, migraciones, Edge Functions y advisors de seguridad/rendimiento.
+- Las 46 claves foráneas públicas sin índice de soporte quedaron cubiertas mediante una migración idempotente; la verificación posterior informa cero pendientes.
+- Agregada una prueba estructural de Supabase que bloquea tablas públicas sin RLS, políticas universalmente abiertas, claves foráneas sin índice y tablas sin política fuera de cuatro bitácoras privadas expresamente permitidas.
+- Documentado el enlace obligatorio de la CLI y la prohibición de renumerar o reparar artificialmente las 99 migraciones históricas de producción antes de generar un baseline verificable.
