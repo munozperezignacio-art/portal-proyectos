@@ -22,7 +22,6 @@ const LibroObrasDigital = React.lazy(() => import('./LibroObrasDigital'));
 const EstadosPagoObra = React.lazy(() => import('./EstadosPagoObra'));
 const SubcontratosObra = React.lazy(() => import('./SubcontratosObra'));
 const FlujoCajaObra = React.lazy(() => import('./FlujoCajaObra'));
-const FloatingOX = React.lazy(() => import('./FloatingOX'));
 const SpecializedAssistanceInbox = React.lazy(() => import('./SpecializedAssistanceInbox'));
 const PredictiveScenarioPanel = React.lazy(() => import('./PredictiveScenarioPanel'));
 
@@ -155,7 +154,7 @@ function ObraGpsMapPicker({ lat, lng, radius, onChange, canEdit }) {
   );
 }
 
-function Obras({ user, onBack, initialObraName, companyBranding }) {
+function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChange, oxDestination, onOXDestinationHandled }) {
   const { permissions: userPermissions } = useUserPermissions(user);
   const canPrevView = can(user, userPermissions, 'obras.prevencion.ver');
   const canPrevCreate = can(user, userPermissions, 'obras.prevencion.crear');
@@ -315,6 +314,24 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
   const [obraActiveSubmodule, setObraActiveSubmodule] = useState(null); // incluye subcontratos
   const [equipoTab, setEquipoTab] = useState('asistencia'); // asistencia | personal | cuadrillas
   const [gestionObraTab, setGestionObraTab] = useState('presupuesto'); // presupuesto | planificacion | costos | flujo_caja
+
+  useEffect(() => {
+    onOXContextChange?.(selectedObra);
+    return () => onOXContextChange?.(null);
+  }, [onOXContextChange, selectedObra]);
+
+  useEffect(() => {
+    if (!oxDestination) return;
+    if (oxDestination === 'calidad') setObraActiveSubmodule('calidad');
+    else if (oxDestination === 'prevencion') setObraActiveSubmodule('prevencion');
+    else if (oxDestination === 'estados_pago') setObraActiveSubmodule('estados_pago');
+    else if (oxDestination === 'maquinaria') setObraActiveSubmodule('maquinaria');
+    else if (oxDestination === 'personal') { setEquipoTab('personal'); setObraActiveSubmodule('equipo'); }
+    else if (oxDestination === 'planificacion') { setGestionObraTab('planificacion'); setObraActiveSubmodule('gestion_obra'); }
+    else if (oxDestination === 'inicio') setObraActiveSubmodule(null);
+    else if (oxDestination.startsWith('estadisticas:')) { setEstadisticasTab(oxDestination.split(':')[1] || 'resumen'); setObraActiveSubmodule('estadisticas'); }
+    onOXDestinationHandled?.();
+  }, [onOXDestinationHandled, oxDestination]);
 
   // Sub-pestañas para Avance, Asistencia, Maquinaria, Bitácora y Prevención
   const [avanceSubTab, setAvanceSubTab] = useState('visor'); // 'visor' | 'registro'
@@ -11119,17 +11136,6 @@ function Obras({ user, onBack, initialObraName, companyBranding }) {
         obraNombre={selectedObra?.nombre}
         user={user}
       />
-
-      <FloatingOX user={user} obra={selectedObra} moduleContext={{ id: 'obras', label: selectedObra?.nombre ? `Obras · ${selectedObra.nombre}` : 'Proyectos y Obras' }} onNavigate={(destination) => {
-        if (destination === 'calidad') setObraActiveSubmodule('calidad');
-        else if (destination === 'prevencion') setObraActiveSubmodule('prevencion');
-        else if (destination === 'estados_pago') setObraActiveSubmodule('estados_pago');
-        else if (destination === 'maquinaria') setObraActiveSubmodule('maquinaria');
-        else if (destination === 'personal') { setEquipoTab('personal'); setObraActiveSubmodule('equipo'); }
-        else if (destination === 'planificacion') { setGestionObraTab('planificacion'); setObraActiveSubmodule('gestion_obra'); }
-        else if (destination === 'inicio') setObraActiveSubmodule(null);
-        else if (destination?.startsWith('estadisticas:')) { setEstadisticasTab(destination.split(':')[1] || 'resumen'); setObraActiveSubmodule('estadisticas'); }
-      }} />
 
     </div>
   );

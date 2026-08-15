@@ -120,6 +120,8 @@ function App() {
   const [, setObras] = useState([]);
   const [, setObrasLoading] = useState(false);
   const [selectedObraName, setSelectedObraName] = useState(null);
+  const [oxObra, setOxObra] = useState(null);
+  const [oxDestination, setOxDestination] = useState(null);
 
   const activeUserContext = useMemo(() => user
     ? (selectedCompanyOverride ? { ...user, empresa: selectedCompanyOverride } : user)
@@ -865,6 +867,9 @@ function App() {
               }} 
               initialObraName={selectedObraName}
               companyBranding={companyBranding}
+              onOXContextChange={setOxObra}
+              oxDestination={oxDestination}
+              onOXDestinationHandled={() => setOxDestination(null)}
             />
           ) : currentModule === 'rrhh' ? (
             <Personal user={activeUserContext} onBack={() => {
@@ -977,19 +982,19 @@ function App() {
           )}
           </React.Suspense>
 
-          {currentModule !== 'obras' && (
-            <FloatingOX
-              user={activeUserContext}
-              moduleContext={{
-                id: currentModule === 'formularios_capacitaciones' ? 'formularios' : currentModule,
-                label: currentModule === 'dashboard' ? 'Inicio' : (allModulesList.find(module => module.id === currentModule)?.title || currentModule),
-              }}
-              onNavigate={(destination) => {
-                const target = destination === 'inicio' ? 'dashboard' : destination;
-                if (allModulesList.some(module => module.id === target) || target === 'dashboard') setCurrentModule(target);
-              }}
-            />
-          )}
+          <FloatingOX
+            user={activeUserContext}
+            obra={currentModule === 'obras' ? oxObra : null}
+            moduleContext={{
+              id: currentModule === 'formularios_capacitaciones' ? 'formularios' : currentModule,
+              label: currentModule === 'dashboard' ? 'Inicio' : (allModulesList.find(module => module.id === currentModule)?.title || currentModule),
+            }}
+            onNavigate={(destination) => {
+              if (currentModule === 'obras') { setOxDestination(destination); return; }
+              const target = destination === 'inicio' ? 'dashboard' : destination;
+              if (allModulesList.some(module => module.id === target) || target === 'dashboard') setCurrentModule(target);
+            }}
+          />
 
         </main>
       </div>

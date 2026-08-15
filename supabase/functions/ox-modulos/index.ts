@@ -6,6 +6,7 @@ const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,
 const norm=(value:unknown)=>String(value||"").trim().toLocaleLowerCase("es-CL");
 const modules:Record<string,{label:string,permission:string,tables:string[]}>= {
  dashboard:{label:"Inicio",permission:"",tables:["obras"]},
+ obras:{label:"Proyectos y Obras",permission:"obras",tables:["obras","partidas_obra","avances_produccion_partidas","estados_pago_obra"]},
  admin:{label:"Panel de Control",permission:"admin",tables:["usuarios","roles"]},
  rrhh:{label:"Recursos Humanos",permission:"rrhh",tables:["maestro_personal","rrhh_asignaciones_personal"]},
  maquinaria:{label:"Maquinaria y Equipos",permission:"maquinaria",tables:["inventario_maquinaria","maquinaria_mantenciones","maquinaria_fallas","maquinaria_uso_diario"]},
@@ -16,6 +17,7 @@ const modules:Record<string,{label:string,permission:string,tables:string[]}>= {
  calidad:{label:"Calidad",permission:"obras",tables:["calidad_pac","calidad_rdi","calidad_no_conformidades","calidad_recepciones_partidas"]},
  presupuestos:{label:"Presupuestos",permission:"presupuestos",tables:["presupuestos_proyectos","presupuestos_items","planificacion_cronogramas"]},
  clientes:{label:"Clientes",permission:"clientes",tables:["clientes_portales","clientes_portal_obras","clientes_portal_eventos"]},
+ mandante:{label:"Gestion del Mandante",permission:"mandante",tables:["mandante_contratos","mandante_entregas","mandante_obligaciones","mandante_acreditaciones"]},
  facturacion:{label:"Facturación",permission:"facturacion",tables:["dte_documentos_operacion","facturacion_centros_gestion"]},
  gastos:{label:"Rendición de Gastos",permission:"gastos",tables:["gastos_rendiciones","gastos_rendicion_items"]}
 };
