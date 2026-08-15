@@ -38,6 +38,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "6e786dfa-f49a-4f1f-be32-b6e431a45082"
+      }
+    },
+    "owner": "obraxis"
   }
 }

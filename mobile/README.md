@@ -28,3 +28,10 @@ npx expo export --platform web
 ```
 
 Para binarios instalables se configurará EAS Build cuando se definan las cuentas de Apple Developer y Google Play.
+
+## Compilaciones
+
+- `npx eas-cli build --platform android --profile preview`: genera una APK instalable para pruebas.
+- `npx eas-cli build --platform android --profile production`: genera el AAB destinado a Google Play.
+
+Las variables públicas de Supabase deben configurarse también en el entorno EAS antes de la primera compilación remota.
