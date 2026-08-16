@@ -4710,6 +4710,7 @@ export type Database = {
           fecha: string
           horas_fuera_servicio: number
           id: number
+          obra_nombre: string | null
           registrado_por: string | null
           responsable: string | null
           severidad: string
@@ -4727,6 +4728,7 @@ export type Database = {
           fecha: string
           horas_fuera_servicio?: number
           id?: number
+          obra_nombre?: string | null
           registrado_por?: string | null
           responsable?: string | null
           severidad?: string
@@ -4744,6 +4746,7 @@ export type Database = {
           fecha?: string
           horas_fuera_servicio?: number
           id?: number
+          obra_nombre?: string | null
           registrado_por?: string | null
           responsable?: string | null
           severidad?: string
@@ -4771,6 +4774,7 @@ export type Database = {
           fecha: string
           horometro: number | null
           id: number
+          obra_nombre: string | null
           proveedor: string | null
           registrado_por: string | null
           responsable: string | null
@@ -4787,6 +4791,7 @@ export type Database = {
           fecha: string
           horometro?: number | null
           id?: number
+          obra_nombre?: string | null
           proveedor?: string | null
           registrado_por?: string | null
           responsable?: string | null
@@ -4803,6 +4808,7 @@ export type Database = {
           fecha?: string
           horometro?: number | null
           id?: number
+          obra_nombre?: string | null
           proveedor?: string | null
           registrado_por?: string | null
           responsable?: string | null
