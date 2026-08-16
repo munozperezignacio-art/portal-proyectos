@@ -1078,7 +1078,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       const { data, error } = await supabase
         .from('prevencion_formularios')
         .select('*')
-        .eq('empresa', user?.empresa || 'EMIN')
+        .eq('empresa', user?.empresa)
         .order('created_at', { ascending: false });
       if (error) throw error;
       forms = data || [];
@@ -2217,7 +2217,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         fecha_inicio: newArriendo.fechaInicio || null,
         fecha_termino: newArriendo.fechaTermino || null,
         observaciones: newArriendo.observaciones || null,
-        empresa: user?.empresa || 'EMIN'
+        empresa: user?.empresa
       };
 
       let savedArriendo;

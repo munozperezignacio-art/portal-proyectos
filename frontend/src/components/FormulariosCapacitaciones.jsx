@@ -95,21 +95,23 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     fetchAvailableCenters();
     fetchRiskMatrices();
   });
-  useEffect(() => { initializeForms(); }, [user?.empresa]);
+  useEffect(() => {
+    if (user?.empresa) initializeForms();
+  }, [user?.empresa]);
 
   const fetchRiskMatrices = async () => {
-    const { data, error } = await supabase.from('prevencion_matrices_riesgo').select('id,nombre,codigo,version,columnas,obra_id').eq('empresa', user?.empresa || 'EMIN').in('estado', ['Borrador', 'Vigente']).order('updated_at', { ascending: false });
+    const { data, error } = await supabase.from('prevencion_matrices_riesgo').select('id,nombre,codigo,version,columnas,obra_id').eq('empresa', user?.empresa).in('estado', ['Borrador', 'Vigente']).order('updated_at', { ascending: false });
     if (!error) setRiskMatrices(data || []);
   };
 
   const fetchAvailableCenters = async () => {
-    const { data, error } = await supabase.from('facturacion_centros_gestion').select('id,codigo,nombre,tipo').eq('empresa', user?.empresa || 'EMIN').eq('activo', true).order('codigo');
+    const { data, error } = await supabase.from('facturacion_centros_gestion').select('id,codigo,nombre,tipo').eq('empresa', user?.empresa).eq('activo', true).order('codigo');
     if (!error) setAvailableCenters(data || []);
   };
 
   const fetchAvailableCargos = async () => {
     try {
-      const { data, error } = await supabase.from('maestro_personal').select('cargo').eq('empresa', user?.empresa || 'EMIN').order('cargo');
+      const { data, error } = await supabase.from('maestro_personal').select('cargo').eq('empresa', user?.empresa).order('cargo');
       if (error) throw error;
       setAvailableCargos([...new Set((data || []).map(person => person.cargo?.trim()).filter(Boolean))]);
     } catch (error) {
@@ -123,7 +125,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       const { data, error } = await supabase
         .from('prevencion_formularios')
         .select('*')
-        .eq('empresa', user?.empresa || 'EMIN')
+        .eq('empresa', user?.empresa)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -142,7 +144,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setRespuestas((data || []).filter(response => !response.prevencion_formularios?.empresa || response.prevencion_formularios.empresa === (user?.empresa || 'EMIN')));
+      setRespuestas((data || []).filter(response => !response.prevencion_formularios?.empresa || response.prevencion_formularios.empresa === user?.empresa));
     } catch (error) {
       setRespuestas([]);
       setErrorMsg(`No fue posible cargar las respuestas: ${error.message}`);
@@ -154,7 +156,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       const { data, error } = await supabase
         .from('prevencion_capacitaciones')
         .select('*')
-        .eq('empresa', user?.empresa || 'EMIN')
+        .eq('empresa', user?.empresa)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -252,7 +254,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     const common = (codigo, modulo, titulo, descripcion, tipo_registro, items) => ({
       titulo, descripcion, categoria: modulo,
       publico_token: `FORM_${Math.random().toString(36).slice(2, 9).toUpperCase()}`,
-      creado_por: user?.email || 'admin@obraxis.cl', empresa: user?.empresa || 'EMIN', created_at: new Date().toISOString(),
+      creado_por: user?.email || 'admin@obraxis.cl', empresa: user?.empresa, created_at: new Date().toISOString(),
       campos: { items: items.map(field => (protectedBaseFields[tipo_registro] || []).includes(field.id) ? { ...field, required: true, systemRequired: true } : field), control_documental: { codigo, revision: '0', fecha_revision: today, tipo_registro } }
     });
     const templates = [
@@ -321,7 +323,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       creado_por: user?.email || 'admin@obraxis.cl',
       correos_notificacion: formEmails.map(email => email.trim()).filter(Boolean).join(','),
       cargos_obligados: formAllowedCargos.join(','),
-      empresa: user?.empresa || 'EMIN',
+      empresa: user?.empresa,
       created_at: new Date().toISOString()
     };
 
@@ -403,7 +405,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       const payload = {
         titulo: form.titulo, descripcion: form.descripcion || '', categoria: form.categoria || form.modulo_asignado || 'general', campos: form.campos,
         publico_token: form.publico_token || form.token_publico || `FORM_${Math.random().toString(36).slice(2, 9).toUpperCase()}`,
-        creado_por: form.creado_por || form.creador_email || user?.email || 'admin@obraxis.cl', cargos_obligados: form.cargos_obligados || '', empresa: form.empresa || user?.empresa || 'EMIN', created_at: form.created_at || new Date().toISOString()
+        creado_por: form.creado_por || form.creador_email || user?.email || 'admin@obraxis.cl', cargos_obligados: form.cargos_obligados || '', empresa: form.empresa || user?.empresa, created_at: form.created_at || new Date().toISOString()
       };
       const { error } = await supabase.from('prevencion_formularios').insert([payload]);
       if (error) throw error;

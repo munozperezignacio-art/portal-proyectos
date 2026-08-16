@@ -314,7 +314,7 @@ function guardarReporteMaquinaria(datos) {
     // --- Despachar Reporte Diario por Correo ---
     try {
       var dests = obtenerDestinatariosConfig("Uso Maquinaria", datos.obra);
-      var logoHtml = LOGO_BASE64 ? '<img src="data:image/png;base64,' + LOGO_BASE64 + '" style="width: 130px;" />' : '<h2 style="color:#1e3a8a;margin:0;">EMIN</h2>';
+      var logoHtml = LOGO_BASE64 ? '<img src="data:image/png;base64,' + LOGO_BASE64 + '" style="width: 130px;" />' : '<h2 style="color:#1e3a8a;margin:0;">Obraxis</h2>';
       
       var htmlContent = '<html><head><style>' +
         'body { font-family: sans-serif; font-size: 11px; color: #334155; margin: 0; padding: 20px; }' +
@@ -331,7 +331,7 @@ function guardarReporteMaquinaria(datos) {
         '<table class="header-table"><tr>' +
         '<td style="width: 150px; text-align: center;">' + logoHtml + '</td>' +
         '<td><div class="title">Parte Diario de Control de Maquinaria</div>' +
-        '<div class="subtitle">EMIN Sistemas Geotécnicos - Control Operacional de Flota</div></td>' +
+        '<div class="subtitle">Obraxis - Control Operacional de Flota</div></td>' +
         '</tr></table>' +
         
         '<div class="section-title">Información General</div>' +
@@ -373,7 +373,7 @@ function guardarReporteMaquinaria(datos) {
       var pdfBlob = blobHTML.getAs("application/pdf").setName(pdfFilename);
       
       var subject = "🚜 Parte Diario Maquinaria: " + datos.maquinaria + " (Obra: " + datos.obra + ")";
-      var body = "Estimado/a,\n\nSe adjunta el reporte diario de horómetro y control de combustible para el equipo indicado.\n\nAtentamente,\nPortal de Proyectos EMIN Sistemas Geotécnicos";
+      var body = "Estimado/a,\n\nSe adjunta el reporte diario de horómetro y control de combustible para el equipo indicado.\n\nAtentamente,\nPortal de Proyectos Obraxis";
       
       MailApp.sendEmail({
         to: dests,
@@ -1229,12 +1229,12 @@ function enviarCorreoSemanalRequerimientosPendientes() {
     });
     
     htmlBody += "</table>";
-    htmlBody += "<p style='font-size:11px; color:#666; font-family:sans-serif; margin-top:20px;'>Este correo ha sido generado automáticamente por el Portal de Proyectos de EMIN.</p>";
+    htmlBody += "<p style='font-size:11px; color:#666; font-family:sans-serif; margin-top:20px;'>Este correo ha sido generado automáticamente por el Portal de Proyectos de Obraxis.</p>";
     htmlBody += "</body></html>";
     
     MailApp.sendEmail({
       to: correos,
-      subject: "🚨 [PENDIENTES] Requerimientos de Maquinaria Semanal EMIN",
+      subject: "🚨 [PENDIENTES] Requerimientos de Maquinaria Semanal Obraxis",
       htmlBody: htmlBody
     });
   } catch(e) {
@@ -1318,7 +1318,7 @@ function enviarCorreoRequerimientoCreado(datos, nextId) {
     var finalRecipients = emailList.join(",");
     
     var fecha = new Date();
-    var logoHtml = LOGO_BASE64 ? '<img src="data:image/png;base64,' + LOGO_BASE64 + '" style="width: 130px;" />' : '<h2 style="color:#1e3a8a;margin:0;">EMIN</h2>';
+    var logoHtml = LOGO_BASE64 ? '<img src="data:image/png;base64,' + LOGO_BASE64 + '" style="width: 130px;" />' : '<h2 style="color:#1e3a8a;margin:0;">Obraxis</h2>';
     
     var htmlContent = '<html><head><style>' +
       'body { font-family: sans-serif; font-size: 11px; color: #334155; margin: 0; padding: 10px; }' +
@@ -1356,7 +1356,7 @@ function enviarCorreoRequerimientoCreado(datos, nextId) {
       '<tr><th>Estado Solicitud</th><td><span class="badge">PENDIENTE DE RESOLUCIÓN</span></td></tr>' +
       '</table>';
       
-    htmlContent += '<p style="font-size:10px; color:#64748b; margin-top:30px; text-align:center;">Este documento oficial respalda la solicitud ingresada al sistema EMIN.</p>';
+    htmlContent += '<p style="font-size:10px; color:#64748b; margin-top:30px; text-align:center;">Este documento oficial respalda la solicitud ingresada al sistema Obraxis.</p>';
     htmlContent += '</body></html>';
     
     var blobHTML = HtmlService.createHtmlOutput(htmlContent);
@@ -1372,7 +1372,7 @@ function enviarCorreoRequerimientoCreado(datos, nextId) {
       "- Fecha de Inicio: " + datos.fechaInicio + "\n" +
       "- Duración: " + datos.duracion + " días\n" +
       "- Solicitante: " + datos.usuario + "\n\n" +
-      "Se adjunta el documento PDF de respaldo oficial. Resuelva esta solicitud en la consola de seguimiento del portal.\n\nAtentamente,\nPortal de Proyectos EMIN Sistemas Geotécnicos";
+      "Se adjunta el documento PDF de respaldo oficial. Resuelva esta solicitud en la consola de seguimiento del portal.\n\nAtentamente,\nPortal de Proyectos Obraxis";
       
     MailApp.sendEmail({
       to: finalRecipients,
@@ -1609,7 +1609,7 @@ function emitirPlanillaHaberesPDF(datos) {
       loop.setDate(loop.getDate() + 1);
     }
     
-    var dests = "rrhh@eminsg.cl";
+    var dests = "rrhh@obraxis.cl";
     var configSheet = ss.getSheetByName("Config_Correos");
     if (configSheet) {
       var configData = configSheet.getDataRange().getValues();
@@ -1652,7 +1652,7 @@ function emitirPlanillaHaberesPDF(datos) {
     }
     var finalRecipients = emailList.join(",");
     
-    var logoHtml = LOGO_BASE64 ? '<img src="data:image/png;base64,' + LOGO_BASE64 + '" style="width: 130px;" />' : '<h2 style="color:#1e3a8a;margin:0;">EMIN</h2>';
+    var logoHtml = LOGO_BASE64 ? '<img src="data:image/png;base64,' + LOGO_BASE64 + '" style="width: 130px;" />' : '<h2 style="color:#1e3a8a;margin:0;">Obraxis</h2>';
     
     var htmlContent = '<html><head><style>' +
       'body { font-family: sans-serif; font-size: 11px; color: #334155; margin: 0; padding: 10px; }' +
@@ -1734,7 +1734,7 @@ function emitirPlanillaHaberesPDF(datos) {
       "- Monto Colación: $" + totalColacion.toLocaleString("es-CL") + "\n" +
       "- Monto Movilización: $" + totalMovilizacion.toLocaleString("es-CL") + "\n" +
       "- Total Haberes Adicionales: $" + (totalColacion + totalMovilizacion).toLocaleString("es-CL") + "\n\n" +
-      "Atentamente,\nPortal de Proyectos EMIN Sistemas Geotécnicos";
+      "Atentamente,\nPortal de Proyectos Obraxis";
       
     MailApp.sendEmail({
       to: finalRecipients,
@@ -2068,7 +2068,7 @@ function enviarAlertasPendientesSSO() {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     
-    var ssoSupervisorEmail = "prevencion@eminsg.cl";
+    var ssoSupervisorEmail = "prevencion@obraxis.cl";
     var configSheet = ss.getSheetByName("Config_Correos");
     if (configSheet) {
       var configData = configSheet.getDataRange().getValues();
@@ -2103,7 +2103,7 @@ function enviarAlertasPendientesSSO() {
       if (p.pendientes > 0) {
         var workerEmail = userEmails[p.rut.toLowerCase()] || "";
         
-        var subject = "⚠️ Alerta EMIN: Registros SSO Obligatorios Pendientes";
+        var subject = "⚠️ Alerta Obraxis: Registros SSO Obligatorios Pendientes";
         var htmlBody = '<html><body style="font-family:sans-serif;font-size:13px;color:#334155;">' +
           '<h2 style="color:#1e3a8a;">Control de Cumplimiento SSO</h2>' +
           '<p>Estimado/a <b>' + p.nombre + '</b>,</p>' +
@@ -2130,7 +2130,7 @@ function enviarAlertasPendientesSSO() {
         htmlBody += '</tbody></table>' +
           '<p>Por favor ingresa al portal de proyectos y completa tus firmas/registros correspondientes para evitar multas o no conformidades en obra.</p>' +
           '<hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;" />' +
-          '<p style="font-size:11px;color:#64748b;">Atentamente,<br/>Prevención de Riesgos y Medio Ambiente - EMIN Sistemas Geotécnicos</p>' +
+          '<p style="font-size:11px;color:#64748b;">Atentamente,<br/>Prevención de Riesgos y Medio Ambiente - Obraxis</p>' +
           '</body></html>';
           
         var toAddress = workerEmail || ssoSupervisorEmail;

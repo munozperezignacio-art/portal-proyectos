@@ -1,4 +1,4 @@
-package com.emin.gestionproyectos;
+package com.obraxis.gestionproyectos;
 
 import com.getcapacitor.BridgeActivity;
 

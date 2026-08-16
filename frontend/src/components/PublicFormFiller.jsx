@@ -331,7 +331,7 @@ export default function PublicFormFiller({ formToken }) {
     <div className="min-h-screen bg-slate-100/60 py-8 px-4 flex items-center justify-center font-sans">
       <div className="bg-white border border-slate-200 rounded-3xl shadow-xl w-full max-w-2xl p-6 sm:p-8 space-y-6">
         
-        {/* Cabecera del Formulario Público (EMIN/OBRAXIS FORMATO ENCABEZADO) */}
+        {/* Cabecera corporativa del formulario público Obraxis */}
         <div className="border border-slate-300 rounded-2xl overflow-hidden grid grid-cols-1 sm:grid-cols-12">
           {/* Logo Empresa */}
           <div className="sm:col-span-3 flex items-center justify-center p-4 border-b sm:border-b-0 sm:border-r border-slate-300 bg-white">

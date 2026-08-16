@@ -401,7 +401,7 @@ function guardarYEnviarFormularioDigital(datos) {
     var finalDests = emailList.join(",");
     
     // 3. Construir plantilla HTML para el PDF
-    var logoHtml = LOGO_BASE64 ? '<img src="data:image/png;base64,' + LOGO_BASE64 + '" style="width: 130px;" />' : '<h2 style="color:#1e3a8a;margin:0;">EMIN</h2>';
+    var logoHtml = LOGO_BASE64 ? '<img src="data:image/png;base64,' + LOGO_BASE64 + '" style="width: 130px;" />' : '<h2 style="color:#1e3a8a;margin:0;">Obraxis</h2>';
     
     var htmlContent = '<html><head><style>' +
       'body { font-family: sans-serif; font-size: 11px; color: #334155; margin: 0; padding: 10px; }' +
@@ -441,7 +441,7 @@ function guardarYEnviarFormularioDigital(datos) {
     htmlContent += '<div class="section-title">Datos Generales de Control</div>';
     htmlContent += '<table class="data-table">' +
       '<tr><th>Proyecto / Obra</th><td>' + datos.obra + '</td></tr>' +
-      '<tr><th>Supervisor / Inspector EMIN</th><td>' + datos.supervisor + '</td></tr>' +
+      '<tr><th>Supervisor / Inspector Obraxis</th><td>' + datos.supervisor + '</td></tr>' +
       '<tr><th>Operador / Trabajador</th><td>' + datos.operador + '</td></tr>' +
       '<tr><th>Equipo / Código / Patente</th><td>' + (datos.equipo || 'N/A') + '</td></tr>' +
       '</table>';
@@ -498,10 +498,10 @@ function guardarYEnviarFormularioDigital(datos) {
     
     htmlContent += '<table class="signature-area"><tr>';
     if (showOperadorFirma) {
-      htmlContent += '<td><div class="signature-box">' + firmaSupervisorHtml + 'Firma Supervisor EMIN<br/><b>' + datos.supervisor + '</b><br/>Validado en Sistema</div></td>' +
+      htmlContent += '<td><div class="signature-box">' + firmaSupervisorHtml + 'Firma Supervisor Obraxis<br/><b>' + datos.supervisor + '</b><br/>Validado en Sistema</div></td>' +
         '<td><div class="signature-box"><br/><br/><br/>Firma Operador / Trabajador<br/><b>' + datos.operador + '</b><br/>Validado en Sistema</div></td>';
     } else {
-      htmlContent += '<td style="width: 100%;"><div class="signature-box" style="width: 250px; margin: 0 auto;">' + firmaSupervisorHtml + 'Firma Supervisor EMIN<br/><b>' + datos.supervisor + '</b><br/>Validado en Sistema</div></td>';
+      htmlContent += '<td style="width: 100%;"><div class="signature-box" style="width: 250px; margin: 0 auto;">' + firmaSupervisorHtml + 'Firma Supervisor Obraxis<br/><b>' + datos.supervisor + '</b><br/>Validado en Sistema</div></td>';
     }
     htmlContent += '</tr></table>';
     // Firmas de Colaboradores si aplica
@@ -559,8 +559,8 @@ function guardarYEnviarFormularioDigital(datos) {
     var blob = blobHTML.getAs("application/pdf").setName(filename);
     
     // 4. Despachar por correo
-    var subject = "Registro Digital EMIN [" + (datos.codigoFormulario || "RG-PCM-14-09") + "] - " + datos.nombreFormulario + " (Obra: " + datos.obra + ")";
-    var body = "Estimado/a,\\n\\nSe ha completado un nuevo registro operacional en formato digital desde el Portal de Proyectos de EMIN Sistemas Geotécnicos.\\n\\n" +
+    var subject = "Registro Digital Obraxis [" + (datos.codigoFormulario || "RG-PCM-14-09") + "] - " + datos.nombreFormulario + " (Obra: " + datos.obra + ")";
+    var body = "Estimado/a,\\n\\nSe ha completado un nuevo registro operacional en formato digital desde el Portal de Proyectos de Obraxis.\\n\\n" +
       "Resumen de Transacción:\\n" +
       "- Formulario: " + datos.nombreFormulario + "\\n" +
       "- Código Oficial: " + (datos.codigoFormulario || "N/A") + "\\n" +
@@ -568,7 +568,7 @@ function guardarYEnviarFormularioDigital(datos) {
       "- Realizado por: " + datos.supervisor + "\\n" +
       "- Operador/Trabajador: " + datos.operador + "\\n" +
       "- Fecha y Hora: " + Utilities.formatDate(fecha, Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm") + "\\n\\n" +
-      "Se adjunta el reporte oficial firmado en formato PDF para su archivo e inspección.\\n\\nAtentamente,\\nPortal de Proyectos EMIN Sistemas Geotécnicos";
+      "Se adjunta el reporte oficial firmado en formato PDF para su archivo e inspección.\\n\\nAtentamente,\\nPortal de Proyectos Obraxis";
       
     MailApp.sendEmail({
       to: finalDests,
@@ -589,9 +589,9 @@ function obtenerDestinatariosConfig(tipoReporte, obraNombre) {
   var dests = [];
   var defaultDests = [];
   
-  var defaultEmail = "imunozp@eminsg.cl";
+  var defaultEmail = "imunozp@obraxis.cl";
   if (tipoReporte === "Uso Maquinaria" || tipoReporte === "Alta Maquinaria" || tipoReporte === "Ingreso equipo") {
-    defaultEmail = "maquinaria@eminsg.cl";
+    defaultEmail = "maquinaria@obraxis.cl";
   }
   
   if (sheet) {

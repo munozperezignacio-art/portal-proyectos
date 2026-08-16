@@ -2193,7 +2193,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
             </div>
           ) : (
             <form onSubmit={handleSubmitFill} className="max-w-2xl mx-auto bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-md space-y-6">
-              {/* EMIN/OBRAXIS FORMATO ENCABEZADO */}
+              {/* Formato de encabezado corporativo Obraxis */}
               <div className="border border-slate-300 rounded-2xl overflow-hidden grid grid-cols-1 sm:grid-cols-12 mb-6">
                 {/* Logo Empresa */}
                 <div className="sm:col-span-3 flex items-center justify-center p-4 border-b sm:border-b-0 sm:border-r border-slate-300 bg-white">

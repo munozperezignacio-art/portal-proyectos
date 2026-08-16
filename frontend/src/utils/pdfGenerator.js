@@ -27,7 +27,7 @@ export async function generateFormPdf({ form, metadata, answers, mainSignature, 
   };
 
   const drawHeader = () => {
-    // Caja del encabezado de 3 columnas EMIN/Obraxis
+    // Caja del encabezado corporativo de tres columnas Obraxis
     doc.setDrawColor(148, 163, 184); // Borde gris (slate 400)
     doc.setFillColor(255, 255, 255);
     doc.rect(margin, y, contentWidth, 24, 'FD');
