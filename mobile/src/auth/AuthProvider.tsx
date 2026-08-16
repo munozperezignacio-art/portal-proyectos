@@ -4,6 +4,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { createContext, PropsWithChildren, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/lib/types';
+import { unregisterMobileNotifications } from '@/lib/notifications';
 
 type AuthValue = { session: Session | null; profile: Profile | null; loading: boolean; locked:boolean; biometricAvailable:boolean; biometricEnabled:boolean; biometricOfferPending:boolean; unlock:()=>Promise<boolean>; setBiometricEnabled:(enabled:boolean)=>Promise<boolean>; dismissBiometricOffer:()=>Promise<void>; signIn: (u:string,e:string,p:string)=>Promise<void>; signOut:()=>Promise<void> };
 const AuthContext = createContext<AuthValue | null>(null);
@@ -77,7 +78,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const [asked, preference, hardware, enrolled] = await Promise.all([AsyncStorage.getItem(BIOMETRIC_ASKED_KEY), AsyncStorage.getItem(BIOMETRIC_KEY), LocalAuthentication.hasHardwareAsync(), LocalAuthentication.isEnrolledAsync()]);
     setBiometricOfferPending(Boolean(hardware && enrolled && asked !== 'true' && preference === null));
   };
-  const signOut = async () => { await supabase.auth.signOut(); setSession(null); setProfile(null); setLocked(false); };
+  const signOut = async () => { if (profile) await unregisterMobileNotifications(profile.id).catch(() => undefined); await supabase.auth.signOut(); setSession(null); setProfile(null); setLocked(false); };
   const value = { session, profile, loading, locked, biometricAvailable, biometricEnabled, biometricOfferPending, unlock, setBiometricEnabled, dismissBiometricOffer, signIn, signOut };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
