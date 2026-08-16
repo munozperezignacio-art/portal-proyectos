@@ -634,6 +634,20 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     return cur.getFullYear() + '-' + String(cur.getMonth() + 1).padStart(2, '0') + '-' + String(cur.getDate()).padStart(2, '0');
   };
 
+  const shiftChileanBusinessDays = (startStr, workingDays) => {
+    if (!startStr || !Number.isFinite(Number(workingDays)) || Number(workingDays) === 0) return startStr || '';
+    if (workingDays > 0) return addChileanBusinessDays(startStr, workingDays);
+    const cur = new Date(`${startStr}T00:00:00`);
+    if (isNaN(cur.getTime())) return startStr;
+    let shifted = 0;
+    while (shifted < Math.abs(Math.round(workingDays))) {
+      cur.setDate(cur.getDate() - 1);
+      const dateStr = cur.getFullYear() + '-' + String(cur.getMonth() + 1).padStart(2, '0') + '-' + String(cur.getDate()).padStart(2, '0');
+      if (cur.getDay() !== 0 && cur.getDay() !== 6 && !CHILEAN_HOLIDAYS.includes(dateStr)) shifted++;
+    }
+    return cur.getFullYear() + '-' + String(cur.getMonth() + 1).padStart(2, '0') + '-' + String(cur.getDate()).padStart(2, '0');
+  };
+
   const handleUpdatePartidaFechaInicio = async (partidaObj, newStartDate) => {
     if (!newStartDate) return;
 
@@ -4594,12 +4608,14 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     ? Math.min(100, (countChileanBusinessDays(startP, fCorteStr) / duracion) * 100)
                     : 0;
                   const scheduleGap = actualPct - plannedPct;
+                  const scheduleDays = Math.round((scheduleGap / 100) * duracion);
+                  const scheduledFinish = p.fecha_termino || (startP ? addChileanBusinessDays(startP, duracion) : '');
                   const costo = getCostoImputadoPartida(p.partida);
                   const ventaAvance = Math.round(Math.min(cantTotal, cantAv) * pu);
                   const costGap = costo - ventaAvance;
                   const hasProgress = pReps.length > 0;
                   const status = costGap > 0 ? 'cost' : scheduleGap <= -10 ? 'schedule' : !hasProgress && plannedPct > 0 ? 'no-progress' : 'healthy';
-                  return { partida: p.partida, actualPct, plannedPct, scheduleGap, costo, ventaAvance, costGap, hasProgress, status };
+                  return { partida: p.partida, actualPct, plannedPct, scheduleGap, scheduleDays, scheduledFinish, costo, ventaAvance, costGap, hasProgress, status };
                 });
                 const criticalPartidas = partidaExecutiveStats
                   .filter(p => p.status !== 'healthy')
@@ -4608,6 +4624,16 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 const partidasSinAvance = partidaExecutiveStats.filter(p => !p.hasProgress && p.plannedPct > 0).length;
                 const plannedGlobalPct = totalVentaPresupuestada > 0 ? (PV / totalVentaPresupuestada) * 100 : 0;
                 const scheduleGapGlobal = Number(pctAvanceGlobal) - plannedGlobalPct;
+                const contractualFinish = fechaTerminoEstimada ? String(fechaTerminoEstimada).substring(0, 10) : '';
+                const totalScheduledDays = fInicioObraDefault && contractualFinish
+                  ? countChileanBusinessDays(fInicioObraDefault, contractualFinish)
+                  : 0;
+                const scheduleDaysGlobal = totalScheduledDays > 0
+                  ? Math.round((scheduleGapGlobal / 100) * totalScheduledDays)
+                  : null;
+                const projectedFinish = contractualFinish && scheduleDaysGlobal !== null
+                  ? shiftChileanBusinessDays(contractualFinish, -scheduleDaysGlobal)
+                  : '';
                 const daysToFinish = fechaTerminoEstimada
                   ? Math.max(0, countChileanBusinessDays(fCorteStr, String(fechaTerminoEstimada).substring(0, 10)))
                   : null;
@@ -4708,8 +4734,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Avance real vs. plan</span><p className="text-2xl font-black text-blue-950">{pctAvanceGlobal}% <span className="text-xs text-slate-400 font-bold">/ {plannedGlobalPct.toFixed(1)}%</span></p><p className={`text-[10px] font-bold ${scheduleGapGlobal >= 0 ? 'text-emerald-700' : 'text-amber-700'}`}>{scheduleGapGlobal >= 0 ? '+' : ''}{scheduleGapGlobal.toFixed(1)}% contra programación</p></div>
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Plazo proyectado</span><p className={`text-2xl font-black ${scheduleDaysGlobal === null || scheduleDaysGlobal >= 0 ? 'text-emerald-700' : 'text-amber-700'}`}>{scheduleDaysGlobal === null ? 'Sin base' : scheduleDaysGlobal === 0 ? 'En plazo' : `${Math.abs(scheduleDaysGlobal)} días ${scheduleDaysGlobal > 0 ? 'ganados' : 'perdidos'}`}</p><p className="text-[10px] text-slate-500 font-semibold">{projectedFinish ? `Término proyectado ${projectedFinish}` : 'Configura inicio y término contractual'}</p></div>
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Índice de plazo (SPI)</span><p className={`text-2xl font-black ${SPI >= 1 ? 'text-emerald-700' : 'text-amber-700'}`}>{SPI.toFixed(2)}</p><p className="text-[10px] text-slate-500 font-semibold">{partidasAtrasadas} partida(s) con atraso relevante</p></div>
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Índice de costo (CPI)</span><p className={`text-2xl font-black ${CPI >= 1 ? 'text-emerald-700' : 'text-rose-700'}`}>{CPI.toFixed(2)}</p><p className="text-[10px] text-slate-500 font-semibold">EAC: ${EAC.toLocaleString('es-CL')}</p></div>
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Capacidad y seguridad</span><p className="text-2xl font-black text-slate-800">{avgDailyWorkers} <span className="text-xs text-slate-400 font-bold">pers./día</span></p><p className={`text-[10px] font-semibold ${countCTP > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{countCTP > 0 ? `${countCTP} accidente(s) CTP` : 'Sin accidentes con tiempo perdido'}</p></div>
@@ -4721,7 +4748,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                             {partidaExecutiveStats.length === 0 ? <p className="text-xs text-slate-500 italic text-center p-6 bg-slate-50 rounded-xl">No hay partidas ejecutables para el filtro seleccionado.</p> : <div className="space-y-3 max-h-[430px] overflow-y-auto pr-1">{partidaExecutiveStats.slice().sort((a, b) => a.scheduleGap - b.scheduleGap).map((partida, idx) => {
                               const statusStyle = partida.status === 'cost' ? 'bg-rose-100 text-rose-800 border-rose-200' : partida.status === 'schedule' || partida.status === 'no-progress' ? 'bg-amber-100 text-amber-800 border-amber-200' : 'bg-emerald-100 text-emerald-800 border-emerald-200';
                               const statusLabel = partida.status === 'cost' ? 'Costo en alerta' : partida.status === 'schedule' ? 'Atraso de plazo' : partida.status === 'no-progress' ? 'Sin avance' : 'Controlada';
-                              return <div key={`exec-partida-${idx}`} className="border border-slate-200 rounded-xl p-3 bg-slate-50/70 space-y-2"><div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5"><span className="font-bold text-xs text-slate-800 truncate" title={partida.partida}>{partida.partida}</span><span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border ${statusStyle}`}>{statusLabel}</span></div><div className="space-y-1"><div className="h-2.5 bg-slate-200 rounded-full overflow-hidden relative"><div className="h-full bg-emerald-500/80 rounded-full absolute left-0 top-0" style={{ width: `${Math.min(100, partida.plannedPct)}%` }}></div><div className="h-full bg-blue-900 rounded-full absolute left-0 top-0 opacity-90" style={{ width: `${Math.min(100, partida.actualPct)}%` }}></div></div><div className="flex justify-between text-[10px] font-semibold"><span className="text-blue-950">Real {partida.actualPct.toFixed(1)}%</span><span className="text-emerald-700">Plan {partida.plannedPct.toFixed(1)}%</span><span className={partida.scheduleGap >= 0 ? 'text-emerald-700' : 'text-amber-700'}>{partida.scheduleGap >= 0 ? '+' : ''}{partida.scheduleGap.toFixed(1)}%</span></div></div><div className="flex flex-wrap gap-x-3 gap-y-1 text-[9.5px] text-slate-500 font-medium"><span>Venta ganada: <b className="text-slate-700">${partida.ventaAvance.toLocaleString('es-CL')}</b></span><span>Costo imputado: <b className={partida.costGap > 0 ? 'text-rose-700' : 'text-slate-700'}>${partida.costo.toLocaleString('es-CL')}</b></span></div></div>;
+                              return <div key={`exec-partida-${idx}`} className="border border-slate-200 rounded-xl p-3 bg-slate-50/70 space-y-2"><div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5"><span className="font-bold text-xs text-slate-800 truncate" title={partida.partida}>{partida.partida}</span><span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border ${statusStyle}`}>{statusLabel}</span></div><div className="space-y-1"><div className="h-2.5 bg-slate-200 rounded-full overflow-hidden relative"><div className="h-full bg-emerald-500/80 rounded-full absolute left-0 top-0" style={{ width: `${Math.min(100, partida.plannedPct)}%` }}></div><div className="h-full bg-blue-900 rounded-full absolute left-0 top-0 opacity-90" style={{ width: `${Math.min(100, partida.actualPct)}%` }}></div></div><div className="flex justify-between text-[10px] font-semibold"><span className="text-blue-950">Real {partida.actualPct.toFixed(1)}%</span><span className="text-emerald-700">Plan {partida.plannedPct.toFixed(1)}%</span><span className={partida.scheduleDays >= 0 ? 'text-emerald-700' : 'text-amber-700'}>{partida.scheduleDays === 0 ? 'En plazo' : `${Math.abs(partida.scheduleDays)} d ${partida.scheduleDays > 0 ? 'ganados' : 'perdidos'}`}</span></div></div><div className="flex flex-wrap gap-x-3 gap-y-1 text-[9.5px] text-slate-500 font-medium"><span>Término plan: <b className="text-slate-700">{partida.scheduledFinish || 'Sin fecha'}</b></span><span>Venta ganada: <b className="text-slate-700">${partida.ventaAvance.toLocaleString('es-CL')}</b></span><span>Costo imputado: <b className={partida.costGap > 0 ? 'text-rose-700' : 'text-slate-700'}>${partida.costo.toLocaleString('es-CL')}</b></span></div></div>;
                             })}</div>}
                           </div>
                           <div className="space-y-4"><div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs space-y-3"><h4 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5"><AlertTriangle className="w-4 h-4 text-amber-700" />Prioridades de intervención</h4>{criticalPartidas.length === 0 ? <p className="text-xs text-emerald-700 font-semibold bg-emerald-50 border border-emerald-200 rounded-xl p-3">No hay desviaciones relevantes en el alcance y fecha de corte actuales.</p> : <div className="space-y-2 max-h-64 overflow-y-auto pr-1">{criticalPartidas.slice(0, 6).map((partida, idx) => <div key={`alert-partida-${idx}`} className={`p-2.5 rounded-xl border ${partida.status === 'cost' ? 'bg-rose-50 border-rose-200' : 'bg-amber-50 border-amber-200'}`}><p className="text-[10px] font-black text-slate-800 truncate">{partida.partida}</p><p className="text-[10px] mt-0.5 font-semibold text-slate-600">{partida.status === 'cost' ? `Costo supera venta ganada por $${Math.abs(partida.costGap).toLocaleString('es-CL')}` : partida.status === 'no-progress' ? 'Tiene avance planificado, pero no registra producción' : `Atraso de ${Math.abs(partida.scheduleGap).toFixed(1)}% frente al plan`}</p></div>)}</div>}</div><div className="bg-white p-5 border border-blue-200 rounded-2xl shadow-xs space-y-3"><div className="flex items-center justify-between"><h4 className="font-extrabold text-blue-950 text-xs uppercase tracking-wider flex items-center gap-1.5"><CalendarDays className="w-4 h-4 text-blue-800" />Partidas prontas a iniciar</h4><span className="text-[9px] font-black bg-blue-100 text-blue-900 px-2 py-0.5 rounded-full">Próx. 14 días</span></div>{upcomingPartidas.length === 0 ? <p className="text-xs text-slate-500 italic bg-slate-50 rounded-xl p-3">No hay partidas programadas para iniciar en los próximos 14 días.</p> : <div className="space-y-2 max-h-52 overflow-y-auto pr-1">{upcomingPartidas.slice(0, 6).map((partida, idx) => <div key={`upcoming-partida-${idx}`} className="p-2.5 rounded-xl border border-blue-100 bg-blue-50/60"><p className="text-[10px] font-black text-slate-800 truncate">{partida.partida}</p><div className="flex justify-between gap-2 mt-1 text-[10px] font-semibold"><span className="text-blue-800">Inicio: {partida.startDate}</span><span className="text-slate-600">{partida.daysUntil === 0 ? 'Hoy' : `en ${partida.daysUntil} día(s) hábiles`}</span></div></div>)}</div>}</div><div className="bg-slate-900 text-white p-5 rounded-2xl shadow-xs space-y-2"><span className="text-[10px] uppercase tracking-wider font-black text-slate-300">Próximo foco de gestión</span><p className="text-sm font-black">{criticalPartidas.length > 0 ? 'Revisar partidas críticas y acordar un plan de recuperación.' : upcomingPartidas.length > 0 ? 'Preparar recursos, cuadrillas y suministros para los próximos inicios.' : 'Mantener control de producción y calidad del registro diario.'}</p><p className="text-[10px] text-slate-300">{partidasSinAvance > 0 ? `${partidasSinAvance} partida(s) planificada(s) aún sin reporte de avance.` : daysToFinish !== null ? `${daysToFinish} día(s) hábiles estimados hasta el término configurado.` : 'Configura fecha de término para habilitar el horizonte de cierre.'}</p></div></div>
