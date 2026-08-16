@@ -34,6 +34,12 @@ export const PERMISSIONS_CATALOG = [
   ]},
   { id: 'maquinaria', label: 'Maquinaria y Equipos', menus: [
     { id: 'inventario', label: 'Inventario, asignaciones y mantenimiento', actions: ['ver', 'crear', 'editar', 'eliminar', 'revisar', 'descargar', 'configurar'] },
+    { id: 'uso', label: 'Registros de uso', actions: ['ver', 'crear', 'editar', 'eliminar', 'descargar'] },
+    { id: 'fallas', label: 'Fallas de equipos', actions: ['ver', 'crear', 'editar', 'eliminar', 'revisar', 'descargar'] },
+    { id: 'mantenimiento', label: 'Mantenciones', actions: ['ver', 'crear', 'editar', 'eliminar', 'revisar', 'descargar', 'configurar'] },
+    { id: 'reservas', label: 'Reservas', actions: ['ver', 'crear', 'editar', 'eliminar', 'revisar'] },
+    { id: 'asignaciones', label: 'Asignación de equipos', actions: ['ver', 'editar', 'revisar'] },
+    { id: 'estadisticas', label: 'Estadísticas de maquinaria', actions: ['ver', 'descargar'] },
   ]},
   { id: 'bodega', label: 'Bodega e Inventario', menus: [
     { id: 'inventario', label: 'Bodegas, productos y movimientos', actions: ['ver', 'crear', 'editar', 'eliminar', 'revisar', 'descargar', 'configurar'] },

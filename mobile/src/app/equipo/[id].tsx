@@ -9,6 +9,7 @@ import { MachineryActions } from '@/components/MachineryActions';
 import { Badge, Card, Empty, ErrorBox, Header, Loading, Screen, Segments } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
+import { can } from '@/lib/types';
 
 type Row = Record<string, any>;
 const tabs = [{ key: 'historial', label: 'Historial' }, { key: 'mantenciones', label: 'Mantenciones' }, { key: 'planes', label: 'Próximas' }];
@@ -16,6 +17,10 @@ export default function EquipmentDetail() {
   const { id, obra } = useLocalSearchParams<{ id: string; obra?: string }>(); const { profile } = useAuth();
   const [tab, setTab] = useState('historial'); const [loading, setLoading] = useState(true); const [error, setError] = useState('');
   const [data, setData] = useState<Row>({ equipment: null, usage: [], failures: [], maintenance: [], reservations: [] });
+  const mayOperateInWork = !obra || can(profile, 'obras.maquinaria.crear');
+  const mayUse = mayOperateInWork && can(profile, 'maquinaria.uso.crear'); const mayFail = mayOperateInWork && can(profile, 'maquinaria.fallas.crear');
+  const mayMaintain = mayOperateInWork && can(profile, 'maquinaria.mantenimiento.crear'); const mayReserve = !obra && can(profile, 'maquinaria.reservas.crear');
+  const mayAssign = !obra && can(profile, 'maquinaria.asignaciones.editar');
   const load = async () => {
     setLoading(true); setError('');
     try {
@@ -40,7 +45,7 @@ export default function EquipmentDetail() {
     <Header title={equipment ? `${equipment.tipo || 'Equipo'} · ${equipment.patente || 'S/P'}` : 'Ficha del equipo'} subtitle={obra ? `Historial exclusivo de ${obra}` : 'Historial completo de la empresa'} icon="construct-outline" />
     <ErrorBox text={error} />{loading && !equipment ? <Loading /> : equipment ? <>
       <Card><View style={s.row}><View style={s.flex}><Text style={s.name}>{equipment.marca || 'Marca no informada'}</Text><Text style={s.meta}>{equipment.obra_nombre || 'Bodega / Sin asignar'} · Lectura actual {Number(equipment.horometro_inicial || 0).toLocaleString('es-CL')}</Text></View><Badge tone={String(equipment.estado_equipo).toLowerCase().includes('mant') ? 'amber' : 'green'}>{equipment.estado_equipo || 'Operativo'}</Badge></View></Card>
-      <View style={s.actions}><MachineryActions mode="usage" equipment={[equipment]} initialEquipment={equipment} profile={profile!} onSaved={load} /><MachineryActions mode="failure" equipment={[equipment]} initialEquipment={equipment} profile={profile!} onSaved={load} /><EquipmentManagementActions equipment={[equipment]} initialEquipment={equipment} maintenanceOnly profile={profile!} onSaved={load} /></View>
+      {(mayUse || mayFail || mayMaintain || mayReserve || mayAssign) && <><Text style={s.section}>Acciones disponibles</Text><View style={s.actions}>{mayUse && <MachineryActions mode="usage" equipment={[equipment]} initialEquipment={equipment} profile={profile!} onSaved={load}/>} {mayFail && <MachineryActions mode="failure" equipment={[equipment]} initialEquipment={equipment} profile={profile!} onSaved={load}/>} {mayReserve && <MachineryActions mode="reservation" equipment={[equipment]} initialEquipment={equipment} profile={profile!} onSaved={load}/>}<EquipmentManagementActions equipment={[equipment]} initialEquipment={equipment} profile={profile!} showAssign={mayAssign} showMaintenance={mayMaintain} onSaved={load}/></View></>}
       <View style={s.metrics}><Metric value={hours.toLocaleString('es-CL')} label="Horas registradas" /><Metric value={data.failures.length} label="Fallas" /><Metric value={data.maintenance.length} label="Mantenciones" /></View>
       <Segments value={tab} options={tabs} onChange={setTab} />
       {tab === 'historial' && (history.length ? history.map((item: Row) => <HistoryCard key={`${item.kind}-${item.id}`} item={item} />) : <Empty text="No hay movimientos registrados para este alcance." />)}
@@ -51,4 +56,4 @@ export default function EquipmentDetail() {
 }
 function HistoryCard({ item }: { item: Row }) { const failure = item.kind === 'Falla', maintenance = item.kind === 'Mantención'; return <Card><Badge tone={failure ? 'red' : maintenance ? 'amber' : 'green'}>{item.kind}</Badge><Text style={s.name}>{item.fecha || String(item.created_at).slice(0, 10)}</Text><Text style={s.meta}>{failure ? `${item.descripcion || 'Sin descripción'} · ${item.horas_fuera_servicio || 0} h fuera de servicio` : maintenance ? `${item.tipo || ''} · ${item.descripcion || 'Sin descripción'}` : `${Number(item.horas_trabajadas || 0).toLocaleString('es-CL')} h · ${item.operador || 'Sin operador'}${item.observaciones ? ` · ${item.observaciones}` : ''}`}</Text></Card>; }
 function Metric({ value, label }: { value: string | number; label: string }) { return <Card><Text style={s.value}>{value}</Text><Text style={s.meta}>{label}</Text></Card>; }
-const s = StyleSheet.create({ back: { flexDirection: 'row', alignItems: 'center', gap: 7 }, backText: { fontSize: 12, fontWeight: '800', color: colors.ink }, actions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' }, row: { flexDirection: 'row', alignItems: 'center', gap: 9 }, flex: { flex: 1 }, name: { fontSize: 14, fontWeight: '900', color: colors.ink }, meta: { fontSize: 11, color: colors.muted, lineHeight: 16 }, metrics: { flexDirection: 'row', gap: 8 }, value: { fontSize: 22, fontWeight: '900', color: colors.blue }, cost: { fontSize: 14, fontWeight: '900', color: colors.green } });
+const s = StyleSheet.create({ back: { flexDirection: 'row', alignItems: 'center', gap: 7 }, backText: { fontSize: 12, fontWeight: '800', color: colors.ink }, section:{fontSize:11,fontWeight:'900',textTransform:'uppercase',color:colors.muted}, actions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' }, row: { flexDirection: 'row', alignItems: 'center', gap: 9 }, flex: { flex: 1 }, name: { fontSize: 14, fontWeight: '900', color: colors.ink }, meta: { fontSize: 11, color: colors.muted, lineHeight: 16 }, metrics: { flexDirection: 'row', gap: 8 }, value: { fontSize: 22, fontWeight: '900', color: colors.blue }, cost: { fontSize: 14, fontWeight: '900', color: colors.green } });

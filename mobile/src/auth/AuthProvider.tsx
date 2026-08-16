@@ -1,15 +1,15 @@
 import type { Session } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as LocalAuthentication from 'expo-local-authentication';
-import { AppState } from 'react-native';
-import { createContext, PropsWithChildren, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, PropsWithChildren, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/lib/types';
 
-type AuthValue = { session: Session | null; profile: Profile | null; loading: boolean; locked:boolean; biometricAvailable:boolean; biometricEnabled:boolean; unlock:()=>Promise<boolean>; setBiometricEnabled:(enabled:boolean)=>Promise<boolean>; signIn: (u:string,e:string,p:string)=>Promise<void>; signOut:()=>Promise<void> };
+type AuthValue = { session: Session | null; profile: Profile | null; loading: boolean; locked:boolean; biometricAvailable:boolean; biometricEnabled:boolean; biometricOfferPending:boolean; unlock:()=>Promise<boolean>; setBiometricEnabled:(enabled:boolean)=>Promise<boolean>; dismissBiometricOffer:()=>Promise<void>; signIn: (u:string,e:string,p:string)=>Promise<void>; signOut:()=>Promise<void> };
 const AuthContext = createContext<AuthValue | null>(null);
 const fields = 'id,usuario,empresa,rol,rol_base,obras,modulos,correo,submenus,nombre,cargo,auth_user_id,permisos';
 const BIOMETRIC_KEY = 'obraxis_biometric_enabled';
+const BIOMETRIC_ASKED_KEY = 'obraxis_biometric_asked';
 
 async function loadProfile(session: Session, company?: string) {
   let query = supabase.from('usuarios').select(fields).eq('auth_user_id', session.user.id).limit(1);
@@ -28,10 +28,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [locked, setLocked] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricEnabled, setBiometricEnabledState] = useState(false);
-  const backgroundAt = useRef(0);
+  const [biometricOfferPending, setBiometricOfferPending] = useState(false);
   useEffect(() => {
     let active = true;
-    Promise.all([supabase.auth.getSession(), AsyncStorage.getItem(BIOMETRIC_KEY), LocalAuthentication.hasHardwareAsync(), LocalAuthentication.isEnrolledAsync()]).then(async ([{ data }, preference, hardware, enrolled]) => {
+    Promise.all([supabase.auth.getSession(), AsyncStorage.getItem(BIOMETRIC_KEY), AsyncStorage.getItem(BIOMETRIC_ASKED_KEY), LocalAuthentication.hasHardwareAsync(), LocalAuthentication.isEnrolledAsync()]).then(async ([{ data }, preference, asked, hardware, enrolled]) => {
       if (!active) return;
       const available = hardware && enrolled;
       const enabled = preference === 'true' && available;
@@ -39,18 +39,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setSession(data.session);
       if (data.session) try { setProfile(await loadProfile(data.session)); } catch { await supabase.auth.signOut(); }
       if (data.session && enabled) setLocked(true);
+      setBiometricOfferPending(Boolean(data.session && available && asked !== 'true' && preference === null));
       setLoading(false);
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => { setSession(next); if (!next) setProfile(null); });
     return () => { active = false; listener.subscription.unsubscribe(); };
   }, []);
-  useEffect(() => {
-    const listener = AppState.addEventListener('change', state => {
-      if (state === 'background' || state === 'inactive') backgroundAt.current = Date.now();
-      if (state === 'active' && biometricEnabled && session && backgroundAt.current && Date.now() - backgroundAt.current > 30000) setLocked(true);
-    });
-    return () => listener.remove();
-  }, [biometricEnabled, session]);
   const unlock = async () => {
     if (!biometricEnabled) { setLocked(false); return true; }
     const result = await LocalAuthentication.authenticateAsync({ promptMessage: 'Acceder a Obraxis', cancelLabel: 'Cancelar', fallbackLabel: 'Usar clave del dispositivo', disableDeviceFallback: false });
@@ -64,8 +58,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
       if (!verified.success) return false;
     }
     await AsyncStorage.setItem(BIOMETRIC_KEY, String(enabled));
+    await AsyncStorage.setItem(BIOMETRIC_ASKED_KEY, 'true');
+    setBiometricOfferPending(false);
     setBiometricEnabledState(enabled); setLocked(false);
     return true;
+  };
+  const dismissBiometricOffer = async () => {
+    await AsyncStorage.setItem(BIOMETRIC_ASKED_KEY, 'true');
+    setBiometricOfferPending(false);
   };
   const signIn = async (usuario:string, empresa:string, password:string) => {
     const { data, error } = await supabase.functions.invoke('login-usuario', { body: { usuario: usuario.trim(), empresa: empresa.trim(), password } });
@@ -74,9 +74,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
     if (result.error || !result.data.session) throw new Error('No fue posible iniciar la sesión segura.');
     const nextProfile = await loadProfile(result.data.session, empresa);
     setSession(result.data.session); setProfile(nextProfile);
+    const [asked, preference, hardware, enrolled] = await Promise.all([AsyncStorage.getItem(BIOMETRIC_ASKED_KEY), AsyncStorage.getItem(BIOMETRIC_KEY), LocalAuthentication.hasHardwareAsync(), LocalAuthentication.isEnrolledAsync()]);
+    setBiometricOfferPending(Boolean(hardware && enrolled && asked !== 'true' && preference === null));
   };
   const signOut = async () => { await supabase.auth.signOut(); setSession(null); setProfile(null); setLocked(false); };
-  const value = { session, profile, loading, locked, biometricAvailable, biometricEnabled, unlock, setBiometricEnabled, signIn, signOut };
+  const value = { session, profile, loading, locked, biometricAvailable, biometricEnabled, biometricOfferPending, unlock, setBiometricEnabled, dismissBiometricOffer, signIn, signOut };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 export const useAuth = () => { const value = useContext(AuthContext); if (!value) throw new Error('AuthProvider no disponible'); return value; };

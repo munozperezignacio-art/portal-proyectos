@@ -3,8 +3,6 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '@/auth/AuthProvider';
-import { MachineryActions } from '@/components/MachineryActions';
-import { EquipmentManagementActions } from '@/components/EquipmentManagementActions';
 import { SimpleBars, type BarDatum } from '@/components/SimpleBars';
 import { Badge, Card, Empty, ErrorBox, Header, Loading, Screen, Segments } from '@/components/ui';
 import { useSupabaseList } from '@/hooks/useSupabaseList';
@@ -17,7 +15,8 @@ const tabs=[{key:'equipos',label:'Equipos'},{key:'registros',label:'Registros'},
 
 export default function MachineryScreen(){
   const{profile}=useAuth();const[tab,setTab]=useState('equipos');
-  const canView=can(profile,'maquinaria.inventario.ver'),canCreate=can(profile,'maquinaria.inventario.crear');
+  const canView=can(profile,'maquinaria.inventario.ver');
+  const visibleTabs=tabs.filter(item=>item.key==='equipos'||item.key==='registros'?(item.key==='equipos'||can(profile,'maquinaria.uso.ver')||can(profile,'maquinaria.fallas.ver')):item.key==='reservas'?can(profile,'maquinaria.reservas.ver'):can(profile,'maquinaria.estadisticas.ver'));
   const state=useSupabaseList<Row>(async()=>{const[e,u,r,f,m]=await Promise.all([
     supabase.from('inventario_maquinaria').select('*').eq('empresa',profile!.empresa).order('tipo'),
     supabase.from('maquinaria_uso_diario').select('*').eq('empresa',profile!.empresa).order('fecha',{ascending:false}).limit(100),
@@ -33,9 +32,8 @@ export default function MachineryScreen(){
   if(!canView)return <Screen><Header title="Maquinaria" subtitle="Acceso restringido" icon="construct-outline"/><Empty text="Tu rol no tiene permiso para consultar maquinaria."/></Screen>;
   return <Screen refreshing={state.loading} onRefresh={state.refresh}>
     <Header title="Maquinaria" subtitle="Flota, uso, reservas y confiabilidad." icon="construct-outline"/>
-    <Segments value={tab} options={tabs} onChange={setTab}/>
-    {tab==='equipos'&&canCreate?<EquipmentManagementActions equipment={data.equipment} profile={profile!} onSaved={state.refresh}/>:null}
-    <View style={s.actions}>{tab==='registros'&&canCreate?<><MachineryActions mode="usage" equipment={data.equipment} profile={profile!} onSaved={state.refresh}/><MachineryActions mode="failure" equipment={data.equipment} profile={profile!} onSaved={state.refresh}/></>:null}{tab==='reservas'&&canCreate?<MachineryActions mode="reservation" equipment={data.equipment} profile={profile!} onSaved={state.refresh}/>:null}</View>
+    <Segments value={tab} options={visibleTabs} onChange={setTab}/>
+    {tab==='equipos'&&<Text style={s.help}>Selecciona un equipo para consultar su historial y realizar las acciones autorizadas.</Text>}
     <ErrorBox text={state.error}/>{state.loading&&!state.data.length?<Loading/>:<>
       {tab==='equipos'&&(data.equipment.length?data.equipment.map((item:Machinery)=><Card key={item.id} onPress={()=>router.push({pathname:'/equipo/[id]',params:{id:String(item.id)}})}><View style={s.row}><View style={s.machine}><Ionicons name="construct" size={22} color={colors.orange}/></View><View style={s.flex}><Text style={s.name}>{item.tipo||'Equipo'} · {item.patente||'S/P'}</Text><Text style={s.meta}>{item.marca||'Sin marca'} · {item.obra_nombre||'Bodega / Sin asignar'}</Text></View><Badge tone={String(item.estado_equipo).toLowerCase().includes('mant')?'amber':'green'}>{item.estado_equipo||'Operativo'}</Badge><Ionicons name="chevron-forward" size={18} color={colors.muted}/></View></Card>):<Empty text="No hay equipos registrados."/>)}
       {tab==='registros'&&<>{data.usage.map((item:Row)=><Card key={`u-${item.id}`}><Badge tone="green">Uso</Badge><Text style={s.name}>{item.equipo_tipo} · {item.equipo_patente}</Text><Text style={s.meta}>{item.fecha} · {Number(item.horas_trabajadas||0).toLocaleString('es-CL')} h · {item.operador||'Sin operador'}</Text></Card>)}{data.failures.map((item:Row)=><Card key={`f-${item.id}`}><Badge tone="red">Falla {item.severidad||''}</Badge><Text style={s.name}>{item.equipo_tipo} · {item.equipo_patente}</Text><Text style={s.meta}>{item.fecha} · {item.descripcion}</Text></Card>)}{!data.usage.length&&!data.failures.length?<Empty text="No hay registros de uso ni fallas."/>:null}</>}
@@ -44,4 +42,4 @@ export default function MachineryScreen(){
     </>}</Screen>;
 }
 function Metric({value,label}:{value:string|number;label:string}){return <Card><Text style={s.value}>{value}</Text><Text style={s.meta}>{label}</Text></Card>}
-const s=StyleSheet.create({actions:{flexDirection:'row',gap:8,flexWrap:'wrap'},section:{fontSize:12,fontWeight:'900',textTransform:'uppercase',color:colors.ink,marginTop:6},row:{flexDirection:'row',alignItems:'center',gap:10},machine:{width:43,height:43,borderRadius:13,backgroundColor:'#FFF4E8',alignItems:'center',justifyContent:'center'},flex:{flex:1},name:{fontSize:14,fontWeight:'900',color:colors.ink},meta:{fontSize:11,color:colors.muted,lineHeight:16},dot:{width:12,height:12,borderRadius:6},grid:{gap:10},value:{fontSize:29,fontWeight:'900',color:colors.blue}});
+const s=StyleSheet.create({actions:{flexDirection:'row',gap:8,flexWrap:'wrap'},help:{fontSize:11,color:colors.muted,lineHeight:16,paddingHorizontal:2},section:{fontSize:12,fontWeight:'900',textTransform:'uppercase',color:colors.ink,marginTop:6},row:{flexDirection:'row',alignItems:'center',gap:10},machine:{width:43,height:43,borderRadius:13,backgroundColor:'#FFF4E8',alignItems:'center',justifyContent:'center'},flex:{flex:1},name:{fontSize:14,fontWeight:'900',color:colors.ink},meta:{fontSize:11,color:colors.muted,lineHeight:16},dot:{width:12,height:12,borderRadius:6},grid:{gap:10},value:{fontSize:29,fontWeight:'900',color:colors.blue}});
