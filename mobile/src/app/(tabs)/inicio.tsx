@@ -13,14 +13,14 @@ const modules = [
   ['Obras', 'Avances, asistencia y gestión de terreno.', 'business', '/obras', 'obra'],
   ['Maquinaria', 'Equipos, registros, reservas y desempeño.', 'construct', '/maquinaria', 'maquinaria'],
   ['Recursos Humanos', 'Personal y asignaciones vigentes.', 'people', '/personal', 'rrhh'],
-  ['Formularios', 'Biblioteca y registros operacionales.', 'clipboard', '/formularios', 'formulario'],
+  ['Prevención y formularios', 'Asignados, cumplimiento, procedimientos y biblioteca.', 'shield-checkmark', '/formularios', 'formulario'],
 ] as const;
 
 export default function Home() {
   const { profile, signOut, biometricAvailable, biometricEnabled, biometricOfferPending, setBiometricEnabled, dismissBiometricOffer } = useAuth();
   const insets = useSafeAreaInsets(); const [menu, setMenu] = useState(false); const prompted = useRef(false);
   const [unread, setUnread] = useState(0);
-  const visible = (module:string) => module === 'obra' ? canUse(profile, 'obra') && can(profile, 'obras.ficha.ver') : module === 'maquinaria' ? canUse(profile, module) && can(profile, 'maquinaria.inventario.ver') : module === 'rrhh' ? canUse(profile, module) && can(profile, 'rrhh.personal.ver') : (canUse(profile, 'formulario') || canUse(profile, 'prevencion')) && can(profile, 'formularios.formularios.ver');
+  const visible = (module:string) => module === 'obra' ? canUse(profile, 'obra') && can(profile, 'obras.ficha.ver') : module === 'maquinaria' ? canUse(profile, module) && can(profile, 'maquinaria.inventario.ver') : module === 'rrhh' ? canUse(profile, module) && can(profile, 'rrhh.personal.ver') : (canUse(profile, 'formulario') || canUse(profile, 'prevencion')) && (can(profile, 'formularios.formularios.ver') || can(profile, 'prevencion.registros.ver'));
   const toggle = async (value:boolean) => {
     const ok = await setBiometricEnabled(value);
     if (!ok) Alert.alert('Biometría no disponible', 'Configura huella, rostro o un bloqueo seguro en tu teléfono e intenta nuevamente.');

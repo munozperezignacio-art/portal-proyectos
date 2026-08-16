@@ -16,7 +16,7 @@ const fieldsOf=(campos:any):Field[]=>Array.isArray(campos)?campos:Array.isArray(
 const emptyInstance=(field:Field)=>Object.fromEntries((field.subFields||[]).map(sub=>[sub.id,sub.type==='checkbox'?[]:'']));
 
 export default function FormFill(){
-  const{id}=useLocalSearchParams<{id:string}>();
+  const{id,asignacionId}=useLocalSearchParams<{id:string;asignacionId?:string}>();
   const{profile}=useAuth();
   const[form,setForm]=useState<Row|null>(null);
   const[centers,setCenters]=useState<Row[]>([]);
@@ -45,6 +45,14 @@ export default function FormFill(){
     setSaving(false);
     if(result.error){setError(result.error.message);return}
     if(result.queued){Alert.alert('Formulario pendiente','Quedó guardado en el dispositivo y se enviará automáticamente al recuperar conexión.',[{text:'Aceptar',onPress:()=>router.back()}]);return}
+    if(asignacionId){
+      const now=new Date();
+      const fechaLocal=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+      const{data:existing}=await supabase.from('prevencion_cumplimiento_registros').select('id').eq('asignacion_id',Number(asignacionId)).eq('fecha_cumplimiento',fechaLocal).maybeSingle();
+      const payload={asignacion_id:Number(asignacionId),fecha_cumplimiento:fechaLocal,estado:'Cumple',observaciones:'Formulario completado desde Obraxis Terreno.',verificado_por:profile?.correo||profile?.usuario||'Usuario Obraxis',empresa:profile?.empresa};
+      const saved=existing?.id?await supabase.from('prevencion_cumplimiento_registros').update(payload).eq('id',existing.id):await supabase.from('prevencion_cumplimiento_registros').insert(payload);
+      if(saved.error){setError(`El formulario fue enviado, pero no se pudo actualizar el cumplimiento: ${saved.error.message}`);return}
+    }
     Alert.alert('Formulario enviado','El registro quedó sincronizado con Obraxis.',[{text:'Aceptar',onPress:()=>router.back()}]);
   };
 

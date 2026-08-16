@@ -825,6 +825,32 @@ export default function Prevencion({ user, onBack, companyBranding }) {
       : (form.titulo || '').trim().toLowerCase() === (assignment.registro_nombre || '').trim().toLowerCase()
   );
 
+  const getMyAssignmentStatus = (assignment) => {
+    const now = new Date();
+    const today = formatDateYYYYMMDD(now);
+    const monday = new Date(now);
+    const isoDay = monday.getDay() || 7;
+    monday.setDate(monday.getDate() - isoDay + 1);
+    const weekDates = getWeekDates(monday).map(formatDateYYYYMMDD);
+    const monthPrefix = today.slice(0, 7);
+    const matchingForm = getAssignedForm(assignment);
+    const matchesPeriod = (date) => assignment.frecuencia === 'Semanal'
+      ? weekDates.includes(date)
+      : assignment.frecuencia === 'Mensual'
+        ? String(date || '').startsWith(monthPrefix)
+        : date === today;
+    const manual = registrosCumplimientoLog.some((log) =>
+      Number(log.asignacion_id) === Number(assignment.id) && log.estado === 'Cumple' && matchesPeriod(log.fecha_cumplimiento)
+    );
+    const automatic = matchingForm && respuestas.some((response) =>
+      Number(response.formulario_id) === Number(matchingForm.id) &&
+      (response.inspector || '').trim().toLowerCase() === (assignment.trabajador_nombre || '').trim().toLowerCase() &&
+      matchesPeriod(response.created_at?.split('T')[0])
+    );
+    const optional = assignment.frecuencia === 'Diario' && !isDailyMandatoryDate(now);
+    return { completed: manual || automatic, optional, form: matchingForm };
+  };
+
   const handleSaveCapacitacion = async () => {
     if (capId ? !canEdit : !canCreate) { setErrorMsg('Tu perfil no está autorizado para guardar capacitaciones.'); return; }
     if (!capTitulo.trim()) {
@@ -3248,6 +3274,41 @@ export default function Prevencion({ user, onBack, companyBranding }) {
             <h3 className="font-extrabold text-xs uppercase tracking-wider text-slate-800 border-b border-slate-100 pb-3 mb-4">
               Cumplimiento de Seguridad y Prevención ({asignacionesCumplimiento.length})
             </h3>
+
+            <div className="mb-6 rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <div>
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">Mis registros asignados</h4>
+                  <p className="mt-1 text-[10px] text-slate-500">Formularios preventivos que debes realizar durante el periodo actual.</p>
+                </div>
+                <span className="rounded-full bg-white px-3 py-1 text-[10px] font-black text-blue-700 border border-blue-100">
+                  {asignacionesCumplimiento.filter((item) => Number(item.usuario_id) === Number(user?.id)).length} asignados
+                </span>
+              </div>
+              {asignacionesCumplimiento.filter((item) => Number(item.usuario_id) === Number(user?.id)).length === 0 ? (
+                <p className="rounded-xl bg-white p-4 text-center text-xs italic text-slate-400">No tienes registros preventivos asignados.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {asignacionesCumplimiento.filter((item) => Number(item.usuario_id) === Number(user?.id)).map((item) => {
+                    const status = getMyAssignmentStatus(item);
+                    return <div key={`mine-${item.id}`} className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-xs font-extrabold text-slate-850">{status.form?.titulo || item.registro_nombre}</p>
+                          <p className="mt-1 text-[9px] font-bold uppercase text-slate-450">{item.frecuencia} · {String(item.hora_limite || '17:00').slice(0, 5)}</p>
+                        </div>
+                        <span className={`rounded-full px-2 py-1 text-[8px] font-black uppercase ${status.completed ? 'bg-emerald-100 text-emerald-700' : status.optional ? 'bg-sky-100 text-sky-700' : 'bg-amber-100 text-amber-800'}`}>
+                          {status.completed ? 'Completado' : status.optional ? 'Opcional' : 'Pendiente'}
+                        </span>
+                      </div>
+                      {status.form?.publico_token ? <button type="button" onClick={() => window.location.assign(getFormPublicUrl(status.form))} className="mt-3 w-full rounded-lg bg-primary px-3 py-2 text-[10px] font-black text-white hover:bg-primary-hover">
+                        {status.completed ? 'Realizar nuevamente' : 'Realizar ahora'}
+                      </button> : <p className="mt-3 text-[9px] font-bold text-rose-600">El formulario todavía no está publicado.</p>}
+                    </div>;
+                  })}
+                </div>
+              )}
+            </div>
 
             {cumplimientoSubTab === 'asignar' ? (
               /* PANEL DE ASIGNACIÓN */
