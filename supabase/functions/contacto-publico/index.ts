@@ -63,11 +63,12 @@ Deno.serve(async request => {
         method: "POST",
         headers: { "Authorization": `Bearer ${resendKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          from: "Obraxis <notificaciones@obraxis.cl>",
+          from: "Obraxis <contacto@obraxis.cl>",
           to: [correo],
           reply_to: "contacto@obraxis.cl",
           subject: "Recibimos tu solicitud | Obraxis",
           html: confirmationHtml,
+          text: `Gracias por contactarnos, ${nombre}.\n\nHemos recibido correctamente tu solicitud. Nuestro equipo la revisará y se pondrá en contacto contigo a la brevedad.\n\nSi necesitas agregar antecedentes, puedes responder este correo.\n\nObraxis\nGestión inteligente para construir mejor`,
         }),
       });
       confirmationResult = await confirmationResponse.json().catch(() => ({}));
