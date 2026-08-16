@@ -55,16 +55,43 @@ Deno.serve(async request => {
       body: JSON.stringify({ from: "Obraxis <notificaciones@obraxis.cl>", to: ["contacto@obraxis.cl"], reply_to: correo, subject: `Solicitud de cotizacion - ${empresa || nombre}`, html }),
     });
     const resendResult = await resendResponse.json().catch(() => ({}));
+    let confirmationResponse: Response | null = null;
+    let confirmationResult: Record<string, unknown> = {};
+    if (resendResponse.ok) {
+      const confirmationHtml = `<div style="margin:0;background:#f4f7fb;padding:32px 16px;font-family:Arial,sans-serif;color:#17213a"><div style="max-width:620px;margin:auto;background:#ffffff;border:1px solid #dfe5ef;border-radius:20px;overflow:hidden"><div style="padding:24px 32px;background:#11182c"><img src="https://www.obraxis.cl/brand/obraxis-primary.png" alt="Obraxis" style="display:block;max-width:190px;max-height:64px;object-fit:contain"></div><div style="padding:32px"><h1 style="margin:0 0 18px;font-size:26px;color:#17213a">Gracias por contactarnos, ${nombre}</h1><p style="margin:0 0 14px;font-size:16px;line-height:1.65">Hemos recibido correctamente tu solicitud.</p><p style="margin:0 0 24px;font-size:16px;line-height:1.65">Nuestro equipo la revisará y se pondrá en contacto contigo a la brevedad.</p><div style="padding:18px 20px;background:#f7f9fc;border-left:4px solid #f2790b;border-radius:10px"><strong>Obraxis</strong><br><span style="color:#64748b">Gestión inteligente para construir mejor</span></div><p style="margin:26px 0 0;font-size:13px;line-height:1.5;color:#7b879d">Si necesitas agregar antecedentes, puedes responder este correo.</p></div></div></div>`;
+      confirmationResponse = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${resendKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from: "Obraxis <notificaciones@obraxis.cl>",
+          to: [correo],
+          reply_to: "contacto@obraxis.cl",
+          subject: "Recibimos tu solicitud | Obraxis",
+          html: confirmationHtml,
+        }),
+      });
+      confirmationResult = await confirmationResponse.json().catch(() => ({}));
+    }
+    console.log("contacto_publico_delivery", JSON.stringify({
+      contacto_id: contact.id,
+      aviso_interno_enviado: resendResponse.ok,
+      confirmacion_enviada: confirmationResponse?.ok || false,
+      confirmacion_con_id: Boolean(confirmationResponse?.ok && confirmationResult?.id),
+    }));
     await db.from("contactos_publicos").update({ resend_id: resendResponse.ok ? resendResult?.id || null : null }).eq("id", contact.id);
     await db.from("correo_sistema_intentos").insert({ ip_hash: ipHash, canal: "contacto", exitoso: resendResponse.ok });
     await db.from("auditoria_plataforma").insert({
       empresa: "Obraxis", modulo: "contacto", categoria: "Correo", accion: "Recibir formulario publico",
       descripcion: "Solicitud de contacto procesada", entidad_tipo: "contacto_publico", origen: "Supabase Edge Function",
       resultado: resendResponse.ok ? "Exitoso" : "Error", nivel: resendResponse.ok ? "info" : "warning",
-      entidad_id: String(contact.id), metadatos: { resend_id: resendResponse.ok ? resendResult?.id || null : null },
+      entidad_id: String(contact.id), metadatos: {
+        resend_id: resendResponse.ok ? resendResult?.id || null : null,
+        confirmacion_enviada: confirmationResponse?.ok || false,
+        confirmacion_resend_id: confirmationResponse?.ok ? confirmationResult?.id || null : null,
+      },
     });
     if (!resendResponse.ok) return reply({ error: "No fue posible enviar la solicitud" }, 502);
-    return reply({ success: true });
+    return reply({ success: true, confirmationSent: confirmationResponse?.ok || false });
   } catch {
     await db.from("correo_sistema_intentos").insert({ ip_hash: ipHash, canal: "contacto", exitoso: false });
     return reply({ error: "No fue posible procesar la solicitud" }, 400);
