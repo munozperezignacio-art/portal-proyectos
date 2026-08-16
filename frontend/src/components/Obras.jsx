@@ -14,6 +14,7 @@ import { registrarEventoBitacora } from '../utils/bitacoraService';
 import FormAnswerDisplay from './FormAnswerDisplay';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
+import MachineryEquipmentDetailModal from './MachineryEquipmentDetailModal';
 
 const ContextualEmailConfigModal = React.lazy(() => import('./ContextualEmailConfigModal'));
 const LastPlannerLookahead = React.lazy(() => import('./LastPlannerLookahead'));
@@ -396,6 +397,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   
   const [mantencionesMaquinariaList, setMantencionesMaquinariaList] = useState([]);
   const [paralizacionesMaquinariaList, setParalizacionesMaquinariaList] = useState([]);
+  const [selectedObraEquipment, setSelectedObraEquipment] = useState(null);
   const [accidentesPrevencionList, setAccidentesPrevencionList] = useState([]);
   const [formulariosPrevencionObra, setFormulariosPrevencionObra] = useState([]);
   const [respuestasPrevencionObra, setRespuestasPrevencionObra] = useState([]);
@@ -409,6 +411,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
   const [showMantencionModal, setShowMantencionModal] = useState(false);
   const [mantencionFormData, setMantencionFormData] = useState({ equipo_nombre: '', fecha: new Date().toISOString().substring(0, 10), tipo: 'Preventiva', costo: '', descripcion: '' });
+  const [showUsoEquipoModal, setShowUsoEquipoModal] = useState(false);
+  const [usoEquipoFormData, setUsoEquipoFormData] = useState({ equipo_id: '', fecha: new Date().toISOString().substring(0, 10), lectura_final: '', combustible: '', operador: '', observaciones: '' });
 
   const [showParalizacionModal, setShowParalizacionModal] = useState(false);
   const [paralizacionFormData, setParalizacionFormData] = useState({ equipo_nombre: '', fecha_inicio: new Date().toISOString().substring(0, 10), horas_parada: 8, motivo: '' });
@@ -759,12 +763,31 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       empresa: user?.empresa || 'OBRAXIS',
       registrado_por: user?.nombre || user?.usuario || ''
     };
-    const dbPayload = { equipo_id: newMant.equipo_id, equipo_patente: newMant.equipo_patente, equipo_tipo: newMant.equipo_tipo, fecha: newMant.fecha, tipo: newMant.tipo, horometro: null, descripcion: newMant.descripcion, costo: newMant.costo, proveedor: '', responsable: newMant.registrado_por, registrado_por: newMant.registrado_por, empresa: newMant.empresa };
+    const dbPayload = { equipo_id: newMant.equipo_id, equipo_patente: newMant.equipo_patente, equipo_tipo: newMant.equipo_tipo, obra_nombre: newMant.obra_nombre, fecha: newMant.fecha, tipo: newMant.tipo, horometro: null, descripcion: newMant.descripcion, costo: newMant.costo, proveedor: '', responsable: newMant.registrado_por, registrado_por: newMant.registrado_por, empresa: newMant.empresa };
     const { data, error } = await supabase.from('maquinaria_mantenciones').insert([dbPayload]).select().single();
     if (error) { setErrorMsg(`No fue posible registrar la mantención: ${error.message}`); return; }
     setMantencionesMaquinariaList(current => [{ ...newMant, ...data }, ...current]);
     setShowMantencionModal(false);
     setSuccessMsg('Mantención registrada en la obra y en el historial corporativo del equipo.');
+  };
+
+  const handleSaveUsoEquipo = async (e) => {
+    e.preventDefault();
+    const equipo = (maquinariaList || []).find(item => String(item.id) === String(usoEquipoFormData.equipo_id));
+    if (!equipo) { setErrorMsg('Selecciona un equipo asignado a esta obra.'); return; }
+    const inicial = Number(equipo.horometro_inicial || 0);
+    const final = Number(usoEquipoFormData.lectura_final);
+    if (!final || final < inicial) { setErrorMsg(`La lectura final debe ser igual o mayor que ${inicial.toLocaleString('es-CL')}.`); return; }
+    const payload = { equipo_id: equipo.id, equipo_patente: equipo.patente || '', equipo_tipo: equipo.tipo || 'Equipo', obra_nombre: selectedObra?.nombre || '', fecha: usoEquipoFormData.fecha, horometro_inicial: inicial, horometro_final: final, horas_trabajadas: final - inicial, combustible_cargado: Number(usoEquipoFormData.combustible) || 0, operador: usoEquipoFormData.operador || user?.nombre || user?.usuario || '', observaciones: usoEquipoFormData.observaciones.trim(), empresa: user?.empresa || 'OBRAXIS' };
+    const { data, error } = await supabase.from('maquinaria_uso_diario').insert([payload]).select().single();
+    if (error) { setErrorMsg(`No fue posible registrar el uso: ${error.message}`); return; }
+    const { error: updateError } = await supabase.from('inventario_maquinaria').update({ horometro_inicial: final }).eq('id', equipo.id).eq('empresa', user?.empresa || 'OBRAXIS');
+    if (updateError) { setErrorMsg(`El uso se registró, pero no se actualizó la lectura del equipo: ${updateError.message}`); return; }
+    setMaquinariaUsoObra(current => [data, ...current]);
+    setMaquinariaList(current => current.map(item => String(item.id) === String(equipo.id) ? { ...item, horometro_inicial: final } : item));
+    setSelectedObraEquipment(current => current && String(current.id) === String(equipo.id) ? { ...current, horometro_inicial: final } : current);
+    setShowUsoEquipoModal(false);
+    setSuccessMsg('Uso y lectura del equipo registrados en la obra y en su historial corporativo.');
   };
 
   const handleSaveParalizacion = async (e) => {
@@ -784,7 +807,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       empresa: user?.empresa || 'OBRAXIS',
       registrado_por: user?.nombre || user?.usuario || ''
     };
-    const payload = { equipo_id: equipo.id, equipo_patente: equipo.patente || '', equipo_tipo: equipo.tipo || equipo.nombre || 'Equipo', fecha: newPara.fecha_inicio, severidad: newPara.horas_parada >= 24 ? 'Alta' : 'Media', detuvo_equipo: true, horas_fuera_servicio: newPara.horas_parada, descripcion: newPara.motivo, causa: newPara.motivo, solucion: '', responsable: newPara.registrado_por, registrado_por: newPara.registrado_por, empresa: newPara.empresa };
+    const payload = { equipo_id: equipo.id, equipo_patente: equipo.patente || '', equipo_tipo: equipo.tipo || equipo.nombre || 'Equipo', obra_nombre: newPara.obra_nombre, fecha: newPara.fecha_inicio, severidad: newPara.horas_parada >= 24 ? 'Alta' : 'Media', detuvo_equipo: true, horas_fuera_servicio: newPara.horas_parada, descripcion: newPara.motivo, causa: newPara.motivo, solucion: '', responsable: newPara.registrado_por, registrado_por: newPara.registrado_por, empresa: newPara.empresa };
     const { data, error } = await supabase.from('maquinaria_fallas').insert([payload]).select().single();
     if (error) { setErrorMsg(`No fue posible reportar la falla: ${error.message}`); return; }
     setParalizacionesMaquinariaList(current => [{ ...newPara, ...data }, ...current]);
@@ -1438,8 +1461,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       const equipmentIds = finalMaqObra.map(item => item.id).filter(Boolean);
       if (equipmentIds.length > 0) {
         const [{ data: mantenciones }, { data: fallas }] = await Promise.all([
-          supabase.from('maquinaria_mantenciones').select('*').eq('empresa', user?.empresa || 'OBRAXIS').in('equipo_id', equipmentIds).order('fecha', { ascending: false }),
-          supabase.from('maquinaria_fallas').select('*').eq('empresa', user?.empresa || 'OBRAXIS').in('equipo_id', equipmentIds).order('fecha', { ascending: false })
+          supabase.from('maquinaria_mantenciones').select('*').eq('empresa', user?.empresa || 'OBRAXIS').eq('obra_nombre', obraNombre).in('equipo_id', equipmentIds).order('fecha', { ascending: false }),
+          supabase.from('maquinaria_fallas').select('*').eq('empresa', user?.empresa || 'OBRAXIS').eq('obra_nombre', obraNombre).in('equipo_id', equipmentIds).order('fecha', { ascending: false })
         ]);
         const equipmentById = new window.Map(finalMaqObra.map(item => [String(item.id), item]));
         setMantencionesMaquinariaList((mantenciones || []).map(item => ({ ...item, equipo_nombre: equipmentById.get(String(item.equipo_id))?.nombre || item.equipo_tipo, obra_nombre: obraNombre })));
@@ -3751,7 +3774,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                             <th className="p-3">Tipo de Equipo</th>
                             <th className="p-3">Patente / Código</th>
                             <th className="p-3">Marca / Modelo</th>
-                            <th className="p-3">Horómetro Inicial</th>
+                            <th className="p-3">Lectura actual</th>
                             <th className="p-3">Costo Interno (Imputable)</th>
                             <th className="p-3">Estado</th>
                           </tr>
@@ -3761,13 +3784,14 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                             const rawCosto = m.costo_interno !== undefined && m.costo_interno !== null && m.costo_interno !== '' ? m.costo_interno : (m.tarifa_diaria || m.costo || 0);
                             const costoNum = parseFloat(rawCosto) || 0;
                             const unidadStr = m.unidad_costo_interno || m.unidad_tarifa || '$/día';
+                            const lecturaUnidad = (m.planes_mantencion || []).some((plan) => plan.unidad === 'kilometros') ? 'km' : 'h';
 
                             return (
-                              <tr key={m.id || idx} className="hover:bg-slate-50 text-slate-800">
+                              <tr key={m.id || idx} onClick={() => setSelectedObraEquipment(m)} className="cursor-pointer hover:bg-blue-50 text-slate-800" title="Abrir ficha operativa del equipo">
                                 <td className="p-3 font-extrabold text-slate-900 uppercase">{m.tipo}</td>
                                 <td className="p-3 font-mono text-slate-700 font-bold">{m.patente || 'S/I'}</td>
                                 <td className="p-3 text-slate-600 font-medium">{m.marca || 'Cat / Estándar'}</td>
-                                <td className="p-3 font-bold text-slate-800">{m.horometro_inicial || 0} hrs</td>
+                                <td className="p-3 font-bold text-slate-800">{Number(m.horometro_inicial || 0).toLocaleString('es-CL')} {lecturaUnidad}</td>
                                 <td className="p-3 font-extrabold text-amber-900 bg-amber-50/50">
                                   {costoNum > 0 ? (
                                     `$${costoNum.toLocaleString('es-CL')} ${unidadStr}`
@@ -3779,6 +3803,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                   <span className="text-[10px] font-black px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-900 border border-emerald-300 uppercase">
                                     {m.estado_equipo || 'Operativo'}
                                   </span>
+                                  <span className="ml-2 text-[10px] font-black text-blue-800">Ver ficha →</span>
                                 </td>
                               </tr>
                             );
@@ -10910,6 +10935,100 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           </div>
         </div>
       )}
+
+      {selectedObraEquipment && (
+        <MachineryEquipmentDetailModal
+          equipment={selectedObraEquipment}
+          usage={maquinariaUsoObra}
+          failures={paralizacionesMaquinariaList}
+          maintenance={mantencionesMaquinariaList}
+          scopeLabel={`Historial exclusivo de ${selectedObra?.nombre || 'esta obra'}`}
+          onClose={() => setSelectedObraEquipment(null)}
+          onUsage={() => {
+            setUsoEquipoFormData({
+              equipo_id: String(selectedObraEquipment.id),
+              fecha: new Date().toISOString().substring(0, 10),
+              lectura_final: '',
+              combustible: '',
+              operador: user?.nombre || user?.usuario || '',
+              observaciones: ''
+            });
+            setSelectedObraEquipment(null);
+            setShowUsoEquipoModal(true);
+          }}
+          onFailure={() => {
+            setParalizacionFormData({
+              equipo_nombre: selectedObraEquipment.id,
+              fecha_inicio: new Date().toISOString().substring(0, 10),
+              horas_parada: 1,
+              motivo: ''
+            });
+            setSelectedObraEquipment(null);
+            setShowParalizacionModal(true);
+          }}
+          onMaintenance={() => {
+            setMantencionFormData({
+              equipo_nombre: selectedObraEquipment.id,
+              fecha: new Date().toISOString().substring(0, 10),
+              tipo: 'Preventiva',
+              costo: '',
+              descripcion: ''
+            });
+            setSelectedObraEquipment(null);
+            setShowMantencionModal(true);
+          }}
+        />
+      )}
+
+      {/* MODAL: REGISTRAR USO DE MAQUINARIA */}
+      {showUsoEquipoModal && (() => {
+        const equipo = maquinariaList.find((item) => String(item.id) === String(usoEquipoFormData.equipo_id));
+        const unidadLectura = (equipo?.planes_mantencion || []).some((plan) => plan.unidad === 'kilometros') ? 'km' : 'h';
+        return (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
+              <div className="flex justify-between items-center mb-4 border-b pb-3">
+                <div>
+                  <h3 className="font-extrabold text-slate-800 text-sm">Registrar uso del equipo</h3>
+                  <p className="text-[11px] text-slate-500 mt-1">{equipo?.tipo || 'Equipo'} · {equipo?.patente || equipo?.codigo || 'Sin código'}</p>
+                </div>
+                <button onClick={() => setShowUsoEquipoModal(false)} className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer">✕</button>
+              </div>
+              <form onSubmit={handleSaveUsoEquipo} className="space-y-3 text-xs">
+                <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 flex items-center justify-between">
+                  <span className="font-bold text-blue-900">Lectura anterior</span>
+                  <span className="font-black text-blue-950">{Number(equipo?.horometro_inicial || 0).toLocaleString('es-CL')} {unidadLectura}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Fecha *</label>
+                    <input type="date" required value={usoEquipoFormData.fecha} onChange={(e) => setUsoEquipoFormData({ ...usoEquipoFormData, fecha: e.target.value })} className="w-full border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-800" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Lectura final ({unidadLectura}) *</label>
+                    <input type="number" min={Number(equipo?.horometro_inicial || 0)} step="0.01" required value={usoEquipoFormData.lectura_final} onChange={(e) => setUsoEquipoFormData({ ...usoEquipoFormData, lectura_final: e.target.value })} className="w-full border border-slate-200 rounded-lg p-2 text-xs font-bold text-slate-800" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Combustible (L)</label>
+                    <input type="number" min="0" step="0.01" value={usoEquipoFormData.combustible} onChange={(e) => setUsoEquipoFormData({ ...usoEquipoFormData, combustible: e.target.value })} className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Operador</label>
+                    <input value={usoEquipoFormData.operador} onChange={(e) => setUsoEquipoFormData({ ...usoEquipoFormData, operador: e.target.value })} className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Observaciones</label>
+                  <textarea rows={3} value={usoEquipoFormData.observaciones} onChange={(e) => setUsoEquipoFormData({ ...usoEquipoFormData, observaciones: e.target.value })} className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800" placeholder="Trabajo realizado, condición del equipo o novedades..." />
+                </div>
+                <button type="submit" className="w-full bg-blue-950 hover:bg-blue-900 text-white font-bold py-2.5 rounded-xl text-xs cursor-pointer shadow-sm">Guardar reporte de uso</button>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* MODAL: REGISTRAR MANTENCIÓN DE MAQUINARIA */}
       {showMantencionModal && (

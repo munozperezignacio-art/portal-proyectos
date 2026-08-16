@@ -11,6 +11,7 @@ import { formatRut, formatNumberWithDots, parseNumberFromDots } from '../utils/r
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
 import MachineryMeterAI from './MachineryMeterAI';
+import MachineryEquipmentDetailModal from './MachineryEquipmentDetailModal';
 
 
 // Listado de feriados nacionales en Chile (MM-DD)
@@ -652,7 +653,7 @@ export default function Maquinaria({ user, onBack }) {
   const handleFallaSubmit = async (e) => {
     e.preventDefault();
     const equipment = maquinaria.find(m => String(m.id) === String(fallaForm.equipo_id));
-    const payload = { ...fallaForm, horas_fuera_servicio: Number(fallaForm.horas_fuera_servicio) || 0, equipo_patente: equipment?.patente || '', equipo_tipo: equipment?.tipo || '', empresa: user.empresa, registrado_por: user?.nombre || user?.usuario || '' };
+    const payload = { ...fallaForm, horas_fuera_servicio: Number(fallaForm.horas_fuera_servicio) || 0, equipo_patente: equipment?.patente || '', equipo_tipo: equipment?.tipo || '', obra_nombre: equipment?.obra_nombre || 'Bodega / Sin asignar', empresa: user.empresa, registrado_por: user?.nombre || user?.usuario || '' };
     const { error } = await supabase.from('maquinaria_fallas').insert([payload]);
     if (error) { setErrorMsg(`No fue posible registrar la falla: ${error.message}`); return; }
     setFallaModalOpen(false); setSuccessMsg('Falla registrada y considerada en los indicadores.'); fetchReliabilityLogs();
@@ -661,7 +662,7 @@ export default function Maquinaria({ user, onBack }) {
   const handleMantencionSubmit = async (e) => {
     e.preventDefault();
     const equipment = maquinaria.find(m => String(m.id) === String(mantencionForm.equipo_id));
-    const payload = { ...mantencionForm, horometro: Number(mantencionForm.horometro) || null, costo: Number(mantencionForm.costo) || 0, equipo_patente: equipment?.patente || '', equipo_tipo: equipment?.tipo || '', empresa: user.empresa, registrado_por: user?.nombre || user?.usuario || '' };
+    const payload = { ...mantencionForm, horometro: Number(mantencionForm.horometro) || null, costo: Number(mantencionForm.costo) || 0, equipo_patente: equipment?.patente || '', equipo_tipo: equipment?.tipo || '', obra_nombre: equipment?.obra_nombre || 'Bodega / Sin asignar', empresa: user.empresa, registrado_por: user?.nombre || user?.usuario || '' };
     const { error } = await supabase.from('maquinaria_mantenciones').insert([payload]);
     if (error) { setErrorMsg(`No fue posible registrar la mantención: ${error.message}`); return; }
     setMantencionModalOpen(false); setSuccessMsg('Mantención incorporada al historial del equipo.'); fetchReliabilityLogs();
@@ -1186,9 +1187,10 @@ export default function Maquinaria({ user, onBack }) {
               {filteredMaquinaria.map((m) => {
                 const est = getEquipoEstadoDetallado(m);
                 return (
-                  <div 
+                  <div
                     key={m.id} 
-                    className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden flex flex-col justify-between hover:shadow-md hover:border-primary transition duration-200"
+                    onClick={() => setViewingEquip(m)}
+                    className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden flex flex-col justify-between hover:shadow-md hover:border-primary transition duration-200 cursor-pointer"
                   >
                     <div className="p-5 flex gap-4">
                       <div className="w-20 h-20 bg-slate-100 rounded-2xl border border-slate-200 flex-shrink-0 flex items-center justify-center overflow-hidden">
@@ -1221,7 +1223,7 @@ export default function Maquinaria({ user, onBack }) {
 
                     <div className="bg-slate-50 px-5 py-3 border-t border-slate-100 flex justify-between items-center text-xs">
                       <button
-                        onClick={() => setViewingEquip(m)}
+                        onClick={(event) => { event.stopPropagation(); setViewingEquip(m); }}
                         className="text-slate-600 hover:text-primary font-bold text-[11px] flex items-center gap-1 cursor-pointer"
                       >
                         <Eye className="w-3.5 h-3.5" />
@@ -1230,7 +1232,7 @@ export default function Maquinaria({ user, onBack }) {
 
                       <div className="flex gap-2">
                         <button
-                          onClick={() => handleOpenEditModal(m)}
+                          onClick={(event) => { event.stopPropagation(); handleOpenEditModal(m); }}
                           className="flex items-center gap-1 rounded-lg bg-slate-200 px-2 py-1.5 text-[10px] font-black text-slate-700 transition hover:bg-slate-300 cursor-pointer"
                           title="Editar Equipo"
                         >
@@ -1238,7 +1240,7 @@ export default function Maquinaria({ user, onBack }) {
                           <span>Editar</span>
                         </button>
                         <button
-                          onClick={() => handleDeleteEquip(m)}
+                          onClick={(event) => { event.stopPropagation(); handleDeleteEquip(m); }}
                           className="p-1.5 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 transition cursor-pointer"
                           title="Eliminar Equipo"
                         >
@@ -3039,30 +3041,16 @@ export default function Maquinaria({ user, onBack }) {
         </div>
       )}
 
-      {/* MODAL VER FICHA COMPLETA */}
-      {viewingEquip && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-lg w-full space-y-4 shadow-xl">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider">{viewingEquip.tipo} ({viewingEquip.patente})</h3>
-              <button onClick={() => setViewingEquip(null)} className="p-1 rounded-lg bg-slate-100 font-bold text-xs">✕</button>
-            </div>
-
-            <div className="space-y-2 text-xs">
-              <p><b>Marca:</b> {viewingEquip.marca || 'S/I'}</p>
-              <p><b>Propiedad:</b> {viewingEquip.tipo_activo || 'Propio'}</p>
-              <p><b>Obra Asignada:</b> {viewingEquip.obra_nombre || 'Bodega Central / Libre'}</p>
-              <p><b>Costo Interno Imputable a Obra:</b> <span className="font-extrabold text-amber-900">${viewingEquip.costo_interno ? parseFloat(viewingEquip.costo_interno).toLocaleString('es-CL') : 0} {viewingEquip.unidad_costo_interno || '$/día'}</span></p>
-              {viewingEquip.fecha_hasta_estimada && <p><b>Asignado Hasta:</b> <span className="font-bold text-amber-800">{viewingEquip.fecha_hasta_estimada}</span></p>}
-              <p><b>Horómetro Inicial:</b> {viewingEquip.horometro_inicial || 0} hrs</p>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <button onClick={() => setViewingEquip(null)} className="px-5 py-2 rounded-xl bg-primary text-white font-bold text-xs">Cerrar Ficha</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {viewingEquip && <MachineryEquipmentDetailModal
+        equipment={viewingEquip}
+        usage={usoList}
+        failures={fallasList}
+        maintenance={mantencionesList}
+        onClose={() => setViewingEquip(null)}
+        onUsage={() => { setUsoForm({ equipo_id: String(viewingEquip.id), equipo_patente: viewingEquip.patente || '', obra_nombre: viewingEquip.obra_nombre || 'Bodega / Sin asignar', fecha: dateToISO(new Date()), horometro_inicial: String(viewingEquip.horometro_inicial || 0), horometro_final: '', combustible_cargado: '0', operador: user?.nombre || user?.usuario || '', observaciones: '' }); setViewingEquip(null); setUsoModalOpen(true); }}
+        onFailure={() => { setFallaForm({ equipo_id: String(viewingEquip.id), fecha: dateToISO(new Date()), severidad: 'Media', detuvo_equipo: true, horas_fuera_servicio: '', descripcion: '', causa: '', solucion: '', responsable: user?.nombre || user?.usuario || '' }); setViewingEquip(null); setFallaModalOpen(true); }}
+        onMaintenance={() => { setMantencionForm({ equipo_id: String(viewingEquip.id), fecha: dateToISO(new Date()), tipo: 'Preventiva', horometro: '', descripcion: '', costo: '', proveedor: '', responsable: user?.nombre || user?.usuario || '' }); setViewingEquip(null); setMantencionModalOpen(true); }}
+      />}
 
     </div>
   );
