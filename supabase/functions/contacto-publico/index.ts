@@ -4,7 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const allowedOrigins = new Set(["https://obraxis.cl", "https://www.obraxis.cl"]);
 const corsHeaders = (origin: string | null) => ({
   "Access-Control-Allow-Origin": allowedOrigins.has(origin || "") ? origin! : "https://www.obraxis.cl",
-  "Access-Control-Allow-Headers": "apikey, content-type, x-client-info",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Vary": "Origin",
 });

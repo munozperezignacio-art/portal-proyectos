@@ -8,3 +8,8 @@ verify_jwt = false
 
 [functions.despachar-informes]
 verify_jwt = false
+
+# Formulario público de contacto: aplica validación de origen, honeypot y
+# control de frecuencia dentro de la propia función.
+[functions.contacto-publico]
+verify_jwt = false
