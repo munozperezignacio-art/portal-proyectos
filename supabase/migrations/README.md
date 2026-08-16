@@ -8,8 +8,8 @@ Esta carpeta contiene el historial SQL productivo versionado de Obraxis.
   `supabase_migrations.schema_migrations` mediante `supabase migration fetch`.
 - Sus versiones, nombres y sentencias coinciden con el historial aplicado en el
   proyecto productivo `wegphblwwcfidvdbdtdq`.
-- Los archivos `schema_*.sql` de la raíz se conservan como referencia histórica;
-  no deben ejecutarse sobre una instalación que use este historial.
+- Los antiguos SQL sueltos fueron retirados para mantener una única fuente de
+  verdad: este historial productivo versionado.
 - No se deben renumerar, duplicar ni marcar artificialmente migraciones como
   reparadas. La comparación oficial se realiza con
   `supabase migration list --linked`.

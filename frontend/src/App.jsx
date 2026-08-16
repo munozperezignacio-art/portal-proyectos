@@ -1,4 +1,3 @@
-import { obraxisLogoBase64 } from './obraxisLogoBase64';
 import React, { useEffect, useMemo, useState } from 'react';
 import { 
   LogOut, LayoutDashboard, Building2, Users, Truck, ShieldAlert, Settings, Info, Menu, X, Loader2,
@@ -543,7 +542,7 @@ function App() {
         <div className="p-4 border-b border-slate-100 flex items-center justify-between gap-2 min-h-[73px]">
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
             <img 
-              src={companyBranding?.logo_base64 || obraxisLogoBase64} 
+              src={companyBranding?.logo_base64 || '/brand/obraxis-primary.png'}
               className="w-10 h-10 object-contain shrink-0" 
               alt="Obraxis Icon" 
             />
@@ -697,7 +696,7 @@ function App() {
               <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <img 
-                    src={companyBranding?.logo_base64 || obraxisLogoBase64} 
+                    src={companyBranding?.logo_base64 || '/brand/obraxis-primary.png'}
                     className="w-8 h-8 object-contain shrink-0" 
                     alt="Obraxis Icon" 
                   />

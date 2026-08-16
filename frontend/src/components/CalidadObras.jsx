@@ -135,7 +135,7 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
       const receptionIds = new Set(nextReceptions.map(item => item.id));
       setPartidas(partidasRes.data || []); setPacs(pacRes.data || []); setRdis(rdiRes.data || []); setNcs(ncRes.data || []); setRecepciones(nextReceptions); setReceptionControls((controlsRes.data || []).filter(control => receptionIds.has(control.recepcion_id)));
     } catch (error) {
-      setMessage(error.message?.includes('calidad_') ? 'Falta habilitar Calidad en Supabase. Ejecuta schema_calidad_obras.sql y actualiza.' : `No fue posible cargar Calidad: ${error.message}`);
+      setMessage(error.message?.includes('calidad_') ? 'Calidad no está habilitada correctamente para esta empresa. Solicita al administrador revisar la configuración de Supabase.' : `No fue posible cargar Calidad: ${error.message}`);
     } finally { setLoading(false); }
   }, [empresa, obraInicial, obraNombre]);
 

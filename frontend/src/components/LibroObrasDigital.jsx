@@ -124,7 +124,7 @@ export default function LibroObrasDigital({ user, obraNombre, obra }) {
     } catch (error) {
       setMessage(
         error.message?.includes("libro_obra_digital")
-          ? "Falta habilitar Libro de Obras en Supabase. Ejecuta schema_libro_obras.sql y actualiza."
+          ? "Libro de Obras no está habilitado correctamente. Solicita al administrador revisar la configuración de Supabase."
           : `No fue posible cargar el Libro de Obras: ${error.message}`,
       );
     } finally {

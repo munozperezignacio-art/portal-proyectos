@@ -4,7 +4,7 @@ Proyecto: `wegphblwwcfidvdbdtdq`
 Snapshot verificado: 15 de agosto de 2026
 Total: 111 migraciones registradas en `supabase_migrations.schema_migrations` y recuperadas con Supabase CLI.
 
-Este inventario es el contrato de correspondencia entre producción y Git. No se deben renumerar ni marcar artificialmente migraciones históricas. Desde el cierre del 15 de agosto de 2026, `supabase/migrations` contiene las 111 sentencias exactas recuperadas del historial productivo; los archivos `schema_*.sql` previos se conservan sólo como referencias históricas y no deben ejecutarse sobre una instalación migrada.
+Este inventario es el contrato de correspondencia entre producción y Git. No se deben renumerar ni marcar artificialmente migraciones históricas. Desde el cierre del 15 de agosto de 2026, `supabase/migrations` contiene las 111 sentencias exactas recuperadas del historial productivo y constituye la única fuente SQL operativa del proyecto.
 
 Verificación recomendada:
 

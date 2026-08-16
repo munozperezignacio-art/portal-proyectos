@@ -122,7 +122,7 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
         setContractCurrency(budget?.moneda_base || legacyCurrency || 'CLP');
       } else setContractCurrency('CLP');
     } catch (error) {
-      setMessage(error.message?.includes('estados_pago_obra') ? 'Falta habilitar Estados de Pago en Supabase. Ejecuta schema_estados_pago.sql y actualiza.' : `No fue posible cargar Estados de Pago: ${error.message}`);
+      setMessage(error.message?.includes('estados_pago_obra') ? 'Estados de Pago no está habilitado correctamente. Solicita al administrador revisar la configuración de Supabase.' : `No fue posible cargar Estados de Pago: ${error.message}`);
     } finally { setLoading(false); }
   }, [empresa, obra?.id, obraNombre]);
 

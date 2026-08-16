@@ -437,7 +437,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
     }
   }, [activeSection, selectedProyectoId, itemsPresupuesto]);
 
-  // --- LÓGICA DE IMPORTADOR INTELIGENTE CON IA (GEMINI 2.5 FLASH) ---
+  // --- IMPORTADOR INTELIGENTE MEDIANTE EL SERVICIO DE IA CONFIGURADO ---
   const convertFileToBase64 = (file) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();

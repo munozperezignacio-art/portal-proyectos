@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { obraxisLogoBase64 } from '../obraxisLogoBase64';
 import { supabase } from '../supabaseClient';
 import ModuleHeader from './ModuleHeader';
 import { 
@@ -2040,7 +2039,7 @@ export default function Maquinaria({ user, onBack }) {
               {/* ENCABEZADO CORPORATIVO OFICIAL CON MEMBRETE */}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b-2 border-slate-900 pb-2">
                 <div className="flex items-center gap-4">
-                  <img src={obraxisLogoBase64} alt="Obraxis Logo" className="h-9 object-contain" />
+                  <img src="/brand/obraxis-primary.png" alt="Obraxis Logo" className="h-9 object-contain" />
                   <div>
                     <h1 className="text-lg font-black text-slate-900 tracking-tight uppercase">OBRAXIS SPA</h1>
                     <p className="text-[10.5px] font-bold text-slate-600 uppercase">SISTEMAS Y GESTIÓN DE MAQUINARIA EN FAENA</p>

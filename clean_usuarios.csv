@@ -1,6 +1,0 @@
-usuario,empresa,contrasena,rol,obras,modulos,correo,trabajador_rut
-admin,Obraxis,Obraxis.2026!,Superusuario,TODAS,"obras,rrhh,maquinaria,prevencion,admin",admin@obraxis.cl,
-mventura,Obraxis,MVentura27!,Superusuario,TODAS,"obras,rrhh,maquinaria,prevencion",mventura@obraxis.cl,
-CTorres,Obraxis,CTorres2026.,Supervisor,FEP Talcahuano,"obras,avance_prod,asist_pers,report_maq,inventario,docs_drive",,17.159.199-6
-mzapata,Obraxis,MZapata2026.,Administrador de contrato,TODAS,"admin,obras,rrhh,maquinaria,prevencion",,
-Prueba,Obraxis,Prueba.obraxis1,Supervisor,CAM Coquimbo,"obras,prevencion",contacto@obraxis.cl,

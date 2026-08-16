@@ -216,7 +216,7 @@ export default function NotificationMaster({ user, obras = [], roles = [] }) {
         </div>
       </div>
 
-      {schemaMissing && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs font-semibold text-amber-900">Falta habilitar el Control de notificaciones en Supabase. Ejecuta <b>schema_notificaciones_master.sql</b> y actualiza.</div>}
+      {schemaMissing && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs font-semibold text-amber-900">El Control de notificaciones no está habilitado correctamente. Solicita al administrador revisar la configuración de Supabase.</div>}
       {message && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-900">{message}</div>}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

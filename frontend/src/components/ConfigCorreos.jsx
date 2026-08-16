@@ -990,7 +990,6 @@ function ConfigCorreos({ user, onBack }) {
       if (error) throw error;
       const { error: compatibilityError } = await supabase.from('config_empresa').update({
         email_sender: globalSettings.correo_remitente,
-        gemini_model: globalSettings.ia_modelo,
         updated_at: new Date().toISOString()
       }).eq('empresa', 'Obraxis');
       if (compatibilityError) throw compatibilityError;

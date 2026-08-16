@@ -294,7 +294,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       if (error) throw error;
       const updated = { ...selectedObra, ...payload };
       setSelectedObra(updated); setObras(current => current.map(obra => obra.id === updated.id ? updated : obra)); setShowObraDetails(false); setSuccessMsg(isClosed ? 'Obra cerrada y enviada al historial.' : 'Ficha de obra actualizada.');
-    } catch (error) { setErrorMsg(error.message?.includes('column') ? 'Falta habilitar el ciclo de vida de obras en Supabase. Ejecuta schema_obras_lifecycle.sql y vuelve a intentar.' : `No se pudo actualizar la ficha de obra: ${error.message}`); }
+    } catch (error) { setErrorMsg(error.message?.includes('column') ? 'El ciclo de vida de obras no está habilitado correctamente. Solicita al administrador revisar la configuración de Supabase.' : `No se pudo actualizar la ficha de obra: ${error.message}`); }
     finally { setModalLoading(false); }
   };
   
