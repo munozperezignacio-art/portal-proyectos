@@ -7,11 +7,13 @@ import { Badge, Card, Empty, ErrorBox, Header, Loading, Screen, Segments } from 
 import { useSupabaseList } from '@/hooks/useSupabaseList';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
+import { can } from '@/lib/types';
 
 type Row=Record<string,any>;
 
 export default function Forms(){
   const{profile}=useAuth();
+  const canView=can(profile,'formularios.formularios.ver'),canCreate=can(profile,'formularios.formularios.crear');
   const[tab,setTab]=useState('biblioteca');
   const[q,setQ]=useState('');
   const state=useSupabaseList<Row>(async()=>{
@@ -26,16 +28,17 @@ export default function Forms(){
   const data=state.data[0]||{forms:[],answers:[]};
   const filtered=useMemo(()=>data.forms.filter((x:Row)=>`${x.titulo} ${x.codigo} ${x.categoria}`.toLowerCase().includes(q.toLowerCase())),[q,data.forms]);
 
+  if(!canView)return <Screen><Header title="Formularios y registros" subtitle="Acceso restringido" icon="clipboard-outline"/><Empty text="Tu rol no tiene permiso para consultar formularios."/></Screen>;
   return <Screen refreshing={state.loading} onRefresh={state.refresh}>
     <Header title="Formularios y registros" subtitle="Biblioteca operacional de la empresa." icon="clipboard-outline"/>
     <Segments value={tab} options={[{key:'biblioteca',label:'Biblioteca'},{key:'registros',label:'Registros'}]} onChange={setTab}/>
     <View style={s.search}><Ionicons name="search" size={18} color={colors.muted}/><TextInput value={q} onChangeText={setQ} placeholder="Buscar formulario" placeholderTextColor="#98A2B3" style={s.input}/></View>
     <ErrorBox text={state.error}/>
     {state.loading&&!state.data.length?<Loading/>:tab==='biblioteca'?(
-      !filtered.length?<Empty text="No hay formularios en la biblioteca."/>:filtered.map((x:Row)=><Card key={x.id} onPress={()=>router.push({pathname:'/formulario/[id]',params:{id:String(x.id)}})}>
+      !filtered.length?<Empty text="No hay formularios en la biblioteca."/>:filtered.map((x:Row)=><Card key={x.id} onPress={canCreate?()=>router.push({pathname:'/formulario/[id]',params:{id:String(x.id)}}):undefined}>
         <View style={s.top}><Badge>{x.codigo||x.categoria||'Formulario'}</Badge><Text style={s.rev}>Rev. {x.revision||'0'}</Text></View>
         <Text style={s.name}>{x.titulo}</Text><Text style={s.meta}>{x.descripcion||'Sin descripción'}</Text>
-        {x.publico_token?<Text style={s.available}>● Toca para responder</Text>:<Text style={s.unavailable}>Sin publicación disponible</Text>}
+        {x.publico_token&&canCreate?<Text style={s.available}>● Toca para responder</Text>:<Text style={s.unavailable}>{canCreate?'Sin publicación disponible':'Solo lectura'}</Text>}
       </Card>)
     ):(
       !data.answers.length?<Empty text="Aún no existen registros respondidos."/>:data.answers.map((x:Row)=><Card key={x.id} onPress={()=>router.push({pathname:'/registro/[id]',params:{id:String(x.id)}})}>

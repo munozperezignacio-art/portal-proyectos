@@ -10,6 +10,7 @@ import { Badge, Card, Empty, ErrorBox, Header, Loading, Progress, Screen, Segmen
 import { WorkEntryActions } from '@/components/WorkEntryActions';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
+import { can, canAccessWork } from '@/lib/types';
 
 type Row = Record<string, any>;
 const tabs = [
@@ -45,10 +46,12 @@ const pctForPart = (part: Row, advances: Row[]) => {
 export default function WorkDetail() {
   const { id, nombre } = useLocalSearchParams<{ id: string; nombre: string }>();
   const { profile } = useAuth();
-  const [tab, setTab] = useState('avance'); const [loading, setLoading] = useState(true); const [error, setError] = useState('');
+  const authorized = canAccessWork(profile, nombre);
+  const [tab, setTab] = useState(() => can(profile,'obras.avances.ver') ? 'avance' : can(profile,'obras.maquinaria.ver') ? 'equipos' : can(profile,'obras.personal.ver') ? 'asistencia' : can(profile,'obras.subcontratos.ver') ? 'subcontratos' : 'estadisticas'); const [loading, setLoading] = useState(true); const [error, setError] = useState('');
   const [data, setData] = useState<Row>({ work: null, parts: [], adv: [], equip: [], attendance: [], workers: [], sub: [], subAdv: [], subAttendance: [], subPayments: [], maintenance: [] });
   const load = async () => {
     setLoading(true); setError('');
+    if (!authorized) { setError('No tienes acceso asignado a esta obra.'); setLoading(false); return; }
     try {
       const [work, p, a, e, att, w, sub, sa, sat, sep, m] = await Promise.all([
         supabase.from('obras').select('id,nombre,estado,fecha_inicio_real,fecha_termino_estimada,fecha_termino_real').eq('empresa', profile!.empresa).eq('id', Number(id)).maybeSingle(),
@@ -69,7 +72,7 @@ export default function WorkDetail() {
       setData({ work: work.data, parts: p.data || [], adv: a.data || [], equip: equipment, attendance: att.data || [], workers: w.data || [], sub: sub.data || [], subAdv: sa.data || [], subAttendance: sat.data || [], subPayments: sep.data || [], maintenance: (m.data || []).filter(item => ids.has(item.equipo_id)) });
     } catch (x) { setError(x instanceof Error ? x.message : 'No fue posible cargar la obra.'); } finally { setLoading(false); }
   };
-  useEffect(() => { void load(); }, [id, profile, nombre]);
+  useEffect(() => { void load(); }, [id, profile, nombre, authorized]);
 
   const metrics = useMemo(() => {
     const parts = data.parts.filter((item: Row) => !item.es_titulo); const cutoff = today();
@@ -98,8 +101,8 @@ export default function WorkDetail() {
   return <Screen refreshing={loading} onRefresh={load}>
     <Pressable onPress={() => router.back()} style={s.back}><Ionicons name="arrow-back" size={20} /><Text style={s.backText}>Volver a obras</Text></Pressable>
     <Header title={nombre || 'Obra'} subtitle="Vista operativa en terreno" icon="business-outline" />
-    <Segments value={tab} options={tabs} onChange={setTab} />
-    {(tab === 'avance' || tab === 'asistencia') && <WorkEntryActions mode={tab === 'avance' ? 'progress' : 'attendance'} profile={profile!} workId={Number(id)} workName={nombre || ''} parts={data.parts} onSaved={load} />}
+    <Segments value={tab} options={tabs.filter(item => item.key === 'avance' ? can(profile,'obras.avances.ver') : item.key === 'equipos' ? can(profile,'obras.maquinaria.ver') : item.key === 'asistencia' ? can(profile,'obras.personal.ver') : item.key === 'subcontratos' ? can(profile,'obras.subcontratos.ver') : true)} onChange={setTab} />
+    {((tab === 'avance' && can(profile,'obras.avances.crear')) || (tab === 'asistencia' && can(profile,'obras.personal.crear'))) && <WorkEntryActions mode={tab === 'avance' ? 'progress' : 'attendance'} profile={profile!} workId={Number(id)} workName={nombre || ''} parts={data.parts} onSaved={load} />}
     <ErrorBox text={error} />
     {loading && !data.parts.length ? <Loading /> : <>
       {tab === 'avance' && (metrics.detail.length ? metrics.detail.map((part: Row) => <Card key={part.id}><Text style={s.name}>{part.partida}</Text><Text style={s.meta}>{part.done.toLocaleString('es-CL')} de {Number(part.cantidad_presupuestada || 0).toLocaleString('es-CL')} {part.unidad}</Text><Progress value={part.pct} /></Card>) : <Empty text="La obra aún no tiene partidas cargadas." />)}

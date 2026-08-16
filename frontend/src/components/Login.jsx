@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../supabaseClient';
+import { supabase, isSessionRemembered, setSessionPersistence } from '../supabaseClient';
 import { Eye, EyeOff, Lock, Building2, User, AlertCircle, Loader2, QrCode, Navigation, RotateCcw, CheckCircle2, AlertTriangle, Mail, KeyRound } from 'lucide-react';
 import { getAuthenticatedProfile } from '../utils/auth';
 import { formatRut, validateRut } from '../utils/rutUtils';
@@ -11,6 +11,7 @@ function Login({ onLoginSuccess, onBackHome }) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(() => isSessionRemembered());
 
   // Estados de Recuperación de Contraseña
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
@@ -249,6 +250,7 @@ function Login({ onLoginSuccess, onBackHome }) {
     setLoading(true);
 
     try {
+      setSessionPersistence(rememberMe);
       const { data: loginData, error: loginError } = await supabase.functions.invoke('login-usuario', {
         body: { usuario: username.trim(), empresa: company.trim(), password }
       });
@@ -425,7 +427,11 @@ function Login({ onLoginSuccess, onBackHome }) {
               </button>
             </div>
             
-            <div className="flex justify-end mt-1">
+            <div className="flex items-center justify-between gap-3 mt-2">
+              <label className="flex cursor-pointer items-center gap-2 text-[11px] font-bold text-slate-600">
+                <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="h-4 w-4 rounded border-slate-300 accent-primary" />
+                Recordarme en este equipo
+              </label>
               <button
                 type="button"
                 onClick={() => {

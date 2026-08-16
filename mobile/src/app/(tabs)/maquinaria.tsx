@@ -11,12 +11,13 @@ import { useSupabaseList } from '@/hooks/useSupabaseList';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
 import { scheduleMaintenanceSummary } from '@/lib/notifications';
-import type { Machinery } from '@/lib/types';
+import { can, type Machinery } from '@/lib/types';
 type Row=Record<string,any>;
 const tabs=[{key:'equipos',label:'Equipos'},{key:'registros',label:'Registros'},{key:'reservas',label:'Reservas'},{key:'estadisticas',label:'Estadísticas'}];
 
 export default function MachineryScreen(){
   const{profile}=useAuth();const[tab,setTab]=useState('equipos');
+  const canView=can(profile,'maquinaria.inventario.ver'),canCreate=can(profile,'maquinaria.inventario.crear');
   const state=useSupabaseList<Row>(async()=>{const[e,u,r,f,m]=await Promise.all([
     supabase.from('inventario_maquinaria').select('*').eq('empresa',profile!.empresa).order('tipo'),
     supabase.from('maquinaria_uso_diario').select('*').eq('empresa',profile!.empresa).order('fecha',{ascending:false}).limit(100),
@@ -29,11 +30,12 @@ export default function MachineryScreen(){
   const upcoming=useMemo(()=>data.equipment.flatMap((item:Row)=>(Array.isArray(item.planes_mantencion)?item.planes_mantencion:[]).map((plan:Row)=>{const current=Number(item.horometro_inicial||0),last=Number(plan.ultima_lectura||0),interval=Number(plan.intervalo||0),remaining=interval-(current-last);return{equipment:item,name:plan.nombre||'Mantención preventiva',unit:plan.unidad||'horas',remaining,next:last+interval}})).sort((a:Row,b:Row)=>a.remaining-b.remaining),[data.equipment]);
   const usageByEquipment=useMemo<BarDatum[]>(()=>(Object.values(data.usage.reduce((map:Record<string,BarDatum>,item:Row)=>{const key=String(item.equipo_id||item.equipo_patente||item.equipo_tipo);if(!map[key])map[key]={label:`${item.equipo_tipo||'Equipo'} · ${item.equipo_patente||'S/P'}`,value:0};map[key].value+=Number(item.horas_trabajadas||0);return map},{})) as BarDatum[]).sort((a,b)=>b.value-a.value).slice(0,8),[data.usage]);
   useEffect(()=>{void scheduleMaintenanceSummary(upcoming.filter((item:Row)=>item.remaining<=10).length)},[upcoming]);
+  if(!canView)return <Screen><Header title="Maquinaria" subtitle="Acceso restringido" icon="construct-outline"/><Empty text="Tu rol no tiene permiso para consultar maquinaria."/></Screen>;
   return <Screen refreshing={state.loading} onRefresh={state.refresh}>
     <Header title="Maquinaria" subtitle="Flota, uso, reservas y confiabilidad." icon="construct-outline"/>
     <Segments value={tab} options={tabs} onChange={setTab}/>
-    {tab==='equipos'?<EquipmentManagementActions equipment={data.equipment} profile={profile!} onSaved={state.refresh}/>:null}
-    <View style={s.actions}>{tab==='registros'?<><MachineryActions mode="usage" equipment={data.equipment} profile={profile!} onSaved={state.refresh}/><MachineryActions mode="failure" equipment={data.equipment} profile={profile!} onSaved={state.refresh}/></>:null}{tab==='reservas'?<MachineryActions mode="reservation" equipment={data.equipment} profile={profile!} onSaved={state.refresh}/>:null}</View>
+    {tab==='equipos'&&canCreate?<EquipmentManagementActions equipment={data.equipment} profile={profile!} onSaved={state.refresh}/>:null}
+    <View style={s.actions}>{tab==='registros'&&canCreate?<><MachineryActions mode="usage" equipment={data.equipment} profile={profile!} onSaved={state.refresh}/><MachineryActions mode="failure" equipment={data.equipment} profile={profile!} onSaved={state.refresh}/></>:null}{tab==='reservas'&&canCreate?<MachineryActions mode="reservation" equipment={data.equipment} profile={profile!} onSaved={state.refresh}/>:null}</View>
     <ErrorBox text={state.error}/>{state.loading&&!state.data.length?<Loading/>:<>
       {tab==='equipos'&&(data.equipment.length?data.equipment.map((item:Machinery)=><Card key={item.id} onPress={()=>router.push({pathname:'/equipo/[id]',params:{id:String(item.id)}})}><View style={s.row}><View style={s.machine}><Ionicons name="construct" size={22} color={colors.orange}/></View><View style={s.flex}><Text style={s.name}>{item.tipo||'Equipo'} · {item.patente||'S/P'}</Text><Text style={s.meta}>{item.marca||'Sin marca'} · {item.obra_nombre||'Bodega / Sin asignar'}</Text></View><Badge tone={String(item.estado_equipo).toLowerCase().includes('mant')?'amber':'green'}>{item.estado_equipo||'Operativo'}</Badge><Ionicons name="chevron-forward" size={18} color={colors.muted}/></View></Card>):<Empty text="No hay equipos registrados."/>)}
       {tab==='registros'&&<>{data.usage.map((item:Row)=><Card key={`u-${item.id}`}><Badge tone="green">Uso</Badge><Text style={s.name}>{item.equipo_tipo} · {item.equipo_patente}</Text><Text style={s.meta}>{item.fecha} · {Number(item.horas_trabajadas||0).toLocaleString('es-CL')} h · {item.operador||'Sin operador'}</Text></Card>)}{data.failures.map((item:Row)=><Card key={`f-${item.id}`}><Badge tone="red">Falla {item.severidad||''}</Badge><Text style={s.name}>{item.equipo_tipo} · {item.equipo_patente}</Text><Text style={s.meta}>{item.fecha} · {item.descripcion}</Text></Card>)}{!data.usage.length&&!data.failures.length?<Empty text="No hay registros de uso ni fallas."/>:null}</>}

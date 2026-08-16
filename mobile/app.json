@@ -28,6 +28,12 @@
       "expo-router",
       "expo-notifications",
       [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Permite que Obraxis use Face ID para proteger tu sesión guardada."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#10182E",

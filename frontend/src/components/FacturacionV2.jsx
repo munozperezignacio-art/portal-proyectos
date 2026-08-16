@@ -17,7 +17,6 @@ export default function FacturacionV2({ user, companyBranding, onBack }) {
     supabase.auth.getSession().then(({ data }) => {
       if (!data.session) {
         localStorage.removeItem('obraxis_user');
-        localStorage.removeItem('obraxis_user_login_time');
         window.history.replaceState({}, '', '/login');
         window.location.reload();
         return;

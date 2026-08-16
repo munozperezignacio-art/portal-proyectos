@@ -1,11 +1,15 @@
 import type { Session } from '@supabase/supabase-js';
-import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as LocalAuthentication from 'expo-local-authentication';
+import { AppState } from 'react-native';
+import { createContext, PropsWithChildren, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/lib/types';
 
-type AuthValue = { session: Session | null; profile: Profile | null; loading: boolean; signIn: (u:string,e:string,p:string)=>Promise<void>; signOut:()=>Promise<void> };
+type AuthValue = { session: Session | null; profile: Profile | null; loading: boolean; locked:boolean; biometricAvailable:boolean; biometricEnabled:boolean; unlock:()=>Promise<boolean>; setBiometricEnabled:(enabled:boolean)=>Promise<boolean>; signIn: (u:string,e:string,p:string)=>Promise<void>; signOut:()=>Promise<void> };
 const AuthContext = createContext<AuthValue | null>(null);
-const fields = 'id,usuario,empresa,rol,rol_base,obras,modulos,correo,submenus,nombre,cargo,auth_user_id';
+const fields = 'id,usuario,empresa,rol,rol_base,obras,modulos,correo,submenus,nombre,cargo,auth_user_id,permisos';
+const BIOMETRIC_KEY = 'obraxis_biometric_enabled';
 
 async function loadProfile(session: Session, company?: string) {
   let query = supabase.from('usuarios').select(fields).eq('auth_user_id', session.user.id).limit(1);
@@ -13,24 +17,56 @@ async function loadProfile(session: Session, company?: string) {
   const { data, error } = await query.maybeSingle();
   if (error) throw error;
   if (!data) throw new Error('Tu cuenta no tiene un perfil activo para esta empresa.');
-  return data as Profile;
+  const { data: role } = await supabase.from('roles').select('permisos').eq('empresa', data.empresa).eq('nombre', data.rol || data.rol_base || '').maybeSingle();
+  return { ...data, permisos: { ...(role?.permisos || {}), ...(data.permisos || {}) } } as Profile;
 }
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [locked, setLocked] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricEnabled, setBiometricEnabledState] = useState(false);
+  const backgroundAt = useRef(0);
   useEffect(() => {
     let active = true;
-    supabase.auth.getSession().then(async ({ data }) => {
+    Promise.all([supabase.auth.getSession(), AsyncStorage.getItem(BIOMETRIC_KEY), LocalAuthentication.hasHardwareAsync(), LocalAuthentication.isEnrolledAsync()]).then(async ([{ data }, preference, hardware, enrolled]) => {
       if (!active) return;
+      const available = hardware && enrolled;
+      const enabled = preference === 'true' && available;
+      setBiometricAvailable(available); setBiometricEnabledState(enabled);
       setSession(data.session);
       if (data.session) try { setProfile(await loadProfile(data.session)); } catch { await supabase.auth.signOut(); }
+      if (data.session && enabled) setLocked(true);
       setLoading(false);
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => { setSession(next); if (!next) setProfile(null); });
     return () => { active = false; listener.subscription.unsubscribe(); };
   }, []);
+  useEffect(() => {
+    const listener = AppState.addEventListener('change', state => {
+      if (state === 'background' || state === 'inactive') backgroundAt.current = Date.now();
+      if (state === 'active' && biometricEnabled && session && backgroundAt.current && Date.now() - backgroundAt.current > 30000) setLocked(true);
+    });
+    return () => listener.remove();
+  }, [biometricEnabled, session]);
+  const unlock = async () => {
+    if (!biometricEnabled) { setLocked(false); return true; }
+    const result = await LocalAuthentication.authenticateAsync({ promptMessage: 'Acceder a Obraxis', cancelLabel: 'Cancelar', fallbackLabel: 'Usar clave del dispositivo', disableDeviceFallback: false });
+    if (result.success) setLocked(false);
+    return result.success;
+  };
+  const setBiometricEnabled = async (enabled:boolean) => {
+    if (enabled && !biometricAvailable) return false;
+    if (enabled) {
+      const verified = await LocalAuthentication.authenticateAsync({ promptMessage: 'Activar acceso biométrico', cancelLabel: 'Cancelar', disableDeviceFallback: false });
+      if (!verified.success) return false;
+    }
+    await AsyncStorage.setItem(BIOMETRIC_KEY, String(enabled));
+    setBiometricEnabledState(enabled); setLocked(false);
+    return true;
+  };
   const signIn = async (usuario:string, empresa:string, password:string) => {
     const { data, error } = await supabase.functions.invoke('login-usuario', { body: { usuario: usuario.trim(), empresa: empresa.trim(), password } });
     if (error || data?.error || !data?.access_token) throw new Error(data?.error || 'Usuario, empresa o contraseña incorrectos.');
@@ -39,8 +75,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const nextProfile = await loadProfile(result.data.session, empresa);
     setSession(result.data.session); setProfile(nextProfile);
   };
-  const signOut = async () => { await supabase.auth.signOut(); setSession(null); setProfile(null); };
-  const value = useMemo(() => ({ session, profile, loading, signIn, signOut }), [session, profile, loading]);
+  const signOut = async () => { await supabase.auth.signOut(); setSession(null); setProfile(null); setLocked(false); };
+  const value = { session, profile, loading, locked, biometricAvailable, biometricEnabled, unlock, setBiometricEnabled, signIn, signOut };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 export const useAuth = () => { const value = useContext(AuthContext); if (!value) throw new Error('AuthProvider no disponible'); return value; };

@@ -148,7 +148,6 @@ function App() {
 
     const clearLocalUser = () => {
       localStorage.removeItem('obraxis_user');
-      localStorage.removeItem('obraxis_user_login_time');
       if (active) setUser(null);
     };
 
@@ -176,28 +175,6 @@ function App() {
       active = false;
       authListener.subscription.unsubscribe();
     };
-  }, []);
-
-  // Intervalo de auto-cierre de sesión tras 5 horas
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const loginTimeStr = localStorage.getItem('obraxis_user_login_time');
-      if (loginTimeStr) {
-        const loginTime = parseInt(loginTimeStr, 10);
-        const elapsed = Date.now() - loginTime;
-        const fiveHoursMs = 5 * 60 * 60 * 1000;
-        if (elapsed > fiveHoursMs) {
-          supabase.auth.signOut().finally(() => {
-            setUser(null);
-            localStorage.removeItem('obraxis_user');
-            localStorage.removeItem('obraxis_user_login_time');
-            navigateTo('/login');
-            alert('Su sesión ha expirado tras 5 horas de permanencia. Por favor inicie sesión nuevamente.');
-          });
-        }
-      }
-    }, 60000); // chequeo cada 1 minuto
-    return () => clearInterval(interval);
   }, []);
 
   // Cargar lista de empresas si el usuario es superusuario
@@ -296,7 +273,6 @@ function App() {
   const handleLoginSuccess = (userData) => {
     setUser(userData);
     localStorage.setItem('obraxis_user', JSON.stringify(userData));
-    localStorage.setItem('obraxis_user_login_time', Date.now().toString());
     setCurrentModule('dashboard');
     setSelectedObraName(null);
     navigateTo('/dashboard');
@@ -306,7 +282,6 @@ function App() {
     await supabase.auth.signOut();
     setUser(null);
     localStorage.removeItem('obraxis_user');
-    localStorage.removeItem('obraxis_user_login_time');
     setCurrentModule('dashboard');
     setSelectedObraName(null);
     navigateTo('/');
