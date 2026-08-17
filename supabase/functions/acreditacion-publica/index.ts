@@ -3,7 +3,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const cors = {
   "Access-Control-Allow-Origin": "https://www.obraxis.cl",
-  "Access-Control-Allow-Headers": "content-type,x-client-info,apikey",
+  "Access-Control-Allow-Headers": "authorization,content-type,x-client-info,apikey",
   "Access-Control-Allow-Methods": "POST,OPTIONS",
 };
 const out = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });

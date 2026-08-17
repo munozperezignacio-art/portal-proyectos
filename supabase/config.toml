@@ -13,3 +13,8 @@ verify_jwt = false
 # control de frecuencia dentro de la propia función.
 [functions.contacto-publico]
 verify_jwt = false
+
+# Portal público de acreditaciones: autentica dentro de la función mediante
+# token único, clave corporativa y control de frecuencia.
+[functions.acreditacion-publica]
+verify_jwt = false

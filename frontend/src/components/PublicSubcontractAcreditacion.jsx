@@ -76,12 +76,14 @@ export default function PublicSubcontractAcreditacion({ token }) {
 
   // Mensaje y estado de guardado
   const [successMsg, setSuccessMsg] = useState('');
+  const [accessError, setAccessError] = useState('');
   const [savingSync, setSavingSync] = useState(false);
 
   useEffect(() => {
     setAuthenticated(false);
     setSubInfo(null);
     setPassInput('');
+    setAccessError('');
     setCompanyDocs({});
     setPersonalList([]);
     setEquiposList([]);
@@ -89,7 +91,16 @@ export default function PublicSubcontractAcreditacion({ token }) {
 
   const invokePortal = async (action, payload = {}) => {
     const { data, error } = await supabase.functions.invoke('acreditacion-publica', { body: { tipo: 'subcontrato', action, token, clave: passInput.trim().toUpperCase(), ...payload } });
-    if (error || data?.error) throw new Error(data?.error || error?.message || 'No fue posible conectar con el portal.');
+    let serverMessage = data?.error || '';
+    if (!serverMessage && error?.context && typeof error.context.json === 'function') {
+      try {
+        const response = await error.context.json();
+        serverMessage = response?.error || '';
+      } catch {
+        // La respuesta no contenía JSON utilizable.
+      }
+    }
+    if (error || data?.error) throw new Error(serverMessage || 'No fue posible conectar con el portal. Intenta nuevamente.');
     return data;
   };
 
@@ -115,6 +126,7 @@ export default function PublicSubcontractAcreditacion({ token }) {
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    setAccessError('');
     try {
       const response = await invokePortal('ingresar');
       const entity = response.entidad;
@@ -128,7 +140,7 @@ export default function PublicSubcontractAcreditacion({ token }) {
       if (config.equipo_docs?.length) setMandatoryEquipoDocs(config.equipo_docs);
       setAuthenticated(true);
     } catch (error) {
-      alert(error.message);
+      setAccessError(error.message);
     }
   };
 
@@ -229,6 +241,11 @@ export default function PublicSubcontractAcreditacion({ token }) {
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
+            {accessError && (
+              <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs font-bold text-rose-700">
+                {accessError}
+              </div>
+            )}
             <div>
               <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-600 mb-1">
                 Clave de Acceso Corporativa
