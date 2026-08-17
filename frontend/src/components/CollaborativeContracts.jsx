@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ArrowRightLeft, Building2, CheckCircle2, Link2, Plus, ShieldCheck } from 'lucide-react';
+import { ArrowRightLeft, CheckCircle2, Link2, Plus } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
 const input = 'w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs';
 const who = user => user?.nombre || user?.usuario || user?.correo || 'Usuario Obraxis';
 
-export default function CollaborativeContracts({ obra, user, subcontracts = [] }) {
+export default function CollaborativeContracts({ obra, user }) {
   const company = user?.empresa || '';
   const [collaborations, setCollaborations] = useState([]);
   const [contracts, setContracts] = useState([]);
@@ -106,30 +106,6 @@ export default function CollaborativeContracts({ obra, user, subcontracts = [] }
   };
 
   return <div className="space-y-4">
-    <section className="rounded-3xl border bg-white p-5">
-      <div className="mb-4 flex items-start gap-3">
-        <div className="rounded-xl bg-blue-50 p-2 text-blue-800"><Building2 className="h-5 w-5"/></div>
-        <div>
-          <h3 className="font-black">Subcontratistas de esta obra</h3>
-          <p className="text-xs text-slate-500">Empresas registradas para acreditación. El contrato operativo y el reporte de información se configuran por separado.</p>
-        </div>
-      </div>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {subcontracts.map(subcontract => {
-          const progress = Math.max(0, Math.min(100, Number(subcontract.estado_cumplimiento) || 0));
-          return <article key={subcontract.id || subcontract.token_acceso} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div><p className="font-black text-slate-950">{subcontract.empresa_nombre}</p><p className="text-[11px] text-slate-500">RUT {subcontract.rut_empresa}</p></div>
-              <span className={`rounded-lg px-2 py-1 text-[9px] font-black uppercase ${subcontract.estado === 'Archivado' ? 'bg-slate-200 text-slate-600' : 'bg-emerald-50 text-emerald-700'}`}>{subcontract.estado || 'Activo'}</span>
-            </div>
-            <div className="mt-4 flex items-center justify-between text-[10px] font-black uppercase text-slate-500"><span className="flex items-center gap-1"><ShieldCheck className="h-3.5 w-3.5"/>Acreditación</span><span>{progress}%</span></div>
-            <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${progress}%` }}/></div>
-            <p className="mt-3 text-[10px] font-bold text-slate-500">Contrato operativo: {contracts.some(contract => contract.empresa_colaboradora === subcontract.empresa_nombre || contract.rut_colaboradora === subcontract.rut_empresa) ? 'configurado' : 'pendiente / no aplica'}</p>
-          </article>;
-        })}
-        {!subcontracts.length && <p className="rounded-2xl border border-dashed bg-slate-50 p-6 text-center text-xs text-slate-500 md:col-span-2 xl:col-span-3">No hay subcontratistas registrados para esta obra.</p>}
-      </div>
-    </section>
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-indigo-200 bg-indigo-50 p-5"><div><p className="text-[10px] font-black uppercase tracking-widest text-indigo-700">Integración empresa–empresa</p><h3 className="font-black">Contratos colaborativos y enlace de partidas</h3><p className="text-xs text-slate-600">Cada empresa conserva su análisis; solo se comparte el alcance contratado.</p></div>{collaborations.some(x => x.empresa_contratista === company && x.obra_nombre === obra.nombre) && <button onClick={() => setCreating(!creating)} className="flex items-center gap-2 rounded-xl bg-indigo-900 px-4 py-2.5 text-xs font-black text-white"><Plus className="h-4 w-4"/>Nuevo contrato</button>}</div>
     {message && <p className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs font-bold text-blue-900">{message}</p>}
     {creating && <form onSubmit={create} className="grid gap-2 rounded-2xl border bg-white p-4 md:grid-cols-3"><select required className={input} value={form.colaboracion_id} onChange={e => setForm({...form,colaboracion_id:e.target.value})}><option value="">Empresa colaboradora</option>{collaborations.filter(x => x.empresa_contratista === company && x.obra_nombre === obra.nombre).map(x => <option key={x.id} value={x.id}>{x.empresa_colaboradora} · {x.rut_colaboradora}</option>)}</select><input required className={input} placeholder="Código contrato" value={form.codigo} onChange={e => setForm({...form,codigo:e.target.value})}/><input required className={input} placeholder="Nombre / alcance" value={form.nombre} onChange={e => setForm({...form,nombre:e.target.value})}/><input className={input} type="number" min="0" placeholder="Monto" value={form.monto_contrato} onChange={e => setForm({...form,monto_contrato:e.target.value})}/><input className={input} type="date" value={form.fecha_inicio} onChange={e => setForm({...form,fecha_inicio:e.target.value})}/><input className={input} type="date" value={form.fecha_termino} onChange={e => setForm({...form,fecha_termino:e.target.value})}/><button className="rounded-xl bg-emerald-700 py-2.5 text-xs font-black text-white md:col-span-3">Crear y enviar a contraparte</button></form>}
