@@ -5100,47 +5100,89 @@ export type Database = {
       }
       obra_liquidaciones: {
         Row: {
+          criterio_imputacion: string | null
           created_at: string
+          dias_imputados: number
           empresa: string
           id: number
           monto_real: number
+          monto_liquidacion_total: number
+          nomina_id: number | null
+          nomina_item_id: number | null
           num_folio: string | null
           obra_id: number | null
           obra_nombre: string
           partida: string | null
           periodo: string
           trabajador: string
+          trabajador_id: number | null
+          porcentaje_imputacion: number
         }
         Insert: {
+          criterio_imputacion?: string | null
           created_at?: string
+          dias_imputados?: number
           empresa: string
           id?: number
           monto_real?: number
+          monto_liquidacion_total?: number
+          nomina_id?: number | null
+          nomina_item_id?: number | null
           num_folio?: string | null
           obra_id?: number | null
           obra_nombre: string
           partida?: string | null
           periodo: string
           trabajador: string
+          trabajador_id?: number | null
+          porcentaje_imputacion?: number
         }
         Update: {
+          criterio_imputacion?: string | null
           created_at?: string
+          dias_imputados?: number
           empresa?: string
           id?: number
           monto_real?: number
+          monto_liquidacion_total?: number
+          nomina_id?: number | null
+          nomina_item_id?: number | null
           num_folio?: string | null
           obra_id?: number | null
           obra_nombre?: string
           partida?: string | null
           periodo?: string
           trabajador?: string
+          trabajador_id?: number | null
+          porcentaje_imputacion?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "obra_liquidaciones_nomina_id_fkey"
+            columns: ["nomina_id"]
+            isOneToOne: false
+            referencedRelation: "rrhh_nominas_mensuales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "obra_liquidaciones_nomina_item_id_fkey"
+            columns: ["nomina_item_id"]
+            isOneToOne: false
+            referencedRelation: "rrhh_nomina_items"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "obra_liquidaciones_obra_id_fkey"
             columns: ["obra_id"]
             isOneToOne: false
             referencedRelation: "obras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "obra_liquidaciones_trabajador_id_fkey"
+            columns: ["trabajador_id"]
+            isOneToOne: false
+            referencedRelation: "maestro_personal"
             referencedColumns: ["id"]
           },
         ]
@@ -7309,6 +7351,10 @@ export type Database = {
         Returns: number
       }
       asignar_folio_dte: { Args: { p_documento: string }; Returns: number }
+      distribuir_nomina_a_obras: {
+        Args: { p_nomina_id: number }
+        Returns: Json
+      }
       formulario_catalogo_vinculado: {
         Args: { p_campo_id: string; p_token: string }
         Returns: Json

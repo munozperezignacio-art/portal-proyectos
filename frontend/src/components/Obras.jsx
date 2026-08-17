@@ -6536,23 +6536,6 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         <Plus className="w-3.5 h-3.5" />
                         <span>Registrar Factura / Compra</span>
                       </button>
-                      <button
-                        onClick={() => {
-                          const validWorkers = Array.from(new Set([...(personalAsignadoList || []).map(p => p.nombre), ...(asistenciaList || []).map(a => a.trabajador)])).filter(Boolean);
-                          setLiquidacionFormData({
-                            trabajador: validWorkers.length > 0 ? validWorkers[0] : '',
-                            periodo: new Date().toISOString().slice(0, 7),
-                            num_folio: '',
-                            monto_real: '',
-                            partida: 'Gastos Generales'
-                          });
-                          setShowLiquidacionModal(true);
-                        }}
-                        className="bg-emerald-800 hover:bg-emerald-700 text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs border border-emerald-600"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Cargar Liquidación de Sueldo Real</span>
-                      </button>
                     </div>
                   ) : (
                     <div className="flex flex-wrap items-center gap-2">
@@ -6942,27 +6925,14 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                           {liquidacionesList.length} Liquidaciones
                         </span>
                       </h4>
-                      <button
-                        onClick={() => {
-                          const validWorkers = Array.from(new Set([...(personalAsignadoList || []).map(p => p.nombre), ...(asistenciaList || []).map(a => a.trabajador)])).filter(Boolean);
-                          setLiquidacionFormData({
-                            trabajador: validWorkers.length > 0 ? validWorkers[0] : '',
-                            periodo: new Date().toISOString().slice(0, 7),
-                            num_folio: '',
-                            monto_real: '',
-                            partida: 'Gastos Generales'
-                          });
-                          setShowLiquidacionModal(true);
-                        }}
-                        className="text-xs font-bold text-emerald-800 hover:underline cursor-pointer"
-                      >
-                        + Cargar Liquidación
-                      </button>
+                      <span className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-[10px] font-bold text-emerald-800">
+                        Carga automática al cerrar la nómina en RRHH
+                      </span>
                     </div>
 
                     {liquidacionesList.length === 0 ? (
                       <p className="text-xs text-slate-500 italic p-3 text-center bg-slate-50 rounded-xl">
-                        No se han registrado liquidaciones de sueldo emitidas aún. Puedes cargar las liquidaciones mensuales con sus montos líquidos/costo empresa.
+                        No existen imputaciones de remuneraciones para esta obra. Se generarán automáticamente al cerrar la nómina mensual en Recursos Humanos.
                       </p>
                     ) : (
                       <div className="overflow-x-auto">
@@ -6972,8 +6942,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                               <th className="p-2.5">Periodo</th>
                               <th className="p-2.5">Trabajador / Personal</th>
                               <th className="p-2.5">N° Folio / Respaldo</th>
-                              <th className="p-2.5">Partida Imputada</th>
-                              <th className="p-2.5 text-right">Monto Real Líquido ($)</th>
+                              <th className="p-2.5">Base de distribución</th>
+                              <th className="p-2.5 text-center">Días / %</th>
+                              <th className="p-2.5 text-right">Costo imputado ($)</th>
                               <th className="p-2.5 text-center">Acciones</th>
                             </tr>
                           </thead>
@@ -6983,7 +6954,10 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                 <td className="p-2.5 font-mono text-[10px] text-slate-600 font-bold">{liq.periodo}</td>
                                 <td className="p-2.5 font-bold text-slate-800">{liq.trabajador}</td>
                                 <td className="p-2.5 font-mono text-slate-700">{liq.num_folio || 'N/A'}</td>
-                                <td className="p-2.5 text-slate-600">{liq.partida || 'Gastos Generales'}</td>
+                                <td className="p-2.5 text-slate-600">{liq.criterio_imputacion || liq.partida || 'Gastos Generales'}</td>
+                                <td className="p-2.5 text-center font-mono text-slate-700">
+                                  {liq.dias_imputados != null ? `${Number(liq.dias_imputados).toLocaleString('es-CL')} d · ${Number(liq.porcentaje_imputacion || 0).toLocaleString('es-CL', { maximumFractionDigits: 2 })}%` : '—'}
+                                </td>
                                 <td className="p-2.5 font-mono font-black text-emerald-900 text-right">
                                   ${(parseFloat(liq.monto_real) || 0).toLocaleString('es-CL')}
                                 </td>

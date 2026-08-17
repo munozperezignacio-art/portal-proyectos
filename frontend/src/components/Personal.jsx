@@ -339,6 +339,7 @@ function Personal({ user, onBack }) {
       const { data: dataPers, error: errPers } = await supabase
         .from('maestro_personal')
         .select('*')
+        .eq('empresa', user?.empresa || 'Obraxis')
         .order('nombre', { ascending: true });
       if (errPers) throw errPers;
 
