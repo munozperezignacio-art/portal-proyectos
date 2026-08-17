@@ -908,14 +908,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
   return (
     <div className="space-y-6 font-sans">
       {/* 1. CABECERA PRINCIPAL */}
-      <ModuleHeader title="Acreditaciones" subtitle="Gestión de acreditaciones para faena y control documental de subcontratos." Icon={ShieldCheck} onBack={handleHeaderBack} actions={activeSection !== '' && (
-          <button
-            onClick={() => setActiveSection('')}
-            className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3.5 py-2 rounded-xl transition cursor-pointer border border-slate-200"
-          >
-            <span>← Volver al Menú Principal</span>
-          </button>
-        )} />
+      <ModuleHeader title="Acreditaciones" subtitle="Gestión de acreditaciones para faena y control documental de subcontratos." Icon={ShieldCheck} onBack={handleHeaderBack} />
 
       {successMsg && (
         <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-2xl text-xs font-bold flex items-center gap-2 animate-in fade-in">
@@ -1265,7 +1258,7 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
                 </button>
                 <button onClick={() => setShowSubModal(true)} className="bg-primary hover:bg-primary-hover text-white font-extrabold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs">
                   <Plus className="w-4 h-4" />
-                  <span>+ Registrar Subcontrato</span>
+                  <span>Registrar Subcontrato</span>
                 </button>
               </div>
             </div>
