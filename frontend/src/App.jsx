@@ -289,11 +289,17 @@ function App() {
 
   // Detectar si se está accediendo a un formulario o capacitación pública de prevención a través de la URL
   const urlParams = new URLSearchParams(window.location.search);
+  const publicAsistenciaToken = urlParams.get('asistencia');
   const publicEquipoArriendo = urlParams.get('maquinaria_token') || urlParams.get('arriendo_qr') || urlParams.get('reporte_diario_equipo');
   const publicEstadoPagoToken = urlParams.get('estado_pago');
   const publicLibroObraToken = urlParams.get('libro_obra');
   const publicClienteToken = urlParams.get('cliente_portal');
   const publicMandanteToken = urlParams.get('mandante_portal');
+  // Los QR antiguos apuntan a la raíz y los nuevos a /login. En ambos casos
+  // se abre directamente el marcaje, nunca el landing comercial.
+  if (publicAsistenciaToken) {
+    return <React.Suspense fallback={<ModuleLoader />}><Login onLoginSuccess={handleLoginSuccess} onBackHome={() => navigateTo('/')} /></React.Suspense>;
+  }
   if (publicMandanteToken) {
     return <React.Suspense fallback={<ModuleLoader />}><PublicMandantePortal token={publicMandanteToken} /></React.Suspense>;
   }

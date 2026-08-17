@@ -29,7 +29,7 @@ function Login({ onLoginSuccess, onBackHome }) {
   const [qrAccessToken, setQrAccessToken] = useState('');
   const [qrWorkerData, setQrWorkerData] = useState({ trabajador: '', rut: '', rutInput: '', cargo: '' });
   const [rutValidationState, setRutValidationState] = useState({ status: 'idle', error: '' });
-  const [qrGpsLoc, setQrGpsLoc] = useState({ lat: null, lng: null, distance: null, status: 'idle', isWithin: false, error: '' });
+  const [qrGpsLoc, setQrGpsLoc] = useState({ lat: null, lng: null, accuracy: null, distance: null, status: 'idle', isWithin: false, error: '' });
   const [qrSubmitLoading, setQrSubmitLoading] = useState(false);
   const [qrSuccessMsg, setQrSuccessMsg] = useState('');
   const [qrErrorMsg, setQrErrorMsg] = useState('');
@@ -122,9 +122,9 @@ function Login({ onLoginSuccess, onBackHome }) {
   };
 
   const requestGPSForLoginQR = (obra) => {
-    setQrGpsLoc({ lat: null, lng: null, distance: null, status: 'loading', isWithin: false, error: '' });
+    setQrGpsLoc({ lat: null, lng: null, accuracy: null, distance: null, status: 'loading', isWithin: false, error: '' });
     if (!navigator.geolocation) {
-      setQrGpsLoc({ lat: null, lng: null, distance: null, status: 'error', isWithin: false, error: 'GPS no soportado' });
+      setQrGpsLoc({ lat: null, lng: null, accuracy: null, distance: null, status: 'error', isWithin: false, error: 'GPS no soportado' });
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -140,10 +140,10 @@ function Login({ onLoginSuccess, onBackHome }) {
           dist = getHaversineDistance(uLat, uLng, oLat, oLng);
           if (dist !== null && dist > maxR) within = false;
         }
-        setQrGpsLoc({ lat: uLat, lng: uLng, distance: dist, status: 'success', isWithin: within, error: '' });
+        setQrGpsLoc({ lat: uLat, lng: uLng, accuracy: pos.coords.accuracy, distance: dist, status: 'success', isWithin: within, error: '' });
       },
       () => {
-        setQrGpsLoc({ lat: null, lng: null, distance: null, status: 'error', isWithin: false, error: 'Permiso GPS denegado. Activa tu ubicación para verificar.' });
+        setQrGpsLoc({ lat: null, lng: null, accuracy: null, distance: null, status: 'error', isWithin: false, error: 'Permiso GPS denegado. Activa tu ubicación para verificar.' });
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
@@ -196,10 +196,13 @@ function Login({ onLoginSuccess, onBackHome }) {
     try {
       if (!qrAccessToken) throw new Error('Debes ingresar escaneando el código QR vigente de la obra.');
       if (!qrWorkerData.trabajador) throw new Error('El RUT debe corresponder a una persona asignada a esta obra.');
+      if (!selectedObraQR?.latitud || !selectedObraQR?.longitud) throw new Error('Esta obra aún no tiene configurada su ubicación GPS. Solicita al administrador habilitar el marcaje.');
+      if (qrGpsLoc.status !== 'success') throw new Error('Debes habilitar y verificar tu ubicación GPS antes de marcar.');
       if (selectedObraQR?.latitud && selectedObraQR?.longitud && qrGpsLoc.status === 'success' && !qrGpsLoc.isWithin) {
         const maxR = selectedObraQR.radio_cobertura_m || 200;
         throw new Error(`⚠️ Marcación rechazada por ubicación: Te encuentras a ${qrGpsLoc.distance}m de la obra (máximo permitido ${maxR}m).`);
       }
+      if (!qrHasSignature) throw new Error('Debes firmar el marcaje antes de enviarlo.');
       let firmaBase64 = null;
       if (qrCanvasRef.current && qrHasSignature) {
         firmaBase64 = qrCanvasRef.current.toDataURL('image/png');
@@ -214,6 +217,7 @@ function Login({ onLoginSuccess, onBackHome }) {
           rut: qrWorkerData.rut,
           latitud: qrGpsLoc.lat,
           longitud: qrGpsLoc.lng,
+          precision_gps_m: qrGpsLoc.accuracy,
           firma_base64: firmaBase64
         }
       });
@@ -567,7 +571,7 @@ function Login({ onLoginSuccess, onBackHome }) {
                             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                             <div>
                               <p className="font-bold text-emerald-950"> Ubicación Verificada en Faena</p>
-                              <p className="text-[10px] text-emerald-700 font-medium">Distancia a faena: {qrGpsLoc.distance}m (Radio máximo: {selectedObraQR.radio_cobertura_m || 200}m)</p>
+                              <p className="text-[10px] text-emerald-700 font-medium">Distancia a faena: {qrGpsLoc.distance}m (Radio máximo: {selectedObraQR.radio_cobertura_m || 200}m) · Precisión GPS: ±{Math.round(qrGpsLoc.accuracy || 0)}m</p>
                             </div>
                           </div>
                         ) : (
@@ -676,7 +680,7 @@ function Login({ onLoginSuccess, onBackHome }) {
 
                   <button
                     type="submit"
-                    disabled={qrSubmitLoading || (selectedObraQR?.latitud && selectedObraQR?.longitud && qrGpsLoc.status === 'success' && !qrGpsLoc.isWithin)}
+                    disabled={qrSubmitLoading || !qrHasSignature || qrGpsLoc.status !== 'success' || !qrGpsLoc.isWithin || !selectedObraQR?.latitud || !selectedObraQR?.longitud}
                     className="w-full bg-blue-900 hover:bg-blue-800 text-white font-semibold py-3 rounded-xl shadow-sm text-xs cursor-pointer disabled:opacity-50 transition"
                   >
                     {qrSubmitLoading ? 'Guardando Registro...' : 'Confirmar y Enviar Asistencia'}

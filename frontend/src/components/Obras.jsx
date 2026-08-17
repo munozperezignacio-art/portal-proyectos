@@ -1761,6 +1761,28 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     }
   };
 
+  const handleRegenerateAttendanceToken = async () => {
+    if (!canEditGPS || !selectedObra?.id) return;
+    const confirmed = window.confirm('El QR anterior dejará de funcionar inmediatamente. ¿Deseas generar uno nuevo?');
+    if (!confirmed) return;
+    setModalLoading(true);
+    setErrorMsg('');
+    try {
+      const bytes = crypto.getRandomValues(new Uint8Array(24));
+      const token = Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('');
+      const { error } = await supabase.from('obras').update({ asistencia_token: token }).eq('id', selectedObra.id);
+      if (error) throw error;
+      const updated = { ...selectedObra, asistencia_token: token };
+      setSelectedObra(updated);
+      setObras(current => current.map(obra => obra.id === updated.id ? updated : obra));
+      setSuccessMsg('QR renovado. El código anterior quedó invalidado.');
+    } catch (error) {
+      setErrorMsg(error.message || 'No fue posible renovar el QR.');
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
   const handleCaptureCurrentLocationForObra = () => {
     if (!navigator.geolocation) {
       alert('Geolocalización GPS no soportada.');
@@ -8678,7 +8700,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
               <p className="text-xs font-extrabold text-blue-950 uppercase">{selectedObra?.nombre}</p>
               <div className="bg-white p-3 rounded-2xl inline-block border border-slate-200 shadow-sm">
                 <img
-                  src={`https://quickchart.io/qr?text=${encodeURIComponent(`https://obraxis.cl/?asistencia=${encodeURIComponent(selectedObra?.asistencia_token || '')}`)}&size=300&margin=1`}
+                  src={`https://quickchart.io/qr?text=${encodeURIComponent(`https://www.obraxis.cl/login?asistencia=${encodeURIComponent(selectedObra?.asistencia_token || '')}`)}&size=300&margin=1`}
                   alt="QR Faena"
                   className="w-52 h-52 mx-auto block"
                 />
@@ -8690,9 +8712,16 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   <span>Radio GPS: {selectedObra.radio_cobertura_m || 200} metros alrededor de faena</span>
                 </div>
               )}
+              {(!selectedObra?.latitud || !selectedObra?.longitud) && (
+                <div className="bg-amber-50 border border-amber-200 text-amber-900 text-[10px] font-bold py-2 px-3 rounded-lg">
+                  Configura primero la ubicación GPS de la obra. Sin coordenadas, el servidor rechazará el marcaje.
+                </div>
+              )}
+              {successMsg && <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-bold py-2 px-3 rounded-lg">{successMsg}</div>}
+              {errorMsg && <div className="bg-red-50 border border-red-200 text-red-700 text-[10px] font-bold py-2 px-3 rounded-lg">{errorMsg}</div>}
             </div>
 
-            <div className="flex gap-2 pt-2">
+            <div className="flex flex-wrap gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => window.print()}
@@ -8701,6 +8730,16 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 <Printer className="w-3.5 h-3.5" />
                 <span>Imprimir QR</span>
               </button>
+              {canEditGPS && (
+                <button
+                  type="button"
+                  onClick={handleRegenerateAttendanceToken}
+                  disabled={modalLoading}
+                  className="flex-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 font-bold py-2.5 px-3 rounded-xl text-xs cursor-pointer disabled:opacity-50 transition"
+                >
+                  Renovar QR
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setShowQRModal(false)}
