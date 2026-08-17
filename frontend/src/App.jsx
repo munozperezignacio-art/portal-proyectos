@@ -40,6 +40,7 @@ const FormulariosCapacitaciones = lazyWithRetry(() => import('./components/Formu
 const PublicFormFiller = lazyWithRetry(() => import('./components/PublicFormFiller'), 'formulario-publico');
 const PublicTrainingFiller = lazyWithRetry(() => import('./components/PublicTrainingFiller'), 'capacitacion-publica');
 const PublicSubcontractAcreditacion = lazyWithRetry(() => import('./components/PublicSubcontractAcreditacion'), 'subcontrato-publico');
+const SubcontractOperationsPortal = lazyWithRetry(() => import('./components/SubcontractOperationsPortal'), 'operacion-subcontrato');
 const PublicSupplierAcreditacion = lazyWithRetry(() => import('./components/PublicSupplierAcreditacion'), 'proveedor-publico');
 const PublicReporteDiarioMaquinaria = lazyWithRetry(() => import('./components/PublicReporteDiarioMaquinaria'), 'maquinaria-publica');
 const PublicEstadoPago = lazyWithRetry(() => import('./components/PublicEstadoPago'), 'estado-pago-publico');
@@ -326,9 +327,13 @@ function App() {
   }
 
   const publicSubcontractToken = urlParams.get('acreditacion_token') || (urlParams.get('acreditacion_subcontrato') ? urlParams.get('token') : null);
+  const publicSubcontractOperationToken = urlParams.get('subcontrato_operacion');
   const publicSubcontractEmpresa = urlParams.get('acreditacion_subcontrato');
   const publicSupplierEmpresa = urlParams.get('acreditacion_proveedor');
 
+  if (publicSubcontractOperationToken) {
+    return <React.Suspense fallback={<ModuleLoader/>}><SubcontractOperationsPortal token={publicSubcontractOperationToken}/></React.Suspense>;
+  }
   if (publicSupplierEmpresa || (publicSubcontractToken && urlParams.get('type') === 'proveedor')) {
     return <React.Suspense fallback={<ModuleLoader />}><PublicSupplierAcreditacion token={publicSubcontractToken} companyNameParam={publicSupplierEmpresa} /></React.Suspense>;
   }
