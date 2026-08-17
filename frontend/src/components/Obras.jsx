@@ -525,6 +525,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   });
   const [showCostoModal, setShowCostoModal] = useState(false);
   const [editingCosto, setEditingCosto] = useState(null);
+  const [costoSaving, setCostoSaving] = useState(false);
+  const [costoSaveError, setCostoSaveError] = useState('');
   const [costoFormData, setCostoFormData] = useState({
     nombre: '',
     tipo_costo: 'Materiales',
@@ -10572,19 +10574,43 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
-                if (!costoFormData.nombre.trim() || !costoFormData.monto) return;
+                setCostoSaveError('');
+                const monto = Number(costoFormData.monto);
+                const imputaciones = (costoFormData.imputaciones || []).map(item => ({
+                  partida: String(item.partida || '').trim(),
+                  porcentaje: Number(item.porcentaje) || 0
+                }));
+                const totalImputado = imputaciones.reduce((sum, item) => sum + item.porcentaje, 0);
+
+                if (!costoFormData.nombre.trim()) {
+                  setCostoSaveError('Ingresa el nombre o concepto del costo.');
+                  return;
+                }
+                if (!Number.isFinite(monto) || monto <= 0) {
+                  setCostoSaveError('Ingresa un monto mayor que cero.');
+                  return;
+                }
+                if (imputaciones.some(item => !item.partida || item.porcentaje <= 0)) {
+                  setCostoSaveError('Todas las imputaciones deben tener una partida y un porcentaje mayor que cero.');
+                  return;
+                }
+                if (imputaciones.length > 0 && Math.abs(totalImputado - 100) > 0.001) {
+                  setCostoSaveError(`La distribución debe sumar 100%. Actualmente suma ${totalImputado}%.`);
+                  return;
+                }
                 
                 const newCosto = {
                   ...(editingCosto?.id ? { id: editingCosto.id } : {}),
                   nombre: costoFormData.nombre.trim(),
                   tipo_costo: costoFormData.tipo_costo,
-                  asociar_factura: costoFormData.asociar_factura,
-                  num_factura: costoFormData.num_factura.trim(),
-                  monto: parseFloat(costoFormData.monto) || 0,
-                  imputaciones: costoFormData.imputaciones || []
+                  asociar_factura: costoFormData.asociar_factura === 'SI',
+                  num_factura: costoFormData.asociar_factura === 'SI' ? costoFormData.num_factura.trim() || null : null,
+                  monto,
+                  imputaciones
                 };
 
                 try {
+                  setCostoSaving(true);
                   const payload = {
                     ...newCosto,
                     empresa: user?.empresa || 'Obraxis',
@@ -10596,8 +10622,12 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     ? prev.map(c => c.id === editingCosto.id ? data : c)
                     : [...prev, data]);
                 } catch (err) {
-                  setErrorMsg(`No fue posible guardar el costo: ${err.message}`);
+                  const message = `No fue posible guardar el costo: ${err.message}`;
+                  setCostoSaveError(message);
+                  setErrorMsg(message);
                   return;
+                } finally {
+                  setCostoSaving(false);
                 }
 
                 setShowCostoModal(false);
@@ -10605,6 +10635,12 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
               }}
               className="space-y-4 text-xs"
             >
+
+              {costoSaveError && (
+                <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] font-bold text-rose-700">
+                  {costoSaveError}
+                </div>
+              )}
 
 
               <div>
@@ -10766,9 +10802,10 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
               <button
                 type="submit"
-                className="w-full bg-emerald-900 hover:bg-emerald-800 text-white font-bold py-3 rounded-xl shadow-xs text-xs cursor-pointer transition"
+                disabled={costoSaving}
+                className="w-full bg-emerald-900 hover:bg-emerald-800 disabled:cursor-wait disabled:opacity-60 text-white font-bold py-3 rounded-xl shadow-xs text-xs cursor-pointer transition"
               >
-                Guardar Costo e Imputaciones
+                {costoSaving ? 'Guardando costo…' : 'Guardar Costo e Imputaciones'}
               </button>
             </form>
           </div>
