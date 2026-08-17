@@ -499,11 +499,16 @@ export type Database = {
           created_at: string | null
           empresa: string
           frente: string | null
+          horas_cuadrilla: number | null
           id: number
           obra_id: number
           obra_nombre: string | null
           observaciones: string | null
           partida: string | null
+          partida_id: number | null
+          cuadrilla_id: number | null
+          cuadrilla_miembros: Json
+          cuadrilla_nombre: string | null
           supervisor: string | null
           unidad: string | null
         }
@@ -512,11 +517,16 @@ export type Database = {
           created_at?: string | null
           empresa: string
           frente?: string | null
+          horas_cuadrilla?: number | null
           id?: number
           obra_id: number
           obra_nombre?: string | null
           observaciones?: string | null
           partida?: string | null
+          partida_id?: number | null
+          cuadrilla_id?: number | null
+          cuadrilla_miembros?: Json
+          cuadrilla_nombre?: string | null
           supervisor?: string | null
           unidad?: string | null
         }
@@ -525,20 +535,39 @@ export type Database = {
           created_at?: string | null
           empresa?: string
           frente?: string | null
+          horas_cuadrilla?: number | null
           id?: number
           obra_id?: number
           obra_nombre?: string | null
           observaciones?: string | null
           partida?: string | null
+          partida_id?: number | null
+          cuadrilla_id?: number | null
+          cuadrilla_miembros?: Json
+          cuadrilla_nombre?: string | null
           supervisor?: string | null
           unidad?: string | null
         }
         Relationships: [
           {
+            foreignKeyName: "avances_produccion_partidas_cuadrilla_id_fkey"
+            columns: ["cuadrilla_id"]
+            isOneToOne: false
+            referencedRelation: "obra_cuadrillas"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "avances_produccion_partidas_obra_id_fkey"
             columns: ["obra_id"]
             isOneToOne: false
             referencedRelation: "obras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "avances_produccion_partidas_partida_id_fkey"
+            columns: ["partida_id"]
+            isOneToOne: false
+            referencedRelation: "partidas_obra"
             referencedColumns: ["id"]
           },
           {
@@ -5180,6 +5209,113 @@ export type Database = {
           },
           {
             foreignKeyName: "obra_liquidaciones_trabajador_id_fkey"
+            columns: ["trabajador_id"]
+            isOneToOne: false
+            referencedRelation: "maestro_personal"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      obra_liquidaciones_partidas: {
+        Row: {
+          created_at: string
+          criterio: string
+          cuadrilla_id: number | null
+          cuadrilla_nombre: string | null
+          empresa: string
+          id: number
+          liquidacion_id: number
+          monto_imputado: number
+          nomina_id: number
+          nomina_item_id: number
+          obra_id: number
+          partida: string
+          partida_id: number | null
+          ponderador: number
+          porcentaje_imputacion: number
+          trabajador_id: number | null
+        }
+        Insert: {
+          created_at?: string
+          criterio: string
+          cuadrilla_id?: number | null
+          cuadrilla_nombre?: string | null
+          empresa: string
+          id?: number
+          liquidacion_id: number
+          monto_imputado?: number
+          nomina_id: number
+          nomina_item_id: number
+          obra_id: number
+          partida: string
+          partida_id?: number | null
+          ponderador?: number
+          porcentaje_imputacion?: number
+          trabajador_id?: number | null
+        }
+        Update: {
+          created_at?: string
+          criterio?: string
+          cuadrilla_id?: number | null
+          cuadrilla_nombre?: string | null
+          empresa?: string
+          id?: number
+          liquidacion_id?: number
+          monto_imputado?: number
+          nomina_id?: number
+          nomina_item_id?: number
+          obra_id?: number
+          partida?: string
+          partida_id?: number | null
+          ponderador?: number
+          porcentaje_imputacion?: number
+          trabajador_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "obra_liquidaciones_partidas_cuadrilla_id_fkey"
+            columns: ["cuadrilla_id"]
+            isOneToOne: false
+            referencedRelation: "obra_cuadrillas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "obra_liquidaciones_partidas_liquidacion_id_fkey"
+            columns: ["liquidacion_id"]
+            isOneToOne: false
+            referencedRelation: "obra_liquidaciones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "obra_liquidaciones_partidas_nomina_id_fkey"
+            columns: ["nomina_id"]
+            isOneToOne: false
+            referencedRelation: "rrhh_nominas_mensuales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "obra_liquidaciones_partidas_nomina_item_id_fkey"
+            columns: ["nomina_item_id"]
+            isOneToOne: false
+            referencedRelation: "rrhh_nomina_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "obra_liquidaciones_partidas_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "obras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "obra_liquidaciones_partidas_partida_id_fkey"
+            columns: ["partida_id"]
+            isOneToOne: false
+            referencedRelation: "partidas_obra"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "obra_liquidaciones_partidas_trabajador_id_fkey"
             columns: ["trabajador_id"]
             isOneToOne: false
             referencedRelation: "maestro_personal"

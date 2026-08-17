@@ -573,7 +573,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   // Estados locales para los formularios
   const [asistenciaData, setAsistenciaData] = useState({ trabajador: '', rut: '', asistencia: 'PRESENTE', ingreso: '08:00', salida: '18:00', colacion: 'SI' });
   const [avanceItems, setAvanceItems] = useState([
-    { frente: 'Frente Principal', partida: '', unidad: 'UND', cantidad: '', observaciones: '' }
+    { frente: 'Frente Principal', partida_id: null, partida: '', unidad: 'UND', cantidad: '', cuadrilla_id: '', horas_cuadrilla: '', observaciones: '' }
   ]);
   const [avanceFecha, setAvanceFecha] = useState(new Date().toISOString().substring(0, 10));
   const [maqData, setMaqData] = useState({ operador: '', maquinaria: '', horometroEntrada: '', horometroSalida: '', litrosCombustible: '0', horometroCombustible: '0', paralizacion: 'Ninguna', observaciones: '', costoHora: '' });
@@ -1378,7 +1378,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       try {
         const [proyeccionesResult, liquidacionesResult, costosResult] = await Promise.all([
           supabase.from('rrhh_proyecciones_dotacion').select('*').eq('empresa', user?.empresa || 'Obraxis').eq('obra_nombre', obraNombre).order('fecha_inicio'),
-          supabase.from('obra_liquidaciones').select('*').eq('empresa', user?.empresa || 'Obraxis').eq('obra_nombre', obraNombre).order('periodo', { ascending: false }),
+          supabase.from('obra_liquidaciones').select('*,obra_liquidaciones_partidas(*)').eq('empresa', user?.empresa || 'Obraxis').eq('obra_nombre', obraNombre).order('periodo', { ascending: false }),
           supabase.from('costos_reales_obra').select('*').eq('empresa', user?.empresa || 'Obraxis').eq('obra_nombre', obraNombre).order('created_at', { ascending: false })
         ]);
         if (proyeccionesResult.error) throw proyeccionesResult.error;
@@ -1826,20 +1826,31 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         if (!item.observaciones || !item.observaciones.trim()) {
           throw new Error(`Partida #${i + 1} (${item.partida}): Los comentarios u observaciones son OBLIGATORIOS.`);
         }
+        if (cuadrillasList.length > 0 && !item.cuadrilla_id) {
+          throw new Error(`Partida #${i + 1} (${item.partida}): Debes indicar la cuadrilla que ejecutó el trabajo.`);
+        }
       }
 
-      const rowsToInsert = avanceItems.map(item => ({
+      const rowsToInsert = avanceItems.map(item => {
+        const cuadrilla = cuadrillasList.find(c => String(c.id) === String(item.cuadrilla_id));
+        return ({
         obra_id: selectedObra.id || null,
         empresa: user?.empresa || selectedObra.empresa || 'Obraxis',
         obra_nombre: selectedObra.nombre,
         supervisor: user?.nombre || user?.email || user?.usuario || 'Supervisor',
         frente: item.frente || 'Frente Principal',
         partida: item.partida,
+        partida_id: item.partida_id || null,
         unidad: item.unidad || 'UND',
         cantidad: parseFloat(item.cantidad) || 0,
+        cuadrilla_id: cuadrilla?.id || null,
+        cuadrilla_nombre: cuadrilla?.nombre || null,
+        cuadrilla_miembros: cuadrilla?.miembros || [],
+        horas_cuadrilla: item.horas_cuadrilla ? Number(item.horas_cuadrilla) : null,
         observaciones: item.observaciones.trim(),
         created_at: avanceFecha ? new Date(avanceFecha + 'T12:00:00Z').toISOString() : new Date().toISOString()
-      }));
+      });
+      });
 
       const { error } = await supabase.from('avances_produccion_partidas').insert(rowsToInsert);
 
@@ -1932,7 +1943,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       fetchObraDetails(selectedObra.nombre);
       setTimeout(() => {
         setActiveModal(null);
-        setAvanceItems([{ frente: 'Frente Principal', partida: '', unidad: 'UND', cantidad: '', observaciones: '' }]);
+        setAvanceItems([{ frente: 'Frente Principal', partida_id: null, partida: '', unidad: 'UND', cantidad: '', cuadrilla_id: '', horas_cuadrilla: '', observaciones: '' }]);
       }, 1500);
     } catch (err) {
       setErrorMsg(err.message);
@@ -2034,7 +2045,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     if (!canManageRecordsAccess) return alert('No tienes permisos de Nivel 0, 1 o 2 para editar este registro.');
     setEditingRecordId(r.id);
     setAvanceFecha(r.created_at ? r.created_at.substring(0, 10) : new Date().toISOString().substring(0, 10));
-    setAvanceItems([{ frente: r.frente || 'Frente Principal', partida: r.partida, unidad: r.unidad || 'UND', cantidad: r.cantidad, observaciones: r.observaciones || '' }]);
+    setAvanceItems([{ frente: r.frente || 'Frente Principal', partida_id: r.partida_id || null, partida: r.partida, unidad: r.unidad || 'UND', cantidad: r.cantidad, cuadrilla_id: r.cuadrilla_id || '', horas_cuadrilla: r.horas_cuadrilla || '', observaciones: r.observaciones || '' }]);
     setSuccessMsg('');
     setErrorMsg('');
     setActiveModal('avance');
@@ -6942,7 +6953,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                               <th className="p-2.5">Periodo</th>
                               <th className="p-2.5">Trabajador / Personal</th>
                               <th className="p-2.5">N° Folio / Respaldo</th>
-                              <th className="p-2.5">Base de distribución</th>
+                              <th className="p-2.5">Imputación por partida / cuadrilla</th>
                               <th className="p-2.5 text-center">Días / %</th>
                               <th className="p-2.5 text-right">Costo imputado ($)</th>
                               <th className="p-2.5 text-center">Acciones</th>
@@ -6954,7 +6965,25 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                 <td className="p-2.5 font-mono text-[10px] text-slate-600 font-bold">{liq.periodo}</td>
                                 <td className="p-2.5 font-bold text-slate-800">{liq.trabajador}</td>
                                 <td className="p-2.5 font-mono text-slate-700">{liq.num_folio || 'N/A'}</td>
-                                <td className="p-2.5 text-slate-600">{liq.criterio_imputacion || liq.partida || 'Gastos Generales'}</td>
+                                <td className="p-2.5 text-slate-600">
+                                  {(liq.obra_liquidaciones_partidas || []).length > 0 ? (
+                                    <div className="min-w-[260px] space-y-1.5">
+                                      {liq.obra_liquidaciones_partidas.map(detalle => (
+                                        <div key={detalle.id} className="rounded-lg border border-slate-200 bg-white p-2">
+                                          <div className="flex items-start justify-between gap-3">
+                                            <span className="font-bold text-slate-800">{detalle.partida}</span>
+                                            <span className="whitespace-nowrap font-mono font-black text-emerald-800">${Number(detalle.monto_imputado || 0).toLocaleString('es-CL')}</span>
+                                          </div>
+                                          <div className="mt-0.5 flex flex-wrap gap-x-2 text-[9px] text-slate-500">
+                                            <span>{detalle.cuadrilla_nombre || 'Sin cuadrilla vinculada'}</span>
+                                            <span>{Number(detalle.porcentaje_imputacion || 0).toLocaleString('es-CL', { maximumFractionDigits: 2 })}%</span>
+                                            <span>{detalle.criterio}</span>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (liq.criterio_imputacion || liq.partida || 'Gastos Generales')}
+                                </td>
                                 <td className="p-2.5 text-center font-mono text-slate-700">
                                   {liq.dias_imputados != null ? `${Number(liq.dias_imputados).toLocaleString('es-CL')} d · ${Number(liq.porcentaje_imputacion || 0).toLocaleString('es-CL', { maximumFractionDigits: 2 })}%` : '—'}
                                 </td>
@@ -8232,6 +8261,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                               const foundP = partidasList.find(p => p.partida === val);
                               const copy = [...avanceItems];
                               copy[idx].partida = val;
+                              copy[idx].partida_id = foundP?.id || null;
                               copy[idx].unidad = foundP ? foundP.unidad : 'UND';
                               setAvanceItems(copy);
                             }}
@@ -8295,6 +8325,44 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                       </div>
                     </div>
 
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase text-emerald-900 mb-1">
+                          Cuadrilla ejecutora {cuadrillasList.length > 0 && <span className="text-red-500">*</span>}
+                        </label>
+                        <select
+                          required={cuadrillasList.length > 0}
+                          value={item.cuadrilla_id || ''}
+                          onChange={(e) => {
+                            const copy = [...avanceItems];
+                            copy[idx].cuadrilla_id = e.target.value;
+                            setAvanceItems(copy);
+                          }}
+                          className="w-full rounded-lg border border-emerald-200 bg-white p-2 text-xs font-semibold text-slate-800"
+                        >
+                          <option value="">{cuadrillasList.length ? '-- Seleccionar cuadrilla --' : 'Sin cuadrillas configuradas'}</option>
+                          {cuadrillasList.map(c => <option key={c.id} value={c.id}>{c.nombre} · {(c.miembros || []).length} integrantes</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase text-emerald-900 mb-1">Horas totales de cuadrilla</label>
+                        <input
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          value={item.horas_cuadrilla || ''}
+                          onChange={(e) => {
+                            const copy = [...avanceItems];
+                            copy[idx].horas_cuadrilla = e.target.value;
+                            setAvanceItems(copy);
+                          }}
+                          placeholder="Opcional; ej. 64 HH"
+                          className="w-full rounded-lg border border-emerald-200 bg-white p-2 text-xs font-semibold text-slate-800"
+                        />
+                      </div>
+                      <p className="text-[9px] font-semibold text-emerald-800 sm:col-span-2">Esta relación permite imputar automáticamente el costo real de mano de obra a la partida. Si no informas horas, se utilizarán las jornadas de avance reportadas.</p>
+                    </div>
+
                     <div>
                       <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">
                         Comentarios / Observaciones Obligatorios <span className="text-red-500">*</span>
@@ -8319,7 +8387,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
               {/* Botón para agregar otra partida */}
               <button
                 type="button"
-                onClick={() => setAvanceItems([...avanceItems, { frente: avanceItems[0]?.frente || 'Frente Principal', partida: '', unidad: 'UND', cantidad: '', observaciones: '' }])}
+                onClick={() => setAvanceItems([...avanceItems, { frente: avanceItems[0]?.frente || 'Frente Principal', partida_id: null, partida: '', unidad: 'UND', cantidad: '', cuadrilla_id: avanceItems[0]?.cuadrilla_id || '', horas_cuadrilla: '', observaciones: '' }])}
                 className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-blue-900 border border-slate-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
