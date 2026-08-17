@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { formatRut } from '../utils/rutUtils';
 import PublicObraxisHeader from './PublicObraxisHeader';
-import SubcontractOperationsPortal from './SubcontractOperationsPortal';
 import { 
   Building2, ShieldCheck, User, Truck, FileUp, CheckCircle2, Lock,
   Plus, FileText, Key, Eye, MessageSquare, Save, RefreshCw
@@ -326,7 +325,6 @@ export default function PublicSubcontractAcreditacion({ token }) {
               <Truck className="w-4 h-4" />
               <span>3. Equipos ({equiposList.length})</span>
             </button>
-            <button onClick={() => setActiveTab('operacion')} className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer ${activeTab === 'operacion' ? 'bg-primary text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}>4. Operación</button>
           </div>
         </div>
       </div>
@@ -346,8 +344,6 @@ export default function PublicSubcontractAcreditacion({ token }) {
           <span>{successMsg}</span>
         </div>
       )}
-
-      {activeTab === 'operacion' && <SubcontractOperationsPortal subInfo={subInfo} />}
 
       {/* ================= PESTAÑA 1: DOCUMENTOS EMPRESA ================= */}
       {activeTab === 'empresa' && (
