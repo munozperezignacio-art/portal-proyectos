@@ -573,7 +573,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   // Estados locales para los formularios
   const [asistenciaData, setAsistenciaData] = useState({ trabajador: '', rut: '', asistencia: 'PRESENTE', ingreso: '08:00', salida: '18:00', colacion: 'SI' });
   const [avanceItems, setAvanceItems] = useState([
-    { frente: 'Frente Principal', partida_id: null, partida: '', unidad: 'UND', cantidad: '', cuadrilla_id: '', horas_cuadrilla: '', observaciones: '' }
+    { frente: 'Frente Principal', partida_id: null, partida: '', unidad: 'UND', cantidad: '', cuadrilla_id: '', observaciones: '' }
   ]);
   const [avanceFecha, setAvanceFecha] = useState(new Date().toISOString().substring(0, 10));
   const [maqData, setMaqData] = useState({ operador: '', maquinaria: '', horometroEntrada: '', horometroSalida: '', litrosCombustible: '0', horometroCombustible: '0', paralizacion: 'Ninguna', observaciones: '', costoHora: '' });
@@ -1846,7 +1846,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         cuadrilla_id: cuadrilla?.id || null,
         cuadrilla_nombre: cuadrilla?.nombre || null,
         cuadrilla_miembros: cuadrilla?.miembros || [],
-        horas_cuadrilla: item.horas_cuadrilla ? Number(item.horas_cuadrilla) : null,
+        horas_cuadrilla: null,
         observaciones: item.observaciones.trim(),
         created_at: avanceFecha ? new Date(avanceFecha + 'T12:00:00Z').toISOString() : new Date().toISOString()
       });
@@ -1943,7 +1943,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       fetchObraDetails(selectedObra.nombre);
       setTimeout(() => {
         setActiveModal(null);
-        setAvanceItems([{ frente: 'Frente Principal', partida_id: null, partida: '', unidad: 'UND', cantidad: '', cuadrilla_id: '', horas_cuadrilla: '', observaciones: '' }]);
+        setAvanceItems([{ frente: 'Frente Principal', partida_id: null, partida: '', unidad: 'UND', cantidad: '', cuadrilla_id: '', observaciones: '' }]);
       }, 1500);
     } catch (err) {
       setErrorMsg(err.message);
@@ -2045,7 +2045,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     if (!canManageRecordsAccess) return alert('No tienes permisos de Nivel 0, 1 o 2 para editar este registro.');
     setEditingRecordId(r.id);
     setAvanceFecha(r.created_at ? r.created_at.substring(0, 10) : new Date().toISOString().substring(0, 10));
-    setAvanceItems([{ frente: r.frente || 'Frente Principal', partida_id: r.partida_id || null, partida: r.partida, unidad: r.unidad || 'UND', cantidad: r.cantidad, cuadrilla_id: r.cuadrilla_id || '', horas_cuadrilla: r.horas_cuadrilla || '', observaciones: r.observaciones || '' }]);
+    setAvanceItems([{ frente: r.frente || 'Frente Principal', partida_id: r.partida_id || null, partida: r.partida, unidad: r.unidad || 'UND', cantidad: r.cantidad, cuadrilla_id: r.cuadrilla_id || '', observaciones: r.observaciones || '' }]);
     setSuccessMsg('');
     setErrorMsg('');
     setActiveModal('avance');
@@ -8334,7 +8334,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
                       <div>
                         <label className="block text-[10px] font-bold uppercase text-emerald-900 mb-1">
                           Cuadrilla ejecutora {cuadrillasList.length > 0 && <span className="text-red-500">*</span>}
@@ -8353,23 +8353,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                           {cuadrillasList.map(c => <option key={c.id} value={c.id}>{c.nombre} · {(c.miembros || []).length} integrantes</option>)}
                         </select>
                       </div>
-                      <div>
-                        <label className="block text-[10px] font-bold uppercase text-emerald-900 mb-1">Horas totales de cuadrilla</label>
-                        <input
-                          type="number"
-                          min="0.01"
-                          step="0.01"
-                          value={item.horas_cuadrilla || ''}
-                          onChange={(e) => {
-                            const copy = [...avanceItems];
-                            copy[idx].horas_cuadrilla = e.target.value;
-                            setAvanceItems(copy);
-                          }}
-                          placeholder="Opcional; ej. 64 HH"
-                          className="w-full rounded-lg border border-emerald-200 bg-white p-2 text-xs font-semibold text-slate-800"
-                        />
-                      </div>
-                      <p className="text-[9px] font-semibold text-emerald-800 sm:col-span-2">Esta relación permite imputar automáticamente el costo real de mano de obra a la partida. Si no informas horas, se utilizarán las jornadas de avance reportadas.</p>
+                      <p className="mt-2 text-[9px] font-semibold text-emerald-800">Las jornadas y el costo de mano de obra se calcularán automáticamente desde la asistencia de los integrantes. Si la cuadrilla informa varias partidas el mismo día, el día se distribuirá proporcionalmente entre ellas.</p>
                     </div>
 
                     <div>
@@ -8396,7 +8380,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
               {/* Botón para agregar otra partida */}
               <button
                 type="button"
-                onClick={() => setAvanceItems([...avanceItems, { frente: avanceItems[0]?.frente || 'Frente Principal', partida_id: null, partida: '', unidad: 'UND', cantidad: '', cuadrilla_id: avanceItems[0]?.cuadrilla_id || '', horas_cuadrilla: '', observaciones: '' }])}
+                onClick={() => setAvanceItems([...avanceItems, { frente: avanceItems[0]?.frente || 'Frente Principal', partida_id: null, partida: '', unidad: 'UND', cantidad: '', cuadrilla_id: avanceItems[0]?.cuadrilla_id || '', observaciones: '' }])}
                 className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-blue-900 border border-slate-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer"
               >
                 <Plus className="w-4 h-4" />

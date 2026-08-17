@@ -7487,10 +7487,18 @@ export type Database = {
         Returns: number
       }
       asignar_folio_dte: { Args: { p_documento: string }; Returns: number }
-      distribuir_nomina_a_obras: {
-        Args: { p_nomina_id: number }
-        Returns: Json
-      }
+       distribuir_nomina_a_obras: {
+          Args: { p_nomina_id: number }
+          Returns: Json
+        }
+        distribuir_nomina_a_obras_base: {
+          Args: { p_nomina_id: number }
+          Returns: Json
+        }
+        distribuir_nomina_partidas_por_asistencia: {
+          Args: { p_nomina_id: number }
+          Returns: Json
+        }
       formulario_catalogo_vinculado: {
         Args: { p_campo_id: string; p_token: string }
         Returns: Json
