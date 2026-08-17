@@ -4599,13 +4599,22 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 // Los gastos generales se conservan en la vista global, pero no se cargan artificialmente a una partida.
                 const isGlobalStats = filtroPartidaEstadisticas === 'GLOBAL';
                 const getCostDate = (cost) => cost.fecha || (cost.created_at ? String(cost.created_at).substring(0, 10) : '');
-                const getCostoImputadoPartida = (partidaName) => (costosList || []).reduce((sum, cost) => {
+                const getCostoDirectoImputadoPartida = (partidaName) => (costosList || []).reduce((sum, cost) => {
                   if (getCostDate(cost) > fCorteStr || !Array.isArray(cost.imputaciones)) return sum;
                   const imputacion = cost.imputaciones.find(i => isMatchPartidaName(i.partida, partidaName));
                   return imputacion
                     ? sum + Math.round(((parseFloat(cost.monto) || 0) * (parseFloat(imputacion.porcentaje) || 0)) / 100)
                     : sum;
                 }, 0);
+                const getCostoManoObraPartida = (partidaName) => (liquidacionesList || []).reduce((sum, liquidacion) => {
+                  if (String(liquidacion.periodo || '') > fCorteStr.substring(0, 7)) return sum;
+                  const detalles = Array.isArray(liquidacion.obra_liquidaciones_partidas) ? liquidacion.obra_liquidaciones_partidas : [];
+                  return sum + detalles
+                    .filter(detalle => detalle.partida_id != null && isMatchPartidaName(detalle.partida, partidaName))
+                    .reduce((subtotal, detalle) => subtotal + (parseFloat(detalle.monto_imputado) || 0), 0);
+                }, 0);
+                const getCostoImputadoPartida = (partidaName) =>
+                  getCostoDirectoImputadoPartida(partidaName) + getCostoManoObraPartida(partidaName);
                 const AC_facturas = isGlobalStats
                   ? (costosList || []).filter(c => getCostDate(c) <= fCorteStr).reduce((acc, c) => acc + (parseFloat(c.monto) || 0), 0)
                   : targetPartidas.reduce((sum, p) => sum + getCostoImputadoPartida(p.partida), 0);
@@ -4652,7 +4661,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     variacionMonto,
                     pctSobrecosto
                   };
-                }).filter(p => p.costoImputadoReal > 0 || p.esSobrecosto);
+                }).filter(p => p.esSobrecosto);
 
                 // Lectura ejecutiva: rendimiento, plazo y costo por partida, ordenada por prioridad de gestión.
                 const partidaExecutiveStats = targetPartidas.map(p => {
@@ -5333,7 +5342,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                             </div>
 
                             <p className="text-xs text-rose-900 font-semibold">
-                              Se han detectado partidas cuyo <strong>Costo Real Incurridos supera la Venta de Avance acumulada</strong> a la fecha de corte ({fCorteStr}):
+                              Se han detectado partidas cuyo <strong>Costo Real Incurrido supera la Venta de Avance acumulada</strong> a la fecha de corte ({fCorteStr}):
                             </p>
 
                             <div className="overflow-x-auto">
