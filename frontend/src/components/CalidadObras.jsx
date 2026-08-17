@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, ClipboardCheck, FileCheck2, Mail, Plus, RefreshCw, Repeat2, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ClipboardCheck, Download, FileCheck2, FileText, Mail, Paperclip, Plus, RefreshCw, Repeat2, ShieldCheck, Trash2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { registrarEventoBitacora } from '../utils/bitacoraService';
 import { appendAudit, auditActor } from '../utils/documentAudit';
@@ -62,6 +62,9 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
   const [rdiForm, setRdiForm] = useState(initialRdi);
   const [ncForm, setNcForm] = useState(initialNc);
   const [receptionForm, setReceptionForm] = useState(initialReception);
+  const [rdiFiles, setRdiFiles] = useState([]);
+  const [receptionFiles, setReceptionFiles] = useState([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
   const { permissions, loading: permissionsLoading } = useUserPermissions(user);
 
   const empresa = user?.empresa || null;
@@ -145,6 +148,55 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
     if (obraActiva && !rdiForm.inspector) setRdiForm(current => ({ ...current, inspector: obraActiva.admin_contrato || obraActiva.cliente || '' }));
   }, [obraActiva, rdiForm.inspector]);
 
+  const validateFiles = files => {
+    const allowed = new Set(['application/pdf', 'image/jpeg', 'image/png', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel']);
+    const selected = Array.from(files || []);
+    const invalid = selected.find(file => file.size > 20 * 1024 * 1024 || !allowed.has(file.type));
+    if (invalid) throw new Error(`${invalid.name}: formato no permitido o supera 20 MB.`);
+    return selected;
+  };
+
+  const selectFiles = (event, setter) => {
+    try { setter(validateFiles(event.target.files)); setMessage(''); }
+    catch (error) { event.target.value = ''; setter([]); setMessage(error.message); }
+  };
+
+  const uploadAttachments = async (kind, recordId, files) => {
+    if (!files.length) return [];
+    const uploaded = [];
+    try {
+      for (const file of files) {
+        const safeName = file.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_').slice(-120);
+        const path = `${kind}/${recordId}/${crypto.randomUUID()}-${safeName}`;
+        const { error } = await supabase.storage.from('calidad-adjuntos').upload(path, file, { contentType: file.type, upsert: false });
+        if (error) throw error;
+        uploaded.push({ path, nombre: file.name, tipo: file.type, tamano: file.size, subido_at: new Date().toISOString(), subido_por: user?.nombre || user?.usuario || user?.correo || user?.email || 'Usuario autorizado' });
+      }
+      return uploaded;
+    } catch (error) {
+      if (uploaded.length) await supabase.storage.from('calidad-adjuntos').remove(uploaded.map(item => item.path));
+      throw error;
+    }
+  };
+
+  const openAttachment = async attachment => {
+    const { data, error } = await supabase.storage.from('calidad-adjuntos').createSignedUrl(attachment.path, 60);
+    if (error) { setMessage(`No se pudo abrir el adjunto: ${error.message}`); return; }
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const deleteAttachment = async (table, record, attachment) => {
+    if (!canEdit || !window.confirm(`¿Eliminar ${attachment.nombre}?`)) return;
+    try {
+      const remaining = (record.adjuntos || []).filter(item => item.path !== attachment.path);
+      const { error: storageError } = await supabase.storage.from('calidad-adjuntos').remove([attachment.path]);
+      if (storageError) throw storageError;
+      const { error } = await supabase.from(table).update({ adjuntos: remaining }).eq('empresa', empresa).eq('id', record.id);
+      if (error) throw error;
+      setMessage('Adjunto eliminado.'); await load();
+    } catch (error) { setMessage(`No se pudo eliminar el adjunto: ${error.message}`); }
+  };
+
   const savePac = async (e) => {
     e.preventDefault();
     if (!canCreate) { setMessage('Tu perfil no está autorizado para crear PAC.'); return; }
@@ -158,13 +210,27 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
   const saveRdi = async (e) => {
     e.preventDefault();
     if (!(canCreate && canSend)) { setMessage('Tu perfil no está autorizado para crear y enviar solicitudes RDI.'); return; }
+    setUploadingFiles(true);
     try {
       const codigo = `RDI-${new Date().getFullYear()}-${String(rdis.length + 1).padStart(3, '0')}`;
-      const { error } = await supabase.from('calidad_rdi').insert({ empresa, obra_nombre: obraNombre, ...rdiForm, codigo, estado: 'Enviada', fecha_solicitud: new Date().toISOString().slice(0, 10), trazabilidad: [auditActor(user, 'Solicitud RDI emitida', 'Enviada', `${rdiForm.partida} · ${rdiForm.sector}`)] });
+      const { data: createdRdi, error } = await supabase.from('calidad_rdi').insert({ empresa, obra_nombre: obraNombre, ...rdiForm, codigo, estado: 'Enviada', fecha_solicitud: new Date().toISOString().slice(0, 10), trazabilidad: [auditActor(user, 'Solicitud RDI emitida', 'Enviada', `${rdiForm.partida} · ${rdiForm.sector}`)] }).select().single();
       if (error) throw error;
+      let adjuntos = [];
+      try {
+        adjuntos = await uploadAttachments('rdi', createdRdi.id, rdiFiles);
+        if (adjuntos.length) {
+          const { error: attachmentError } = await supabase.from('calidad_rdi').update({ adjuntos }).eq('id', createdRdi.id);
+          if (attachmentError) throw attachmentError;
+        }
+      } catch (attachmentError) {
+        if (adjuntos.length) await supabase.storage.from('calidad-adjuntos').remove(adjuntos.map(item => item.path));
+        await supabase.from('calidad_rdi').delete().eq('id', createdRdi.id);
+        throw attachmentError;
+      }
       await registrarEventoBitacora({ empresa, obraNombre, categoria: 'Calidad', accion: `${codigo} enviada a inspección`, detalle: `${rdiForm.partida} · ${rdiForm.cantidad || 0} ${rdiForm.unidad || ''} · ${rdiForm.sector}`, actor: rdiForm.solicitado_por || user?.nombre || user?.email });
-      setRdiForm(initialRdi); setMessage(`${codigo} enviada a inspección.`); await load();
+      setRdiForm(initialRdi); setRdiFiles([]); setMessage(`${codigo} enviada a inspección${rdiFiles.length ? ` con ${rdiFiles.length} adjunto(s)` : ''}.`); await load();
     } catch (error) { setMessage(`No se pudo registrar la RDI: ${error.message}`); }
+    finally { setUploadingFiles(false); }
   };
   const saveNc = async (e) => {
     e.preventDefault();
@@ -180,6 +246,7 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
   const saveReception = async (e) => {
     e.preventDefault();
     if (!canCreate) { setMessage('Tu perfil no está autorizado para entregar partidas a recepción.'); return; }
+    setUploadingFiles(true);
     try {
       const codigo = `REC-${new Date().getFullYear()}-${String(recepciones.length + 1).padStart(3, '0')}`;
       const { controles_manual, ...receptionPayload } = receptionForm;
@@ -190,13 +257,26 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
       if (protocolAvailable) insertPayload.pac_id = pac?.id || null;
       const { data: createdReception, error } = await supabase.from('calidad_recepciones_partidas').insert(insertPayload).select().single();
       if (error) throw error;
+      let adjuntos = [];
+      try {
+        adjuntos = await uploadAttachments('recepcion', createdReception.id, receptionFiles);
+        if (adjuntos.length) {
+          const { error: attachmentError } = await supabase.from('calidad_recepciones_partidas').update({ adjuntos }).eq('id', createdReception.id);
+          if (attachmentError) throw attachmentError;
+        }
+      } catch (attachmentError) {
+        if (adjuntos.length) await supabase.storage.from('calidad-adjuntos').remove(adjuntos.map(item => item.path));
+        await supabase.from('calidad_recepciones_partidas').delete().eq('id', createdReception.id);
+        throw attachmentError;
+      }
       if (protocolAvailable && protocol.length) {
         const { error: protocolError } = await supabase.from('calidad_recepcion_controles').insert(protocol.map(control => ({ ...control, recepcion_id: createdReception.id, pac_id: pac?.id || null })));
         if (protocolError) throw protocolError;
       }
       await registrarEventoBitacora({ empresa, obraNombre, categoria: 'Calidad', accion: `${codigo} entregada para recepción`, detalle: `${receptionForm.partida} · ${receptionForm.cantidad || 0} ${receptionForm.unidad || ''} · ${receptionForm.sector || 'Sin sector'}`, actor: receptionForm.entrega_por || user?.nombre || user?.email, fecha: receptionForm.fecha_entrega });
-      setReceptionForm(initialReception); setExpandedReceptionId(createdReception.id); setMessage(protocolAvailable ? `${codigo} registrada con ${protocol.length} control${protocol.length === 1 ? '' : 'es'} de protocolo.` : `${codigo} registrada. El protocolo se habilitará al ejecutar el esquema de Calidad en Supabase.`); await load();
+      setReceptionForm(initialReception); setReceptionFiles([]); setExpandedReceptionId(createdReception.id); setMessage(protocolAvailable ? `${codigo} registrada con ${protocol.length} control${protocol.length === 1 ? '' : 'es'} y ${receptionFiles.length} adjunto(s).` : `${codigo} registrada. El protocolo se habilitará al ejecutar el esquema de Calidad en Supabase.`); await load();
     } catch (error) { setMessage(`No se pudo registrar la recepción: ${error.message}`); }
+    finally { setUploadingFiles(false); }
   };
   const updateStatus = async (table, id, estado) => {
     const approvalStates = ['Aprobada', 'Cerrada', 'Verificada'];
@@ -266,7 +346,7 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
         <Metric icon={<CheckCircle2 />} label="Recepción a la primera" value={`${rdis.length ? Math.round((rdis.filter(r => r.estado === 'Aprobada').length / rdis.length) * 100) : 0}%`} detail="RDIs aprobadas" color="amber" />
       </div><div className="grid gap-4 lg:grid-cols-2"><section className="rounded-2xl border border-slate-200 bg-white p-5"><h3 className="mb-3 text-sm font-black text-slate-800">Partidas bloqueadas o por inspeccionar</h3>{rdisPendientes.length ? <div className="space-y-2">{rdisPendientes.slice(0,6).map(r => <RdiRow key={r.id} rdi={r} onStatus={updateStatus} />)}</div> : <Empty text="No hay RDI pendientes en esta obra." />}</section><section className="rounded-2xl border border-slate-200 bg-white p-5"><h3 className="mb-3 text-sm font-black text-slate-800">No conformidades prioritarias</h3>{ncsAbiertas.length ? <div className="space-y-2">{ncsAbiertas.slice(0,6).map(n => <NcRow key={n.id} nc={n} onStatus={updateStatus} />)}</div> : <Empty text="No hay no conformidades abiertas." />}</section></div><section className="rounded-2xl border border-violet-200 bg-violet-50 p-5"><div className="flex items-center gap-2"><Repeat2 className="h-4 w-4 text-violet-800"/><h3 className="text-sm font-black text-violet-950">Recurrencia y focos sistémicos</h3><span className="ml-auto rounded-full bg-white px-2 py-1 text-[9px] font-black text-violet-800">Sin consumo de IA</span></div>{recurrence.length ? <div className="mt-3 grid gap-2 md:grid-cols-2">{recurrence.slice(0,8).map(item => <button key={`${item.partida}-${item.causa}`} type="button" onClick={()=>setTab('nc')} className="rounded-xl border border-violet-100 bg-white p-3 text-left"><p className="text-xs font-black text-slate-900">{item.partida}</p><p className="mt-1 text-[10px] font-semibold text-slate-500">{item.causa}</p><p className="mt-2 text-[10px] font-black text-violet-800">{item.total} NC · {item.abiertas} abierta(s)</p></button>)}</div> : <p className="mt-3 text-xs text-slate-600">Aún no existen combinaciones repetidas de partida y categoría de causa.</p>}</section></div>}
       {tab === 'pac' && <div className="grid gap-4 xl:grid-cols-[390px_1fr]"><form onSubmit={savePac} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5"><h3 className="flex items-center gap-2 text-sm font-black text-slate-800"><Plus className="h-4 w-4 text-emerald-700" />Crear PAC / ITP</h3><SelectPartida value={pacForm.partida} onChange={v => setPacForm({...pacForm,partida:v})} partidas={partidasEjecutables} /><input required list="procedimientos-empresa" placeholder="No aplica o selecciona un PTS de Prevención" value={pacForm.procedimiento} onChange={e=>setPacForm({...pacForm,procedimiento:e.target.value})} className={input}/><datalist id="procedimientos-empresa"><option value="No aplica" />{procedimientosEmpresa.map(pts=>{ const label = pts.codigo ? `${pts.codigo} · ${pts.nombre}` : pts.nombre; return <option key={pts.codigo || pts.nombre} value={label} />; })}</datalist><p className="-mt-2 text-[10px] text-slate-500">También puedes escribir un procedimiento específico.</p><textarea required placeholder="Criterios de aceptación" value={pacForm.criterios} onChange={e=>setPacForm({...pacForm,criterios:e.target.value})} className={input}/><textarea placeholder="Puntos de inspección (separados por línea)" value={pacForm.puntos_inspeccion} onChange={e=>setPacForm({...pacForm,puntos_inspeccion:e.target.value})} className={input}/><textarea placeholder="Puntos de espera / liberación" value={pacForm.puntos_espera} onChange={e=>setPacForm({...pacForm,puntos_espera:e.target.value})} className={input}/><input placeholder="Responsable de calidad" value={pacForm.responsable} onChange={e=>setPacForm({...pacForm,responsable:e.target.value})} className={input}/><button className="w-full rounded-xl bg-emerald-700 py-2.5 text-xs font-black text-white">Guardar PAC</button></form><section className="space-y-3">{pacs.length ? pacs.map(p => <div key={p.id} className="rounded-2xl border border-slate-200 bg-white p-5"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-sm font-black text-slate-800">{p.partida}</p><p className="mt-1 text-xs font-semibold text-emerald-800">{p.procedimiento}</p></div><span className={`rounded-full px-2 py-1 text-[10px] font-black ${statusClass(p.estado)}`}>{p.estado}</span></div><div className="mt-3 grid gap-3 text-xs text-slate-600 md:grid-cols-3"><Info label="Criterios" value={p.criterios} /><Info label="Inspección" value={p.puntos_inspeccion || 'Sin definir'} /><Info label="Puntos de espera" value={p.puntos_espera || 'Sin definir'} /></div></div>) : <Empty text="Aún no hay PAC creados. Crea uno por cada partida o actividad crítica." />}</section></div>}
-      {tab === 'rdi' && <div className="grid gap-4 xl:grid-cols-[390px_1fr]"><form onSubmit={saveRdi} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5"><h3 className="flex items-center gap-2 text-sm font-black text-slate-800"><Plus className="h-4 w-4 text-blue-700" />Nueva Solicitud RDI</h3><SelectPartida value={rdiForm.partida} onChange={v => setRdiForm({...rdiForm,partida:v,pac_id:pacPorPartida.get(v)?.id || ''})} partidas={partidasEjecutables}/><select required value={rdiForm.pac_id} onChange={e=>setRdiForm({...rdiForm,pac_id:e.target.value})} className={input}><option value="">PAC asociado</option>{pacs.filter(p=>!rdiForm.partida || p.partida===rdiForm.partida).map(p=><option key={p.id} value={p.id}>{p.procedimiento}</option>)}</select><input required placeholder="Sector / ubicación" value={rdiForm.sector} onChange={e=>setRdiForm({...rdiForm,sector:e.target.value})} className={input}/><div className="grid grid-cols-2 gap-2"><input type="number" min="0" step="any" placeholder="Cantidad" value={rdiForm.cantidad} onChange={e=>setRdiForm({...rdiForm,cantidad:e.target.value})} className={input}/><input placeholder="Unidad" value={rdiForm.unidad} onChange={e=>setRdiForm({...rdiForm,unidad:e.target.value})} className={input}/></div><input required placeholder="Solicitado por" value={rdiForm.solicitado_por} onChange={e=>setRdiForm({...rdiForm,solicitado_por:e.target.value})} className={input}/><textarea placeholder="Observaciones y evidencias disponibles" value={rdiForm.observaciones} onChange={e=>setRdiForm({...rdiForm,observaciones:e.target.value})} className={input}/><button className="w-full rounded-xl bg-blue-800 py-2.5 text-xs font-black text-white">Enviar RDI a inspección</button></form><section className="space-y-2">{rdis.length ? rdis.map(r => <RdiRow key={r.id} rdi={r} onStatus={updateStatus} full />) : <Empty text="No hay solicitudes RDI registradas." />}</section></div>}
+      {tab === 'rdi' && <div className="grid gap-4 xl:grid-cols-[390px_1fr]"><form onSubmit={saveRdi} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5"><h3 className="flex items-center gap-2 text-sm font-black text-slate-800"><Plus className="h-4 w-4 text-blue-700" />Nueva Solicitud RDI</h3><SelectPartida value={rdiForm.partida} onChange={v => setRdiForm({...rdiForm,partida:v,pac_id:pacPorPartida.get(v)?.id || ''})} partidas={partidasEjecutables}/><select required value={rdiForm.pac_id} onChange={e=>setRdiForm({...rdiForm,pac_id:e.target.value})} className={input}><option value="">PAC asociado</option>{pacs.filter(p=>!rdiForm.partida || p.partida===rdiForm.partida).map(p=><option key={p.id} value={p.id}>{p.procedimiento}</option>)}</select><input required placeholder="Sector / ubicación" value={rdiForm.sector} onChange={e=>setRdiForm({...rdiForm,sector:e.target.value})} className={input}/><div className="grid grid-cols-2 gap-2"><input type="number" min="0" step="any" placeholder="Cantidad" value={rdiForm.cantidad} onChange={e=>setRdiForm({...rdiForm,cantidad:e.target.value})} className={input}/><input placeholder="Unidad" value={rdiForm.unidad} onChange={e=>setRdiForm({...rdiForm,unidad:e.target.value})} className={input}/></div><input required placeholder="Solicitado por" value={rdiForm.solicitado_por} onChange={e=>setRdiForm({...rdiForm,solicitado_por:e.target.value})} className={input}/><textarea placeholder="Observaciones y evidencias disponibles" value={rdiForm.observaciones} onChange={e=>setRdiForm({...rdiForm,observaciones:e.target.value})} className={input}/><QualityFileInput files={rdiFiles} onChange={event=>selectFiles(event,setRdiFiles)} /><button disabled={uploadingFiles} className="w-full rounded-xl bg-blue-800 py-2.5 text-xs font-black text-white disabled:opacity-50">{uploadingFiles ? 'Subiendo antecedentes…' : 'Enviar RDI a inspección'}</button></form><section className="space-y-2">{rdis.length ? rdis.map(r => <RdiRow key={r.id} rdi={r} onStatus={updateStatus} full onOpenAttachment={openAttachment} onDeleteAttachment={attachment=>deleteAttachment('calidad_rdi',r,attachment)} canDeleteAttachment={canEdit} />) : <Empty text="No hay solicitudes RDI registradas." />}</section></div>}
       {tab === 'nc' && <div className="grid gap-4 xl:grid-cols-[390px_1fr]"><form onSubmit={saveNc} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5"><h3 className="flex items-center gap-2 text-sm font-black text-slate-800"><Plus className="h-4 w-4 text-rose-700" />Registrar no conformidad</h3><SelectPartida value={ncForm.partida} onChange={v => setNcForm({...ncForm,partida:v})} partidas={partidasEjecutables}/><select value={ncForm.rdi_id} onChange={e=>setNcForm({...ncForm,rdi_id:e.target.value})} className={input}><option value="">RDI relacionada (opcional)</option>{rdis.map(r=><option key={r.id} value={r.id}>{r.codigo} · {r.partida}</option>)}</select><textarea required placeholder="Descripción objetiva de la desviación" value={ncForm.descripcion} onChange={e=>setNcForm({...ncForm,descripcion:e.target.value})} className={input}/><div className="grid grid-cols-2 gap-2"><select value={ncForm.clasificacion} onChange={e=>setNcForm({...ncForm,clasificacion:e.target.value})} className={input}><option>Menor</option><option>Mayor</option><option>Crítica</option></select><select value={ncForm.origen} onChange={e=>setNcForm({...ncForm,origen:e.target.value})} className={input}>{NC_ORIGENES.map(x=><option key={x}>{x}</option>)}</select></div><select value={ncForm.impacto} onChange={e=>setNcForm({...ncForm,impacto:e.target.value})} className={input}>{NC_IMPACTOS.map(x=><option key={x}>{x}</option>)}</select><input required placeholder="Responsable de corrección" value={ncForm.responsable} onChange={e=>setNcForm({...ncForm,responsable:e.target.value})} className={input}/><input type="date" value={ncForm.fecha_compromiso} onChange={e=>setNcForm({...ncForm,fecha_compromiso:e.target.value})} className={input}/><textarea required placeholder="Corrección o contención inmediata" value={ncForm.correccion_inmediata} onChange={e=>setNcForm({...ncForm,correccion_inmediata:e.target.value})} className={input}/><div className="grid grid-cols-2 gap-2"><select value={ncForm.metodo_causa_raiz} onChange={e=>setNcForm({...ncForm,metodo_causa_raiz:e.target.value})} className={input}><option>5 Porqués</option><option>Ishikawa</option><option>Árbol de causas</option><option>Análisis de barreras</option><option>Otro</option></select><select value={ncForm.causa_categoria} onChange={e=>setNcForm({...ncForm,causa_categoria:e.target.value})} className={input}>{CAUSA_CATEGORIAS.map(x=><option key={x}>{x}</option>)}</select></div><textarea placeholder="Causa raíz (puede completarse durante el análisis)" value={ncForm.causa_raiz} onChange={e=>setNcForm({...ncForm,causa_raiz:e.target.value})} className={input}/><textarea placeholder="Acción correctiva para evitar recurrencia" value={ncForm.accion_correctiva} onChange={e=>setNcForm({...ncForm,accion_correctiva:e.target.value})} className={input}/><button className="w-full rounded-xl bg-rose-700 py-2.5 text-xs font-black text-white">Abrir no conformidad</button></form><section className="space-y-3">{ncs.length ? ncs.map(n => <NcRow key={n.id} nc={n} onStatus={updateStatus} onUpdate={updateNcDetails} full />) : <Empty text="No hay no conformidades registradas." />}</section></div>}
       {tab === 'recepciones' && <div className="grid gap-4 xl:grid-cols-[390px_1fr]">
         <form onSubmit={saveReception} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5">
@@ -283,9 +363,10 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
           <input placeholder="Recibe / inspecciona" value={receptionForm.recibe_por} onChange={e=>setReceptionForm({...receptionForm,recibe_por:e.target.value})} className={input}/>
           <textarea placeholder="Controles adicionales (uno por línea)" value={receptionForm.controles_manual} onChange={e=>setReceptionForm({...receptionForm,controles_manual:e.target.value})} className={input}/>
           <textarea placeholder="Observaciones generales de entrega" value={receptionForm.observaciones} onChange={e=>setReceptionForm({...receptionForm,observaciones:e.target.value})} className={input}/>
-          <button className="w-full rounded-xl bg-emerald-700 py-3 text-xs font-black text-white">Crear protocolo de recepción</button>
+          <QualityFileInput files={receptionFiles} onChange={event=>selectFiles(event,setReceptionFiles)} />
+          <button disabled={uploadingFiles} className="w-full rounded-xl bg-emerald-700 py-3 text-xs font-black text-white disabled:opacity-50">{uploadingFiles ? 'Subiendo antecedentes…' : 'Crear protocolo de recepción'}</button>
         </form>
-        <section className="space-y-3">{recepciones.length ? recepciones.map(item => <ReceptionProtocol key={item.id} item={item} controls={controlsByReception[item.id] || []} expanded={expandedReceptionId === item.id} onToggle={() => setExpandedReceptionId(expandedReceptionId === item.id ? null : item.id)} onUpdate={updateReceptionControl} />) : <Empty text="Aún no hay partidas entregadas para recepción." />}</section>
+        <section className="space-y-3">{recepciones.length ? recepciones.map(item => <ReceptionProtocol key={item.id} item={item} controls={controlsByReception[item.id] || []} expanded={expandedReceptionId === item.id} onToggle={() => setExpandedReceptionId(expandedReceptionId === item.id ? null : item.id)} onUpdate={updateReceptionControl} onOpenAttachment={openAttachment} onDeleteAttachment={attachment=>deleteAttachment('calidad_recepciones_partidas',item,attachment)} canDeleteAttachment={canEdit} />) : <Empty text="Aún no hay partidas entregadas para recepción." />}</section>
       </div>}
     </>}
   </div>;
@@ -294,7 +375,9 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
 function Metric({ icon, label, value, detail, color }) { return <div className={`rounded-2xl border bg-white p-4 ${color === 'rose' ? 'border-rose-200' : 'border-slate-200'}`}><div className="flex items-center gap-2 text-slate-500">{React.cloneElement(icon,{className:`h-4 w-4 text-${color}-700`})}<span className="text-[10px] font-black uppercase tracking-wide">{label}</span></div><p className="mt-2 text-2xl font-black text-slate-900">{value}</p><p className="text-[10px] font-semibold text-slate-500">{detail}</p></div>; }
 function Empty({ text }) { return <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-xs text-slate-500">{text}</div>; }
 function Info({ label, value }) { return <div><p className="text-[10px] font-black uppercase text-slate-400">{label}</p><p className="mt-1 whitespace-pre-line text-xs">{value}</p></div>; }
-function ReceptionProtocol({ item, controls, expanded, onToggle, onUpdate }) {
+function QualityFileInput({ files, onChange }) { return <label className="block cursor-pointer rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-xs text-slate-600 hover:border-blue-400"><span className="flex items-center gap-2 font-black text-slate-800"><Paperclip className="h-4 w-4 text-blue-700"/>Adjuntar antecedentes</span><span className="mt-1 block text-[10px]">PDF, imágenes, Word o Excel · máximo 20 MB por archivo</span><input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx,.xls" onChange={onChange} className="sr-only"/>{files.length > 0 && <span className="mt-2 block font-bold text-blue-800">{files.length} archivo(s): {files.map(file=>file.name).join(', ')}</span>}</label>; }
+function AttachmentList({ attachments = [], onOpen, onDelete, canDelete }) { if (!attachments.length) return null; return <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-2"><p className="mb-2 flex items-center gap-1 text-[10px] font-black uppercase text-slate-500"><Paperclip className="h-3 w-3"/>{attachments.length} adjunto(s)</p><div className="space-y-1">{attachments.map(attachment=><div key={attachment.path} className="flex items-center gap-2 rounded-lg bg-white px-2 py-2 text-[11px]"><FileText className="h-3.5 w-3.5 shrink-0 text-blue-700"/><span className="min-w-0 flex-1 truncate font-semibold text-slate-700">{attachment.nombre}</span><button type="button" onClick={()=>onOpen(attachment)} title="Ver o descargar" className="rounded p-1 text-blue-700 hover:bg-blue-50"><Download className="h-3.5 w-3.5"/></button>{canDelete&&<button type="button" onClick={()=>onDelete(attachment)} title="Eliminar adjunto" className="rounded p-1 text-rose-700 hover:bg-rose-50"><Trash2 className="h-3.5 w-3.5"/></button>}</div>)}</div></div>; }
+function ReceptionProtocol({ item, controls, expanded, onToggle, onUpdate, onOpenAttachment, onDeleteAttachment, canDeleteAttachment }) {
   const resolved = controls.filter(control => control.resultado !== 'Pendiente').length;
   return <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
     <button type="button" onClick={onToggle} className="flex w-full items-start justify-between gap-3 p-4 text-left active:bg-slate-50">
@@ -304,6 +387,7 @@ function ReceptionProtocol({ item, controls, expanded, onToggle, onUpdate }) {
     {expanded && <div className="border-t border-slate-200 bg-slate-50 p-3 sm:p-4">
       <div className="mb-3 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-600"><span>Entregó: <b>{item.entrega_por}</b></span>{item.recibe_por && <span>Inspecciona: <b>{item.recibe_por}</b></span>}</div>
       {item.observaciones && <p className="mb-3 rounded-lg bg-white p-2 text-[11px] text-slate-600">{item.observaciones}</p>}
+      <AttachmentList attachments={item.adjuntos} onOpen={onOpenAttachment} onDelete={onDeleteAttachment} canDelete={canDeleteAttachment}/>
       <DocumentAuditTrail records={item.trazabilidad} title="Registro de recepción y firmas" />
       {controls.length ? <div className="space-y-3">{controls.map(control => <ProtocolControl key={control.id} control={control} onUpdate={onUpdate} />)}</div> : <Empty text="Esta recepción no tiene controles. Crea un PAC o agrega controles manuales en la siguiente entrega." />}
     </div>}
@@ -320,7 +404,7 @@ function ProtocolControl({ control, onUpdate }) {
   </div>;
 }
 function SelectPartida({ value, onChange, partidas }) { return <select required value={value} onChange={e=>onChange(e.target.value)} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800"><option value="">Selecciona partida</option>{partidas.map(p=><option key={p.id || p.partida} value={p.partida}>{p.partida}</option>)}</select>; }
-function RdiRow({ rdi, onStatus, full }) { return <div className="rounded-xl border border-slate-200 bg-white p-3"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-xs font-black text-slate-800">{rdi.codigo} · {rdi.partida}</p><p className="mt-1 text-[11px] text-slate-500">{rdi.sector} {rdi.cantidad ? `· ${rdi.cantidad} ${rdi.unidad || ''}` : ''} · Solicitó: {rdi.solicitado_por}</p>{full && rdi.observaciones && <p className="mt-2 text-[11px] text-slate-600">{rdi.observaciones}</p>}</div><div className="flex items-center gap-2"><span className={`rounded-full px-2 py-1 text-[10px] font-black ${statusClass(rdi.estado)}`}>{rdi.estado}</span>{['Enviada','Observada'].includes(rdi.estado) && <><button onClick={()=>onStatus('calidad_rdi',rdi.id,'Aprobada')} className="text-[10px] font-black text-emerald-700">Aprobar</button><button onClick={()=>onStatus('calidad_rdi',rdi.id,'Observada')} className="text-[10px] font-black text-amber-700">Observar</button></>}</div></div></div>; }
+function RdiRow({ rdi, onStatus, full, onOpenAttachment, onDeleteAttachment, canDeleteAttachment }) { return <div className="rounded-xl border border-slate-200 bg-white p-3"><div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0 flex-1"><p className="text-xs font-black text-slate-800">{rdi.codigo} · {rdi.partida}</p><p className="mt-1 text-[11px] text-slate-500">{rdi.sector} {rdi.cantidad ? `· ${rdi.cantidad} ${rdi.unidad || ''}` : ''} · Solicitó: {rdi.solicitado_por}</p>{full && rdi.observaciones && <p className="mt-2 text-[11px] text-slate-600">{rdi.observaciones}</p>}{full&&<AttachmentList attachments={rdi.adjuntos} onOpen={onOpenAttachment} onDelete={onDeleteAttachment} canDelete={canDeleteAttachment}/>}</div><div className="flex items-center gap-2"><span className={`rounded-full px-2 py-1 text-[10px] font-black ${statusClass(rdi.estado)}`}>{rdi.estado}</span>{['Enviada','Observada'].includes(rdi.estado) && <><button onClick={()=>onStatus('calidad_rdi',rdi.id,'Aprobada')} className="text-[10px] font-black text-emerald-700">Aprobar</button><button onClick={()=>onStatus('calidad_rdi',rdi.id,'Observada')} className="text-[10px] font-black text-amber-700">Observar</button></>}</div></div></div>; }
 function NcRow({ nc, onStatus, onUpdate, full }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ correccion_inmediata: nc.correccion_inmediata || '', metodo_causa_raiz: nc.metodo_causa_raiz || '5 Porqués', causa_categoria: nc.causa_categoria || 'Método / Procedimiento', causa_raiz: nc.causa_raiz || '', accion_correctiva: nc.accion_correctiva || '', observacion_verificacion: nc.observacion_verificacion || '', fecha_verificacion_eficacia: nc.fecha_verificacion_eficacia || '' });
