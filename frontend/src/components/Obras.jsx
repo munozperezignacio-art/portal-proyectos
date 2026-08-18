@@ -1619,7 +1619,12 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
     // 8. Arriendos de maquinaria
     try {
-      const { data: aData, error: arriendosError } = await supabase.from('arriendos_maquinaria').select('*').eq('obra_nombre', obraNombre).order('created_at', { ascending: false });
+      const { data: aData, error: arriendosError } = await supabase
+        .from('arriendos_maquinaria')
+        .select('*')
+        .eq('empresa', user?.empresa)
+        .eq('obra_nombre', obraNombre)
+        .order('created_at', { ascending: false });
       if (arriendosError) throw arriendosError;
       const finalArriendos = (aData || []).map(item => {
         const normalizedItem = {
@@ -2120,7 +2125,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
     try {
       if (arriendoId && !isNaN(parseInt(arriendoId))) {
-        const { error } = await supabase.from('arriendos_maquinaria').delete().eq('id', arriendoId);
+        const { error } = await supabase.from('arriendos_maquinaria').delete().eq('id', arriendoId).eq('empresa', user?.empresa);
         if (error) throw error;
       }
       setArriendosList(arriendosList.filter(a => String(a.id) !== String(arriendoId)));
@@ -2277,6 +2282,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
     try {
       const payloadSupabase = {
+        obra_id: selectedObra.id || null,
         obra_nombre: selectedObra.nombre,
         equipo: newArriendo.equipo,
         patente: newArriendo.patente,
@@ -2294,7 +2300,13 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
       let savedArriendo;
       if (editingRecordId && !isNaN(parseInt(editingRecordId))) {
-        const { data, error } = await supabase.from('arriendos_maquinaria').update(payloadSupabase).eq('id', editingRecordId).select().single();
+        const { data, error } = await supabase
+          .from('arriendos_maquinaria')
+          .update(payloadSupabase)
+          .eq('id', editingRecordId)
+          .eq('empresa', user?.empresa)
+          .select()
+          .single();
         if (error) throw error;
         savedArriendo = data;
       } else {

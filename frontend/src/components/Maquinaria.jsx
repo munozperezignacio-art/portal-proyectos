@@ -290,6 +290,7 @@ export default function Maquinaria({ user, onBack }) {
       const { data, error } = await supabase
         .from('maquinaria_arriendos')
         .select('*')
+        .eq('empresa', user?.empresa)
         .order('fecha_inicio', { ascending: false });
 
       if (error) throw error;
@@ -779,7 +780,7 @@ export default function Maquinaria({ user, onBack }) {
 
     try {
       if (editingArriendo && editingArriendo.id) {
-        const { error } = await supabase.from('maquinaria_arriendos').update(newArriendo).eq('id', editingArriendo.id);
+        const { error } = await supabase.from('maquinaria_arriendos').update(newArriendo).eq('id', editingArriendo.id).eq('empresa', user?.empresa);
         if (error) throw error;
       } else {
         const { error } = await supabase.from('maquinaria_arriendos').insert([newArriendo]);
@@ -825,7 +826,11 @@ export default function Maquinaria({ user, onBack }) {
 
     try {
       if (extenderArriendo.id) {
-        const { error } = await supabase.from('maquinaria_arriendos').update({ fecha_fin: nuevaFechaFin }).eq('id', extenderArriendo.id);
+        const { error } = await supabase
+          .from('maquinaria_arriendos')
+          .update({ fecha_fin: nuevaFechaFin })
+          .eq('id', extenderArriendo.id)
+          .eq('empresa', user?.empresa);
         if (error) throw error;
       }
       const updated = arriendosList.map(a => a === extenderArriendo || a.id === extenderArriendo.id ? { ...a, fecha_fin: nuevaFechaFin } : a);
@@ -1764,10 +1769,20 @@ export default function Maquinaria({ user, onBack }) {
                 setArriendoForm({
                   equipo_id: maquinaria[0] ? maquinaria[0].id.toString() : '',
                   empresa_arrendataria: '',
+                  rut_empresa: '',
+                  obra_cliente: '',
+                  direccion_obra: '',
+                  contacto_nombre: '',
+                  contacto_telefono: '',
+                  contacto_email: '',
                   tarifa_diaria: '0',
+                  tarifa_monto: '150000',
+                  unidad_tarifa: '$/día',
+                  aplica_tarifa_minima: false,
+                  unidad_tarifa_minima: 'hrs/día',
+                  monto_tarifa_minima: '5',
                   fecha_inicio: new Date().toISOString().split('T')[0],
                   fecha_fin: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
-                  contacto_responsable: '',
                   observaciones: ''
                 });
                 setArriendoModalOpen(true);
