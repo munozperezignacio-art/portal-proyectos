@@ -2236,6 +2236,114 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     printWindow.document.close();
   };
 
+  const handlePrintBitacora = () => {
+    const printWindow = window.open('', '_blank', 'width=1000,height=850');
+    if (!printWindow) {
+      alert('Permite las ventanas emergentes para generar el PDF de la Bitácora de Obra.');
+      return;
+    }
+
+    const accepts = (filter) => bitacoraFilters.includes('todos') || bitacoraFilters.includes(filter);
+    const events = [];
+    const addEvent = ({ filter, date, title, description, author, badge }) => {
+      if (!accepts(filter)) return;
+      const dateStr = toDateKey(date) || fechaInicioReal || getObraDateRange(selectedObra).start;
+      events.push({ dateStr, title, description, author, badge });
+    };
+
+    (bitacoraNotasList || []).forEach((item) => addEvent({
+      filter: 'notas', date: item.fecha || item.created_at,
+      title: item.titulo || 'Nota / Comentario de Bitácora', description: item.comentario,
+      author: item.autor || 'Supervisor', badge: 'Nota de faena'
+    }));
+    (libroObraBitacoraList || []).forEach((item) => addEvent({
+      filter: 'libro_obra', date: item.fecha || item.created_at,
+      title: `Libro de Obra · ${item.folio || 'Folio sin número'} · ${item.asunto || 'Registro'}`,
+      description: item.detalle || 'Sin detalle informado.', author: item.emisor || 'Libro de Obra',
+      badge: `${item.tipo || 'Registro'} · ${item.estado || 'Abierto'}`
+    }));
+    (reportesAvanceList || []).forEach((item) => addEvent({
+      filter: 'avances', date: item.fecha || item.fecha_avance || item.created_at,
+      title: `Avance físico · ${item.partida || 'Partida sin identificar'}`,
+      description: `Cantidad: ${item.cantidad || 0} ${item.unidad || 'UND'}${item.frente ? ` · Frente: ${item.frente}` : ''}${item.observaciones ? ` · ${item.observaciones}` : ''}`,
+      author: item.supervisor || 'Supervisor', badge: 'Reporte de avance'
+    }));
+    if (accepts('asistencia')) {
+      const byDay = new globalThis.Map();
+      (asistenciaList || []).forEach((item) => {
+        const dateStr = toDateKey(item.fecha || item.created_at) || fechaInicioReal;
+        const rows = byDay.get(dateStr) || [];
+        rows.push(item);
+        byDay.set(dateStr, rows);
+      });
+      byDay.forEach((rows, dateStr) => {
+        const unique = Array.from(new globalThis.Map(rows.map((row) => [row.rut || row.trabajador, row])).values());
+        const present = unique.filter((row) => String(row.asistencia || '').toUpperCase() === 'PRESENTE').length;
+        addEvent({ filter: 'asistencia', date: dateStr, title: `Asistencia diaria · ${present} de ${unique.length} asistentes`, description: `${present} presentes y ${unique.length - present} ausente(s) registrados.`, author: 'Control de Asistencia', badge: 'Asistencia' });
+      });
+    }
+    (prevencionBitacoraList || []).forEach((response) => {
+      const form = response.prevencion_formularios || {};
+      const control = form.campos && !Array.isArray(form.campos) ? form.campos.control_documental || {} : {};
+      const answers = response.respuestas || {};
+      const isIncident = control.tipo_registro === 'incidente_accidente' || /incidente|accidente/i.test(String(form.titulo || ''));
+      addEvent({
+        filter: 'prevencion', date: answers.fecha_evento || response.created_at,
+        title: isIncident ? `${answers.tipo || 'Incidente / accidente'} reportado` : `Prevención · ${form.titulo || 'Registro preventivo'}`,
+        description: isIncident ? [answers.persona || response.inspector, answers.hora_evento ? `Hora ${answers.hora_evento}` : '', answers.descripcion || answers.accion_inmediata || 'Registro preventivo emitido.'].filter(Boolean).join(' · ') : (answers.descripcion || answers.observaciones || 'Formulario preventivo registrado en la obra.'),
+        author: response.inspector || answers.informante || 'Prevención de riesgos', badge: isIncident ? 'Incidente / accidente' : 'Registro preventivo'
+      });
+    });
+    (eventosBitacoraList || []).forEach((item) => {
+      const filter = item.categoria === 'Estados de Pago' ? 'estados_pago' : item.categoria === 'Prevención' ? 'prevencion' : item.categoria === 'Libro de Obra' ? 'libro_obra' : 'calidad';
+      addEvent({ filter, date: item.fecha || item.created_at, title: `${item.categoria} · ${item.accion}`, description: item.detalle || 'Evento registrado en el módulo de obra.', author: item.actor || 'Sistema', badge: item.categoria });
+    });
+    events.sort((a, b) => String(a.dateStr).localeCompare(String(b.dateStr)));
+
+    const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[character]));
+    const filterLabels = {
+      todos: 'Todos', notas: 'Notas y comentarios', libro_obra: 'Libro de Obra', avances: 'Avances', asistencia: 'Asistencia', calidad: 'Calidad y RDI', prevencion: 'Prevención', estados_pago: 'Estados de Pago'
+    };
+    const selectedFilters = bitacoraFilters.includes('todos') ? 'Todos los registros' : bitacoraFilters.map((item) => filterLabels[item] || item).join(', ');
+    const logo = companyBranding?.logo_base64 || companyBranding?.logo_url || '';
+    const rows = events.length ? events.map((item) => `
+      <article class="event">
+        <div class="event-head"><span class="date">${escapeHtml(item.dateStr)}</span><span class="badge">${escapeHtml(item.badge)}</span></div>
+        <h2>${escapeHtml(item.title)}</h2>
+        <p>${escapeHtml(item.description || 'Sin detalle informado.')}</p>
+        <div class="author">Registrado por: <strong>${escapeHtml(item.author || 'Sistema')}</strong></div>
+      </article>`).join('') : '<div class="empty">No existen eventos para los filtros aplicados.</div>';
+
+    printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Bitácora - ${escapeHtml(selectedObra?.nombre || 'Obra')}</title><style>
+      @page { size: A4; margin: 16mm 14mm 18mm; }
+      * { box-sizing: border-box; } body { margin:0; font-family: Arial, Helvetica, sans-serif; color:#172033; font-size:10.5pt; }
+      header { display:grid; grid-template-columns:120px 1fr 170px; min-height:82px; border:1px solid #aeb9ca; margin-bottom:14px; }
+      .logo { display:flex; align-items:center; justify-content:center; padding:10px; border-right:1px solid #aeb9ca; }
+      .logo img { max-width:100%; max-height:58px; object-fit:contain; } .brand { font-weight:800; color:#17335f; }
+      .doc-title { display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:10px; }
+      .doc-title strong { font-size:15pt; text-transform:uppercase; } .doc-title span { margin-top:5px; color:#526078; font-size:9pt; }
+      .doc-meta { border-left:1px solid #aeb9ca; padding:10px; display:flex; flex-direction:column; justify-content:center; gap:5px; font-size:8.5pt; }
+      .scope { display:grid; grid-template-columns:1fr 1fr; gap:8px 18px; padding:11px 13px; border:1px solid #cbd5e1; background:#f8fafc; margin-bottom:16px; }
+      .scope div:last-child { grid-column:1 / -1; } .label { color:#64748b; font-size:8pt; text-transform:uppercase; font-weight:700; display:block; }
+      .event { border:1px solid #cbd5e1; border-left:4px solid #17335f; border-radius:6px; padding:10px 12px; margin:0 0 10px; break-inside:avoid; page-break-inside:avoid; }
+      .event-head { display:flex; justify-content:space-between; gap:12px; align-items:center; } .date { font-family:monospace; font-weight:700; color:#334155; }
+      .badge { background:#e8eef8; color:#17335f; border-radius:12px; padding:3px 8px; font-size:8pt; font-weight:700; }
+      h2 { font-size:11.5pt; margin:7px 0 5px; } p { margin:0; line-height:1.45; color:#334155; white-space:pre-wrap; }
+      .author { border-top:1px solid #e2e8f0; margin-top:8px; padding-top:6px; color:#64748b; font-size:8.5pt; }
+      .empty { padding:30px; text-align:center; border:1px dashed #94a3b8; color:#64748b; }
+      footer { margin-top:18px; border-top:1px solid #cbd5e1; padding-top:7px; color:#64748b; font-size:8pt; display:flex; justify-content:space-between; }
+      .actions { position:fixed; right:20px; top:20px; } .actions button { border:0; background:#0f172a; color:white; border-radius:8px; padding:10px 16px; font-weight:700; cursor:pointer; }
+      @media print { .actions { display:none; } }
+    </style></head><body>
+      <div class="actions"><button onclick="window.print()">Guardar como PDF / Imprimir</button></div>
+      <header><div class="logo">${logo ? `<img src="${escapeHtml(logo)}" alt="Logo">` : '<span class="brand">OBRAXIS</span>'}</div><div class="doc-title"><strong>Bitácora de Obra</strong><span>Registro cronológico de eventos de faena</span></div><div class="doc-meta"><div><b>Emisión:</b> ${new Date().toLocaleDateString('es-CL')}</div><div><b>Registros:</b> ${events.length}</div><div><b>Sistema:</b> Obraxis</div></div></header>
+      <section class="scope"><div><span class="label">Obra</span><strong>${escapeHtml(selectedObra?.nombre || 'Sin obra')}</strong></div><div><span class="label">Empresa</span><strong>${escapeHtml(user?.empresa || 'Sin empresa')}</strong></div><div><span class="label">Periodo incluido</span><strong>${escapeHtml(events[0]?.dateStr || 'Sin registros')} — ${escapeHtml(events[events.length - 1]?.dateStr || 'Sin registros')}</strong></div><div><span class="label">Filtros aplicados</span><strong>${escapeHtml(selectedFilters)}</strong></div></section>
+      <main>${rows}</main><footer><span>Documento generado desde Obraxis</span><span>Bitácora sujeta a los filtros aplicados al momento de emitir</span></footer>
+    </body></html>`);
+    printWindow.document.close();
+    printWindow.focus();
+  };
+
   const handleSaveCuadrilla = async (e) => {
     e.preventDefault();
     if (!cuadrillaData.nombre.trim()) return;
@@ -3988,7 +4096,14 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="flex flex-wrap items-center gap-2">
-                      
+                      <button
+                        onClick={handlePrintBitacora}
+                        className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                        title="Generar la Bitácora en PDF respetando los filtros activos"
+                      >
+                        <Printer className="w-4 h-4" />
+                        <span>Exportar / Imprimir PDF</span>
+                      </button>
                       <button
                         onClick={() => {
                           setBitacoraNoteFormData({
