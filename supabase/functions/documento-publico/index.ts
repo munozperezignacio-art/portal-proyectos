@@ -21,10 +21,10 @@ Deno.serve(async(req:Request)=>{
    const role=body?.rol==="aprobacion"?"aprobacion":"revision",tokenCol=role==="aprobacion"?"token_aprobacion":"token_revision",codeCol=role==="aprobacion"?"clave_aprobacion_hash":"clave_revision_hash";
    const{data:item}=await db.from("estados_pago_obra").select("*").eq(tokenCol,token).eq(codeCol,codeHash).maybeSingle(); if(!item)return reply({error:"La clave o el enlace no son válidos"},404,origin);
    if(action==="cargar"){
-    const{data:states}=await db.from("estados_pago_obra").select("numero,monto_bruto,retencion_monto,anticipo_descontado,monto_neto,estado").eq("empresa",item.empresa).eq("obra_nombre",item.obra_nombre).lte("numero",item.numero);
+    const{data:states}=await db.from("estados_pago_obra").select("numero,monto_bruto,retencion_monto,anticipo_descontado,monto_neto,iva_monto,monto_total,estado").eq("empresa",item.empresa).eq("obra_nombre",item.obra_nombre).lte("numero",item.numero);
     const valid=(states||[]).filter((x:any)=>x.estado!=="Rechazado"),before=valid.filter((x:any)=>Number(x.numero)<Number(item.numero));
     const sum=(rows:any[],field:string)=>rows.reduce((n,x)=>n+Number(x[field]||0),0),contract=(item.items||[]).reduce((n:number,x:any)=>n+(Number(x.monto_contrato||0)||Number(x.quantity||0)*Number(x.unitPrice||0)),0);
-    return reply({documento:safe(item),resumen:{bruto_anterior:sum(before,"monto_bruto"),bruto_acumulado:sum(valid,"monto_bruto"),retencion_acumulada:sum(valid,"retencion_monto"),anticipo_acumulado:sum(valid,"anticipo_descontado"),neto_acumulado:sum(valid,"monto_neto"),avance_periodo_pct:contract?Number(item.monto_bruto||0)/contract*100:0,avance_acumulado_pct:contract?sum(valid,"monto_bruto")/contract*100:0}},200,origin);
+    return reply({documento:safe(item),resumen:{bruto_anterior:sum(before,"monto_bruto"),bruto_acumulado:sum(valid,"monto_bruto"),retencion_acumulada:sum(valid,"retencion_monto"),anticipo_acumulado:sum(valid,"anticipo_descontado"),neto_acumulado:sum(valid,"monto_neto"),iva_acumulado:sum(valid,"iva_monto"),total_acumulado:sum(valid,"monto_total"),avance_periodo_pct:contract?Number(item.monto_bruto||0)/contract*100:0,avance_acumulado_pct:contract?sum(valid,"monto_bruto")/contract*100:0}},200,origin);
    }
    if(["Aprobado","Pagado","Rechazado"].includes(item.estado))return reply({error:"El Estado de Pago ya se encuentra cerrado"},409,origin);
    const note=clean(body?.comentario,3000),trace=Array.isArray(item.trazabilidad)?item.trazabilidad:[],actor=role==="aprobacion"?item.aprobador_nombre:item.revisor_nombre;
