@@ -385,7 +385,11 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
 
   const fetchHistorialInterno = async () => {
     try {
-      const { data, error } = await supabase.from('acreditaciones_internas').select('*').order('created_at', { ascending: false });
+      const { data, error } = await supabase
+        .from('acreditaciones_internas')
+        .select('*')
+        .eq('empresa', user?.empresa)
+        .order('created_at', { ascending: false });
       if (error) throw error;
       setHistorialInterno(data || []);
     } catch (error) {
@@ -503,20 +507,26 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
         </div>
       `;
 
-      await sendSystemEmail({
+      const mailResult = await sendSystemEmail({
         to: destinatarioEmail,
         subject: asuntoEmail || `[Acreditación Personal] ${selectedObra} - Obraxis`,
         htmlContent: htmlBody,
         permissionKey: 'acreditaciones.subcontratos.enviar'
       });
+      if (!mailResult.success) throw new Error(mailResult.error || 'No fue posible enviar el correo de acreditación.');
+
+      const selectedObraRecord = obrasList.find(obra => obra.nombre === selectedObra);
 
       const newRecord = {
+        empresa: user?.empresa,
+        obra_id: selectedObraRecord?.id || null,
         obra_nombre: selectedObra,
         destinatario_email: destinatarioEmail,
         asunto: asuntoEmail || `[Acreditación Personal] ${selectedObra}`,
         observaciones: observaciones,
         trabajadores_json: workersData,
         estado: 'Enviado',
+        creado_por: user?.nombre || user?.usuario || user?.correo || 'Usuario Obraxis',
         created_at: new Date().toISOString()
       };
 
@@ -533,7 +543,9 @@ export default function Acreditaciones({ user, onBack, companyBranding }) {
       setObservaciones('');
       setTimeout(() => setSuccessMsg(''), 5000);
     } catch (err) {
-      alert('Error al enviar acreditación: ' + (err.message || 'Verifique la configuración de correo'));
+      const message = `No fue posible enviar la acreditación: ${err.message || 'verifique la configuración de correo'}`;
+      setErrorMsg(message);
+      setSuccessMsg('');
     } finally {
       setSendingEmail(false);
     }
