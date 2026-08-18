@@ -22,7 +22,10 @@ const modules:Record<string,{label:string,permission:string,tables:string[]}>= {
  gastos:{label:"Rendición de Gastos",permission:"gastos",tables:["gastos_rendiciones","gastos_rendicion_items"]}
 };
 const schema={type:"object",additionalProperties:false,properties:{respuesta_breve:{type:"string"},hechos:{type:"array",items:{type:"object",additionalProperties:false,properties:{texto:{type:"string"},fuente_id:{type:"string"}},required:["texto","fuente_id"]}},calculos:{type:"array",items:{type:"object",additionalProperties:false,properties:{nombre:{type:"string"},valor:{type:"string"},base:{type:"string"}},required:["nombre","valor","base"]}},sugerencias:{type:"array",items:{type:"object",additionalProperties:false,properties:{accion:{type:"string"},prioridad:{type:"string",enum:["Alta","Media","Baja"]},motivo:{type:"string"}},required:["accion","prioridad","motivo"]}},limitaciones:{type:"array",items:{type:"string"}}},required:["respuesta_breve","hechos","calculos","sugerencias","limitaciones"]};
-const isSuper=(p:any)=>norm(p?.rol_base||p?.rol).includes("superusuario")||(norm(p?.empresa)==="obraxis"&&norm(p?.rol).includes("admin"));
+const isSuper=(p:any)=>{
+ const roles=[p?.rol_base,p?.rol].map(norm);
+ return norm(p?.empresa)==="obraxis"&&roles.some(role=>["superusuario","superadmin"].includes(role));
+};
 const moduleList=(raw:unknown)=>String(raw||"").split(",").map(norm).filter(Boolean);
 const roleDefaultCanView=(profile:any)=>Boolean(profile?.rol||profile?.rol_base);
 

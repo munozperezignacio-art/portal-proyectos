@@ -29,8 +29,13 @@ const schema = {
   required: ["respuesta_breve", "hechos", "calculos", "sugerencias", "limitaciones"]
 };
 
+const isPlatformSuperuser = (profile: any) => {
+  const roles = [profile?.rol_base, profile?.rol].map(normalized);
+  return normalized(profile?.empresa) === "obraxis" && roles.some(role => ["superusuario", "superadmin"].includes(role));
+};
+
 const hasWorksiteAccess = (profile: any, worksite: string) => {
-  if (normalized(profile?.empresa) === "obraxis" && normalized(profile?.rol).includes("superusuario")) return true;
+  if (isPlatformSuperuser(profile)) return true;
   const raw = String(profile?.obras || "").trim();
   if (!raw) return false;
   if (["todas", "todos", "*"].includes(normalized(raw))) return true;
@@ -142,7 +147,7 @@ Deno.serve(async (req) => {
     if (!empresa || !obraNombre || pregunta.length < 4) return json({ error: "Selecciona una obra y escribe una consulta válida." }, 400);
     if (pregunta.length > 1000) return json({ error: "La consulta supera el máximo de 1.000 caracteres." }, 400);
     const { data: profile } = await db.from("usuarios").select("usuario,nombre,correo,empresa,rol,rol_base,obras,modulos").eq("auth_user_id", authData.user.id).maybeSingle();
-    if (!profile || normalized(profile.empresa) !== normalized(empresa)) return json({ error: "Cuenta no autorizada para esta empresa." }, 403);
+    if (!profile || (!isPlatformSuperuser(profile) && normalized(profile.empresa) !== normalized(empresa))) return json({ error: "Cuenta no autorizada para esta empresa." }, 403);
     if (!hasWorksiteAccess(profile, obraNombre)) return json({ error: "No tienes acceso autorizado a esta obra." }, 403);
     const { data: worksite } = await db.from("obras").select("id,nombre,empresa,estado,tipo,cliente").eq("nombre", obraNombre).eq("empresa", empresa).maybeSingle();
     if (!worksite) return json({ error: "La obra no existe o no pertenece a la empresa indicada." }, 404);
