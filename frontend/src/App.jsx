@@ -50,6 +50,7 @@ const GestionMandante = lazyWithRetry(() => import('./components/GestionMandante
 const PublicClientePortal = lazyWithRetry(() => import('./components/PublicClientePortal'), 'portal-cliente');
 const PublicMandantePortal = lazyWithRetry(() => import('./components/PublicMandantePortal'), 'portal-mandante');
 const FloatingOX = lazyWithRetry(() => import('./components/FloatingOX'), 'ox');
+const PlatformNotificationCenter = lazyWithRetry(() => import('./components/PlatformNotificationCenter'), 'notificaciones-plataforma');
 
 function ModuleLoader() {
   return (
@@ -286,6 +287,22 @@ function App() {
     setCurrentModule('dashboard');
     setSelectedObraName(null);
     navigateTo('/');
+  };
+
+  const openNotificationDestination = (notification) => {
+    const code = String(notification?.evento_codigo || '').toLowerCase();
+    const module = code.startsWith('maquinaria_') || code.startsWith('mantenimiento_') ? 'maquinaria'
+      : code.startsWith('rrhh_') || code.startsWith('personal_') ? 'rrhh'
+      : code.startsWith('prevencion_') || code.startsWith('cumplimiento_') ? 'prevencion'
+      : code.startsWith('calidad_') || code.startsWith('rdi_') || code.startsWith('nc_') ? 'calidad'
+      : code.startsWith('acreditacion_') ? 'acreditaciones'
+      : code.startsWith('bodega_') ? 'bodega'
+      : code.startsWith('facturacion_') || code.startsWith('dte_') ? 'facturacion'
+      : code.startsWith('gastos_') ? 'gastos'
+      : 'obras';
+    setSelectedObraName(notification?.obra_nombre || null);
+    setCurrentModule(module);
+    navigateTo('/dashboard');
   };
 
   // Detectar si se está accediendo a un formulario o capacitación pública de prevención a través de la URL
@@ -580,6 +597,7 @@ function App() {
             <h4 className="text-xs font-bold text-slate-800 truncate">{user.usuario}</h4>
             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider truncate">{user.rol}</p>
           </div>
+          <React.Suspense fallback={null}><PlatformNotificationCenter user={activeUserContext} onNavigate={openNotificationDestination}/></React.Suspense>
         </div>
 
         {/* Menu Navigation Links */}
@@ -665,6 +683,7 @@ function App() {
             <h1 className="text-sm font-bold text-white uppercase tracking-wider">Obraxis</h1>
           </div>
           <div className="flex items-center gap-2">
+            <React.Suspense fallback={null}><PlatformNotificationCenter compact user={activeUserContext} onNavigate={openNotificationDestination}/></React.Suspense>
             <span className="text-[10px] font-bold bg-white/15 px-2.5 py-1 rounded-full uppercase">{activeUserContext?.empresa || 'Obraxis'}</span>
           </div>
         </header>
