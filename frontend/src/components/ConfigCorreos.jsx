@@ -70,6 +70,7 @@ function ConfigCorreos({ user, onBack }) {
     contrasena: '',
     empresa: '',
     rol: 'Inspector',
+    obras: ['todas'],
     modulos: [],
     submenus: []
   });
@@ -171,7 +172,7 @@ function ConfigCorreos({ user, onBack }) {
 
       const { data: dataObras, error: errObras } = await supabase
         .from('obras')
-        .select('nombre')
+        .select('nombre, empresa')
         .order('nombre', { ascending: true });
       if (errObras) throw errObras;
       setObras(dataObras || []);
@@ -454,6 +455,7 @@ function ConfigCorreos({ user, onBack }) {
       contrasena: '',
       empresa: defaultEmpresa,
       rol: defaultRole?.nombre || 'Inspector',
+      obras: ['todas'],
       modulos: defaultRole?.modulos ? defaultRole.modulos.split(',').map(item => item.trim()).filter(Boolean) : [],
       submenus: defaultRole?.submenus ? defaultRole.submenus.split(',').map(item => item.trim()).filter(Boolean) : []
     });
@@ -472,6 +474,7 @@ function ConfigCorreos({ user, onBack }) {
       contrasena: '',
       empresa: usr.empresa || 'Obraxis',
       rol: usr.rol || 'Inspector',
+      obras: usr.obras ? String(usr.obras).split(',').map(item => item.trim()).filter(Boolean) : [],
       modulos: usr.modulos ? usr.modulos.split(',').map(m => m.trim()) : [],
       submenus: usr.submenus ? usr.submenus.split(',').map(s => s.trim()) : []
     });
@@ -527,6 +530,7 @@ function ConfigCorreos({ user, onBack }) {
       empresa: userFormData.empresa,
       rol: userFormData.rol,
       rol_base: rolBase,
+      obras: (userFormData.obras || []).join(','),
       modulos: userFormData.modulos.join(','),
       submenus: (userFormData.submenus || []).join(',')
     };
@@ -1917,6 +1921,7 @@ function ConfigCorreos({ user, onBack }) {
                         ...userFormData,
                         empresa,
                         rol: nextRole?.nombre || '',
+                        obras: ['todas'],
                         modulos: nextRole?.modulos ? nextRole.modulos.split(',').map(item => item.trim()).filter(Boolean) : [],
                         submenus: nextRole?.submenus ? nextRole.submenus.split(',').map(item => item.trim()).filter(Boolean) : []
                       });
@@ -1950,6 +1955,54 @@ function ConfigCorreos({ user, onBack }) {
                     </optgroup>
                   )}
                 </select>
+              </div>
+
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-500">Obras visibles</label>
+                    <p className="mt-0.5 text-[10px] text-slate-400">Define las obras que este usuario podrá abrir en la web y en la aplicación móvil.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setUserFormData({ ...userFormData, obras: ['todas'] })}
+                    className={`shrink-0 rounded-lg border px-3 py-1.5 text-[10px] font-bold transition ${userFormData.obras?.includes('todas') ? 'border-primary bg-primary text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}
+                  >
+                    Todas las obras
+                  </button>
+                </div>
+                <div className="grid max-h-[180px] grid-cols-1 gap-2 overflow-y-auto rounded-2xl border border-slate-100 bg-slate-50 p-3 sm:grid-cols-2">
+                  {obras
+                    .filter(obra => !obra.empresa || obra.empresa === userFormData.empresa)
+                    .map(obra => {
+                      const selectedAll = userFormData.obras?.includes('todas');
+                      const selected = selectedAll || userFormData.obras?.includes(obra.nombre);
+                      return (
+                        <label key={`${obra.empresa || userFormData.empresa}-${obra.nombre}`} className={`flex cursor-pointer items-center gap-2 rounded-xl border p-2.5 text-[10px] font-semibold transition ${selected ? 'border-blue-200 bg-white text-slate-800' : 'border-transparent text-slate-500 hover:bg-white'}`}>
+                          <input
+                            type="checkbox"
+                            checked={Boolean(selected)}
+                            onChange={() => {
+                              const current = userFormData.obras || [];
+                              const withoutAll = current.filter(item => item !== 'todas');
+                              const next = selectedAll
+                                ? [obra.nombre]
+                                : withoutAll.includes(obra.nombre)
+                                  ? withoutAll.filter(item => item !== obra.nombre)
+                                  : [...withoutAll, obra.nombre];
+                              setUserFormData({ ...userFormData, obras: next });
+                            }}
+                            className="h-3.5 w-3.5 rounded border-slate-300 text-primary focus:ring-primary"
+                          />
+                          <span>{obra.nombre}</span>
+                        </label>
+                      );
+                    })}
+                  {!obras.some(obra => !obra.empresa || obra.empresa === userFormData.empresa) && (
+                    <p className="col-span-full py-3 text-center text-[10px] text-slate-400">Esta empresa todavía no tiene obras registradas.</p>
+                  )}
+                </div>
+                {!userFormData.obras?.length && <p className="mt-2 text-[10px] font-semibold text-amber-700">Sin obras seleccionadas: el usuario no verá ninguna obra.</p>}
               </div>
 
               <div>
