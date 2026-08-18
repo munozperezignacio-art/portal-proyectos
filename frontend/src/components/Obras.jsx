@@ -6707,7 +6707,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   const cEmpresa = Math.round((sBase + hExtras) * 1.25) + asig;
                   const valorDia = Math.round(cEmpresa / 30);
 
-                  const rawAsigDate = p.fecha_asig ? String(p.fecha_asig).split('T')[0] : (selectedObra?.fecha_inicio ? String(selectedObra.fecha_inicio).split('T')[0] : fInicioStr);
+                  const rawAsigDate = p.fecha_asig ? String(p.fecha_asig).split('T')[0] : (selectedObra?.fecha_inicio ? String(selectedObra.fecha_inicio).split('T')[0] : (fechaInicioReal || getObraDateRange(selectedObra).start));
                   let diasTrab = 0;
                   if (rawAsigDate && fCorteStr && rawAsigDate <= fCorteStr) {
                     const dAsig = new Date(rawAsigDate);
@@ -6766,7 +6766,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     valorDia = Math.round(tarifaBase);
                   }
 
-                  const rawAsigDate = m.fecha_asig || m.fecha_asignacion || m.fecha_inicio || m.created_at ? String(m.fecha_asig || m.fecha_asignacion || m.fecha_inicio || m.created_at).split('T')[0] : (selectedObra?.fecha_inicio ? String(selectedObra.fecha_inicio).split('T')[0] : fInicioStr);
+                  const rawAsigDate = m.fecha_asig || m.fecha_asignacion || m.fecha_inicio || m.created_at ? String(m.fecha_asig || m.fecha_asignacion || m.fecha_inicio || m.created_at).split('T')[0] : (selectedObra?.fecha_inicio ? String(selectedObra.fecha_inicio).split('T')[0] : getObraDateRange(selectedObra).start);
                   let diasMaq = 0;
                   if (rawAsigDate && fCorteStr && rawAsigDate <= fCorteStr) {
                     if (modDias === 'laborales') {
@@ -7152,6 +7152,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                           </tr>
 
                           {(() => {
+                            const fCorteStr = fechaCorteProyeccion || new Date().toISOString().substring(0, 10);
                             return partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo)).map((p, pIdx) => {
                               const cantTotal = parseFloat(p.cantidad) || 0;
                               const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
@@ -7755,7 +7756,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                           }
                         }
 
-                        const rawAsigDate = m.fecha_asig || m.fecha_asignacion || m.fecha_inicio || m.created_at ? String(m.fecha_asig || m.fecha_asignacion || m.fecha_inicio || m.created_at).split('T')[0] : (selectedObra?.fecha_inicio ? String(selectedObra.fecha_inicio).split('T')[0] : fInicioStr);
+                        const rawAsigDate = m.fecha_asig || m.fecha_asignacion || m.fecha_inicio || m.created_at ? String(m.fecha_asig || m.fecha_asignacion || m.fecha_inicio || m.created_at).split('T')[0] : (selectedObra?.fecha_inicio ? String(selectedObra.fecha_inicio).split('T')[0] : getObraDateRange(selectedObra).start);
                         const formattedAsig = rawAsigDate ? (() => {
                           const pts = rawAsigDate.split('-');
                           return pts.length === 3 ? `${pts[2]}-${pts[1]}-${pts[0]}` : rawAsigDate;
