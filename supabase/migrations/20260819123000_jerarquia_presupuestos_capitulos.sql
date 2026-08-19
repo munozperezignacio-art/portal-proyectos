@@ -279,5 +279,4 @@ alter table public.partidas_obra
     references public.presupuestos_items(id) on delete set null;
 
 create unique index if not exists partidas_obra_presupuesto_item_uidx
-  on public.partidas_obra (obra_id, presupuesto_item_id)
-  where presupuesto_item_id is not null;
+  on public.partidas_obra (obra_id, presupuesto_item_id);
