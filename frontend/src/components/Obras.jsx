@@ -25,6 +25,7 @@ const SubcontratosObra = React.lazy(() => import('./SubcontratosObra'));
 const FlujoCajaObra = React.lazy(() => import('./FlujoCajaObra'));
 const SpecializedAssistanceInbox = React.lazy(() => import('./SpecializedAssistanceInbox'));
 const PredictiveScenarioPanel = React.lazy(() => import('./PredictiveScenarioPanel'));
+const BudgetExcelImporter = React.lazy(() => import('./BudgetExcelImporter'));
 
 const defaultCovers = [
   "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=600&q=80",
@@ -363,6 +364,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
   // Presupuestos generales del modulo Presupuestos
   const [availableBudgets, setAvailableBudgets] = useState([]);
+  const [linkedBudgetId, setLinkedBudgetId] = useState(null);
+  const [showWorkBudgetImporter, setShowWorkBudgetImporter] = useState(false);
+  const [preparingWorkBudget, setPreparingWorkBudget] = useState(false);
 
   // Modal y CRUD de Partidas dentro de la Obra
   const [showPartidaModal, setShowPartidaModal] = useState(false);
@@ -1055,6 +1059,60 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const [maquinariaList, setMaquinariaList] = useState([]);
   const [maquinariaUsoObra, setMaquinariaUsoObra] = useState([]);
   const [partidasList, setPartidasList] = useState([]);
+
+  const ensureWorkBudget = async () => {
+    if (!selectedObra) throw new Error('Selecciona una obra antes de importar.');
+    if (linkedBudgetId) return linkedBudgetId;
+    const empresa = user?.empresa || selectedObra.empresa || 'Obraxis';
+    const { data: existing, error: lookupError } = await supabase.from('presupuestos_proyectos')
+      .select('id').eq('empresa', empresa).ilike('nombre', selectedObra.nombre).limit(1).maybeSingle();
+    if (lookupError) throw lookupError;
+    let presupuestoId = existing?.id;
+    if (!presupuestoId) {
+      const { data: created, error: createError } = await supabase.from('presupuestos_proyectos').insert({
+        nombre: selectedObra.nombre, empresa, cliente: selectedObra.cliente || '',
+        ubicacion: selectedObra.ubicacion || '', descripcion: `Presupuesto maestro vinculado a la obra ${selectedObra.nombre}`,
+        metodologia: 'Precio Unitario', presupuesto_estimado: 0
+      }).select('id').single();
+      if (createError) throw createError;
+      presupuestoId = created.id;
+      setAvailableBudgets(prev => [{ id:created.id, nombre:selectedObra.nombre, presupuesto_estimado:0, created_at:new Date().toISOString() }, ...prev]);
+    }
+    const { error: relationError } = await supabase.from('obra_presupuestos').insert({
+      empresa, obra_nombre:selectedObra.nombre, presupuesto_id:presupuestoId
+    });
+    if (relationError && relationError.code !== '23505') throw relationError;
+    setLinkedBudgetId(presupuestoId);
+    return presupuestoId;
+  };
+
+  const openWorkBudgetImporter = async () => {
+    setPreparingWorkBudget(true); setErrorMsg('');
+    try { await ensureWorkBudget(); setShowWorkBudgetImporter(value => !value); }
+    catch (error) { setErrorMsg(`No fue posible preparar la importación: ${error.message}`); }
+    finally { setPreparingWorkBudget(false); }
+  };
+
+  const syncLinkedBudgetToWork = async presupuestoId => {
+    const { data: budgetItems, error: budgetError } = await supabase.from('presupuestos_items').select('*')
+      .eq('presupuesto_id', presupuestoId).order('orden', { ascending:true }).order('id', { ascending:true });
+    if (budgetError) throw budgetError;
+    const payload = (budgetItems || []).map((item, index) => ({
+      obra_id:selectedObra.id, empresa:user?.empresa || selectedObra.empresa || 'Obraxis', obra_nombre:selectedObra.nombre,
+      presupuesto_item_id:item.id, codigo:item.codigo, partida:item.partida,
+      unidad:item.tipo_item === 'CAPITULO' ? 'TITULO' : item.tipo_item === 'SUBCAPITULO' ? 'GRUPO' : (item.unidad || 'UND'),
+      cantidad_presupuestada:item.tipo_item === 'PARTIDA' ? (Number(item.cantidad) || 0) : 0,
+      costo_por_dia:item.tipo_item === 'PARTIDA' ? (Number(item.costo_unitario) || 0) : 0,
+      rendimiento_meta:item.tipo_item === 'PARTIDA' ? (Number(item.rendimiento_meta) || 0) : 0,
+      orden:index, es_titulo:item.tipo_item !== 'PARTIDA', tipo_item:item.tipo_item,
+      nivel:Number(item.nivel) || 0, parent_codigo:item.parent_id ? (budgetItems || []).find(parent => parent.id === item.parent_id)?.codigo || null : null
+    }));
+    if (payload.length) {
+      const { error: syncError } = await supabase.from('partidas_obra').upsert(payload, { onConflict:'obra_id,presupuesto_item_id' });
+      if (syncError) throw syncError;
+    }
+    await fetchObraDetails(selectedObra.nombre);
+  };
   const handleReorderPartidaObra = async (fromIdx, toIdx) => {
     if (fromIdx === toIdx || toIdx < 0 || toIdx >= partidasList.length) return;
     const updated = [...partidasList];
@@ -1503,6 +1561,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           .eq('empresa', user?.empresa || 'Obraxis')
           .eq('obra_nombre', obraNombre)
           .maybeSingle();
+        setLinkedBudgetId(relation?.presupuesto_id || null);
         if (relation?.presupuesto_id) {
           const [{ data: budgetRows }, { data: scheduleRows }] = await Promise.all([
             supabase.from('presupuestos_items').select('codigo,partida').eq('presupuesto_id', relation.presupuesto_id),
@@ -5886,6 +5945,14 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 </div>
                 <div className="flex items-center gap-2">
                   <button
+                    onClick={openWorkBudgetImporter}
+                    disabled={preparingWorkBudget}
+                    className="bg-blue-700 hover:bg-blue-800 text-white font-black px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 disabled:opacity-60"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" />
+                    <span>{preparingWorkBudget ? 'Preparando…' : 'Importar Presto / Excel'}</span>
+                  </button>
+                  <button
                     onClick={() => {
                       setEditingPartida(null);
                       setPartidaFormData({ partida: 'NUEVO GRUPO', unidad: 'TITULO', cantidad: 0, pu: 0, rendimiento: '0', unidad_tiempo: 'Día', grupo: 'General', es_titulo: true });
@@ -5909,6 +5976,22 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   </button>
                 </div>
               </div>
+
+              {showWorkBudgetImporter && linkedBudgetId && (
+                <BudgetExcelImporter
+                  presupuestoId={linkedBudgetId}
+                  projectCurrency="CLP"
+                  onImported={async result => {
+                    try {
+                      await syncLinkedBudgetToWork(linkedBudgetId);
+                      setSuccessMsg(`Presupuesto importado en la obra: ${result?.partidas || 0} partidas, ${result?.capitulos || 0} capítulos y ${result?.recursos_asignados || 0} recursos.`);
+                      setShowWorkBudgetImporter(false);
+                    } catch (error) {
+                      setErrorMsg(`El presupuesto se importó, pero no fue posible sincronizar la obra: ${error.message}`);
+                    }
+                  }}
+                />
+              )}
 
               {partidasList.length === 0 ? (
                 <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-3">

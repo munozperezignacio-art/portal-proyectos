@@ -252,3 +252,32 @@ $$;
 
 revoke all on function public.importar_presupuesto_jerarquico(integer,jsonb,jsonb,text,text) from public, anon;
 grant execute on function public.importar_presupuesto_jerarquico(integer,jsonb,jsonb,text,text) to authenticated, service_role;
+
+-- La copia operativa de la obra conserva la misma jerarquía y referencia al ítem maestro.
+alter table public.partidas_obra
+  add column if not exists presupuesto_item_id integer,
+  add column if not exists tipo_item text,
+  add column if not exists nivel integer,
+  add column if not exists parent_codigo text;
+
+update public.partidas_obra
+set tipo_item = case when es_titulo or upper(coalesce(unidad, '')) in ('TITULO','GRUPO') then 'CAPITULO' else 'PARTIDA' end,
+    nivel = coalesce(nivel, 0)
+where tipo_item is null or nivel is null;
+
+alter table public.partidas_obra
+  alter column tipo_item set default 'PARTIDA',
+  alter column tipo_item set not null,
+  alter column nivel set default 0,
+  alter column nivel set not null,
+  drop constraint if exists partidas_obra_tipo_item_check,
+  add constraint partidas_obra_tipo_item_check check (tipo_item in ('CAPITULO','SUBCAPITULO','PARTIDA')),
+  drop constraint if exists partidas_obra_nivel_check,
+  add constraint partidas_obra_nivel_check check (nivel >= 0),
+  drop constraint if exists partidas_obra_presupuesto_item_id_fkey,
+  add constraint partidas_obra_presupuesto_item_id_fkey foreign key (presupuesto_item_id)
+    references public.presupuestos_items(id) on delete set null;
+
+create unique index if not exists partidas_obra_presupuesto_item_uidx
+  on public.partidas_obra (obra_id, presupuesto_item_id)
+  where presupuesto_item_id is not null;

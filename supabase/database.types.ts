@@ -501,6 +501,10 @@ export type Database = {
           frente: string | null
           horas_cuadrilla: number | null
           id: number
+          presupuesto_item_id: number | null
+          tipo_item: string
+          nivel: number
+          parent_codigo: string | null
           obra_id: number
           obra_nombre: string | null
           observaciones: string | null
@@ -519,6 +523,10 @@ export type Database = {
           frente?: string | null
           horas_cuadrilla?: number | null
           id?: number
+          presupuesto_item_id?: number | null
+          tipo_item?: string
+          nivel?: number
+          parent_codigo?: string | null
           obra_id: number
           obra_nombre?: string | null
           observaciones?: string | null
@@ -537,6 +545,10 @@ export type Database = {
           frente?: string | null
           horas_cuadrilla?: number | null
           id?: number
+          presupuesto_item_id?: number | null
+          tipo_item?: string
+          nivel?: number
+          parent_codigo?: string | null
           obra_id?: number
           obra_nombre?: string | null
           observaciones?: string | null
@@ -549,6 +561,13 @@ export type Database = {
           unidad?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "partidas_obra_presupuesto_item_id_fkey"
+            columns: ["presupuesto_item_id"]
+            isOneToOne: false
+            referencedRelation: "presupuestos_items"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "avances_produccion_partidas_cuadrilla_id_fkey"
             columns: ["cuadrilla_id"]
