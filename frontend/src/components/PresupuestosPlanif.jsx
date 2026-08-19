@@ -10,6 +10,7 @@ import { comunasChile } from '../utils/comunas';
 import { canConfigureEmails, getUserLevel } from '../utils/userLevel';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
+import { buildBudgetHierarchy, getBudgetGroupTotal, isBudgetGroup } from '../utils/budgetHierarchy';
 
 const ContextualEmailConfigModal = React.lazy(() => import('./ContextualEmailConfigModal'));
 const BudgetExcelImporter = React.lazy(() => import('./BudgetExcelImporter'));
@@ -570,11 +571,11 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
 
       const newProjId = projData[0].id;
 
-      const itemsToInsert = items.map(item => ({
-        presupuesto_id: newProjId,
+      const itemsToInsert = buildBudgetHierarchy(items.map(item => ({
+        TIPO_FILA: item.is_chapter ? (String(item.codigo || '').includes('.') ? 'SUBCAPITULO' : 'CAPITULO') : 'PARTIDA',
         codigo: item.codigo || '01',
         partida: item.descripcion || 'Sin descripción',
-        unidad: item.is_chapter ? '' : (item.unidad || 'un'),
+        unidad: item.is_chapter ? 'TITULO' : (item.unidad || 'un'),
         cantidad: item.is_chapter ? 0 : (parseFloat(item.cantidad) || 0),
         costo_unitario: item.is_chapter ? 0 : (parseFloat(item.costo_unitario) || 0),
         rendimiento_meta: item.is_chapter ? 0 : 1,
@@ -584,15 +585,19 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
         herramientas_menores_pct: 5,
         dias_habiles_mes: 22,
         horas_jornada: 9,
-        precio_combustible: 1050
-      }));
+        precio_combustible: 1050,
+        codigo_origen: item.codigo || '01'
+      })));
 
-      const { data: insertedItems, error: itemsErr } = await supabase
-        .from('presupuestos_items')
-        .insert(itemsToInsert)
-        .select();
-
+      const { error: itemsErr } = await supabase.rpc('importar_presupuesto_jerarquico', {
+        p_presupuesto_id: newProjId, p_items: itemsToInsert, p_recursos: [],
+        p_moneda_base: aiProjMoneda || 'CLP', p_origen: 'IA'
+      });
       if (itemsErr) throw itemsErr;
+      const { data: insertedItems, error: reloadItemsError } = await supabase
+        .from('presupuestos_items')
+        .select('*').eq('presupuesto_id', newProjId).order('orden');
+      if (reloadItemsError) throw reloadItemsError;
 
       const todayStr = new Date().toISOString().split('T')[0];
       const cronoToInsert = insertedItems.map(item => {
@@ -933,6 +938,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
   // --- LÓGICA DE JERARQUÍAS ---
   const isChapterRow = (item, list) => {
     if (!item) return false;
+    if (item.tipo_item) return isBudgetGroup(item);
     // Es Título si tiene la marca de unidad, es_titulo, o si es una fila sin cantidad/precio con nombre en mayúsculas
     if (item.unidad === 'TITULO' || item.unidad === 'GRUPO' || item.unidad === 'CAPITULO' || item.es_titulo) return true;
     const qty = parseFloat(item.cantidad) || 0;
@@ -945,6 +951,9 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
   const getChapterSum = (chapterId, list, isProrated = false, factor = 1) => {
     const idx = list.findIndex(x => (x.id && chapterId && x.id.toString() === chapterId.toString()) || (x.codigo && chapterId && x.codigo === chapterId));
     if (idx === -1) return 0;
+    if (list[idx].tipo_item || list.some(item => item.parent_id)) {
+      return getBudgetGroupTotal(list[idx], list, isProrated ? factor : 1);
+    }
     
     // 1. Intentar sumar partidas hacia abajo
     let sumBelow = 0;
@@ -993,12 +1002,32 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
       codigo: nextCode,
       partida: 'NUEVO TÍTULO / CAPÍTULO',
       unidad: 'TITULO',
+      tipo_item: 'CAPITULO',
+      parent_id: null,
+      nivel: 0,
+      es_titulo: true,
+      origen_importacion: 'MANUAL',
       cantidad: 0,
       costo_unitario: 0,
       rendimiento_meta: 0
     };
     const updatedList = [newRow, ...itemsPresupuesto];
     setItemsPresupuesto(updatedList);
+  };
+
+  const handleAddSubchapterRow = () => {
+    const parent = [...itemsPresupuesto].reverse().find(item => isChapterRow(item, itemsPresupuesto));
+    if (!parent) { setErrorMsg('Crea o selecciona primero un capítulo padre.'); return; }
+    const children = itemsPresupuesto.filter(item => String(item.parent_id || '') === String(parent.id));
+    const newRow = {
+      id: 'temp-' + Date.now() + Math.random(), presupuesto_id: selectedProyectoId,
+      codigo: `${parent.codigo}.${children.length + 1}`, partida: 'NUEVO SUBCAPÍTULO',
+      unidad: 'GRUPO', cantidad: 0, costo_unitario: 0, rendimiento_meta: 0,
+      tipo_item: 'SUBCAPITULO', parent_id: parent.id, nivel: (Number(parent.nivel) || 0) + 1,
+      es_titulo: true, origen_importacion: 'MANUAL'
+    };
+    const parentIndex = itemsPresupuesto.findIndex(item => item.id === parent.id);
+    const updated = [...itemsPresupuesto]; updated.splice(parentIndex + 1, 0, newRow); setItemsPresupuesto(updated);
   };
 
   const handleAddBudgetRow = () => {
@@ -1021,6 +1050,11 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
       codigo: nextCode,
       partida: 'NUEVA PARTIDA',
       unidad: 'un',
+      tipo_item: 'PARTIDA',
+      parent_id: [...itemsPresupuesto].reverse().find(item => isChapterRow(item, itemsPresupuesto))?.id || null,
+      nivel: (([...itemsPresupuesto].reverse().find(item => isChapterRow(item, itemsPresupuesto))?.nivel) ?? -1) + 1,
+      es_titulo: false,
+      origen_importacion: 'MANUAL',
       cantidad: 0,
       costo_unitario: 0,
       rendimiento_meta: 25,
@@ -1092,6 +1126,12 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
         costo_maquinaria: parseFloat(p.costo_maquinaria) || 0,
         costo_herramientas: parseFloat(p.costo_herramientas) || 0,
         costo_otros: parseFloat(p.costo_otros) || 0,
+        tipo_item: p.tipo_item || (isChapterRow(p, itemsPresupuesto) ? 'CAPITULO' : 'PARTIDA'),
+        parent_id: p.parent_id && !String(p.parent_id).startsWith('temp-') ? Number(p.parent_id) : null,
+        nivel: Math.max(0, Number(p.nivel) || 0),
+        es_titulo: p.tipo_item ? p.tipo_item !== 'PARTIDA' : isChapterRow(p, itemsPresupuesto),
+        codigo_origen: p.codigo_origen || p.codigo || '',
+        origen_importacion: p.origen_importacion || 'MANUAL',
         orden
       });
 
@@ -1134,12 +1174,15 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
       }
 
       if (toInsert.length > 0) {
-        const { error: insErr } = await supabase
-          .from('presupuestos_items')
-          .insert(toInsert);
-        if (insErr) {
-          console.error("Error crítico inserción presupuestos_items:", insErr.message);
-          throw new Error("Error en base de datos al guardar partidas: " + insErr.message);
+        const temporaryIds = new Map();
+        const sourceItems = itemsPresupuesto.filter(p => !p.id || p.id.toString().startsWith('temp-'));
+        for (let index = 0; index < sourceItems.length; index++) {
+          const source = sourceItems[index];
+          const payload = cleanDbPayload(source, itemsPresupuesto.indexOf(source));
+          if (source.parent_id && String(source.parent_id).startsWith('temp-')) payload.parent_id = temporaryIds.get(String(source.parent_id)) || null;
+          const { data: inserted, error: insErr } = await supabase.from('presupuestos_items').insert(payload).select('id').single();
+          if (insErr) throw new Error("Error en base de datos al guardar la jerarquía: " + insErr.message);
+          if (source.id) temporaryIds.set(String(source.id), inserted.id);
         }
       }
 
@@ -3057,7 +3100,15 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
                         title="Insertar un Título o Grupo agrupador"
                       >
                         <FolderPlus className="w-4 h-4 text-amber-700" />
-                        <span>+ Insertar Título o Grupo</span>
+                        <span>+ Capítulo</span>
+                      </button>
+                      <button
+                        onClick={handleAddSubchapterRow}
+                        className="flex items-center gap-1.5 bg-orange-50 border border-orange-200 text-orange-900 text-xs font-bold px-3.5 py-2 rounded-xl hover:bg-orange-100 transition cursor-pointer"
+                        title="Insertar bajo el último capítulo o subcapítulo"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                        <span>+ Subcapítulo</span>
                       </button>
                       <button
                         onClick={handleAddBudgetRow}
@@ -3104,7 +3155,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
                                 ? chapterSumInDisplay
                                 : (parseFloat(item.cantidad) || 0) * effectivePriceInDisplay;
 
-                              const isIndent = item.codigo && item.codigo.includes('.');
+                              const itemLevel = Math.max(0, Number(item.nivel) || (item.codigo ? item.codigo.split('.').length - 1 : 0));
                               const isCosto = item.tipo_metodologia === 'Costo' || item.tipo_metodologia === 'Costo-Tiempo';
 
                               return (
@@ -3122,8 +3173,8 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
                                     />
                                   </td>
                                   <td className="p-2">
-                                    <div className="flex items-center gap-1">
-                                      {isIndent && <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1.5" />}
+                                    <div className="flex items-center gap-1" style={{ paddingLeft: `${Math.min(itemLevel, 6) * 16}px` }}>
+                                      {itemLevel > 0 && <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
                                       <input
                                         type="text"
                                         value={item.partida || ''}

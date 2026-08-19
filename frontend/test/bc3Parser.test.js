@@ -1,0 +1,32 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { parseBc3 } from '../src/utils/bc3Parser.js';
+
+const SAMPLE = `~V|RIB Spain|FIEBDC-3/2020|Presto 24||ANSI|
+~C|0##||OBRA DE EJEMPLO|2400|010124|0|
+~C|01||OBRAS PRELIMINARES|2400|010124|0|
+~C|01.01||INSTALACIONES PROVISORIAS|2400|010124|0|
+~C|01.01.01|m2|CIERRE PERIMETRAL|1200|010124|0|
+~C|MO001|h|MAESTRO PRIMERA|8000|010124|1|
+~C|MAT001|m2|PANEL DE CIERRE|10000|010124|3|
+~D|0##|01\\1\\1\\|
+~D|01|01.01\\1\\1\\|
+~D|01.01|01.01.01\\2\\1\\|
+~D|01.01.01|MO001\\1\\0.25\\MAT001\\1\\1\\|`;
+
+test('interpreta jerarquía y recursos de un BC3 de Presto', () => {
+  const result = parseBc3(SAMPLE, { fileName: 'ejemplo.bc3' });
+  assert.deepEqual(result.items.map(item => [item.codigo, item.tipo_item, item.parent_codigo]), [
+    ['01', 'CAPITULO', ''], ['01.01', 'SUBCAPITULO', '01'], ['01.01.01', 'PARTIDA', '01.01']
+  ]);
+  assert.equal(result.items[2].cantidad, 2);
+  assert.equal(result.items[2].costo_unitario, 1200);
+  assert.deepEqual(result.resources.map(resource => [resource.tipo, resource.cantidad_unidad]), [
+    ['Mano de Obra', 0.25], ['Material', 1]
+  ]);
+  assert.equal(result.metadata.emitter, 'RIB Spain');
+});
+
+test('rechaza contenido que no es FIEBDC presupuestario', () => {
+  assert.throws(() => parseBc3('texto cualquiera'), /registros ~C y ~D/);
+});
