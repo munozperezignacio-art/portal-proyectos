@@ -5809,6 +5809,12 @@ export type Database = {
           id: number
           imponderables_pct: number | null
           leyes_sociales_pct: number | null
+          tipo_item: string
+          parent_id: number | null
+          nivel: number
+          es_titulo: boolean
+          codigo_origen: string | null
+          origen_importacion: string
           orden: number | null
           partida: string
           precio_combustible: number | null
@@ -5836,6 +5842,12 @@ export type Database = {
           id?: number
           imponderables_pct?: number | null
           leyes_sociales_pct?: number | null
+          tipo_item?: string
+          parent_id?: number | null
+          nivel?: number
+          es_titulo?: boolean
+          codigo_origen?: string | null
+          origen_importacion?: string
           orden?: number | null
           partida: string
           precio_combustible?: number | null
@@ -5863,6 +5875,12 @@ export type Database = {
           id?: number
           imponderables_pct?: number | null
           leyes_sociales_pct?: number | null
+          tipo_item?: string
+          parent_id?: number | null
+          nivel?: number
+          es_titulo?: boolean
+          codigo_origen?: string | null
+          origen_importacion?: string
           orden?: number | null
           partida?: string
           precio_combustible?: number | null
@@ -5873,6 +5891,13 @@ export type Database = {
           unidad?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "presupuestos_items_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "presupuestos_items"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "presupuestos_items_presupuesto_id_fkey"
             columns: ["presupuesto_id"]
