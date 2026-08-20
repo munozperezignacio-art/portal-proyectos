@@ -363,10 +363,12 @@ function App() {
   const rawPath = (path || '').toLowerCase();
   const normalizedPath = rawPath.endsWith('/') && rawPath.length > 1 ? rawPath.slice(0, -1) : rawPath;
 
-  if (normalizedPath === '/corporativo' || normalizedPath === '/empresa') {
+  if (normalizedPath === '/corporativo' || normalizedPath === '/empresa' || normalizedPath === '/corporativo-formal') {
     return <React.Suspense fallback={<ModuleLoader />}><CorporatePreview
+      variant={normalizedPath === '/corporativo-formal' ? 'formal' : 'contemporary'}
       onEnterPlatform={() => navigateTo('/login')}
       onBackHome={() => navigateTo('/')}
+      onFormalPreview={() => navigateTo('/corporativo-formal')}
     /></React.Suspense>;
   }
 
