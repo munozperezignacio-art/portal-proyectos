@@ -26,12 +26,16 @@ export function parseBc3(source, { fileName = 'presupuesto.bc3' } = {}) {
   const warnings = [];
   let version = '';
   let emitter = '';
+  let currency = '';
 
   text.split('~').map(clean).filter(Boolean).forEach(record => {
     const fields = record.split('|');
     const kind = clean(fields[0]).toUpperCase();
     if (kind === 'V') {
       emitter = clean(fields[1]); version = clean(fields[2]);
+    } else if (kind === 'K') {
+      const currencyMatch = record.match(/(?:^|\\)(CLP|UF|USD|EUR)(?:\\|$)/i);
+      currency = currencyMatch?.[1]?.toUpperCase() || currency;
     } else if (kind === 'C') {
       const aliases = clean(fields[1]).split('\\').map(clean).filter(Boolean);
       const code = aliases[0];
@@ -167,6 +171,6 @@ export function parseBc3(source, { fileName = 'presupuesto.bc3' } = {}) {
   }));
   return {
     items, resources, warnings: [...new Set(warnings)],
-    globalCosts, metadata: { fileName, version, emitter, concepts: concepts.size, roots: roots.length }
+    globalCosts, metadata: { fileName, version, emitter, currency: currency || null, concepts: concepts.size, roots: roots.length }
   };
 }
