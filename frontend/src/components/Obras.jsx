@@ -9790,21 +9790,21 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
       {/* MODAL: CREAR / EDITAR PARTIDA DE OBRA */}
       {workResourceSheet && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto bg-slate-900/60 p-2 backdrop-blur-sm sm:p-4">
-          <div className="w-full max-w-5xl rounded-3xl border border-slate-100 bg-white p-5 shadow-2xl">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-3">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-slate-900/60 p-2 backdrop-blur-sm sm:p-4">
+          <div className="flex max-h-[calc(100dvh-1rem)] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white p-4 shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:p-5">
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 pb-3">
               <div>
                 <h3 className="text-sm font-extrabold text-slate-900">Ficha de partida y recursos</h3>
                 <p className="mt-1 text-xs font-bold text-slate-600">{workResourceSheet.partida.codigo ? `${workResourceSheet.partida.codigo} · ` : ''}{workResourceSheet.partida.partida}</p>
               </div>
               <button type="button" onClick={() => setWorkResourceSheet(null)} className="text-xl font-bold text-slate-400 hover:text-slate-700">✕</button>
             </div>
-            {workResourceSheetLoading ? <p className="p-8 text-center text-xs text-slate-500">Cargando recursos…</p> : workResourceSheet.error ? (
+            {workResourceSheetLoading ? <p className="min-h-0 flex-1 p-8 text-center text-xs text-slate-500">Cargando recursos…</p> : workResourceSheet.error ? (
               <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">{workResourceSheet.error}</div>
             ) : (
-              <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+              <div className="mt-4 min-h-0 flex-1 overflow-auto overscroll-contain rounded-2xl border border-slate-200">
                 <table className="w-full min-w-[760px] text-left text-xs">
-                  <thead className="bg-slate-50 text-[9px] font-bold uppercase text-slate-600"><tr><th className="p-3">Código / Recurso</th><th className="p-3">Tipo</th><th className="p-3">Unidad</th><th className="p-3 text-right">Cantidad</th><th className="p-3 text-right">Precio unitario</th><th className="p-3 text-right">Costo parcial</th></tr></thead>
+                  <thead className="sticky top-0 z-10 bg-slate-50 text-[9px] font-bold uppercase text-slate-600 shadow-sm"><tr><th className="p-3">Código / Recurso</th><th className="p-3">Tipo</th><th className="p-3">Unidad</th><th className="p-3 text-right">Cantidad</th><th className="p-3 text-right">Precio unitario</th><th className="p-3 text-right">Costo parcial</th></tr></thead>
                   <tbody className="divide-y divide-slate-100">
                     {workResourceSheet.links.map(link => {
                       const resource = link.recursos_presupuesto || {};
