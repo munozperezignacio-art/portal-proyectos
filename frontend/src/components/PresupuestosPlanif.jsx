@@ -3133,7 +3133,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
                               </th>
                               <th className="p-3.5 w-44">Importe ({displayCurrency})</th>
                               <th className="p-3.5 w-36 text-center">Metodología</th>
-                              <th className="p-3.5 w-24 text-center">Acciones</th>
+                              <th className="p-3.5 w-36 text-center">Acciones</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-150">
@@ -3258,10 +3258,11 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
                                       {!isChapter && (
                                         <button
                                           onClick={() => openApuModal(item)}
-                                          className="p-1.5 text-primary hover:bg-primary/10 rounded-lg transition"
-                                          title="Análisis de Partida / Recursos"
+                                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-bold text-primary transition hover:bg-primary/10"
+                                          title="Abrir ficha de recursos de la partida"
                                         >
                                           <Settings className="w-4 h-4" />
+                                          <span>Ficha</span>
                                         </button>
                                       )}
                                       <button
@@ -5860,7 +5861,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
                 <div>
                   <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
                     <Settings className="w-4.5 h-4.5 text-primary" />
-                    <span>Análisis APU: {apuItem.partida}</span>
+                    <span>Ficha de partida y recursos: {apuItem.partida}</span>
                   </h3>
                   <p className="text-[10px] text-slate-500 font-bold uppercase mt-0.5">Código: {apuItem.codigo || 'S/N'} | Moneda del Análisis: {projectBaseCurrency}</p>
                 </div>
@@ -6343,8 +6344,15 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
                           <td className="p-2 font-bold text-slate-800 uppercase">
                             <span>{res.recurso}</span>
                             <span className="block text-[9.5px] text-slate-450 font-normal">
+                              {res.codigo_origen ? `Código Presto: ${res.codigo_origen}` : ''}
+                              {res.codigo_origen && (res.ciudad || res.proveedor) ? ' · ' : ''}
                               {res.ciudad ? `Ubicación: ${res.ciudad}` : ''} {res.proveedor ? `| Prov: ${res.proveedor}` : ''}
                             </span>
+                            {link.factor_descomposicion != null && link.cantidad_descomposicion != null && (
+                              <span className="block text-[9px] font-normal normal-case text-blue-600">
+                                Descomposición Presto: {link.factor_descomposicion} × {link.cantidad_descomposicion}
+                              </span>
+                            )}
                           </td>
                           <td className="p-2">
                             <span className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${

@@ -22,6 +22,7 @@ export function parseBc3(source, { fileName = 'presupuesto.bc3' } = {}) {
   const concepts = new Map();
   const decompositions = new Map();
   const measurements = new Map();
+  const indicators = new Map();
   const warnings = [];
   let version = '';
   let emitter = '';
@@ -36,7 +37,7 @@ export function parseBc3(source, { fileName = 'presupuesto.bc3' } = {}) {
       const code = aliases[0];
       if (!code) return;
       const prices = clean(fields[4]).split('\\').map(decimal).filter(Number.isFinite);
-      concepts.set(code, { code, aliases, unit: clean(fields[2]), summary: clean(fields[3]) || code, price: prices[0] || 0, type: clean(fields[6]) || '0' });
+      concepts.set(code, { code, aliases, unit: clean(fields[2]), summary: clean(fields[3]) || code, price: prices[0] || 0, priceDate: clean(fields[5]), type: clean(fields[6]) || '0' });
     } else if (kind === 'D') {
       const parent = canonicalCode(fields[1]);
       const parts = clean(fields[2]).split('\\');
@@ -50,8 +51,36 @@ export function parseBc3(source, { fileName = 'presupuesto.bc3' } = {}) {
       const relation = clean(fields[1]).split('\\').map(clean).filter(Boolean);
       const child = relation[relation.length - 1];
       if (child) measurements.set(`${relation[0] || ''}>${child}`, decimal(fields[3]));
+    } else if (kind === 'X' && clean(fields[1])) {
+      const values = clean(fields[2]).split('\\');
+      const data = {};
+      for (let index = 0; index < values.length; index += 2) if (clean(values[index])) data[clean(values[index])] = decimal(values[index + 1]);
+      indicators.set(canonicalCode(fields[1]), data);
     }
   });
+
+  // Presto guarda los capítulos en ~C con sufijo #, pero en ~D y ~M suele
+  // referenciarlos sin él (por ejemplo, 1.1 -> 1.1#).
+  const codeIndex = new Map();
+  concepts.forEach(concept => {
+    [concept.code, ...concept.aliases, concept.code.replace(/#+$/, '')].filter(Boolean)
+      .forEach(alias => codeIndex.set(clean(alias).toLowerCase(), concept.code));
+  });
+  const resolveCode = value => codeIndex.get(canonicalCode(value).toLowerCase()) || canonicalCode(value);
+  const resolvedDecompositions = new Map();
+  decompositions.forEach((children, parent) => {
+    const resolvedParent = resolveCode(parent);
+    resolvedDecompositions.set(resolvedParent, children.map(child => ({ ...child, code: resolveCode(child.code) })));
+  });
+  decompositions.clear();
+  resolvedDecompositions.forEach((children, parent) => decompositions.set(parent, children));
+  const resolvedMeasurements = new Map();
+  measurements.forEach((quantity, relation) => {
+    const [parent, child] = relation.split('>');
+    resolvedMeasurements.set(`${resolveCode(parent)}>${resolveCode(child)}`, quantity);
+  });
+  measurements.clear();
+  resolvedMeasurements.forEach((quantity, relation) => measurements.set(relation, quantity));
 
   const childCodes = new Set([...decompositions.values()].flat().map(entry => entry.code));
   const rootCandidates = [...decompositions.keys()].filter(code => !childCodes.has(code));
@@ -63,11 +92,7 @@ export function parseBc3(source, { fileName = 'presupuesto.bc3' } = {}) {
     const concept = concepts.get(code);
     const children = decompositions.get(code) || [];
     if (!children.length || isResource(concept)) return false;
-    if (!concept?.unit) return true;
-    return children.some(child => {
-      const childConcept = concepts.get(child.code);
-      return !isResource(childConcept) && (decompositions.get(child.code) || []).length > 0 && !childConcept?.unit;
-    });
+    return /#$/.test(code) || !concept?.unit;
   };
 
   const flattenResources = (code, multiplier = 1, visited = new Set()) => {
@@ -78,7 +103,7 @@ export function parseBc3(source, { fileName = 'presupuesto.bc3' } = {}) {
       const quantity = multiplier * component.factor * component.rendimiento;
       if (!concept) { warnings.push(`El concepto ${component.code} está referenciado pero no definido.`); return []; }
       if (isResource(concept) || !(decompositions.get(component.code) || []).length) {
-        return [{ codigo_recurso: concept.code, recurso: concept.summary, tipo: simpleType(concept.type), categoria: 'Presto / BC3', unidad: concept.unit || 'un', costo_unitario: concept.price, cantidad_unidad: quantity, rendimiento: 1, consumo_combustible_lh: 0 }];
+        return [{ codigo_recurso: concept.code, recurso: concept.summary, tipo: simpleType(concept.type), tipo_bc3: concept.type, categoria: 'Presto / BC3', unidad: concept.unit || 'un', costo_unitario: concept.price, fecha_precio: concept.priceDate || null, factor_descomposicion: component.factor, cantidad_descomposicion: component.rendimiento, cantidad_unidad: quantity, rendimiento: 1, indicadores_ambientales: indicators.get(concept.code) || {}, consumo_combustible_lh: 0 }];
       }
       return flattenResources(component.code, quantity, nextVisited);
     });
