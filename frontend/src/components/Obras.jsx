@@ -9479,7 +9479,11 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   if (createdObra) setSelectedObra(createdObra);
                   alert('Obra creada con éxito.');
                 } catch (err) {
-                  alert('Error al crear obra: ' + err.message);
+                  const duplicateName = err?.code === '23505'
+                    && ['obras_nombre_key', 'obras_empresa_nombre_key'].some(constraint => String(err?.message || '').includes(constraint));
+                  alert(duplicateName
+                    ? `Ya existe una obra llamada "${newObraForm.nombre.trim()}" en esta empresa. Usa un nombre diferente.`
+                    : 'Error al crear obra: ' + err.message);
                 } finally {
                   setModalLoading(false);
                 }
