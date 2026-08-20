@@ -11,6 +11,9 @@ const number = value => { const parsed = Number(String(value ?? '').replace(/\s/
 const method = value => normalize(value).toLowerCase().includes('costo') ? 'Costo' : 'Precio Unitario';
 const headerMap = row => Object.fromEntries(Object.entries(row || {}).map(([key,value]) => [normalize(key).toUpperCase().replace(/\s+/g, '_'), value]));
 const isTimeUnit = unit => /(mes|mensual|hr|hora|día|dia|jornada)/i.test(unit);
+const formatImportMoney = (value, currency) => currency === 'UF'
+  ? `UF ${number(value).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
+  : new Intl.NumberFormat('es-CL', { style:'currency', currency:currency || 'CLP', maximumFractionDigits:0 }).format(number(value));
 
 function calculateCost(part, rows, settings) {
   const pu = part.tipo_metodologia === 'Precio Unitario';
@@ -56,9 +59,15 @@ export default function BudgetExcelImporter({ presupuestoId, projectCurrency = '
   const [preview, setPreview] = useState(null);
   const [errors, setErrors] = useState([]);
   const [busy, setBusy] = useState(false);
+  const [targetCurrency, setTargetCurrency] = useState(projectCurrency);
+  const [ufClpValue, setUfClpValue] = useState('');
   const settings = { diasMes: 22, horasDia: 9, precioCombustible: 1050 };
 
-  const summary = useMemo(() => preview ? { titles: preview.partidas.filter(row => row.es_titulo).length, parts: preview.partidas.filter(row => !row.es_titulo).length, resources: preview.recursos.length, total: preview.partidas.reduce((sum,row) => sum + number(row.cantidad) * number(row.costo_unitario), 0) } : null, [preview]);
+  const sourceCurrency = preview?.metadata?.currency || projectCurrency;
+  const needsUfRate = preview?.origin === 'PRESTO_BC3' && sourceCurrency !== targetCurrency && [sourceCurrency, targetCurrency].includes('UF');
+  const ufRate = number(ufClpValue);
+  const conversionFactor = sourceCurrency === targetCurrency ? 1 : sourceCurrency === 'CLP' && targetCurrency === 'UF' && ufRate > 0 ? 1 / ufRate : sourceCurrency === 'UF' && targetCurrency === 'CLP' && ufRate > 0 ? ufRate : null;
+  const summary = useMemo(() => preview ? { titles: preview.partidas.filter(row => row.es_titulo).length, parts: preview.partidas.filter(row => !row.es_titulo).length, resources: preview.recursos.length, total: preview.partidas.reduce((sum,row) => sum + number(row.cantidad) * number(row.costo_unitario), 0) * (conversionFactor || 0) } : null, [preview, conversionFactor]);
 
   const downloadTemplate = async () => {
     const { loadSpreadsheetEngine } = await import('../services/documentEngines');
@@ -136,6 +145,8 @@ export default function BudgetExcelImporter({ presupuestoId, projectCurrency = '
     setErrors([]); setPreview(null);
     try {
       const parsed = parseBc3(decodeBc3(await file.arrayBuffer()), { fileName:file.name });
+      setTargetCurrency(parsed.metadata.currency || projectCurrency);
+      setUfClpValue('');
       const validation = [];
       const codes = new Set(parsed.items.map(item => item.codigo));
       parsed.items.forEach(item => {
@@ -150,20 +161,25 @@ export default function BudgetExcelImporter({ presupuestoId, projectCurrency = '
   };
 
   const importBudget = async () => {
-    if (!preview || errors.length || !presupuestoId) return; setBusy(true);
+    if (!preview || errors.length || !presupuestoId || conversionFactor === null) return; setBusy(true);
+    const convertedItems = preview.partidas.map(item => ({ ...item, costo_unitario:number(item.costo_unitario) * conversionFactor, costo_materiales:number(item.costo_materiales) * conversionFactor, costo_mano_obra:number(item.costo_mano_obra) * conversionFactor, costo_maquinaria:number(item.costo_maquinaria) * conversionFactor, costo_herramientas:number(item.costo_herramientas) * conversionFactor, costo_otros:number(item.costo_otros) * conversionFactor }));
+    const convertedResources = preview.recursos.map(resource => ({ ...resource, costo_unitario:number(resource.costo_unitario) * conversionFactor }));
     const isBc3 = preview.origin === 'PRESTO_BC3';
     const rpcName = isBc3 ? 'importar_presupuesto_bc3_completo' : 'importar_presupuesto_jerarquico';
-    const params = { p_presupuesto_id:Number(presupuestoId), p_items:preview.partidas, p_recursos:preview.recursos, p_moneda_base:projectCurrency, p_origen:preview.origin||'EXCEL' };
+    const params = { p_presupuesto_id:Number(presupuestoId), p_items:convertedItems, p_recursos:convertedResources, p_moneda_base:targetCurrency, p_origen:preview.origin||'EXCEL' };
     if (isBc3) params.p_globales = preview.globalCosts || [];
     const { data, error } = await supabase.rpc(rpcName, params);
     setBusy(false);
     if (error) { setErrors([error.message]); return; }
+    const { data: project } = await supabase.from('presupuestos_proyectos').select('tipo_proyecto').eq('id', Number(presupuestoId)).maybeSingle();
+    const projectType = String(project?.tipo_proyecto || 'Privado').split('|')[0].trim() || 'Privado';
+    await supabase.from('presupuestos_proyectos').update({ moneda_base:targetCurrency, tipo_proyecto:`${projectType} | ${targetCurrency}` }).eq('id', Number(presupuestoId));
     setPreview(null); await onImported?.(data);
   };
 
   return <section className="rounded-3xl border border-emerald-200 bg-emerald-50/40 p-5">
     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div className="flex gap-3"><span className="rounded-2xl bg-emerald-700 p-3 text-white"><FileSpreadsheet className="h-5 w-5"/></span><div><h4 className="text-sm font-black text-slate-900">Importar presupuesto jerárquico</h4><p className="mt-1 text-xs text-slate-600">Carga Presto/BC3 o Excel con capítulos, subcapítulos, partidas y recursos.</p></div></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => bc3FileRef.current?.click()} className="flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-2 text-xs font-black text-white"><Upload className="h-4 w-4"/>Importar Presto (.BC3)</button><input ref={bc3FileRef} type="file" accept=".bc3,text/plain" onChange={readBc3File} className="hidden"/><button type="button" onClick={downloadTemplate} className="flex items-center gap-2 rounded-xl border border-emerald-300 bg-white px-4 py-2 text-xs font-black text-emerald-800"><Download className="h-4 w-4"/>Plantilla Excel</button><button type="button" onClick={() => fileRef.current?.click()} className="flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2 text-xs font-black text-white"><Upload className="h-4 w-4"/>Importar Excel</button><input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={readFile} className="hidden"/></div></div>
     {errors.length > 0 && <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-800"><p className="font-black"><AlertTriangle className="mr-1 inline h-4 w-4"/>Corrige antes de importar</p><ul className="mt-2 list-disc space-y-1 pl-5">{errors.slice(0,20).map((error,index)=><li key={index}>{error}</li>)}</ul></div>}
-    {preview && <div className="mt-4 rounded-2xl border bg-white p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-black"><CheckCircle2 className="mr-1 inline h-4 w-4 text-emerald-700"/>{preview.fileName}</p>{preview.metadata?.version&&<p className="mt-1 text-[10px] font-bold text-blue-700">{preview.metadata.version} · {preview.metadata.emitter||'Emisor no identificado'}</p>}<p className="mt-1 text-[10px] text-slate-500">{summary.titles} capítulos/subcapítulos · {summary.parts} partidas · {summary.resources} recursos · Total {new Intl.NumberFormat('es-CL',{style:'currency',currency:projectCurrency,maximumFractionDigits:0}).format(summary.total)}</p></div><button type="button" disabled={busy || errors.length > 0} onClick={importBudget} className="rounded-xl bg-slate-950 px-5 py-2.5 text-xs font-black text-white disabled:opacity-40">{busy?'Importando…':'Confirmar importación'}</button></div><div className="mt-3 max-h-56 overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-2">{preview.partidas.slice(0,30).map(item=><div key={`${item.codigo}-${item.orden}`} className={`flex items-center justify-between gap-3 border-b border-slate-200/70 px-2 py-1.5 text-[10px] last:border-0 ${item.es_titulo?'font-black text-slate-900':'text-slate-700'}`} style={{paddingLeft:`${8+Math.min(Number(item.nivel)||0,6)*16}px`}}><span>{item.codigo} · {item.partida}</span><span className="shrink-0 text-slate-500">{item.es_titulo?item.tipo_item:`${item.cantidad} ${item.unidad}`}</span></div>)}{preview.partidas.length>30&&<p className="p-2 text-center text-[10px] font-bold text-slate-500">y {preview.partidas.length-30} elementos más…</p>}</div>{preview.warnings?.length>0&&<div className="mt-3 rounded-xl bg-amber-50 p-3 text-[10px] text-amber-900"><b>Advertencias de compatibilidad:</b><ul className="mt-1 list-disc pl-4">{preview.warnings.slice(0,10).map((warning,index)=><li key={index}>{warning}</li>)}</ul></div>}</div>}
+    {preview && <div className="mt-4 rounded-2xl border bg-white p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-black"><CheckCircle2 className="mr-1 inline h-4 w-4 text-emerald-700"/>{preview.fileName}</p>{preview.metadata?.version&&<p className="mt-1 text-[10px] font-bold text-blue-700">{preview.metadata.version} · {preview.metadata.emitter||'Emisor no identificado'}</p>}<p className="mt-1 text-[10px] text-slate-500">{summary.titles} capítulos/subcapítulos · {summary.parts} partidas · {summary.resources} recursos · Total {formatImportMoney(summary.total,targetCurrency)}</p></div><button type="button" disabled={busy || errors.length > 0 || conversionFactor === null} onClick={importBudget} className="rounded-xl bg-slate-950 px-5 py-2.5 text-xs font-black text-white disabled:opacity-40">{busy?'Importando…':'Confirmar importación'}</button></div>{preview.origin==='PRESTO_BC3'&&<div className="mt-3 grid gap-3 rounded-xl border border-blue-200 bg-blue-50 p-3 sm:grid-cols-3"><div><span className="block text-[9px] font-bold uppercase text-blue-700">Moneda detectada</span><strong className="text-sm text-blue-950">{sourceCurrency}</strong></div><label className="text-[9px] font-bold uppercase text-slate-600">Importar en<select value={targetCurrency} onChange={e=>setTargetCurrency(e.target.value)} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-2 text-xs font-bold text-slate-900"><option value="CLP">CLP · Pesos</option><option value="UF">UF</option></select></label>{needsUfRate&&<label className="text-[9px] font-bold uppercase text-slate-600">Valor de 1 UF en CLP<input type="number" min="1" step="any" value={ufClpValue} onChange={e=>setUfClpValue(e.target.value)} placeholder="Ej. 39250" className="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-2 text-xs font-bold text-slate-900"/><span className="mt-1 block normal-case text-slate-500">Los precios se {sourceCurrency==='CLP'?'dividirán':'multiplicarán'} por este valor.</span></label>}</div>}<div className="mt-3 max-h-56 overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-2">{preview.partidas.slice(0,30).map(item=><div key={`${item.codigo}-${item.orden}`} className={`flex items-center justify-between gap-3 border-b border-slate-200/70 px-2 py-1.5 text-[10px] last:border-0 ${item.es_titulo?'font-black text-slate-900':'text-slate-700'}`} style={{paddingLeft:`${8+Math.min(Number(item.nivel)||0,6)*16}px`}}><span>{item.codigo} · {item.partida}</span><span className="shrink-0 text-slate-500">{item.es_titulo?item.tipo_item:`${item.cantidad} ${item.unidad}`}</span></div>)}{preview.partidas.length>30&&<p className="p-2 text-center text-[10px] font-bold text-slate-500">y {preview.partidas.length-30} elementos más…</p>}</div>{preview.warnings?.length>0&&<div className="mt-3 rounded-xl bg-amber-50 p-3 text-[10px] text-amber-900"><b>Advertencias de compatibilidad:</b><ul className="mt-1 list-disc pl-4">{preview.warnings.slice(0,10).map((warning,index)=><li key={index}>{warning}</li>)}</ul></div>}</div>}
   </section>;
 }

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { parseBc3 } from '../src/utils/bc3Parser.js';
 
 const SAMPLE = `~V|RIB Spain|FIEBDC-3/2020|Presto 24||ANSI|
+~K|\\2\\2\\5\\2\\2\\2\\2\\CLP\\|0\\10\\27.33\\0\\0|3\\2\\\\3\\5\\\\2\\2\\2\\2\\2\\2\\2\\2\\CLP\\|
 ~C|0##||OBRA DE EJEMPLO|2400|010124|0|
 ~C|01||OBRAS PRELIMINARES|2400|010124|0|
 ~C|01.01||INSTALACIONES PROVISORIAS|2400|010124|0|
@@ -25,6 +26,7 @@ test('interpreta jerarquía y recursos de un BC3 de Presto', () => {
     ['Mano de Obra', 0.25], ['Material', 1]
   ]);
   assert.equal(result.metadata.emitter, 'RIB Spain');
+  assert.equal(result.metadata.currency, 'CLP');
 });
 
 test('rechaza contenido que no es FIEBDC presupuestario', () => {
