@@ -21,7 +21,7 @@ const solutions = [
   { icon: ShieldCheck, title: 'Cumplimiento', text: 'Prevención, calidad, acreditaciones y documentación contractual bajo control.' },
 ];
 
-function CorporatePreview({ onEnterPlatform, onBackHome }) {
+function CorporatePreview({ onEnterPlatform, onBackHome, variant = 'contemporary', onFormalPreview }) {
   const [section, setSection] = useState('Inicio');
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -32,7 +32,7 @@ function CorporatePreview({ onEnterPlatform, onBackHome }) {
   };
 
   return (
-    <div className="corp-site">
+    <div className={`corp-site ${variant === 'formal' ? 'corp-formal' : 'corp-contemporary'}`}>
       <div className="corp-utility">
         <div className="corp-container corp-utility-inner">
           <span>Plataforma integral para empresas constructoras</span>
@@ -108,7 +108,7 @@ function CorporatePreview({ onEnterPlatform, onBackHome }) {
         </section>
       </main>
 
-      <footer id="empresa" className="corp-footer"><div className="corp-container corp-footer-inner"><div className="corp-brand footer"><span className="corp-brand-mark">OX</span><span className="corp-brand-copy"><strong>OBRAXIS</strong><small>GESTIÓN DE PROYECTOS</small></span></div><p>Plataforma chilena para la gestión integral de empresas constructoras.</p><div><button onClick={onBackHome}>Sitio actual</button><button onClick={onEnterPlatform}>Acceso clientes</button></div></div><div className="corp-container corp-copyright"><span>© 2026 Obraxis SpA</span><span>Propuesta visual corporativa · Minisitio de evaluación</span></div></footer>
+      <footer id="empresa" className="corp-footer"><div className="corp-container corp-footer-inner"><div className="corp-brand footer"><span className="corp-brand-mark">OX</span><span className="corp-brand-copy"><strong>OBRAXIS</strong><small>GESTIÓN DE PROYECTOS</small></span></div><p>Plataforma chilena para la gestión integral de empresas constructoras.</p><div><button onClick={onBackHome}>Sitio actual</button>{variant !== 'formal' && <button onClick={onFormalPreview}>Versión formal</button>}<button onClick={onEnterPlatform}>Acceso clientes</button></div></div><div className="corp-container corp-copyright"><span>© 2026 Obraxis SpA</span><span>{variant === 'formal' ? 'Propuesta corporativa formal' : 'Propuesta corporativa contemporánea'} · Minisitio de evaluación</span></div></footer>
     </div>
   );
 }
