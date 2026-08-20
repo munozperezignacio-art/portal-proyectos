@@ -278,15 +278,12 @@ function ConfigCorreos({ user, onBack }) {
   };
 
   const fetchCompaniesForSelect = async () => {
-    if (!isObraxisGlobalAdmin) {
-      setAllCompaniesList(user?.empresa ? [{ empresa: user.empresa }] : []);
-      return;
-    }
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('config_empresa')
-        .select('empresa')
-        .order('empresa', { ascending: true });
+        .select('empresa, modulos_activos, submenus_activos');
+      if (!isObraxisGlobalAdmin) query = query.eq('empresa', user.empresa);
+      const { data, error } = await query.order('empresa', { ascending: true });
       if (error) throw error;
       setAllCompaniesList(data || []);
     } catch (err) {
@@ -520,7 +517,7 @@ function ConfigCorreos({ user, onBack }) {
     setErrorMsg('');
 
     const selectedRole = rolesList.find(r => r.nombre === userFormData.rol && r.empresa === userFormData.empresa);
-    const rolBase = selectedRole ? 'Personalizado' : (userFormData.rol_base || 'Personalizado');
+    const rolBase = selectedRole?.rol_base || userFormData.rol_base || 'Personalizado';
 
     const dataToSave = {
       usuario: userFormData.usuario.trim(),
@@ -835,7 +832,7 @@ function ConfigCorreos({ user, onBack }) {
 
         const { error: roleError } = await supabase.from('roles').insert([{
           nombre: adminRoleName,
-          rol_base: 'Personalizado',
+          rol_base: 'Administrador Empresa',
           descripcion: 'Administración general de la empresa y configuración inicial de permisos.',
           empresa: dataToSave.empresa,
           modulos: '',
@@ -856,7 +853,7 @@ function ConfigCorreos({ user, onBack }) {
           contrasena: initialPassword,
           empresa: dataToSave.empresa,
           rol: adminRoleName,
-          rol_base: 'Personalizado',
+          rol_base: 'Administrador Empresa',
           obras: 'todas',
           modulos: dataToSave.modulos_activos,
           submenus: dataToSave.submenus_activos,
@@ -2015,7 +2012,10 @@ function ConfigCorreos({ user, onBack }) {
                       const compMods = comp.modulos_activos.split(',').map(x => x.trim().toLowerCase());
                       return m === 'admin' || compMods.includes(m);
                     }
-                    return true;
+                    // Si la configuración de empresa aún no cargó, no mostrar
+                    // módulos adicionales por defecto. Así nunca se pueden
+                    // conceder accidentalmente módulos no contratados.
+                    return m === 'admin';
                   }).map((m) => {
                     const isChecked = userFormData.modulos.includes(m);
                     return (
@@ -2047,7 +2047,7 @@ function ConfigCorreos({ user, onBack }) {
                         const compSubs = comp.submenus_activos.split(',').map(x => x.trim().toLowerCase());
                         return compSubs.includes(s.id);
                       }
-                      return true;
+                      return false;
                     }
                     return true;
                   }).map((s) => {

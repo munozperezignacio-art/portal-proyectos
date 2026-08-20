@@ -11,7 +11,13 @@
 export const getUserLevel = (user) => {
   if (!user) return 4; // Mínimo privilegio cuando no existe un usuario autenticado.
 
-  const rol = (user.rol_base || user.rol || user.perfil || '').toLowerCase();
+  // `rol_base` puede ser "Personalizado" mientras que `rol` conserva la
+  // equivalencia real (por ejemplo, "Administrador de Empresa"). Evaluar
+  // ambos evita degradar accidentalmente a un administrador a nivel 4.
+  const rol = [user.rol_base, user.rol, user.perfil]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
   const nivelNum = user.nivel !== undefined && user.nivel !== null ? parseInt(user.nivel, 10) : null;
 
   if (nivelNum !== null && !isNaN(nivelNum) && nivelNum >= 0 && nivelNum <= 4) {

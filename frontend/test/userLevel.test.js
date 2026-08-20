@@ -10,6 +10,8 @@ test('aplica mínimo privilegio a sesiones ausentes y roles desconocidos', () =>
 
 test('reconoce administradores explícitos y restringe edición operativa', () => {
   assert.equal(getUserLevel({ rol_base: 'Administrador Empresa', empresa: 'Constructora Uno' }), 1);
+  assert.equal(getUserLevel({ rol_base: 'Personalizado', rol: 'Administrador de Empresa', empresa: 'Constructora Uno' }), 1);
   assert.equal(canCreateObras({ rol_base: 'Administrador Empresa', empresa: 'Constructora Uno' }), true);
+  assert.equal(canCreateObras({ rol_base: 'Personalizado', rol: 'Administrador de Empresa', empresa: 'Constructora Uno' }), true);
   assert.equal(canEditItem({ id: 'operador-1', nivel: 4 }, 'operador-1'), false);
 });
