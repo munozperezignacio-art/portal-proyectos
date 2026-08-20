@@ -30,3 +30,27 @@ test('interpreta jerarquía y recursos de un BC3 de Presto', () => {
 test('rechaza contenido que no es FIEBDC presupuestario', () => {
   assert.throws(() => parseBc3('texto cualquiera'), /registros ~C y ~D/);
 });
+
+test('resuelve capítulos Presto con # y conserva el detalle original del recurso', () => {
+  const source = `~V|RIB Spain|FIEBDC-3/2024|Presto 26||ANSI|
+~C|0##||RUTA|100|190826|0|
+~C|1#|GL|CAPÍTULO|100|190826|0|
+~C|1.1#|GL|SUBCAPÍTULO|100|190826|0|
+~C|1.1.1|m2|PARTIDA|100|190826|0|
+~C|M001|kg|MATERIAL|25|160626|3|
+~D|0##|1\\1\\1\\|
+~D|1#|1.1\\1\\1\\|
+~D|1.1#|1.1.1\\1\\12.5\\|
+~D|1.1.1|M001\\2\\0.4\\|`;
+  const result = parseBc3(source);
+  assert.deepEqual(result.items.map(item => [item.codigo, item.tipo_item, item.parent_codigo]), [
+    ['1#', 'CAPITULO', ''], ['1.1#', 'SUBCAPITULO', '1#'], ['1.1.1', 'PARTIDA', '1.1#']
+  ]);
+  assert.equal(result.items[2].cantidad, 12.5);
+  assert.deepEqual(result.resources[0], {
+    codigo_recurso: 'M001', recurso: 'MATERIAL', tipo: 'Material', tipo_bc3: '3', categoria: 'Presto / BC3',
+    unidad: 'kg', costo_unitario: 25, fecha_precio: '160626', factor_descomposicion: 2,
+    cantidad_descomposicion: 0.4, cantidad_unidad: 0.8, rendimiento: 1,
+    indicadores_ambientales: {}, consumo_combustible_lh: 0, codigo_partida: '1.1.1'
+  });
+});

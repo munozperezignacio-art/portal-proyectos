@@ -5928,29 +5928,35 @@ export type Database = {
       }
       presupuestos_items_recursos: {
         Row: {
+          cantidad_descomposicion: number | null
           cantidad_unidad: number | null
           consumo_combustible_lh: number | null
           created_at: string | null
           id: number
           item_id: number | null
+          factor_descomposicion: number | null
           recurso_id: number | null
           rendimiento: number | null
         }
         Insert: {
+          cantidad_descomposicion?: number | null
           cantidad_unidad?: number | null
           consumo_combustible_lh?: number | null
           created_at?: string | null
           id?: number
           item_id?: number | null
+          factor_descomposicion?: number | null
           recurso_id?: number | null
           rendimiento?: number | null
         }
         Update: {
+          cantidad_descomposicion?: number | null
           cantidad_unidad?: number | null
           consumo_combustible_lh?: number | null
           created_at?: string | null
           id?: number
           item_id?: number | null
+          factor_descomposicion?: number | null
           recurso_id?: number | null
           rendimiento?: number | null
         }
@@ -6480,39 +6486,51 @@ export type Database = {
           cantidad_estimada: number | null
           categoria: string
           ciudad: string | null
+          codigo_origen: string | null
           costo_unitario: number | null
           created_at: string | null
+          fecha_precio: string | null
           id: number
+          indicadores_ambientales: Json
           presupuesto_id: number | null
           proveedor: string | null
           recurso: string
           tipo: string | null
+          tipo_bc3: string | null
           unidad: string | null
         }
         Insert: {
           cantidad_estimada?: number | null
           categoria?: string
           ciudad?: string | null
+          codigo_origen?: string | null
           costo_unitario?: number | null
           created_at?: string | null
+          fecha_precio?: string | null
           id?: number
+          indicadores_ambientales?: Json
           presupuesto_id?: number | null
           proveedor?: string | null
           recurso: string
           tipo?: string | null
+          tipo_bc3?: string | null
           unidad?: string | null
         }
         Update: {
           cantidad_estimada?: number | null
           categoria?: string
           ciudad?: string | null
+          codigo_origen?: string | null
           costo_unitario?: number | null
           created_at?: string | null
+          fecha_precio?: string | null
           id?: number
+          indicadores_ambientales?: Json
           presupuesto_id?: number | null
           proveedor?: string | null
           recurso?: string
           tipo?: string | null
+          tipo_bc3?: string | null
           unidad?: string | null
         }
         Relationships: [

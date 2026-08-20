@@ -151,7 +151,8 @@ export default function BudgetExcelImporter({ presupuestoId, projectCurrency = '
 
   const importBudget = async () => {
     if (!preview || errors.length || !presupuestoId) return; setBusy(true);
-    const { data, error } = await supabase.rpc('importar_presupuesto_jerarquico', { p_presupuesto_id:Number(presupuestoId), p_items:preview.partidas, p_recursos:preview.recursos, p_moneda_base:projectCurrency, p_origen:preview.origin||'EXCEL' });
+    const rpcName = preview.origin === 'PRESTO_BC3' ? 'importar_presupuesto_bc3_detallado' : 'importar_presupuesto_jerarquico';
+    const { data, error } = await supabase.rpc(rpcName, { p_presupuesto_id:Number(presupuestoId), p_items:preview.partidas, p_recursos:preview.recursos, p_moneda_base:projectCurrency, p_origen:preview.origin||'EXCEL' });
     setBusy(false);
     if (error) { setErrors([error.message]); return; }
     setPreview(null); await onImported?.(data);
