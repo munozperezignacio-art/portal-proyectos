@@ -51,6 +51,7 @@ const PublicClientePortal = lazyWithRetry(() => import('./components/PublicClien
 const PublicMandantePortal = lazyWithRetry(() => import('./components/PublicMandantePortal'), 'portal-mandante');
 const FloatingOX = lazyWithRetry(() => import('./components/FloatingOX'), 'ox');
 const PlatformNotificationCenter = lazyWithRetry(() => import('./components/PlatformNotificationCenter'), 'notificaciones-plataforma');
+const CorporatePreview = lazyWithRetry(() => import('./components/CorporatePreview'), 'sitio-corporativo');
 
 function ModuleLoader() {
   return (
@@ -361,6 +362,13 @@ function App() {
   // --- CONTROL DE RUTAS OFICIAL OBRAXIS ---
   const rawPath = (path || '').toLowerCase();
   const normalizedPath = rawPath.endsWith('/') && rawPath.length > 1 ? rawPath.slice(0, -1) : rawPath;
+
+  if (normalizedPath === '/corporativo' || normalizedPath === '/empresa') {
+    return <React.Suspense fallback={<ModuleLoader />}><CorporatePreview
+      onEnterPlatform={() => navigateTo('/login')}
+      onBackHome={() => navigateTo('/')}
+    /></React.Suspense>;
+  }
 
   if (authLoading) return <ModuleLoader />;
 
