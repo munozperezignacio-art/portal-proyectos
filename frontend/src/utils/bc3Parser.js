@@ -87,7 +87,10 @@ export function parseBc3(source, { fileName = 'presupuesto.bc3' } = {}) {
   const roots = rootCandidates.sort((a, b) => Number(!/##$/.test(a)) - Number(!/##$/.test(b)));
   if (!roots.length) throw new Error('No fue posible determinar el concepto raíz del presupuesto BC3.');
 
-  const isResource = concept => ['1', '2', '3', '4', '5'].includes(concept?.type);
+  // FIEBDC permite conceptos porcentuales como % y %% con tipo 0. Aunque no
+  // tengan naturaleza de insumo, forman parte de la descomposición del APU y
+  // nunca deben convertirse en partidas del presupuesto.
+  const isResource = concept => ['1', '2', '3', '4', '5'].includes(concept?.type) || /^%+$/.test(concept?.code || '');
   const isGroup = code => {
     const concept = concepts.get(code);
     const children = decompositions.get(code) || [];
@@ -103,7 +106,7 @@ export function parseBc3(source, { fileName = 'presupuesto.bc3' } = {}) {
       const quantity = multiplier * component.factor * component.rendimiento;
       if (!concept) { warnings.push(`El concepto ${component.code} está referenciado pero no definido.`); return []; }
       if (isResource(concept) || !(decompositions.get(component.code) || []).length) {
-        return [{ codigo_recurso: concept.code, recurso: concept.summary, tipo: simpleType(concept.type), tipo_bc3: concept.type, categoria: 'Presto / BC3', unidad: concept.unit || 'un', costo_unitario: concept.price, fecha_precio: concept.priceDate || null, factor_descomposicion: component.factor, cantidad_descomposicion: component.rendimiento, cantidad_unidad: quantity, rendimiento: 1, indicadores_ambientales: indicators.get(concept.code) || {}, consumo_combustible_lh: 0 }];
+        return [{ codigo_recurso: concept.code, recurso: concept.summary, tipo: simpleType(concept.type), tipo_bc3: concept.type, categoria: 'Presto / BC3', unidad: concept.unit || 'un', costo_unitario: concept.price, fecha_precio: concept.priceDate || null, factor_descomposicion: component.factor, cantidad_descomposicion: component.rendimiento, cantidad_unidad: quantity, porcentaje_bc3: /%$/.test(concept.code), rendimiento: 1, indicadores_ambientales: indicators.get(concept.code) || {}, consumo_combustible_lh: 0 }];
       }
       return flattenResources(component.code, quantity, nextVisited);
     });
@@ -125,8 +128,23 @@ export function parseBc3(source, { fileName = 'presupuesto.bc3' } = {}) {
       const measurement = measurements.get(`${parentCode}>${code}`);
       const relationship = (decompositions.get(parentCode) || []).find(entry => entry.code === code);
       const quantity = measurement || (relationship ? relationship.factor * relationship.rendimiento : 1);
-      rawItems.push({ TIPO_FILA: tipo, codigo: code, codigo_origen: code, partida: concept.summary, unidad: group ? (tipo === 'CAPITULO' ? 'TITULO' : 'GRUPO') : (concept.unit || 'un'), cantidad: group ? 0 : quantity, costo_unitario: group ? 0 : concept.price, tipo_metodologia: 'Precio Unitario', rendimiento_meta: group ? 0 : 1, parent_codigo: effectiveParent, nivel: Math.max(0, artificialRoot ? level - 1 : level), origen_importacion: 'PRESTO_BC3' });
-      if (!group) flattenResources(code).forEach(resource => resources.push({ ...resource, codigo_partida: code }));
+      const rawItem = { TIPO_FILA: tipo, codigo: code, codigo_origen: code, partida: concept.summary, unidad: group ? (tipo === 'CAPITULO' ? 'TITULO' : 'GRUPO') : (concept.unit || 'un'), cantidad: group ? 0 : quantity, costo_unitario: group ? 0 : concept.price, tipo_metodologia: 'Precio Unitario', rendimiento_meta: group ? 0 : 1, parent_codigo: effectiveParent, nivel: Math.max(0, artificialRoot ? level - 1 : level), origen_importacion: 'PRESTO_BC3' };
+      rawItems.push(rawItem);
+      if (!group) {
+        const itemResources = flattenResources(code);
+        const aggregated = new Map();
+        itemResources.forEach(resource => {
+          const rate = resource.cantidad_descomposicion * 100;
+          if (resource.codigo_recurso === 'WL%') rawItem.leyes_sociales_pct = Math.max(rawItem.leyes_sociales_pct || 0, rate);
+          else if (resource.codigo_recurso === '%') rawItem.imponderables_pct = Math.max(rawItem.imponderables_pct || 0, rate);
+          else {
+            const key = `${resource.codigo_recurso}|${resource.unidad}|${resource.costo_unitario}`;
+            const previous = aggregated.get(key);
+            aggregated.set(key, previous ? { ...previous, cantidad_unidad: previous.cantidad_unidad + resource.cantidad_unidad, factor_descomposicion: null, cantidad_descomposicion: null } : resource);
+          }
+        });
+        aggregated.forEach(resource => resources.push({ ...resource, codigo_partida: code }));
+      }
     }
     if (group || artificialRoot) (decompositions.get(code) || []).forEach(child => {
       const childConcept = concepts.get(child.code);
@@ -137,8 +155,18 @@ export function parseBc3(source, { fileName = 'presupuesto.bc3' } = {}) {
 
   const items = buildBudgetHierarchy(rawItems);
   if (!items.some(item => item.tipo_item === 'PARTIDA')) throw new Error('El BC3 no contiene partidas ejecutables reconocibles.');
+  const globalCosts = [];
+  const seenGlobals = new Set();
+  decompositions.forEach(children => children.forEach(component => {
+    if (component.code !== '%%') return;
+    const concept = concepts.get(component.code);
+    const value = Math.round((component.rendimiento * 100 || concept?.price || 0) * 1e8) / 1e8;
+    const key = `${component.code}:${value}`;
+    if (!seenGlobals.has(key)) globalCosts.push({ codigo_origen: component.code, concepto: concept?.summary || 'Costo global BC3', tipo: 'Porcentaje', valor: value, prorratear: true });
+    seenGlobals.add(key);
+  }));
   return {
     items, resources, warnings: [...new Set(warnings)],
-    metadata: { fileName, version, emitter, concepts: concepts.size, roots: roots.length }
+    globalCosts, metadata: { fileName, version, emitter, concepts: concepts.size, roots: roots.length }
   };
 }
