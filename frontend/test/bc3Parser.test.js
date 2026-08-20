@@ -50,7 +50,24 @@ test('resuelve capítulos Presto con # y conserva el detalle original del recurs
   assert.deepEqual(result.resources[0], {
     codigo_recurso: 'M001', recurso: 'MATERIAL', tipo: 'Material', tipo_bc3: '3', categoria: 'Presto / BC3',
     unidad: 'kg', costo_unitario: 25, fecha_precio: '160626', factor_descomposicion: 2,
-    cantidad_descomposicion: 0.4, cantidad_unidad: 0.8, rendimiento: 1,
+    cantidad_descomposicion: 0.4, cantidad_unidad: 0.8, porcentaje_bc3: false, rendimiento: 1,
     indicadores_ambientales: {}, consumo_combustible_lh: 0, codigo_partida: '1.1.1'
   });
+});
+
+test('mantiene los porcentajes repetidos como recursos de cada capítulo', () => {
+  const source = `~V|RIB Spain|FIEBDC-3/2024|Presto 26||ANSI|
+~C|0##||OBRA|0|190826|0|
+~C|1#|GL|CAPÍTULO 1|0|190826|0|
+~C|2#|GL|CAPÍTULO 2|0|190826|0|
+~C|1.1|m2|PARTIDA 1|10|190826|0|
+~C|2.1|m2|PARTIDA 2|10|190826|0|
+~C|%%|GL|IMPONDERADOS|7|190826|0|
+~D|0##|1\\1\\1\\2\\1\\1\\|
+~D|1#|1.1\\1\\1\\%%\\1\\0.07\\|
+~D|2#|2.1\\1\\1\\%%\\1\\0.07\\|`;
+  const result = parseBc3(source);
+  assert.deepEqual(result.items.map(item => item.codigo), ['1#', '1.1', '2#', '2.1']);
+  assert.equal(result.resources.length, 0);
+  assert.deepEqual(result.globalCosts, [{ codigo_origen: '%%', concepto: 'IMPONDERADOS', tipo: 'Porcentaje', valor: 7, prorratear: true }]);
 });

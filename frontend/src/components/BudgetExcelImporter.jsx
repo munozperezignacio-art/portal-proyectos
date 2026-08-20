@@ -144,15 +144,18 @@ export default function BudgetExcelImporter({ presupuestoId, projectCurrency = '
       });
       parsed.resources.forEach(resource => { if (!codes.has(resource.codigo_partida)) validation.push(`El recurso ${resource.codigo_recurso} apunta a una partida inexistente.`); });
       setErrors(validation);
-      setPreview({ partidas:parsed.items, recursos:parsed.resources, fileName:file.name, origin:'PRESTO_BC3', warnings:parsed.warnings, metadata:parsed.metadata });
+      setPreview({ partidas:parsed.items, recursos:parsed.resources, globalCosts:parsed.globalCosts, fileName:file.name, origin:'PRESTO_BC3', warnings:parsed.warnings, metadata:parsed.metadata });
     } catch (error) { setErrors([error.message]); }
     event.target.value = '';
   };
 
   const importBudget = async () => {
     if (!preview || errors.length || !presupuestoId) return; setBusy(true);
-    const rpcName = preview.origin === 'PRESTO_BC3' ? 'importar_presupuesto_bc3_detallado' : 'importar_presupuesto_jerarquico';
-    const { data, error } = await supabase.rpc(rpcName, { p_presupuesto_id:Number(presupuestoId), p_items:preview.partidas, p_recursos:preview.recursos, p_moneda_base:projectCurrency, p_origen:preview.origin||'EXCEL' });
+    const isBc3 = preview.origin === 'PRESTO_BC3';
+    const rpcName = isBc3 ? 'importar_presupuesto_bc3_completo' : 'importar_presupuesto_jerarquico';
+    const params = { p_presupuesto_id:Number(presupuestoId), p_items:preview.partidas, p_recursos:preview.recursos, p_moneda_base:projectCurrency, p_origen:preview.origin||'EXCEL' };
+    if (isBc3) params.p_globales = preview.globalCosts || [];
+    const { data, error } = await supabase.rpc(rpcName, params);
     setBusy(false);
     if (error) { setErrors([error.message]); return; }
     setPreview(null); await onImported?.(data);
