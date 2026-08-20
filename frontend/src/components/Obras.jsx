@@ -1080,6 +1080,16 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     }
   };
 
+  const deleteWorkBudgetItem = async (partida, includeDescendants = false) => {
+    if (!partida?.id) throw new Error('La partida no tiene un identificador persistente.');
+    const { error } = await supabase.rpc('eliminar_partida_presupuesto_obra', {
+      p_partida_obra_id: Number(partida.id),
+      p_incluir_descendientes: includeDescendants
+    });
+    if (error) throw error;
+    await fetchObraDetails(selectedObra.nombre);
+  };
+
   const ensureWorkBudget = async () => {
     if (!selectedObra) throw new Error('Selecciona una obra antes de importar.');
     if (linkedBudgetId) return linkedBudgetId;
@@ -6156,12 +6166,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                           onClick={async () => {
                                             if (!confirm(`¿Eliminar el grupo "${p.partida}"?`)) return;
                                             try {
-                                              if (p.id) {
-                                                await supabase.from('partidas_obra').delete().eq('id', p.id);
-                                              } else {
-                                                await supabase.from('partidas_obra').delete().eq('empresa', user?.empresa || 'Obraxis').eq('obra_nombre', selectedObra?.nombre).eq('partida', p.partida);
-                                              }
-                                              setPartidasList(prev => prev.filter((_, i) => i !== idx));
+                                              await deleteWorkBudgetItem(p, true);
                                             } catch (err) { alert('Error: ' + err.message); }
                                           }}
                                           className="p-1 text-slate-600 hover:text-red-700 transition cursor-pointer"
@@ -6256,14 +6261,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                     onClick={async () => {
                                       if (!confirm(`¿Eliminar la partida "${p.partida}" permanentemente de la obra?`)) return;
                                       try {
-                                        if (p.id) {
-                                          const { error: delErr } = await supabase.from('partidas_obra').delete().eq('id', p.id);
-                                          if (delErr) throw delErr;
-                                        } else {
-                                          const { error: delErr } = await supabase.from('partidas_obra').delete().eq('empresa', user?.empresa || 'Obraxis').eq('obra_nombre', selectedObra?.nombre).eq('partida', p.partida);
-                                          if (delErr) throw delErr;
-                                        }
-                                        setPartidasList(prev => prev.filter((_, i) => i !== idx));
+                                        await deleteWorkBudgetItem(p, false);
                                       } catch (err) {
                                         console.error('Error al eliminar partida:', err);
                                         alert('Error al eliminar la partida de la base de datos: ' + err.message);
