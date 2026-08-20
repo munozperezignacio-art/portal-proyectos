@@ -5599,6 +5599,7 @@ export type Database = {
           id: number
           porcentaje_avance: number | null
           predecesora: string | null
+          presupuesto_item_id: number | null
           presupuesto_id: number | null
           responsable: string | null
           tarea: string
@@ -5613,6 +5614,7 @@ export type Database = {
           id?: number
           porcentaje_avance?: number | null
           predecesora?: string | null
+          presupuesto_item_id?: number | null
           presupuesto_id?: number | null
           responsable?: string | null
           tarea: string
@@ -5627,11 +5629,19 @@ export type Database = {
           id?: number
           porcentaje_avance?: number | null
           predecesora?: string | null
+          presupuesto_item_id?: number | null
           presupuesto_id?: number | null
           responsable?: string | null
           tarea?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "planificacion_cronogramas_presupuesto_item_id_fkey"
+            columns: ["presupuesto_item_id"]
+            isOneToOne: false
+            referencedRelation: "presupuestos_items"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "planificacion_cronogramas_presupuesto_id_fkey"
             columns: ["presupuesto_id"]

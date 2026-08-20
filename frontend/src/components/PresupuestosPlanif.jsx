@@ -762,7 +762,8 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
 
       // Fusionar partidas de presupuesto
       const mergedList = sortedItems.map(item => {
-        const existing = (cronoData || []).find(c => c.codigo === item.codigo);
+        const existing = (cronoData || []).find(c => Number(c.presupuesto_item_id) === Number(item.id))
+          || (cronoData || []).find(c => !c.presupuesto_item_id && c.codigo === item.codigo);
         
         const qty = parseFloat(item.cantidad) || 0;
         const rend = parseFloat(item.rendimiento_meta) || 0;
@@ -787,8 +788,9 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
         return {
           id: existing ? existing.id : 'temp-crono-' + item.codigo,
           presupuesto_id: projId,
-          codigo: item.codigo,
-          tarea: item.partida, // Sincronizado siempre con el nombre actual de la partida
+          codigo: existing ? existing.codigo : item.codigo,
+          tarea: existing ? existing.tarea : item.partida,
+          presupuesto_item_id: item.id,
           fecha_inicio: existing ? existing.fecha_inicio : defaultStart,
           fecha_fin: defaultEnd,
           duracion: finalDuration,
@@ -807,7 +809,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
 
       // Agregar hitos (que no coinciden con códigos de partidas de presupuesto)
       (cronoData || []).forEach(c => {
-        if (!mergedList.some(m => m.codigo === c.codigo)) {
+        if (!mergedList.some(m => m.id === c.id)) {
           const rawPred = c.predecesora || '';
           const parsed = parsePredecesora(rawPred) || { code: '', type: 'FC', lag: 0 };
           mergedList.push({
@@ -1862,6 +1864,9 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
             predecesora_code: _predecesoraCode,
             predecesora_tipo: _predecesoraTipo,
             predecesora_desfase: _predecesoraDesfase,
+            requiere_partida: _requierePartida,
+            es_resumen_project: _esResumenProject,
+            tipo_conciliacion: _tipoConciliacion,
             ...rest 
           } = t;
           return {
@@ -1900,6 +1905,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
             fecha_fin: item.fecha_fin,
             duracion: isNaN(parseInt(item.duracion, 10)) ? 0 : parseInt(item.duracion, 10),
             predecesora: item.predecesora,
+            presupuesto_item_id: item.presupuesto_item_id || null,
             porcentaje_avance: parseFloat(item.porcentaje_avance) || 0,
             responsable: item.responsable,
             estado: item.estado
@@ -3616,6 +3622,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
 
                       <ScheduleFileImporter
                         disabled={!canEdit || tasksLoading}
+                        budgetItems={itemsPresupuesto}
                         calculateEndDate={(start, duration) => calculateEndDateWithCalendar(start, duration, calendarConfig)}
                         onApply={handleSaveCronograma}
                       />
@@ -4376,7 +4383,8 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
                     });
 
                     tasks.forEach(task => {
-                      const item = itemsPresupuesto.find(i => i.codigo === task.codigo);
+                      const item = itemsPresupuesto.find(i => Number(i.id) === Number(task.presupuesto_item_id))
+                        || itemsPresupuesto.find(i => i.codigo === task.codigo);
                       if (!item) return;
 
                       const start = task.fecha_inicio ? new Date(task.fecha_inicio + 'T00:00:00') : new Date();
