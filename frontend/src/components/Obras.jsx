@@ -1059,6 +1059,26 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const [maquinariaList, setMaquinariaList] = useState([]);
   const [maquinariaUsoObra, setMaquinariaUsoObra] = useState([]);
   const [partidasList, setPartidasList] = useState([]);
+  const [workResourceSheet, setWorkResourceSheet] = useState(null);
+  const [workResourceSheetLoading, setWorkResourceSheetLoading] = useState(false);
+
+  const openWorkResourceSheet = async partida => {
+    setWorkResourceSheet({ partida, links: [] });
+    setWorkResourceSheetLoading(true);
+    try {
+      if (!partida.presupuesto_item_id) throw new Error('Esta partida no está vinculada a un ítem del presupuesto maestro.');
+      const { data, error } = await supabase.from('presupuestos_items_recursos')
+        .select('*, recursos_presupuesto(*)')
+        .eq('item_id', partida.presupuesto_item_id)
+        .order('id', { ascending: true });
+      if (error) throw error;
+      setWorkResourceSheet({ partida, links: data || [] });
+    } catch (error) {
+      setWorkResourceSheet({ partida, links: [], error: error.message });
+    } finally {
+      setWorkResourceSheetLoading(false);
+    }
+  };
 
   const ensureWorkBudget = async () => {
     if (!selectedObra) throw new Error('Selecciona una obra antes de importar.');
@@ -6033,13 +6053,30 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                           const totalItem = (p.cantidad || 0) * puVal;
 
                           if (isTitleRow) {
-                            // Un título agrupa todas las partidas consecutivas hasta el siguiente título,
-                            // igual que en Planificación. No se excluyen partidas con costo todavía en cero.
-                            const groupChildren = [];
-                            for (let i = idx + 1; i < partidasList.length; i++) {
-                              const child = partidasList[i];
-                              if (child.unidad === 'TITULO' || child.unidad === 'GRUPO' || child.es_titulo) break;
-                              groupChildren.push(child);
+                            // La jerarquía importada usa parent_codigo: un capítulo debe acumular
+                            // todas las partidas de sus subcapítulos, no sólo las filas contiguas.
+                            const descendants = new Set([p.codigo]);
+                            let changed = true;
+                            while (changed) {
+                              changed = false;
+                              partidasList.forEach(candidate => {
+                                if (candidate.parent_codigo && descendants.has(candidate.parent_codigo) && !descendants.has(candidate.codigo)) {
+                                  descendants.add(candidate.codigo); changed = true;
+                                }
+                              });
+                            }
+                            let groupChildren = partidasList.filter(candidate =>
+                              !(candidate.unidad === 'TITULO' || candidate.unidad === 'GRUPO' || candidate.es_titulo)
+                              && candidate.parent_codigo && descendants.has(candidate.parent_codigo)
+                            );
+                            // Compatibilidad con grupos manuales antiguos que no tienen códigos padre.
+                            if (!p.codigo || !groupChildren.length) {
+                              groupChildren = [];
+                              for (let i = idx + 1; i < partidasList.length; i++) {
+                                const child = partidasList[i];
+                                if (child.unidad === 'TITULO' || child.es_titulo) break;
+                                if (child.unidad !== 'GRUPO') groupChildren.push(child);
+                              }
                             }
                             const countBelow = groupChildren.length;
                             const groupSum = groupChildren.reduce((sum, child) => {
@@ -6188,6 +6225,15 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                     >
                                       ▼
                                     </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => openWorkResourceSheet(p)}
+                                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold text-emerald-800 transition hover:bg-emerald-50"
+                                    title="Ver ficha de recursos"
+                                  >
+                                    <FileText className="w-3.5 h-3.5" />
+                                    <span>Ficha</span>
+                                  </button>
                                   <button
                                     onClick={() => {
                                       setEditingPartida(p);
@@ -9745,6 +9791,39 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       )}
 
       {/* MODAL: CREAR / EDITAR PARTIDA DE OBRA */}
+      {workResourceSheet && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto bg-slate-900/60 p-2 backdrop-blur-sm sm:p-4">
+          <div className="w-full max-w-5xl rounded-3xl border border-slate-100 bg-white p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-3">
+              <div>
+                <h3 className="text-sm font-extrabold text-slate-900">Ficha de partida y recursos</h3>
+                <p className="mt-1 text-xs font-bold text-slate-600">{workResourceSheet.partida.codigo ? `${workResourceSheet.partida.codigo} · ` : ''}{workResourceSheet.partida.partida}</p>
+              </div>
+              <button type="button" onClick={() => setWorkResourceSheet(null)} className="text-xl font-bold text-slate-400 hover:text-slate-700">✕</button>
+            </div>
+            {workResourceSheetLoading ? <p className="p-8 text-center text-xs text-slate-500">Cargando recursos…</p> : workResourceSheet.error ? (
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">{workResourceSheet.error}</div>
+            ) : (
+              <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+                <table className="w-full min-w-[760px] text-left text-xs">
+                  <thead className="bg-slate-50 text-[9px] font-bold uppercase text-slate-600"><tr><th className="p-3">Código / Recurso</th><th className="p-3">Tipo</th><th className="p-3">Unidad</th><th className="p-3 text-right">Cantidad</th><th className="p-3 text-right">Precio unitario</th><th className="p-3 text-right">Costo parcial</th></tr></thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {workResourceSheet.links.map(link => {
+                      const resource = link.recursos_presupuesto || {};
+                      const unit = String(resource.unidad || 'un').split('|')[0].trim();
+                      const quantity = Number(link.cantidad_unidad) || 0;
+                      const price = Number(resource.costo_unitario) || 0;
+                      return <tr key={link.id}><td className="p-3"><span className="block font-bold text-slate-900">{resource.recurso || 'Recurso'}</span><span className="text-[9px] text-blue-700">{resource.codigo_origen ? `Presto: ${resource.codigo_origen}` : ''}</span></td><td className="p-3 text-slate-600">{resource.tipo || 'Otros'}</td><td className="p-3 font-mono text-slate-600">{unit}</td><td className="p-3 text-right font-mono">{quantity.toLocaleString('es-CL')}</td><td className="p-3 text-right font-mono">${price.toLocaleString('es-CL')}</td><td className="p-3 text-right font-mono font-black text-emerald-800">${(quantity * price).toLocaleString('es-CL')}</td></tr>;
+                    })}
+                    {!workResourceSheet.links.length && <tr><td colSpan="6" className="p-8 text-center text-slate-400">Esta partida no tiene recursos vinculados.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {showPartidaModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
