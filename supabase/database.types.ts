@@ -5786,25 +5786,31 @@ export type Database = {
       }
       presupuestos_costos_indirectos: {
         Row: {
+          codigo_origen: string | null
           concepto: string
           created_at: string | null
           id: number
+          origen_importacion: string
           presupuesto_id: number | null
           tipo: string | null
           valor: number | null
         }
         Insert: {
+          codigo_origen?: string | null
           concepto: string
           created_at?: string | null
           id?: number
+          origen_importacion?: string
           presupuesto_id?: number | null
           tipo?: string | null
           valor?: number | null
         }
         Update: {
+          codigo_origen?: string | null
           concepto?: string
           created_at?: string | null
           id?: number
+          origen_importacion?: string
           presupuesto_id?: number | null
           tipo?: string | null
           valor?: number | null
@@ -5996,6 +6002,7 @@ export type Database = {
           empresa: string
           id: number
           metodologia: string | null
+          moneda_base: string
           nombre: string
           plazo_estimado: number | null
           presupuesto_estimado: number | null
@@ -6010,6 +6017,7 @@ export type Database = {
           empresa?: string
           id?: number
           metodologia?: string | null
+          moneda_base?: string
           nombre: string
           plazo_estimado?: number | null
           presupuesto_estimado?: number | null
@@ -6024,6 +6032,7 @@ export type Database = {
           empresa?: string
           id?: number
           metodologia?: string | null
+          moneda_base?: string
           nombre?: string
           plazo_estimado?: number | null
           presupuesto_estimado?: number | null

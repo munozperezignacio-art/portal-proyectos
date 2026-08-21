@@ -57,6 +57,15 @@ const getObraDateRange = (obra) => {
   return { start, end };
 };
 
+const formatBudgetMoney = (value, currency = 'CLP') => {
+  const amount = Number(value) || 0;
+  const normalizedCurrency = String(currency || 'CLP').toUpperCase();
+  if (normalizedCurrency === 'UF') {
+    return `UF ${amount.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 4 })}`;
+  }
+  return amount.toLocaleString('es-CL', { style: 'currency', currency: normalizedCurrency, maximumFractionDigits: normalizedCurrency === 'CLP' ? 0 : 2 });
+};
+
 // Componente de Mapa Interactivo Leaflet con Pin Arrastrable y Círculo de Cobertura GPS
 function ObraGpsMapPicker({ lat, lng, radius, onChange, canEdit }) {
   const mapRef = React.useRef(null);
@@ -367,6 +376,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const [linkedBudgetId, setLinkedBudgetId] = useState(null);
   const [showWorkBudgetImporter, setShowWorkBudgetImporter] = useState(false);
   const [preparingWorkBudget, setPreparingWorkBudget] = useState(false);
+  const [showWorkCostSummary, setShowWorkCostSummary] = useState(true);
+  const [workBudgetFinancials, setWorkBudgetFinancials] = useState({ currency: 'CLP', items: [], indirectCosts: [], loading: false, error: '' });
 
   // Modal y CRUD de Partidas dentro de la Obra
   const [showPartidaModal, setShowPartidaModal] = useState(false);
@@ -1062,19 +1073,47 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const [workResourceSheet, setWorkResourceSheet] = useState(null);
   const [workResourceSheetLoading, setWorkResourceSheetLoading] = useState(false);
 
+  const loadWorkBudgetFinancials = async presupuestoId => {
+    if (!presupuestoId) {
+      setWorkBudgetFinancials({ currency: 'CLP', items: [], indirectCosts: [], loading: false, error: '' });
+      return;
+    }
+    setWorkBudgetFinancials(current => ({ ...current, loading: true, error: '' }));
+    try {
+      const [projectResult, itemsResult, indirectResult] = await Promise.all([
+        supabase.from('presupuestos_proyectos').select('moneda_base').eq('id', presupuestoId).single(),
+        supabase.from('presupuestos_items').select('*').eq('presupuesto_id', presupuestoId).order('orden', { ascending: true }),
+        supabase.from('presupuestos_costos_indirectos').select('*').eq('presupuesto_id', presupuestoId).order('id', { ascending: true })
+      ]);
+      if (projectResult.error) throw projectResult.error;
+      if (itemsResult.error) throw itemsResult.error;
+      if (indirectResult.error) throw indirectResult.error;
+      setWorkBudgetFinancials({
+        currency: String(projectResult.data?.moneda_base || 'CLP').toUpperCase(),
+        items: itemsResult.data || [],
+        indirectCosts: indirectResult.data || [],
+        loading: false,
+        error: ''
+      });
+    } catch (error) {
+      setWorkBudgetFinancials(current => ({ ...current, loading: false, error: error.message }));
+    }
+  };
+
   const openWorkResourceSheet = async partida => {
-    setWorkResourceSheet({ partida, links: [] });
+    setWorkResourceSheet({ partida, budgetItem: null, links: [], currency: workBudgetFinancials.currency });
     setWorkResourceSheetLoading(true);
     try {
       if (!partida.presupuesto_item_id) throw new Error('Esta partida no está vinculada a un ítem del presupuesto maestro.');
-      const { data, error } = await supabase.from('presupuestos_items_recursos')
-        .select('*, recursos_presupuesto(*)')
-        .eq('item_id', partida.presupuesto_item_id)
-        .order('id', { ascending: true });
-      if (error) throw error;
-      setWorkResourceSheet({ partida, links: data || [] });
+      const [itemResult, linksResult] = await Promise.all([
+        supabase.from('presupuestos_items').select('*').eq('id', partida.presupuesto_item_id).single(),
+        supabase.from('presupuestos_items_recursos').select('*, recursos_presupuesto(*)').eq('item_id', partida.presupuesto_item_id).order('id', { ascending: true })
+      ]);
+      if (itemResult.error) throw itemResult.error;
+      if (linksResult.error) throw linksResult.error;
+      setWorkResourceSheet({ partida, budgetItem: itemResult.data, links: linksResult.data || [], currency: workBudgetFinancials.currency });
     } catch (error) {
-      setWorkResourceSheet({ partida, links: [], error: error.message });
+      setWorkResourceSheet({ partida, budgetItem: null, links: [], currency: workBudgetFinancials.currency, error: error.message });
     } finally {
       setWorkResourceSheetLoading(false);
     }
@@ -1599,6 +1638,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           ]);
           linkedBudgetItems = budgetRows || [];
           linkedSchedule = scheduleRows || [];
+          await loadWorkBudgetFinancials(relation.presupuesto_id);
+        } else {
+          await loadWorkBudgetFinancials(null);
         }
       } catch (planningError) {
         console.warn('No fue posible sincronizar la planificación vinculada:', planningError);
@@ -6010,7 +6052,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
               {showWorkBudgetImporter && linkedBudgetId && (
                 <BudgetExcelImporter
                   presupuestoId={linkedBudgetId}
-                  projectCurrency="CLP"
+                  projectCurrency={workBudgetFinancials.currency || 'CLP'}
                   onImported={async result => {
                     try {
                       await syncLinkedBudgetToWork(linkedBudgetId);
@@ -6022,6 +6064,43 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   }}
                 />
               )}
+
+              {linkedBudgetId && (() => {
+                const executableItems = workBudgetFinancials.items.filter(item => !item.es_titulo && item.tipo_item !== 'TITULO');
+                const directCost = executableItems.reduce((sum, item) => sum + ((Number(item.cantidad) || 0) * (Number(item.costo_unitario) || 0)), 0);
+                const detailedCosts = workBudgetFinancials.indirectCosts.map(cost => ({
+                  ...cost,
+                  calculatedAmount: String(cost.tipo || '').toLowerCase() === 'porcentaje'
+                    ? directCost * (Number(cost.valor) || 0) / 100
+                    : Number(cost.valor) || 0,
+                  // Si Presto entrega un porcentaje combinado (p. ej. imponderables + financiero),
+                  // no inventamos una separación: se conserva como indirecto global.
+                  isFinancial: /financ/i.test(String(cost.concepto || '')) && !/imponder/i.test(String(cost.concepto || ''))
+                }));
+                const indirectCost = detailedCosts.filter(cost => !cost.isFinancial).reduce((sum, cost) => sum + cost.calculatedAmount, 0);
+                const financialCost = detailedCosts.filter(cost => cost.isFinancial).reduce((sum, cost) => sum + cost.calculatedAmount, 0);
+                const finalCost = directCost + indirectCost + financialCost;
+                const currency = workBudgetFinancials.currency;
+                return (
+                  <section className="overflow-hidden rounded-2xl border border-indigo-200 bg-white shadow-xs">
+                    <button type="button" onClick={() => setShowWorkCostSummary(value => !value)} className="flex w-full items-center justify-between gap-4 bg-indigo-50/70 p-4 text-left">
+                      <div><p className="text-sm font-black text-indigo-950">Costos generales e indirectos</p><p className="mt-1 text-[11px] text-indigo-800">Resumen completo del presupuesto maestro vinculado a esta obra · Moneda {currency}</p></div>
+                      <span className="text-xs font-black text-indigo-800">{showWorkCostSummary ? 'Ocultar detalle' : 'Ver detalle'}</span>
+                    </button>
+                    <div className="grid gap-px bg-slate-200 sm:grid-cols-2 xl:grid-cols-4">
+                      {[
+                        ['Costo directo', directCost, 'Partidas y recursos'],
+                        ['Costos indirectos', indirectCost, 'Generales e imponderados globales'],
+                        ['Costo financiero', financialCost, 'Cargos financieros'],
+                        ['Total final', finalCost, 'Directo + indirectos + financiero']
+                      ].map(([label, value, note]) => <div key={label} className="bg-white p-4"><p className="text-[10px] font-black uppercase tracking-wide text-slate-500">{label}</p><p className="mt-1 text-lg font-black text-slate-900">{formatBudgetMoney(value, currency)}</p><p className="mt-1 text-[10px] text-slate-500">{note}</p></div>)}
+                    </div>
+                    {showWorkCostSummary && <div className="border-t border-slate-200 p-4">
+                      {workBudgetFinancials.loading ? <p className="text-xs text-slate-500">Cargando costos…</p> : workBudgetFinancials.error ? <p className="text-xs font-bold text-rose-700">{workBudgetFinancials.error}</p> : detailedCosts.length ? <div className="space-y-2">{detailedCosts.map(cost => <div key={cost.id} className="flex flex-col justify-between gap-2 rounded-xl border border-slate-200 p-3 sm:flex-row sm:items-center"><div><div className="flex flex-wrap items-center gap-2"><p className="text-xs font-black text-slate-800">{cost.concepto}</p>{cost.origen_importacion === 'PRESTO_BC3' && <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[9px] font-black text-blue-800">Importado desde Presto / BC3{cost.codigo_origen ? ` · ${cost.codigo_origen}` : ''}</span>}</div><p className="mt-1 text-[10px] text-slate-500">{String(cost.tipo || '').toLowerCase() === 'porcentaje' ? `${Number(cost.valor) || 0}% sobre el costo directo` : `Monto fijo: ${formatBudgetMoney(cost.valor, currency)}`}{cost.isFinancial ? ' · Costo financiero' : ' · Costo indirecto'}</p></div><p className="text-sm font-black text-emerald-800">{formatBudgetMoney(cost.calculatedAmount, currency)}</p></div>)}</div> : <p className="rounded-xl bg-slate-50 p-4 text-xs text-slate-500">Este presupuesto no tiene costos generales o indirectos registrados.</p>}
+                    </div>}
+                  </section>
+                );
+              })()}
 
               {partidasList.length === 0 ? (
                 <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-3">
@@ -6049,9 +6128,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                           <th className="p-2.5">Partida / Actividad</th>
                           <th className="p-2.5">Unidad</th>
                           <th className="p-2.5">Cantidad Presupuesto</th>
-                          <th className="p-2.5">Precio Unitario (P.U. $)</th>
+                          <th className="p-2.5">Precio Unitario (P.U. {workBudgetFinancials.currency})</th>
                           <th className="p-2.5">Rendimiento Estimado</th>
-                          <th className="p-2.5">Monto Total Directo ($)</th>
+                          <th className="p-2.5">Monto Total Directo ({workBudgetFinancials.currency})</th>
                           <th className="p-2.5 text-center">Acciones</th>
                         </tr>
                       </thead>
@@ -6178,7 +6257,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                     </div>
                                   </div>
                                 </td>
-                                <td className="p-3 text-right font-mono font-black text-emerald-800">${groupSum.toLocaleString('es-CL')}</td>
+                                <td className="p-3 text-right font-mono font-black text-emerald-800">{formatBudgetMoney(groupSum, workBudgetFinancials.currency)}</td>
                                 <td className="p-3"></td>
                               </tr>
                             );
@@ -6208,7 +6287,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                 {p.rendimiento || '20'} {p.unidad || 'UND'} / {p.unidad_tiempo || 'Día'}
                               </td>
                               <td className="p-2.5 font-mono font-bold text-emerald-800">
-                                ${totalItem.toLocaleString('es-CL')}
+                                {formatBudgetMoney(totalItem, workBudgetFinancials.currency)}
                               </td>
                               <td className="p-2.5 text-center">
                                 <div className="flex items-center justify-center gap-1">
@@ -9801,23 +9880,52 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
             </div>
             {workResourceSheetLoading ? <p className="min-h-0 flex-1 p-8 text-center text-xs text-slate-500">Cargando recursos…</p> : workResourceSheet.error ? (
               <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">{workResourceSheet.error}</div>
-            ) : (
-              <div className="mt-4 min-h-0 flex-1 overflow-auto overscroll-contain rounded-2xl border border-slate-200">
+            ) : (() => {
+              const item = workResourceSheet.budgetItem || {};
+              const currency = workResourceSheet.currency || 'CLP';
+              const resourceRows = workResourceSheet.links.map(link => {
+                const resource = link.recursos_presupuesto || {};
+                const quantity = Number(link.cantidad_unidad) || 0;
+                const price = Number(resource.costo_unitario) || 0;
+                return { link, resource, quantity, price, partial: quantity * price };
+              });
+              const resourceBase = resourceRows.reduce((sum, row) => sum + row.partial, 0);
+              const laborBase = resourceRows.filter(row => /mano|labor|personal/i.test(String(row.resource.tipo || ''))).reduce((sum, row) => sum + row.partial, 0);
+              const lawsPct = Number(item.leyes_sociales_pct) || 0;
+              const toolsPct = Number(item.herramientas_menores_pct) || 0;
+              const imponderablesPct = Number(item.imponderables_pct) || 0;
+              const lawsAmount = laborBase * lawsPct / 100;
+              const toolsAmount = laborBase * toolsPct / 100;
+              const subtotalBeforeImponderables = resourceBase + lawsAmount + toolsAmount;
+              const imponderablesAmount = subtotalBeforeImponderables * imponderablesPct / 100;
+              const calculatedUnitCost = subtotalBeforeImponderables + imponderablesAmount;
+              const importedUnitCost = Number(item.costo_unitario) || 0;
+              const isPresto = item.origen_importacion === 'PRESTO_BC3';
+              return <div className="mt-4 flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+                <div className="shrink-0 rounded-2xl border border-indigo-200 bg-indigo-50/60 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-[10px] font-black uppercase tracking-wide text-indigo-800">Análisis de precio unitario</p><p className="mt-1 text-xs font-bold text-slate-700">Los porcentajes se aplican sobre los recursos vinculados a esta partida.</p></div>{isPresto && <span className="rounded-full bg-blue-700 px-2.5 py-1 text-[9px] font-black text-white">Importado desde Presto / BC3{item.codigo_origen ? ` · ${item.codigo_origen}` : ''}</span>}</div>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">{[
+                    ['Recursos directos', resourceBase, 'Base visible'],
+                    ['Leyes sociales', lawsAmount, `${lawsPct}% sobre mano de obra`],
+                    ['Herramientas menores', toolsAmount, `${toolsPct}% sobre mano de obra`],
+                    ['Imponderables', imponderablesAmount, `${imponderablesPct}% sobre subtotal`],
+                    [isPresto ? 'P.U. oficial Presto' : 'P.U. de la partida', importedUnitCost || calculatedUnitCost, importedUnitCost ? `Cálculo recursos: ${formatBudgetMoney(calculatedUnitCost, currency)}` : 'Calculado desde recursos']
+                  ].map(([label, value, note]) => <div key={label} className="rounded-xl border border-white bg-white p-2.5"><p className="text-[9px] font-black uppercase text-slate-500">{label}</p><p className="mt-1 text-sm font-black text-slate-900">{formatBudgetMoney(value, currency)}</p><p className="mt-1 text-[9px] text-slate-500">{note}</p></div>)}</div>
+                </div>
+                <div className="min-h-0 flex-1 overflow-auto overscroll-contain rounded-2xl border border-slate-200">
                 <table className="w-full min-w-[760px] text-left text-xs">
                   <thead className="sticky top-0 z-10 bg-slate-50 text-[9px] font-bold uppercase text-slate-600 shadow-sm"><tr><th className="p-3">Código / Recurso</th><th className="p-3">Tipo</th><th className="p-3">Unidad</th><th className="p-3 text-right">Cantidad</th><th className="p-3 text-right">Precio unitario</th><th className="p-3 text-right">Costo parcial</th></tr></thead>
                   <tbody className="divide-y divide-slate-100">
-                    {workResourceSheet.links.map(link => {
-                      const resource = link.recursos_presupuesto || {};
+                    {resourceRows.map(({ link, resource, quantity, price, partial }) => {
                       const unit = String(resource.unidad || 'un').split('|')[0].trim();
-                      const quantity = Number(link.cantidad_unidad) || 0;
-                      const price = Number(resource.costo_unitario) || 0;
-                      return <tr key={link.id}><td className="p-3"><span className="block font-bold text-slate-900">{resource.recurso || 'Recurso'}</span><span className="text-[9px] text-blue-700">{resource.codigo_origen ? `Presto: ${resource.codigo_origen}` : ''}</span></td><td className="p-3 text-slate-600">{resource.tipo || 'Otros'}</td><td className="p-3 font-mono text-slate-600">{unit}</td><td className="p-3 text-right font-mono">{quantity.toLocaleString('es-CL')}</td><td className="p-3 text-right font-mono">${price.toLocaleString('es-CL')}</td><td className="p-3 text-right font-mono font-black text-emerald-800">${(quantity * price).toLocaleString('es-CL')}</td></tr>;
+                      return <tr key={link.id}><td className="p-3"><span className="block font-bold text-slate-900">{resource.recurso || 'Recurso'}</span><span className="text-[9px] text-blue-700">{resource.codigo_origen ? `Presto: ${resource.codigo_origen}` : ''}</span></td><td className="p-3 text-slate-600">{resource.tipo || 'Otros'}</td><td className="p-3 font-mono text-slate-600">{unit}</td><td className="p-3 text-right font-mono">{quantity.toLocaleString('es-CL')}</td><td className="p-3 text-right font-mono">{formatBudgetMoney(price, currency)}</td><td className="p-3 text-right font-mono font-black text-emerald-800">{formatBudgetMoney(partial, currency)}</td></tr>;
                     })}
                     {!workResourceSheet.links.length && <tr><td colSpan="6" className="p-8 text-center text-slate-400">Esta partida no tiene recursos vinculados.</td></tr>}
                   </tbody>
                 </table>
               </div>
-            )}
+              </div>;
+            })()}
           </div>
         </div>
       )}
