@@ -896,7 +896,7 @@ export default function ExecutiveReportScheduler({
                 <span>
                   <b className="block text-xs text-indigo-950">Interpretación asistida por IA</b>
                   <small className="text-[10px] leading-5 text-indigo-700">
-                    OpenAI redactará hallazgos y sugerencias usando solo los indicadores calculados por Obraxis. Requiere revisión humana y consume el presupuesto de IA de la empresa.
+                    OpenAI redactará hallazgos y sugerencias usando solo los indicadores calculados por Obraxis. El resultado requiere revisión humana.
                   </small>
                 </span>
               </label>
