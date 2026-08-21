@@ -605,7 +605,7 @@ function Login({ onLoginSuccess, onBackHome }) {
                       required
                       value={qrWorkerData.rutInput || ''}
                       onChange={handleRutInputChange}
-                      placeholder="Ej: 18.988.192-4 (o 189881924)"
+                      placeholder="Ingresa tu RUT con o sin puntos"
                       maxLength={12}
                       className={`w-full border rounded-xl p-3 text-xs font-mono font-bold text-slate-800 focus:outline-none transition ${
                         rutValidationState.status === 'valid'

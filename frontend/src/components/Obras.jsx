@@ -9255,7 +9255,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     required
                     value={newWorkerData.rut}
                     onChange={(e) => setNewWorkerData({ ...newWorkerData, rut: formatRut(e.target.value) })}
-                    placeholder="Ej. 18.988.192-4"
+                    placeholder="Ingresa el RUT con o sin puntos"
                     className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 font-mono"
                   />
                 </div>
