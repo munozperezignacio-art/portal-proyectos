@@ -867,12 +867,22 @@ function Personal({ user, onBack }) {
           {loading ? (
             <p className="text-sm text-slate-500 p-2">⏳ Cargando personal empresa...</p>
           ) : filteredPersonal.length === 0 ? (
-            <div className="p-8 text-center bg-white border border-slate-200 rounded-2xl space-y-2">
+            <div className="p-8 text-center bg-white border border-slate-200 rounded-2xl space-y-4">
               <Users className="w-8 h-8 text-slate-300 mx-auto" />
-              <p className="text-xs text-slate-500 font-semibold">No hay trabajadores en el Máster de la Empresa.</p>
-              <button onClick={handleOpenAddModal} className="text-xs text-blue-900 font-bold hover:underline cursor-pointer">
-                + Crear primer trabajador en el Máster
-              </button>
+              <div className="flex flex-col items-center justify-center gap-2 sm:flex-row">
+                {canCreate && (
+                  <button onClick={handleOpenAddModal} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-blue-900 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-blue-800">
+                    <UserPlus className="h-4 w-4" />
+                    Crear primer trabajador
+                  </button>
+                )}
+                {canImport && (
+                  <button onClick={() => setShowBulkImport(true)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-xs font-bold text-blue-950 transition hover:bg-blue-50">
+                    <Upload className="h-4 w-4" />
+                    Subir planilla
+                  </button>
+                )}
+              </div>
             </div>
           ) : (
             <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
