@@ -806,6 +806,37 @@ function ConfigCorreos({ user, onBack }) {
           await supabase.from('facturacion_ordenes_compra').update({ empresa: newName }).eq('empresa', oldName);
           await supabase.from('facturacion_documentos').update({ empresa: newName }).eq('empresa', oldName);
         }
+
+        // Los administradores de empresa deben conservar acceso a todos los
+        // módulos contratados. Los demás usuarios mantienen sus asignaciones
+        // individuales configuradas en Gestión de Usuarios.
+        const { data: companyUsers, error: companyUsersError } = await supabase
+          .from('usuarios')
+          .select('id, rol, rol_base')
+          .eq('empresa', newName);
+        if (companyUsersError) throw companyUsersError;
+
+        const companyAdminIds = (companyUsers || [])
+          .filter(account => {
+            const baseRole = String(account.rol_base || '').trim().toLowerCase();
+            const displayRole = String(account.rol || '').trim().toLowerCase();
+            return baseRole === 'administrador empresa'
+              || baseRole === 'superusuario'
+              || displayRole === 'administrador de empresa';
+          })
+          .map(account => account.id);
+
+        if (companyAdminIds.length > 0) {
+          const { error: syncAdminsError } = await supabase
+            .from('usuarios')
+            .update({
+              modulos: dataToSave.modulos_activos,
+              submenus: dataToSave.submenus_activos
+            })
+            .in('id', companyAdminIds);
+          if (syncAdminsError) throw syncAdminsError;
+        }
+
         setSuccessMsg('Empresa actualizada con éxito.');
         
         if (companyEditing.empresa === user.empresa) {
