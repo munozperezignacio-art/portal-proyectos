@@ -18,3 +18,8 @@ verify_jwt = false
 # token único, clave corporativa y control de frecuencia.
 [functions.acreditacion-publica]
 verify_jwt = false
+
+# Webhook firmado de Resend para correos entrantes. La función verifica la
+# firma Svix con RESEND_INBOUND_WEBHOOK_SECRET antes de procesar el evento.
+[functions.resend-correo-entrante]
+verify_jwt = false
