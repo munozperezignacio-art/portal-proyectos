@@ -23,6 +23,9 @@ test('el webhook entrante es público en Supabase pero protege su propia autenti
 test('la bandeja no inyecta HTML de correos y responde mediante la función protegida', () => {
   const source = readProjectFile('frontend', 'src', 'components', 'ContactInbox.jsx');
   assert.doesNotMatch(source, /dangerouslySetInnerHTML/);
+  assert.match(source, /sandbox=""/);
+  assert.match(source, /Content-Security-Policy/);
+  assert.match(source, /referrerPolicy="no-referrer"/);
   assert.match(source, /functions\.invoke\(['"]correo-bandeja['"]/);
 });
 
