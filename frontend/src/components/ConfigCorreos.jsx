@@ -7,6 +7,7 @@ import NotificationMaster from './NotificationMaster';
 import AIControlCenter from './AIControlCenter';
 import PlatformAudit from './PlatformAudit';
 import ContactInbox from './ContactInbox';
+import ManagementCenters from './ManagementCenters';
 import { PERMISSIONS_CATALOG, permissionKey } from '../utils/permissionsCatalog';
 import { 
   Settings, ArrowLeft, Search, Plus, Edit, Trash2, Loader2, AlertCircle, Mail, Filter, Building2, Copy, Archive, ArchiveRestore, ShieldCheck, Bell, Palette, Users, Workflow, AtSign, BriefcaseBusiness, Globe2, Database, Sparkles, HardDrive, Save, RefreshCw, Server, CircleCheck, CircleX, ScrollText, MessageSquareText
@@ -1391,9 +1392,12 @@ function ConfigCorreos({ user, onBack }) {
         )}
       </div>
 
+      <button type="button" onClick={() => setActiveTab('centros')} className="rounded-xl border bg-white px-4 py-2.5 text-xs font-bold">Centros de gestión</button>
       {/* RENDER SECCIONES */}
       {activeTab === 'notificaciones' ? (
         <NotificationMaster user={user} obras={obras} roles={rolesList} />
+      ) : activeTab === 'centros' ? (
+        <ManagementCenters user={user} />
       ) : activeTab === 'contactos' ? (
         <ContactInbox user={user} />
       ) : activeTab === 'auditoria' ? (

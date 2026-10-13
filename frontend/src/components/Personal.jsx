@@ -369,10 +369,10 @@ function Personal({ user, onBack }) {
       cargo: 'Operario',
       fono: '',
       email: '',
-      obra_nombre: obras.length > 0 ? obras[0].nombre : '',
+      obra_nombre: '',
       fecha_asig: new Date().toISOString().substring(0, 10),
-      centro_trabajo: 'Obra Principal',
-      centro_gestion_id: obras[0]?.centro_gestion_id || centrosGestion[0]?.id || '',
+      centro_trabajo: '',
+      centro_gestion_id: '',
       area: 'Construcción',
       sueldo_base: '600000',
       gratificacion: 'Art. 50 (25% tope)',
@@ -619,7 +619,9 @@ function Personal({ user, onBack }) {
       obra_nombre: formData.obra_nombre?.trim() || null,
       fecha_asig: formData.fecha_asig || new Date().toISOString().substring(0, 10),
       centro_trabajo: formData.centro_trabajo,
-      centro_gestion_id: formData.centro_gestion_id ? Number(formData.centro_gestion_id) : null,
+      centro_gestion_id: formData.obra_nombre
+        ? (obras.find(work => work.nombre === formData.obra_nombre)?.centro_gestion_id || null)
+        : (formData.centro_gestion_id ? Number(formData.centro_gestion_id) : null),
       area: formData.area,
       sueldo_base: parseFloat(formData.sueldo_base) || 0,
       gratificacion: formData.gratificacion || 'Art. 50 (25% tope)',
@@ -1608,17 +1610,18 @@ function Personal({ user, onBack }) {
                   <div>
                     <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Centro de Gestión</label>
                     <select
+                      disabled={Boolean(formData.obra_nombre)}
                       value={formData.centro_gestion_id || ''}
                       onChange={(e) => {
                         const center = centrosGestion.find(item => String(item.id) === e.target.value);
-                        const linkedWork = obras.find(item => String(item.centro_gestion_id) === e.target.value);
-                        setFormData({ ...formData, centro_gestion_id: e.target.value, centro_trabajo: center ? `${center.codigo} · ${center.nombre}` : '', obra_nombre: linkedWork?.nombre || formData.obra_nombre });
+                        setFormData({ ...formData, centro_gestion_id: e.target.value, centro_trabajo: center ? `${center.codigo} · ${center.nombre}` : '' });
                       }}
                       className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 font-medium bg-white"
                     >
                       <option value="">Sin centro asignado</option>
-                      {centrosGestion.map(center => <option key={center.id} value={center.id}>{center.codigo} · {center.nombre}</option>)}
+                      {centrosGestion.filter(center => formData.obra_nombre ? String(center.id) === String(formData.centro_gestion_id) : center.tipo !== 'Obra').map(center => <option key={center.id} value={center.id}>{center.codigo} · {center.nombre}</option>)}
                     </select>
+                    <p className="mt-1 text-[10px] text-slate-500">{formData.obra_nombre ? 'Se obtiene de la obra asignada. Configúralo en Panel de Control → Centros de gestión.' : 'Sin obra, selecciona un centro administrativo.'}</p>
                   </div>
                 </div>
 
@@ -1629,8 +1632,8 @@ function Personal({ user, onBack }) {
                       value={formData.obra_nombre}
                       onChange={(e) => {
                         const work = obras.find(item => item.nombre === e.target.value);
-                        const center = centrosGestion.find(item => item.id === work?.centro_gestion_id);
-                        setFormData({ ...formData, obra_nombre: e.target.value, centro_gestion_id: work?.centro_gestion_id || formData.centro_gestion_id, centro_trabajo: center ? `${center.codigo} · ${center.nombre}` : formData.centro_trabajo });
+                        const center = centrosGestion.find(item => String(item.id) === String(work?.centro_gestion_id));
+                        setFormData({ ...formData, obra_nombre: e.target.value, centro_gestion_id: work?.centro_gestion_id || '', centro_trabajo: center ? `${center.codigo} · ${center.nombre}` : '' });
                       }}
                       className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 bg-white"
                     >
