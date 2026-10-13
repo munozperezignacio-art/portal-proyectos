@@ -16,6 +16,10 @@ window.addEventListener('error', (event) => {
   if (!recovered) void reportClientError(event.error || event.message, 'window.error');
 });
 
+window.addEventListener('vite:preloadError', (event) => {
+  if (recoverFromStaleChunk(event.payload)) event.preventDefault();
+});
+
 const forceFreshReload = () => {
   const url = new URL(window.location.href);
   url.searchParams.set('__obraxis_reload', String(Date.now()));
@@ -33,6 +37,9 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
+    // React captura también los imports de submódulos; no llegan a los
+    // manejadores globales de errores o promesas rechazadas.
+    if (recoverFromStaleChunk(error)) return;
     console.error('Error no capturado:', error, errorInfo);
     void reportClientError(error, errorInfo?.componentStack || 'ErrorBoundary');
   }
