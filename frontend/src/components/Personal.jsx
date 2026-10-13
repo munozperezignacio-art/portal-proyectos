@@ -497,7 +497,7 @@ function Personal({ user, onBack }) {
     try {
       const assignedWork = obras.find(obra => obra.nombre === assignModalData.obraNombre);
       const payload = {
-        obra_nombre: assignModalData.obraNombre,
+        obra_nombre: assignModalData.obraNombre?.trim() || null,
         centro_gestion_id: assignedWork?.centro_gestion_id || null,
         fecha_asig: assignModalData.fechaAsig
       };
@@ -616,7 +616,7 @@ function Personal({ user, onBack }) {
       cargo: formData.cargo.trim(),
       fono: formData.fono ? formData.fono.trim() : null,
       email: formData.email ? formData.email.trim() : null,
-      obra_nombre: formData.obra_nombre,
+      obra_nombre: formData.obra_nombre?.trim() || null,
       fecha_asig: formData.fecha_asig || new Date().toISOString().substring(0, 10),
       centro_trabajo: formData.centro_trabajo,
       centro_gestion_id: formData.centro_gestion_id ? Number(formData.centro_gestion_id) : null,
