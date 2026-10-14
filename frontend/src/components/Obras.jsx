@@ -15,6 +15,7 @@ import FormAnswerDisplay from './FormAnswerDisplay';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
 import MachineryEquipmentDetailModal from './MachineryEquipmentDetailModal';
+import { matchesWorkReport, reportedProgress, dailyTimeRate } from '../utils/workReportCalculations';
 
 const ContextualEmailConfigModal = React.lazy(() => import('./ContextualEmailConfigModal'));
 const LastPlannerLookahead = React.lazy(() => import('./LastPlannerLookahead'));
@@ -1713,10 +1714,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       avancesQuery = selectedObra?.id
         ? avancesQuery.eq('obra_id', selectedObra.id)
         : avancesQuery.eq('empresa', user?.empresa || 'Obraxis').eq('obra_nombre', obraNombre);
-      const { data: av1 } = await avancesQuery;
-      const { data: av2 } = await supabase.from('reportes_avance').select('*');
-      const combinedAv = [...(av1 || []), ...(av2 || [])];
-      fullAvances = combinedAv.filter(r => isMatchObra(r.obra_nombre, obraNombre));
+      const { data: av1, error: avancesError } = await avancesQuery.eq('empresa', user?.empresa || selectedObra?.empresa || 'Obraxis');
+      if (avancesError) throw avancesError;
+      fullAvances = av1 || [];
       setReportesAvanceList(fullAvances);
     } catch {}
 
@@ -1988,9 +1988,14 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       });
       });
 
-      const { error } = await supabase.from('avances_produccion_partidas').insert(rowsToInsert);
+      if (editingRecordId && rowsToInsert.length !== 1) throw new Error('La edición debe conservar una sola partida del reporte seleccionado.');
+      const query = supabase.from('avances_produccion_partidas');
+      const { data: savedReports, error } = editingRecordId
+        ? await query.update(rowsToInsert[0]).eq('id', editingRecordId).eq('empresa', user.empresa).eq('obra_id', selectedObra.id).select('id')
+        : await query.insert(rowsToInsert).select('id');
 
       if (error) throw error;
+      if (!savedReports?.length) throw new Error('No fue posible guardar el reporte seleccionado. Actualiza la obra y vuelve a intentar.');
 
       // --- DISPARAR NOTIFICACIÓN VÍA CORREO ELECTRÓNICO CON RESEND ---
       try {
@@ -2075,7 +2080,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         console.warn("Aviso al enviar notificación por correo:", emailErr.message);
       }
 
-      setSuccessMsg(`Reporte de Avance (${avanceItems.length} partida/s) registrado con éxito.`);
+      setSuccessMsg(editingRecordId ? 'Reporte de avance actualizado correctamente.' : `Reporte de Avance (${avanceItems.length} partida/s) registrado con éxito.`);
+      setEditingRecordId(null);
       fetchObraDetails(selectedObra.nombre);
       setTimeout(() => {
         setActiveModal(null);
@@ -3202,7 +3208,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   </div>
 
                   <button
-                    onClick={() => { setActiveModal('avance'); setSuccessMsg(''); setErrorMsg(''); }}
+                    onClick={() => { setEditingRecordId(null); setAvanceItems([{ frente: 'Frente Principal', partida_id: null, partida: '', unidad: 'UND', cantidad: '', cuadrilla_id: '', observaciones: '' }]); setActiveModal('avance'); setSuccessMsg(''); setErrorMsg(''); }}
                     className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition shadow-xs"
                   >
                     <Plus className="w-4 h-4" />
@@ -3369,7 +3375,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                       <FileSpreadsheet className="w-8 h-8 text-slate-300 mx-auto" />
                       <p className="text-xs text-slate-500">No hay reportes de avance registrados en esta obra aún.</p>
                       <button
-                        onClick={() => { setActiveModal('avance'); setSuccessMsg(''); setErrorMsg(''); }}
+                        onClick={() => { setEditingRecordId(null); setAvanceItems([{ frente: 'Frente Principal', partida_id: null, partida: '', unidad: 'UND', cantidad: '', cuadrilla_id: '', observaciones: '' }]); setActiveModal('avance'); setSuccessMsg(''); setErrorMsg(''); }}
                         className="text-xs text-blue-900 font-bold hover:underline cursor-pointer"
                       >
                         + Ingresar el primer reporte de avance
@@ -6403,7 +6409,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   const fechaTermino = isGroup ? '' : addChileanBusinessDays(fechaInicio, duracionDias);
                   // La planificación se alimenta directamente desde los reportes reales de avance.
                   const avanceAcumulado = isGroup ? 0 : (reportesAvanceList || [])
-                    .filter(report => isSamePartidaForSchedule(report.partida, p.partida))
+                    .filter(report => matchesWorkReport(report, p))
                     .reduce((sum, report) => sum + (parseFloat(report.cantidad) || 0), 0);
                   const avancePct = cant > 0 ? Math.min(100, Math.round((avanceAcumulado / cant) * 100)) : 0;
 
@@ -6832,7 +6838,10 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                       </td>
                                       <td className="p-3 text-center">
                                         <div className="flex items-center justify-center gap-2">
-                                          <span className="font-mono text-[10px] font-bold text-indigo-900">{act.avance_pct || 0}%</span>
+                                          <span className="font-mono text-[10px] font-bold text-indigo-900">{(() => {
+                                            const partida = partidasList.find(p => String(p.partida).trim().toLowerCase() === String(act.nombre || act.tarea || '').trim().toLowerCase());
+                                            return partida ? reportedProgress(partida, reportesAvanceList).toFixed(1) : (act.avance_pct || 0);
+                                          })()}%</span>
                                           <button
                                             onClick={() => setPlanificacionList(prev => prev.filter((_, i) => i !== idx))}
                                             className="text-slate-400 hover:text-red-700 font-bold text-xs"
@@ -6981,7 +6990,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     diasEfectivosCorte = 0;
                   } else {
                     const diasBus = countChileanBusinessDays(startDatePartida, fCorteStr);
-                    const diasTotalesPartida = rend > 0 ? (cantTotal / rend) : 1;
+                    const diasTotalesPartida = Number(p.duracion_programada) || (rend > 0 ? Math.ceil(cantTotal / rend) : 1);
                     diasEfectivosCorte = Math.min(diasBus, diasTotalesPartida);
                   }
 
@@ -7001,7 +7010,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     diasEfectivosCorte = 0;
                   } else {
                     const diasBus = countChileanBusinessDays(startDatePartida, fCorteStr);
-                    const diasTotalesPartida = rend > 0 ? (cantTotal / rend) : 1;
+                    const diasTotalesPartida = Number(p.duracion_programada) || (rend > 0 ? Math.ceil(cantTotal / rend) : 1);
                     diasEfectivosCorte = Math.min(diasBus, diasTotalesPartida);
                   }
 
@@ -7011,7 +7020,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   if (projItems.length > 0) {
                     const sumPartida = projItems.reduce((pAcc, proj) => {
                       if (proj.tipo_proyeccion === 'TIEMPO') {
-                        return pAcc + Math.round(diasEfectivosCorte * (parseFloat(proj.tarifa_tiempo_dia) || 20000));
+                        return pAcc + Math.round(diasEfectivosCorte * dailyTimeRate(proj));
                       } else {
                         const tasa = parseFloat(proj.tasa_rendimiento_insumo) || 1;
                         const pu = parseFloat(proj.precio_unitario_insumo) || 5000;
@@ -7481,7 +7490,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                             return partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo)).map((p, pIdx) => {
                               const cantTotal = parseFloat(p.cantidad) || 0;
                               const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
-                              const diasTotalesPartida = rend > 0 ? (cantTotal / rend) : 1;
+                              const diasTotalesPartida = Number(p.duracion_programada) || (rend > 0 ? Math.ceil(cantTotal / rend) : 1);
                               const puVal = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (p.pu || 0);
 
                               const startDatePartida = getPartidaScheduledStart(p);
@@ -7511,7 +7520,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                               } else if (projItems.length > 0) {
                                 costoProyectado = projItems.reduce((sum, item) => {
                                   if (item.tipo_proyeccion === 'TIEMPO') {
-                                    const tarifaDia = parseFloat(item.tarifa_tiempo_dia) || 20000;
+                                    const tarifaDia = dailyTimeRate(item);
                                     return sum + Math.round(diasEfectivosCorte * tarifaDia);
                                   } else {
                                     const tasa = parseFloat(item.tasa_rendimiento_insumo) || 1;
@@ -7655,7 +7664,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                                   let subtotalItem = 0;
                                                   let formulaStr = '';
                                                   if (item.tipo_proyeccion === 'TIEMPO') {
-                                                    const tDia = parseFloat(item.tarifa_tiempo_dia) || 20000;
+                                                    const tDia = dailyTimeRate(item);
                                                     subtotalItem = Math.round(diasEfectivosCorte * tDia);
                                                     formulaStr = `$${tDia.toLocaleString('es-CL')}/Día * ${diasEfectivosCorte.toFixed(1)} Días transcurridos`;
                                                   } else {
@@ -8718,6 +8727,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
               {/* Botón para agregar otra partida */}
               <button
                 type="button"
+                disabled={Boolean(editingRecordId)}
                 onClick={() => setAvanceItems([...avanceItems, { frente: avanceItems[0]?.frente || 'Frente Principal', partida_id: null, partida: '', unidad: 'UND', cantidad: '', cuadrilla_id: avanceItems[0]?.cuadrilla_id || '', observaciones: '' }])}
                 className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-blue-900 border border-slate-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer"
               >
@@ -8730,7 +8740,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 disabled={modalLoading}
                 className="w-full bg-blue-900 hover:bg-blue-800 text-white font-semibold py-3 rounded-xl shadow-sm text-xs cursor-pointer disabled:opacity-70 transition"
               >
-                {modalLoading ? 'Guardando Reporte...' : `Confirmar y Guardar Reporte (${avanceItems.length} Partida/s)`}
+                {modalLoading ? 'Guardando Reporte...' : editingRecordId ? 'Guardar cambios del reporte' : `Confirmar y Guardar Reporte (${avanceItems.length} Partida/s)`}
               </button>
             </form>
           </div>
@@ -10847,6 +10857,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 e.preventDefault();
                 setProyeccionesList(prev => {
                   const itemId = proyeccionFormData.id || ('proj-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6));
+                  if (proyeccionFormData.partida === '__todas__') {
+                    return [...prev, ...partidasList.filter(p => !p.es_titulo && !['TITULO', 'GRUPO'].includes(p.unidad)).map((p, index) => ({ ...proyeccionFormData, partida: p.partida, id: `${itemId}-${index}` }))];
+                  }
                   const newItem = { ...proyeccionFormData, id: itemId };
                   const exists = prev.some(x => x.id === itemId);
                   return exists ? prev.map(x => x.id === itemId ? newItem : x) : [...prev, newItem];
@@ -10862,6 +10875,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   onChange={(e) => setProyeccionFormData({ ...proyeccionFormData, partida: e.target.value })}
                   className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 bg-white font-bold"
                 >
+                  <option value="__todas__">Todas las partidas · duración según cronograma</option>
                   {partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo)).map(p => (
                     <option key={p.partida} value={p.partida}>{p.partida} ({p.cantidad} {p.unidad})</option>
                   ))}
@@ -10919,7 +10933,10 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold uppercase text-blue-900 mb-1">Tarifa por Unidad de Tiempo ($ / Día Hábil)</label>
+                    <label className="block text-[10px] font-bold uppercase text-blue-900 mb-1">Periodicidad</label>
+                    <select value={proyeccionFormData.periodicidad || 'Día'} onChange={e => setProyeccionFormData({ ...proyeccionFormData, periodicidad: e.target.value })} className="mb-3 w-full rounded-lg border border-blue-300 p-2 text-xs"><option>Día</option><option>Mes</option></select>
+                    {proyeccionFormData.periodicidad === 'Mes' && <p className="mb-2 text-[10px] text-blue-900">Tarifa mensual ÷ 30, aplicada a los días de duración de cada partida. Son costos proyectados.</p>}
+                    <label className="block text-[10px] font-bold uppercase text-blue-900 mb-1">Tarifa CLP / {proyeccionFormData.periodicidad || 'Día'}</label>
                     <input
                       type="number"
                       required
@@ -10934,8 +10951,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     if (!selP) return null;
                     const cant = parseFloat(selP.cantidad) || 0;
                     const rend = parseFloat(selP.rendimiento_meta || selP.rendimiento) || 10;
-                    const dias = rend > 0 ? (cant / rend) : 1;
-                    const tarifa = parseFloat(proyeccionFormData.tarifa_tiempo_dia) || 0;
+                    const dias = Number(selP.duracion_programada) || (rend > 0 ? Math.ceil(cant / rend) : 1);
+                    const tarifa = dailyTimeRate(proyeccionFormData);
                     const total = Math.round(dias * tarifa);
                     return (
                       <div className="text-[11px] text-blue-950 font-bold bg-white p-2.5 rounded-lg border border-blue-200 space-y-1">
