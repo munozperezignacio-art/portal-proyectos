@@ -6327,7 +6327,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                         partida: p.partida,
                                         unidad: p.unidad || 'UND',
                                         cantidad: p.cantidad || 0,
-                                        pu: puVal,
+                                        pu: p.pu_original ?? puVal,
+                                        moneda_pu: p.moneda_pu || 'CLP',
+                                        cambio_pu_clp: p.cambio_pu_clp || '',
                                         rendimiento: p.rendimiento || '10',
                                         unidad_tiempo: p.unidad_tiempo || 'Día'
                                       });
@@ -9950,6 +9952,10 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 try {
                   const cantVal = parseFloat(partidaFormData.cantidad) || 0;
                   const puVal = parseFloat(partidaFormData.pu) || 0;
+                  const currency = partidaFormData.moneda_pu || 'CLP';
+                  const rate = currency === 'CLP' ? 1 : Number(partidaFormData.cambio_pu_clp);
+                  if (!(rate > 0)) throw new Error('Indica el valor de conversión a CLP.');
+                  const priceClp = puVal * rate;
                   const isGlobal = ['GL', 'GLB'].includes(partidaFormData.unidad);
                   const duration = Number(partidaFormData.duracion_global || Math.ceil(cantVal / (Number(partidaFormData.rendimiento) || 10)));
                   if (isGlobal && (!Number.isFinite(duration) || duration < 1)) throw new Error('Indica una duración de al menos un día.');
@@ -9965,14 +9971,17 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     orden: editingPartida?.orden ?? partidasList.length,
                     es_titulo: Boolean(partidaFormData.es_titulo),
                     cantidad_presupuestada: cantVal,
-                    costo_por_dia: puVal,
+                    costo_por_dia: priceClp,
+                    moneda_pu: currency,
+                    pu_original: puVal,
+                    cambio_pu_clp: rate,
                     rendimiento_meta: rendVal
                   };
 
                   let savedPart = { 
                     ...dbPayload, 
                     cantidad: cantVal, 
-                    pu: puVal, 
+                    pu: priceClp,
                     rendimiento: rendVal 
                   };
 
@@ -10043,7 +10052,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         .select()
                         .single();
                       if (insErr) throw insErr;
-                      if (insData) savedPart = { ...insData, cantidad: cantVal, pu: puVal };
+                      if (insData) savedPart = { ...insData, cantidad: cantVal, pu: priceClp };
                     }
                     setPartidasList(prev => {
                       const updated = [...prev, savedPart];
@@ -10052,7 +10061,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   }
 
                   if (partidaFormData.pu !== undefined && partidaFormData.pu !== '') {
-                    setPartidasCostos(prev => ({ ...prev, [dbPayload.partida]: parseFloat(partidaFormData.pu) || 0 }));
+                    setPartidasCostos(prev => ({ ...prev, [dbPayload.partida]: priceClp }));
                   }
 
                   setShowPartidaModal(false);
@@ -10119,10 +10128,11 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     </div>
 
                     <div>
-                      <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">P.U. ($) (Opcional / Puede ser 0)</label>
+                      <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">P.U. ({partidaFormData.moneda_pu || 'CLP'}) (Opcional / Puede ser 0)</label>
                       <input
                         type="number"
                         value={partidaFormData.pu}
+                        step="any"
                         onChange={(e) => setPartidaFormData({ ...partidaFormData, pu: e.target.value })}
                         placeholder="0"
                         className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 font-mono font-bold"
@@ -10130,6 +10140,22 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     </div>
                   </div>
 
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="text-xs">Moneda<select value={partidaFormData.moneda_pu || 'CLP'} onChange={async e => {
+                      const moneda_pu = e.target.value;
+                      setPartidaFormData(current => ({ ...current, moneda_pu, cambio_pu_clp: '' }));
+                      if (moneda_pu === 'CLP') return;
+                      try {
+                        const response = await fetch(`https://mindicador.cl/api/${moneda_pu === 'UF' ? 'uf' : 'dolar'}`);
+                        if (!response.ok) return;
+                        const data = await response.json();
+                        const value = Number(data.serie?.[0]?.valor);
+                        if (value > 0) setPartidaFormData(current => current.moneda_pu === moneda_pu ? { ...current, cambio_pu_clp: value } : current);
+                      } catch { /* Permitir ingresar la conversión manualmente. */ }
+                    }} className="mt-1 w-full rounded-lg border p-2"><option>CLP</option><option>UF</option><option>USD</option></select></label>
+                    {partidaFormData.moneda_pu && partidaFormData.moneda_pu !== 'CLP' && <label className="text-xs">Valor de 1 {partidaFormData.moneda_pu} en CLP<input required min="0.000001" step="any" type="number" value={partidaFormData.cambio_pu_clp || ''} onChange={e => setPartidaFormData({ ...partidaFormData, cambio_pu_clp: e.target.value })} className="mt-1 w-full rounded-lg border p-2"/></label>}
+                  </div>
+                  <p className="text-[10px] text-slate-500">El precio se conserva en la moneda seleccionada. Los cálculos de obra utilizan su equivalente en CLP.</p>
                   {/* Rendimiento y Unidad de Tiempo */}
                   <div className="grid grid-cols-2 gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                     <div>
