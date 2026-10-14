@@ -6284,7 +6284,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                 />
                               </td>
                               <td className="p-2.5 font-mono text-slate-700 font-bold">
-                                {p.rendimiento || '20'} {p.unidad || 'UND'} / {p.unidad_tiempo || 'Día'}
+                                {['GL', 'GLB'].includes(p.unidad)
+                                  ? `${Math.max(1, Math.ceil((Number(p.cantidad || p.cantidad_presupuestada) || 1) / (Number(p.rendimiento_meta || p.rendimiento) || 10)))} días`
+                                  : `${p.rendimiento || '20'} ${p.unidad || 'UND'} / ${p.unidad_tiempo || 'Día'}`}
                               </td>
                               <td className="p-2.5 font-mono font-bold text-emerald-800">
                                 {formatBudgetMoney(totalItem, workBudgetFinancials.currency)}
@@ -9948,7 +9950,10 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 try {
                   const cantVal = parseFloat(partidaFormData.cantidad) || 0;
                   const puVal = parseFloat(partidaFormData.pu) || 0;
-                  const rendVal = parseFloat(partidaFormData.rendimiento) || 10;
+                  const isGlobal = ['GL', 'GLB'].includes(partidaFormData.unidad);
+                  const duration = Number(partidaFormData.duracion_global || Math.ceil(cantVal / (Number(partidaFormData.rendimiento) || 10)));
+                  if (isGlobal && (!Number.isFinite(duration) || duration < 1)) throw new Error('Indica una duración de al menos un día.');
+                  const rendVal = isGlobal ? (cantVal || 1) / duration : (parseFloat(partidaFormData.rendimiento) || 10);
 
                   // Esqueleto estricto coincidente con el esquema SQL de partidas_obra
                   const dbPayload = {
@@ -9956,7 +9961,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     empresa: user?.empresa || selectedObra?.empresa || 'Obraxis',
                     obra_nombre: selectedObra?.nombre || 'Obra Principal',
                     partida: partidaFormData.partida.trim(),
-                    unidad: partidaFormData.unidad || 'UND',
+                    unidad: isGlobal ? 'GL' : (partidaFormData.unidad || 'UND'),
                     orden: editingPartida?.orden ?? partidasList.length,
                     es_titulo: Boolean(partidaFormData.es_titulo),
                     cantidad_presupuestada: cantVal,
@@ -10087,7 +10092,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     <div>
                       <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Unidad</label>
                       <select
-                        value={partidaFormData.unidad}
+                        value={partidaFormData.unidad === 'GLB' ? 'GL' : partidaFormData.unidad}
                         onChange={(e) => setPartidaFormData({ ...partidaFormData, unidad: e.target.value })}
                         className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 bg-white font-semibold"
                       >
@@ -10097,7 +10102,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         <option value="ML">ML</option>
                         <option value="KG">KG</option>
                         <option value="TON">TON</option>
-                        <option value="GLB">GLB</option>
+                        <option value="GL">GL · Global</option>
                       </select>
                     </div>
 
@@ -10128,18 +10133,19 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   {/* Rendimiento y Unidad de Tiempo */}
                   <div className="grid grid-cols-2 gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                     <div>
-                      <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Rendimiento Estimado</label>
+                      <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">{['GL', 'GLB'].includes(partidaFormData.unidad) ? 'Duración (días)' : 'Rendimiento Estimado'}</label>
                       <input
                         type="number"
-                        step="0.1"
-                        value={partidaFormData.rendimiento}
-                        onChange={(e) => setPartidaFormData({ ...partidaFormData, rendimiento: e.target.value })}
+                        step={['GL', 'GLB'].includes(partidaFormData.unidad) ? '1' : '0.1'}
+                        min="1"
+                        value={['GL', 'GLB'].includes(partidaFormData.unidad) ? (partidaFormData.duracion_global || Math.max(1, Math.ceil((Number(partidaFormData.cantidad) || 1) / (Number(partidaFormData.rendimiento) || 10)))) : partidaFormData.rendimiento}
+                        onChange={(e) => setPartidaFormData({ ...partidaFormData, ...(['GL', 'GLB'].includes(partidaFormData.unidad) ? { duracion_global: e.target.value } : { rendimiento: e.target.value }) })}
                         placeholder="25.5"
                         className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 font-mono font-bold bg-white"
                       />
                     </div>
 
-                    <div>
+                    <div hidden={['GL', 'GLB'].includes(partidaFormData.unidad)}>
                       <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Unidad de Tiempo</label>
                       <select
                         value={partidaFormData.unidad_tiempo}
