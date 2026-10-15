@@ -13,6 +13,8 @@ import { can } from '../utils/permissionsCatalog';
 import MachineryMeterAI from './MachineryMeterAI';
 import MachineryEquipmentDetailModal from './MachineryEquipmentDetailModal';
 import EquipmentBulkImport from './EquipmentBulkImport';
+import EquipmentAssignments from './EquipmentAssignments';
+import { hasAssignedWork } from '../utils/equipmentAssignments';
 
 
 // Listado de feriados nacionales en Chile (MM-DD)
@@ -113,11 +115,6 @@ export default function Maquinaria({ user, onBack }) {
   });
   const [maintenanceDraft, setMaintenanceDraft] = useState({ nombre: '', intervalo: '', unidad: 'horas', ultima_lectura: '', ultima_fecha: '' });
 
-  // 2. Estados Asignación Directa de Equipos con FECHA HASTA
-  const [assignModalOpen, setAssignModalOpen] = useState(false);
-  const [selectedEquipToAssign, setSelectedEquipToAssign] = useState(null);
-  const [targetObraName, setTargetObraName] = useState('');
-  const [assignFechaHasta, setAssignFechaHasta] = useState('');
 
   // 3. Estados Registro de Uso y Horómetros
   const [usoList, setUsoList] = useState([]);
@@ -462,67 +459,6 @@ export default function Maquinaria({ user, onBack }) {
     }
   };
 
-  // 2. Handler Asignación Directa de Obra (Con Validación de Fecha Hasta para no chocar con Reservas)
-  const handleAssignSubmit = async (e) => {
-    e.preventDefault();
-    if (!canEdit) { setErrorMsg('Tu perfil no está autorizado para asignar equipos.'); return; }
-    if (!selectedEquipToAssign) return;
-
-    if (assignFechaHasta) {
-      const equipRes = reservasList.filter(r => r.equipo_id.toString() === selectedEquipToAssign.id.toString());
-      const hasConflict = equipRes.some(r => {
-        const rInicio = new Date(r.fecha_inicio);
-        const aHasta = new Date(assignFechaHasta);
-        return aHasta >= rInicio;
-      });
-
-      if (hasConflict && !window.confirm('⚠️ ADVERTENCIA: La fecha hasta seleccionada ingresa al periodo de una reserva agendada. ¿Deseas confirmar la asignación de todas formas?')) {
-        return;
-      }
-    }
-
-    setModalLoading(true);
-    try {
-      const finalObraName = targetObraName || 'Bodega Central / Libre';
-
-      let updatePayload = { 
-        obra_nombre: finalObraName,
-        fecha_hasta_estimada: assignFechaHasta || null
-      };
-
-      let attempts = 0;
-      let success = false;
-
-      while (attempts < 5 && !success) {
-        attempts++;
-        let res = await supabase.from('inventario_maquinaria').update(updatePayload).eq('id', selectedEquipToAssign.id);
-        if (res.error) {
-          res = await supabase.from('inventario_maquinaria').update(updatePayload).eq('patente', selectedEquipToAssign.patente);
-        }
-        if (!res.error) {
-          success = true;
-          break;
-        }
-        const msg = res.error ? (res.error.message || '') : '';
-        const match = msg.match(/Could not find the '([^']+)' column/i);
-        if (match && match[1] && updatePayload[match[1]] !== undefined) {
-          delete updatePayload[match[1]];
-        } else {
-          delete updatePayload.fecha_hasta_estimada;
-        }
-      }
-
-      if (!success) throw new Error('No fue posible guardar la asignación en Supabase.');
-      setSuccessMsg(`¡Equipo ${selectedEquipToAssign.patente} asignado a ${finalObraName}${assignFechaHasta ? ` hasta el ${assignFechaHasta}` : ''}!`);
-      fetchData();
-      setAssignModalOpen(false);
-      setTimeout(() => setSuccessMsg(''), 3000);
-    } catch (err) {
-      setErrorMsg(`No fue posible asignar el equipo: ${err.message}`);
-    } finally {
-      setModalLoading(false);
-    }
-  };
 
   // 3. Handler Registro de Uso y Horómetros
   const handleUsoSubmit = async (e) => {
@@ -853,7 +789,7 @@ export default function Maquinaria({ user, onBack }) {
 
   // Helper para determinar el estado de disponibilidad real del equipo
   const getEquipoEstadoDetallado = (equip) => {
-    const isEnUso = Boolean(equip.obra_nombre && equip.obra_nombre.trim() !== '');
+    const isEnUso = hasAssignedWork(equip.obra_nombre);
     const isReservado = reservasList.some(r => r.equipo_id.toString() === equip.id.toString());
     const isArrendado = arriendosList.some(a => a.equipo_id.toString() === equip.id.toString() && a.estado === 'Activo');
 
@@ -1270,47 +1206,7 @@ export default function Maquinaria({ user, onBack }) {
 
       {/* 4. SUBMÓDULO 2: ASIGNACIÓN DE EQUIPOS CON FECHA HASTA ESTIMADA */}
       {activeSection === 'asignaciones' && (
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in duration-200 space-y-4">
-          <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-            <div>
-              <h3 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider">Asignación Directa a Obras Activas</h3>
-              <p className="text-xs text-slate-500">Configura la obra de destino y la fecha hasta estimada de asignación para coordinar reservas.</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {maquinaria.map(m => {
-              const est = getEquipoEstadoDetallado(m);
-              return (
-                <div key={m.id} className="p-5 rounded-3xl border border-slate-200 bg-white space-y-3 shadow-xs">
-                  <div className="flex items-center justify-between">
-                    <span className={`text-[9.5px] font-extrabold px-2.5 py-0.5 rounded-full border uppercase ${est.badgeClass}`}>
-                      {est.label}
-                    </span>
-                    <span className="text-[10.5px] font-bold text-slate-700">Patente: {m.patente || 'S/I'}</span>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-xs font-bold text-slate-800">Obra Actual: <span className="text-primary">{m.obra_nombre || 'Bodega Central / Libre'}</span></p>
-                    {m.fecha_hasta_estimada && <p className="text-[10.5px] text-amber-800 font-bold">Asignado Hasta: {m.fecha_hasta_estimada}</p>}
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      setSelectedEquipToAssign(m);
-                      setTargetObraName(m.obra_nombre || (obras[0] ? obras[0].nombre : ''));
-                      setAssignFechaHasta(m.fecha_hasta_estimada || '');
-                      setAssignModalOpen(true);
-                    }}
-                    className="w-full py-2 px-3 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-hover transition cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>Asignar con Fecha Hasta</span>
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <EquipmentAssignments equipment={maquinaria} works={obras} reservations={reservasList} rentals={arriendosList} company={user.empresa} canEdit={canEdit} onSaved={fetchData} />
       )}
 
       {/* 5. SUBMÓDULO 3: USO DE EQUIPOS */}
@@ -2713,67 +2609,6 @@ export default function Maquinaria({ user, onBack }) {
         </div>
       )}
 
-      {/* MODAL DE ASIGNACIÓN DIRECTA CON FECHA HASTA ESTIMADA */}
-      {assignModalOpen && selectedEquipToAssign && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-md w-full space-y-4 shadow-xl">
-            <h3 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider flex items-center gap-2">
-              <Building2 className="w-5 h-5 text-primary" />
-              <span>Asignar Equipo a Obra</span>
-            </h3>
-
-            <div className="p-3 bg-slate-50 rounded-2xl text-xs space-y-1">
-              <p className="font-bold text-slate-800">{selectedEquipToAssign.tipo} ({selectedEquipToAssign.patente})</p>
-              <p className="text-slate-500">Obra Actual: {selectedEquipToAssign.obra_nombre || 'Bodega Central / Libre'}</p>
-            </div>
-
-            <form onSubmit={handleAssignSubmit} className="space-y-4">
-              <div className="space-y-1">
-                <label className="block text-[10.5px] font-bold uppercase text-slate-600">Obra / Proyecto Destino *</label>
-                <select
-                  value={targetObraName}
-                  onChange={(e) => setTargetObraName(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 bg-white"
-                  required
-                >
-                  <option value="Bodega Central / Libre">Bodega Central / Libre (Sin Asignar)</option>
-                  {obras.map(o => (
-                    <option key={o.nombre} value={o.nombre}>{o.nombre}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-[10.5px] font-bold uppercase text-slate-600">Fecha Hasta (Término Estimado)</label>
-                <input
-                  type="date"
-                  value={assignFechaHasta}
-                  onChange={(e) => setAssignFechaHasta(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800"
-                />
-                <span className="text-[9.5px] text-slate-400">Permite liberar o coordinar con la agenda de reservas futuras sin solapar periodos.</span>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setAssignModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={modalLoading}
-                  className="px-5 py-2.5 rounded-xl text-xs font-bold bg-primary text-white hover:bg-primary-hover transition shadow-sm"
-                >
-                  {modalLoading ? 'Asignando...' : 'Confirmar Asignación'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* MODAL HORÓMETRO / USO */}
       {usoModalOpen && (

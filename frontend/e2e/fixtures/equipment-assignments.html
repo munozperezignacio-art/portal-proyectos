@@ -1,0 +1,16 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body class="bg-slate-50"><div id="fixture" class="p-5"></div><script type="module">
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import EquipmentAssignments from '../../src/components/EquipmentAssignments.jsx';
+import { supabase } from '../../src/supabaseClient.js';
+import '../../src/index.css';
+// Fixture only: no network writes or real company data.
+window.saved = [];
+supabase.from = table => ({ update(payload) { const saved={table,payload}; window.saved.push(saved); return {eq(key,value){ saved.company=value; return {in(key,ids){saved.ids=ids; return {select:async()=>({data:ids.map(id=>({id})),error:null})};}};}};}});
+const equipment=[
+ {id:1,patente:'EXC-01',tipo:'Excavadora',marca:'LINKBELT 210X2',obra_nombre:'Bodega Central / Libre',estado_equipo:'Operativo'},
+ {id:2,patente:'EXC-02',tipo:'Excavadora',marca:'LINKBELT 460X2',obra_nombre:'Edificio Lonco',fecha_asig:'2026-10-13',fecha_hasta_estimada:'2026-10-30',estado_equipo:'Operativo'},
+ {id:3,patente:'PIL-01',tipo:'Hincadora y perforadora',marca:'LIEBHERR LRB 255',estado_equipo:'En Mantención'}
+];
+createRoot(document.getElementById('fixture')).render(React.createElement(EquipmentAssignments,{equipment,works:[{nombre:'Edificio Lonco'}],reservations:[{equipo_id:1,fecha_inicio:'2026-10-20',fecha_fin:'2026-10-23'}],rentals:[],company:'TEST_ONLY',canEdit:true,onSaved:async()=>{}}));
+</script></body></html>
