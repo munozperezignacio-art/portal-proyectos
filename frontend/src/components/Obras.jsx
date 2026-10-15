@@ -23,7 +23,8 @@ import { plannedValueAt } from '../utils/plannedProgress';
 import useSignatureCanvas from '../utils/useSignatureCanvas';
 import AttendanceDateField from './AttendanceDateField';
 import { chileanAttendanceToday, resolveAttendanceDate, attendanceDay, attendanceDateLabel, sortAttendanceRecords } from '../utils/attendanceDates';
-import { calculateAttendanceHours } from '../utils/attendanceHours';
+import { calculateScheduledAttendance, scheduleForDate, scheduledDayHours } from '../utils/weeklyWorkSchedule';
+import WeeklyWorkSchedule from './WeeklyWorkSchedule';
 import AttendanceHoursField from './AttendanceHoursField';
 import AttendanceExtraHours from './AttendanceExtraHours';
 import { buildAdvanceEmailSummary, renderAdvanceSummaryHtml, advanceCurveAttachment, escapeEmailText } from '../utils/advanceEmailSummary';
@@ -601,9 +602,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   // Estados locales para los formularios
   const [asistenciaData, setAsistenciaData] = useState({ trabajador: '', rut: '', asistencia: 'PRESENTE', ingreso: '08:00', salida: '18:00', colacion: 'SI' });
   const [asistenciaFecha, setAsistenciaFecha] = useState(chileanAttendanceToday);
-  const [asistenciaJornada, setAsistenciaJornada] = useState(9);
   const [editingAttendanceRecord, setEditingAttendanceRecord] = useState(null);
-  useEffect(() => { if (activeModal !== 'asistencia') { setAsistenciaJornada(selectedObra?.jornada_ordinaria_horas ?? 9); setEditingAttendanceRecord(null); } }, [activeModal,selectedObra?.id,selectedObra?.jornada_ordinaria_horas]);
+  const [showWeeklySchedule,setShowWeeklySchedule] = useState(false);
+  useEffect(() => { if (activeModal !== 'asistencia') setEditingAttendanceRecord(null); }, [activeModal,selectedObra?.id]);
   useEffect(() => { if (activeModal !== 'asistencia') setAsistenciaFecha(chileanAttendanceToday()); }, [activeModal]);
   const [avanceItems, setAvanceItems] = useState([
     { frente: 'Frente Principal', partida_id: null, partida: '', unidad: 'UND', cantidad: '', cuadrilla_id: '', observaciones: '' }
@@ -893,6 +894,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const [gpsConfig, setGpsConfig] = useState({ latitud: '', longitud: '', radio: '200' });
   const [gpsUserLoc, setGpsUserLoc] = useState({ lat: null, lng: null, distance: null, status: 'idle', isWithin: false, error: '' });
   
+  const attendanceAppliedDate = asistenciaMode === 'manual' ? asistenciaFecha : chileanAttendanceToday();
+  const asistenciaDaySchedule = editingAttendanceRecord?.fecha === attendanceAppliedDate && editingAttendanceRecord?.applied ? editingAttendanceRecord.applied : scheduleForDate(selectedObra,attendanceAppliedDate);
+  const asistenciaJornada = asistenciaDaySchedule ? scheduledDayHours(asistenciaDaySchedule) : editingAttendanceRecord?.hours ?? selectedObra?.jornada_ordinaria_horas ?? 9;
   const { canvasRef, hasSignature, clearSignature, handleStartDraw, handleDraw, handleStopDraw } = useSignatureCanvas(
     `${activeModal}:${selectedObra?.id}:${asistenciaData.trabajador}:${asistenciaData.rut}:${asistenciaData.asistencia}:${asistenciaMode}:${asistenciaFecha}`
   );
@@ -1788,21 +1792,6 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     setRecentLogs(combined);
   };
 
-  const saveAttendanceWorkday = async () => {
-    if (!can(user,userPermissions,'obras.gestion.configurar') || !selectedObra?.id) return;
-    setErrorMsg('');
-    try {
-      calculateAttendanceHours({ordinaryHours:asistenciaJornada});
-      setModalLoading(true);
-      const value=Number(asistenciaJornada);
-      const {data,error}=await supabase.from('obras').update({jornada_ordinaria_horas:value}).eq('id',selectedObra.id).eq('empresa',selectedObra.empresa || user.empresa).select('id');
-      if(error)throw error;
-      if(!data?.length)throw new Error('No se pudo guardar la jornada; revisa tus permisos.');
-      setSelectedObra(previous=>({...previous,jornada_ordinaria_horas:value}));
-      setObras(previous=>previous.map(work=>work.id===selectedObra.id?{...work,jornada_ordinaria_horas:value}:work));
-      setSuccessMsg('Jornada base guardada para los próximos marcajes. No modifica registros históricos.');
-    } catch(error) {setErrorMsg(error.message);} finally {setModalLoading(false);}
-  };
   const submitAsistencia = async (e) => {
     e.preventDefault();
     setModalLoading(true);
@@ -1822,7 +1811,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       }
 
       const fechaMarcacion = resolveAttendanceDate(asistenciaMode, asistenciaFecha);
-      const calculatedHours = calculateAttendanceHours({...asistenciaData,ordinaryHours:asistenciaJornada,status:asistenciaData.asistencia});
+      const calculatedHours = calculateScheduledAttendance(asistenciaData,asistenciaDaySchedule,asistenciaJornada);
       let firmaBase64 = null;
       if (canvasRef.current && hasSignature) {
         firmaBase64 = canvasRef.current.toDataURL('image/png');
@@ -1841,6 +1830,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         salida: asistenciaData.asistencia === 'PRESENTE' ? asistenciaData.salida : null,
         colacion: asistenciaData.asistencia === 'PRESENTE' ? asistenciaData.colacion : null,
         jornada_ordinaria_horas: Number(asistenciaJornada),
+        jornada_aplicada: asistenciaDaySchedule,
         horas_ordinarias: calculatedHours.ordinary,
         horas_extras_auto: calculatedHours.extra,
         firma_base64: firmaBase64,
@@ -2242,8 +2232,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const handleEditAsistenciaRecord = (a) => {
     if (!canManageRecordsAccess) return alert('No tienes permisos de Nivel 0, 1 o 2 para editar este registro.');
     if (a._sourceTable === 'asistencia') return alert('Este marcaje pertenece al registro antiguo. Debe revisarse desde su módulo de origen.');
-    setEditingAttendanceRecord({id:a.id});
-    setAsistenciaJornada(a.jornada_ordinaria_horas ?? 9);
+    setEditingAttendanceRecord({id:a.id,fecha:attendanceDay(a),applied:a.jornada_aplicada,hours:a.jornada_ordinaria_horas ?? 9});
     setEditingRecordId(a.id);
     setAsistenciaFecha(attendanceDay(a) || chileanAttendanceToday());
     setAsistenciaMode('manual');
@@ -3599,6 +3588,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   </div>
 
                   {asistenciaSubTab === 'registro' && (
+                    <div className="flex flex-wrap gap-2">
+                    <button onClick={()=>setShowWeeklySchedule(true)} className="border border-blue-200 bg-white text-blue-900 font-bold px-4 py-2.5 rounded-xl text-xs">Jornada semanal</button>
                     <button
                       onClick={() => { setActiveModal('asistencia'); setSuccessMsg(''); setErrorMsg(''); }}
                       className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
@@ -3606,6 +3597,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                       <UserCheck className="w-4 h-4" />
                       <span>Registrar Marcaje</span>
                     </button>
+                    </div>
                   )}
                 </div>
 
@@ -8204,6 +8196,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       {/* ================= MODALES DE REGISTRO DIARIO ================= */}
 
       {/* Modal 1: Asistencia con QR, Geofencing y Firma Digital */}
+      {showWeeklySchedule && selectedObra && <WeeklyWorkSchedule key={selectedObra.id} work={selectedObra} company={selectedObra.empresa || user.empresa} canConfigure={can(user,userPermissions,'obras.gestion.configurar')} onClose={()=>setShowWeeklySchedule(false)} onSaved={schedule=>{setSelectedObra(prev=>({...prev,jornada_semanal:schedule}));setObras(prev=>prev.map(work=>work.id===selectedObra.id?{...work,jornada_semanal:schedule}:work));setSuccessMsg('Jornada semanal guardada. Los marcajes anteriores conservan su cálculo.');}}/>}
       {activeModal === 'asistencia' && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto">
@@ -8399,13 +8392,13 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                       className="rounded border-slate-300 text-blue-900 focus:ring-blue-800 cursor-pointer w-4 h-4"
                     />
                     <div>
-                      <span className="font-bold text-xs text-blue-950">¿Considera 1 hora de colación / almuerzo?</span>
-                      <p className="text-[10px] text-slate-500">Descuenta 1 hora de colación para cálculo de jornada ordinaria y horas extras.</p>
+                      <span className="font-bold text-xs text-blue-950">¿Se tomó el descanso de colación / almuerzo?</span>
+                      <p className="text-[10px] text-slate-500">{asistenciaDaySchedule?.active && asistenciaDaySchedule?.breakStart ? `Descuenta el descanso configurado de ${asistenciaDaySchedule.breakStart} a ${asistenciaDaySchedule.breakEnd} dentro del marcaje.` : 'Sin un intervalo de colación configurado, esta opción descuenta 1 hora.'}</p>
                     </div>
                   </label>
 
                   {/* Firma Digital Canvas */}
-                  <AttendanceHoursField value={asistenciaJornada} onChange={setAsistenciaJornada} data={asistenciaData} canSave={can(user,userPermissions,'obras.gestion.configurar')} onSave={saveAttendanceWorkday} busy={modalLoading}/>
+                  <AttendanceHoursField value={asistenciaJornada} day={asistenciaDaySchedule} data={asistenciaData}/>
                   <div>
                     <div className="flex justify-between items-center mb-1">
                       <label className="block text-[10px] font-bold uppercase text-slate-500">Firma Manuscrita del Trabajador</label>

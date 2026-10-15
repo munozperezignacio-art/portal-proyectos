@@ -1,0 +1,9 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="fixture"></div><script type="module">
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import WeeklyWorkSchedule from '../../src/components/WeeklyWorkSchedule.jsx';
+import {supabase} from '../../src/supabaseClient.js';
+window.savedSchedule=null;
+supabase.from=()=>({update:payload=>{window.savedSchedule=payload;return{eq:()=>({eq:()=>({select:async()=>({data:[{id:1}],error:null})})})};}});
+createRoot(document.getElementById('fixture')).render(React.createElement(WeeklyWorkSchedule,{work:{id:1,nombre:'TEST_ONLY'},company:'TEST_ONLY',canConfigure:true,onSaved:()=>{},onClose:()=>{}}));
+</script></body></html>

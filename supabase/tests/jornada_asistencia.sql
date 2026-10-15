@@ -1,7 +1,7 @@
 begin;
-create temporary table test_marcaje (empresa text, obra_id integer, asistencia text, ingreso text, salida text, colacion text, jornada_ordinaria_horas numeric,horas_ordinarias numeric,horas_extras_auto numeric);
+create temporary table test_marcaje (empresa text, obra_id integer, asistencia text, ingreso text, salida text, colacion text, jornada_ordinaria_horas numeric,horas_ordinarias numeric,horas_extras_auto numeric,fecha_marcacion date,jornada_aplicada jsonb);
 create trigger test_horas before insert or update on test_marcaje for each row execute function private.calcular_horas_marcaje();
-insert into test_marcaje values('TEST_ONLY',null,'PRESENTE','08:00','19:00','SI',9,0,0);
+insert into test_marcaje values('TEST_ONLY',null,'PRESENTE','08:00','19:00','SI',9,0,0,'2026-10-16',null);
 do $$begin if not exists(select 1 from test_marcaje where horas_ordinarias=9 and horas_extras_auto=1) then raise exception 'Error: expected 9 ordinary + 1 extra'; end if; end$$;
 update test_marcaje set jornada_ordinaria_horas=8;
 do $$begin if not exists(select 1 from test_marcaje where horas_ordinarias=8 and horas_extras_auto=2) then raise exception 'Error: expected 8 ordinary + 2 extra'; end if; end$$;
