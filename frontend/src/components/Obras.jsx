@@ -21,6 +21,8 @@ import { calendarTimeline } from '../utils/sCurveTimeline';
 import DailySCurve from './DailySCurve';
 import { plannedValueAt } from '../utils/plannedProgress';
 import useSignatureCanvas from '../utils/useSignatureCanvas';
+import AttendanceDateField from './AttendanceDateField';
+import { chileanAttendanceToday, resolveAttendanceDate, attendanceDay, attendanceDateLabel } from '../utils/attendanceDates';
 import { buildAdvanceEmailSummary, renderAdvanceSummaryHtml, advanceCurveAttachment, escapeEmailText } from '../utils/advanceEmailSummary';
 
 const ContextualEmailConfigModal = React.lazy(() => import('./ContextualEmailConfigModal'));
@@ -595,6 +597,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
   // Estados locales para los formularios
   const [asistenciaData, setAsistenciaData] = useState({ trabajador: '', rut: '', asistencia: 'PRESENTE', ingreso: '08:00', salida: '18:00', colacion: 'SI' });
+  const [asistenciaFecha, setAsistenciaFecha] = useState(chileanAttendanceToday);
+  useEffect(() => { if (activeModal !== 'asistencia') setAsistenciaFecha(chileanAttendanceToday()); }, [activeModal]);
   const [avanceItems, setAvanceItems] = useState([
     { frente: 'Frente Principal', partida_id: null, partida: '', unidad: 'UND', cantidad: '', cuadrilla_id: '', observaciones: '' }
   ]);
@@ -884,7 +888,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const [gpsUserLoc, setGpsUserLoc] = useState({ lat: null, lng: null, distance: null, status: 'idle', isWithin: false, error: '' });
   
   const { canvasRef, hasSignature, clearSignature, handleStartDraw, handleDraw, handleStopDraw } = useSignatureCanvas(
-    `${activeModal}:${selectedObra?.id}:${asistenciaData.trabajador}:${asistenciaData.rut}:${asistenciaData.asistencia}:${asistenciaMode}`
+    `${activeModal}:${selectedObra?.id}:${asistenciaData.trabajador}:${asistenciaData.rut}:${asistenciaData.asistencia}:${asistenciaMode}:${asistenciaFecha}`
   );
   const getPartidaScheduledStart = (partidaObj, fInicioFallback) => {
     if (!partidaObj) return fInicioFallback || new Date().toISOString().substring(0, 10);
@@ -1684,7 +1688,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       const { data: asist1 } = await supabase.from('asistencia_personal').select('*');
       const { data: asist2 } = await supabase.from('asistencia').select('*');
       const combinedAsist = [...(asist1 || []), ...(asist2 || [])];
-      fullAsist = combinedAsist.filter(a => isMatchObra(a.obra_nombre, obraNombre));
+      fullAsist = combinedAsist.filter(a => isMatchObra(a.obra_nombre, obraNombre)).map(a=>({...a,fecha:attendanceDay(a)}));
       setAsistenciaList(fullAsist);
     } catch {}
 
@@ -1796,6 +1800,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         }
       }
 
+      const fechaMarcacion = resolveAttendanceDate(asistenciaMode, asistenciaFecha);
       let firmaBase64 = null;
       if (canvasRef.current && hasSignature) {
         firmaBase64 = canvasRef.current.toDataURL('image/png');
@@ -1807,6 +1812,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         obra_nombre: selectedObra.nombre,
         supervisor: user.usuario,
         trabajador: asistenciaData.trabajador.trim(),
+        fecha_marcacion: fechaMarcacion,
         rut: asistenciaData.rut ? asistenciaData.rut.trim() : null,
         asistencia: asistenciaData.asistencia,
         ingreso: asistenciaData.asistencia === 'PRESENTE' ? asistenciaData.ingreso : null,
@@ -1823,7 +1829,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       const { error } = await supabase.from('asistencia_personal').insert([payload]);
       if (error) throw error;
 
-      setSuccessMsg(`Asistencia de ${asistenciaData.trabajador} registrada correctamente.`);
+      setSuccessMsg(`Asistencia de ${asistenciaData.trabajador} registrada para el ${fechaMarcacion.split('-').reverse().join('/')}.`);
       fetchObraDetails(selectedObra.nombre);
       setTimeout(() => {
         setActiveModal(null);
@@ -2207,6 +2213,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const handleEditAsistenciaRecord = (a) => {
     if (!canManageRecordsAccess) return alert('No tienes permisos de Nivel 0, 1 o 2 para editar este registro.');
     setEditingRecordId(a.id);
+    setAsistenciaFecha(attendanceDay(a) || chileanAttendanceToday());
+    setAsistenciaMode('manual');
     setAsistenciaData({
       trabajador: a.trabajador,
       rut: a.rut || '',
@@ -2300,7 +2308,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     const rowsHtml = filteredRecords.length === 0
       ? `<tr><td colspan="7" style="padding:20px; text-align:center; color:#64748b; font-weight:600;">No hay registros de marcaje en el periodo seleccionado.</td></tr>`
       : filteredRecords.map((a) => {
-          const fechaStr = a.created_at ? new Date(a.created_at).toLocaleDateString('es-CL') : 'Hoy';
+          const fechaStr = attendanceDateLabel(a);
           const firmaImg = a.firma_base64
             ? `<div style="display:flex; flex-direction:column; align-items:center;"><img src="${a.firma_base64}" style="height:36px; max-width:110px; object-fit:contain; border:1px solid #cbd5e1; border-radius:4px; padding:2px; background:#fff;" /><span style="font-size:8px; color:#065f46; font-weight:bold; margin-top:2px;">✓ Digital (QR)</span></div>`
             : `<span style="font-size:9px; background:#ecfdf5; color:#065f46; padding:3px 8px; border-radius:4px; font-weight:bold; border:1px solid #a7f3d0;">✓ Digital (QR)</span>`;
@@ -3688,7 +3696,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                           </thead>
                           <tbody className="divide-y divide-slate-150 text-[11px]">
                             {asistenciaList.map((a, idx) => {
-                              const fechaStr = a.created_at ? new Date(a.created_at).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' }) : 'Hoy';
+                              const fechaStr = attendanceDateLabel(a);
                               return (
                                 <tr key={a.id || idx} className="hover:bg-slate-50">
                                   <td className="p-2.5 font-mono font-bold text-slate-700">{fechaStr}</td>
@@ -3787,7 +3795,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                               return true;
                             })
                             .map((a, idx) => {
-                              const fechaStr = a.created_at ? new Date(a.created_at).toLocaleDateString('es-CL') : 'Hoy';
+                              const fechaStr = attendanceDateLabel(a);
                               return (
                                 <tr key={a.id || idx} className="hover:bg-slate-50">
                                   <td className="p-2 font-mono font-bold text-slate-700 border-r">{fechaStr}</td>
@@ -8304,6 +8312,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
             {errorMsg && <div className="bg-red-50 text-red-700 p-2.5 rounded-lg text-xs font-semibold mb-3">{errorMsg}</div>}
 
             <form onSubmit={submitAsistencia} className="space-y-4">
+              <AttendanceDateField mode={asistenciaMode} value={asistenciaFecha} onChange={setAsistenciaFecha}/>
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Trabajador</label>
                 <select

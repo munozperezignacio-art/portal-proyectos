@@ -1,0 +1,15 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="fixture"></div><script type="module">
+import React,{useState} from 'react';
+import {createRoot} from 'react-dom/client';
+import AttendanceDateField from '../../src/components/AttendanceDateField.jsx';
+import {chileanAttendanceToday,resolveAttendanceDate} from '../../src/utils/attendanceDates.js';
+function Fixture(){
+ const [mode,setMode]=useState('manual'),[date,setDate]=useState(chileanAttendanceToday),[saved,setSaved]=useState('');
+ return React.createElement('form',{onSubmit:event=>{event.preventDefault();setSaved(resolveAttendanceDate(mode,date));}},
+  React.createElement(AttendanceDateField,{mode,value:date,onChange:setDate}),
+  React.createElement('button',{type:'button',onClick:()=>setMode(mode==='manual'?'qr':'manual')},'Cambiar modo'),
+  React.createElement('button',{type:'submit'},'Guardar prueba'),
+  React.createElement('p',{'data-testid':'saved'},saved));
+}
+createRoot(document.getElementById('fixture')).render(React.createElement(Fixture));
+</script></body></html>
