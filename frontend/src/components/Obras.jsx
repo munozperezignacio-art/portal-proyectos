@@ -20,6 +20,7 @@ import { advanceNotificationRecipients } from '../utils/advanceNotificationRecip
 import { calendarTimeline } from '../utils/sCurveTimeline';
 import DailySCurve from './DailySCurve';
 import { plannedValueAt } from '../utils/plannedProgress';
+import useSignatureCanvas from '../utils/useSignatureCanvas';
 import { buildAdvanceEmailSummary, renderAdvanceSummaryHtml, advanceCurveAttachment, escapeEmailText } from '../utils/advanceEmailSummary';
 
 const ContextualEmailConfigModal = React.lazy(() => import('./ContextualEmailConfigModal'));
@@ -882,8 +883,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const [gpsConfig, setGpsConfig] = useState({ latitud: '', longitud: '', radio: '200' });
   const [gpsUserLoc, setGpsUserLoc] = useState({ lat: null, lng: null, distance: null, status: 'idle', isWithin: false, error: '' });
   
-  const canvasRef = React.useRef(null);
-  const [isDrawing, setIsDrawing] = useState(false);
+  const { canvasRef, hasSignature, clearSignature, handleStartDraw, handleDraw, handleStopDraw } = useSignatureCanvas(
+    `${activeModal}:${selectedObra?.id}:${asistenciaData.trabajador}:${asistenciaData.rut}:${asistenciaData.asistencia}:${asistenciaMode}`
+  );
   const getPartidaScheduledStart = (partidaObj, fInicioFallback) => {
     if (!partidaObj) return fInicioFallback || new Date().toISOString().substring(0, 10);
 
@@ -1032,45 +1034,6 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     );
   };
 
-  const handleStartDraw = (e) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const rect = canvas.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    ctx.beginPath();
-    ctx.moveTo(clientX - rect.left, clientY - rect.top);
-    setIsDrawing(true);
-  };
-
-  const handleDraw = (e) => {
-    if (!isDrawing) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const rect = canvas.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#0f172a';
-    ctx.lineTo(clientX - rect.left, clientY - rect.top);
-    ctx.stroke();
-    setHasSignature(true);
-  };
-
-  const handleStopDraw = () => {
-    setIsDrawing(false);
-  };
-
-  const clearSignature = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    setHasSignature(false);
-  };
 
   // Listas desplegables cargadas de la base de datos para la obra
   const [personalList, setPersonalList] = useState([]);
@@ -8441,9 +8404,11 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         onMouseDown={handleStartDraw}
                         onMouseMove={handleDraw}
                         onMouseUp={handleStopDraw}
+                        onMouseLeave={handleStopDraw}
                         onTouchStart={handleStartDraw}
                         onTouchMove={handleDraw}
                         onTouchEnd={handleStopDraw}
+                        onTouchCancel={handleStopDraw}
                         className="w-full h-28 touch-none cursor-crosshair"
                       />
                       {!hasSignature && (

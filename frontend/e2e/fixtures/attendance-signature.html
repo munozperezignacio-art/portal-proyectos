@@ -1,0 +1,16 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="fixture"></div><script type="module">
+import React,{useState} from 'react';
+import {createRoot} from 'react-dom/client';
+import useSignatureCanvas from '../../src/utils/useSignatureCanvas.js';
+function Fixture(){
+ const [worker,setWorker]=useState('A');
+ const signature=useSignatureCanvas(worker);
+ return React.createElement('main',null,
+  React.createElement('h1',null,'Marcaje de asistencia'),
+  React.createElement('p',{role:'status'},signature.hasSignature?'Firma registrada':'Sin firma'),
+  React.createElement('canvas',{ref:signature.canvasRef,width:350,height:120,style:{width:'300px',height:'120px',touchAction:'none',border:'1px solid'},onMouseDown:signature.handleStartDraw,onMouseMove:signature.handleDraw,onMouseUp:signature.handleStopDraw,onMouseLeave:signature.handleStopDraw,onTouchStart:signature.handleStartDraw,onTouchMove:signature.handleDraw,onTouchEnd:signature.handleStopDraw,onTouchCancel:signature.handleStopDraw}),
+  React.createElement('button',{onClick:signature.clearSignature},'Limpiar firma'),
+  React.createElement('button',{onClick:()=>setWorker(worker==='A'?'B':'A')},'Cambiar trabajador'));
+}
+createRoot(document.getElementById('fixture')).render(React.createElement(Fixture));
+</script></body></html>
