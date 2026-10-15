@@ -6,7 +6,16 @@ const businessDays=()=>10;
 const reports=[{id:1,partida_id:1,partida:'Pilotes',cantidad:20,created_at:'2026-10-10T12:00:00Z'},{id:2,partida_id:2,partida:'Excavación',cantidad:10,created_at:'2026-10-13T12:00:00Z'},{id:3,partida_id:1,partida:'Pilotes',cantidad:70,created_at:'2026-10-15T12:00:00Z'}];
 test('email real and plan share report cutoff, not current date or later reports',()=>{
  const s=buildAdvanceEmailSummary({parts,reports,cutoff:'2026-10-13',start:'2026-10-01',businessDays});
- assert.equal(s.latest.dateStr,'2026-10-13');assert.equal(s.latest.real,300);assert.equal(s.latest.realPct,15);assert.equal(s.latest.plannedPct,50);assert.equal(s.gap,-35);assert.equal(s.recent.at(-1).dateStr,'2026-10-13');assert.equal(s.recent.length,5);
+ assert.equal(s.latest.dateStr,'2026-10-13');assert.equal(s.latest.real,300);assert.equal(s.latest.realPct,15);assert.equal(s.latest.plannedPct,50);assert.equal(s.gap,-35);assert.equal(s.recent.at(-1).dateStr,'2026-10-13');assert.equal(s.recent.length,6);
+});
+test('recent production excludes idle weekends and holidays but preserves non-working reports',()=>{
+ const isBusinessDay=date=>![0,6].includes(new Date(`${date}T12:00:00Z`).getUTCDay()) && date!=='2026-10-12';
+ const s=buildAdvanceEmailSummary({parts,reports,cutoff:'2026-10-13',businessDays,isBusinessDay});
+ assert.deepEqual(s.recent.map(d=>d.dateStr),['2026-10-06','2026-10-07','2026-10-08','2026-10-09','2026-10-10','2026-10-13']);
+ const holiday=buildAdvanceEmailSummary({parts,reports:[...reports,{partida_id:1,cantidad:0,created_at:'2026-10-12'}],cutoff:'2026-10-13',businessDays,isBusinessDay});
+ assert.equal(holiday.recent.find(d=>d.dateStr==='2026-10-12').reports,1);
+ assert.ok(renderAdvanceSummaryHtml(s,false).includes('últimos 5 días laborales'));
+ assert.ok(s.points.some(p=>p.dateStr==='2026-10-11'),'Curve still includes every calendar day');
 });
 test('fresh edited report contributes once; absent days are explicit and units stay separate',()=>{
  const edited=reports.filter(r=>r.id!==2).concat({...reports[1],cantidad:15});

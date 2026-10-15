@@ -2060,7 +2060,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           const summary=buildAdvanceEmailSummary({
             parts:partidasList.map(p=>({ ...p,quantity:Number(p.cantidad ?? p.cantidad_presupuestada)||0,unitPrice:partidasCostos[p.partida] !== undefined ? Number(partidasCostos[p.partida]) : Number(p.pu)||0,
               start:getPartidaScheduledStart(p),duration:Math.max(1,parseInt(p.duracion_programada,10)||Math.ceil((Number(p.cantidad ?? p.cantidad_presupuestada)||0)/(Number(p.rendimiento_meta || p.rendimiento)||10))) })),
-            reports:snapshotReports,cutoff:fechaStr,start:selectedObra.fecha_inicio?.slice(0,10)||fechaInicioReal,businessDays:countChileanBusinessDays
+            reports:snapshotReports,cutoff:fechaStr,start:selectedObra.fecha_inicio?.slice(0,10)||fechaInicioReal,businessDays:countChileanBusinessDays,
+            isBusinessDay:date => ![0,6].includes(new Date(`${date}T12:00:00Z`).getUTCDay()) && !CHILEAN_HOLIDAYS.includes(date)
           });
           let curveImage=null;
           try { curveImage=advanceCurveAttachment(summary); } catch(imageError) { console.warn('No se pudo generar la imagen de curva S:',imageError.message); }

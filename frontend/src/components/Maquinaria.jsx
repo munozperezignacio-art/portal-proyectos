@@ -12,6 +12,7 @@ import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
 import MachineryMeterAI from './MachineryMeterAI';
 import MachineryEquipmentDetailModal from './MachineryEquipmentDetailModal';
+import EquipmentBulkImport from './EquipmentBulkImport';
 
 
 // Listado de feriados nacionales en Chile (MM-DD)
@@ -90,6 +91,7 @@ export default function Maquinaria({ user, onBack }) {
 
   // 1. Estados Modal Registro / Edición Equipo
   const [modalOpen, setModalOpen] = useState(false);
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
   const [editingEquip, setEditingEquip] = useState(null);
   const [viewingEquip, setViewingEquip] = useState(null);
@@ -1128,12 +1130,14 @@ export default function Maquinaria({ user, onBack }) {
       )}
 
       {/* 3. SUBMÓDULO 1: INVENTARIO DE MAQUINARIAS Y EQUIPOS */}
+      {bulkImportOpen && canCreate && <EquipmentBulkImport company={user.empresa} onClose={() => setBulkImportOpen(false)} onImported={fetchData} />}
       {activeSection === 'inventario' && (
         <div className="space-y-6 animate-in fade-in duration-200">
           <div className="flex justify-between items-center bg-white p-5 border border-slate-200 rounded-3xl shadow-xs">
             <div>
               <h3 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider">Inventario de Equipos y Maquinarias</h3>
               <p className="text-xs text-slate-500">Catálogo general de flota con filtros y estado operacional.</p>
+              {canCreate && <button onClick={() => setBulkImportOpen(true)} className="mt-2 border border-primary text-primary text-xs font-extrabold px-4 py-2.5 rounded-xl">Subir nómina de equipos</button>}
             </div>
             <button
               onClick={handleOpenAddModal}

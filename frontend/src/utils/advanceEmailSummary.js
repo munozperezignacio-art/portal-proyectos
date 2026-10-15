@@ -5,7 +5,7 @@ import { matchesWorkReport } from './workReportCalculations.js';
 export const escapeEmailText = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const reportDate = r => String(r.fecha || r.fecha_avance || r.created_at || '').slice(0,10);
 const pct = (value,total) => total>0 ? Math.round(value/total*1000)/10 : null;
-export function buildAdvanceEmailSummary({ parts, reports, cutoff, start, businessDays }) {
+export function buildAdvanceEmailSummary({ parts, reports, cutoff, start, businessDays, isBusinessDay = date => ![0,6].includes(new Date(`${date}T12:00:00Z`).getUTCDay()) }) {
   const executable=parts.filter(p=>!p.es_titulo && !['TITULO','GRUPO'].includes(p.unidad));
   const scoped=reports.filter(r=>reportDate(r) && reportDate(r)<=cutoff);
   const total=executable.reduce((s,p)=>s+Math.round(p.quantity*p.unitPrice),0);
@@ -25,7 +25,15 @@ export function buildAdvanceEmailSummary({ parts, reports, cutoff, start, busine
     const planned=plannedValueAt(executable,d.dateStr,businessDays);
     return {...d,real,planned,realPct:pct(real,total),plannedPct:pct(planned,total)};
   });
-  const recentDates=calendarTimeline(new Date(Date.parse(`${cutoff}T12:00:00Z`)-4*86400000).toISOString().slice(0,10),cutoff);
+  // Five working days, plus reported non-working days within that same interval.
+  let beginning = Date.parse(`${cutoff}T12:00:00Z`), working = 0;
+  for (let searched = 0; searched < 366; searched++, beginning -= 86400000) {
+    if (isBusinessDay(new Date(beginning).toISOString().slice(0,10))) working++;
+    if (working === 5) break;
+  }
+  const reportedDates = new Set(scoped.map(reportDate));
+  const recentDates=calendarTimeline(new Date(beginning).toISOString().slice(0,10),cutoff)
+    .filter(d => isBusinessDay(d.dateStr) || reportedDates.has(d.dateStr));
   const recent=recentDates.map(d=>({ ...d,items:executable.map((p,i)=>({partida:p.partida,unidad:p.unidad,quantity:increments.get(d.dateStr)?.get(i)||0})),
     reports:scoped.filter(r=>reportDate(r)===d.dateStr && executable.some(p=>matchesWorkReport(r,p))).length }));
   return {cutoff,total,points,recent,latest:points.at(-1),gap:points.at(-1)?.realPct == null ? null : Math.round((points.at(-1).realPct-points.at(-1).plannedPct)*10)/10};
@@ -38,9 +46,9 @@ export function renderAdvanceSummaryHtml(summary, hasImage) {
     <p style="font-size:13px;"><b>Real: ${percent(summary.latest?.realPct)} · Programado: ${percent(summary.latest?.plannedPct)}</b><br>Diferencia: ${summary.gap==null?'N/D':`${summary.gap>0?'+':''}${summary.gap.toFixed(1)} puntos porcentuales`}</p>
     ${hasImage?'<img src="cid:obraxis-curva-s" alt="Curva S diaria: avance acumulado real y programado al corte del reporte" width="600" style="display:block;width:100%;max-width:600px;height:auto;"/>':'<p>La imagen no está disponible; consulte los valores acumulados anteriores.</p>'}
     <p style="font-size:11px;color:#64748b;">Comparación valorizada con las mismas partidas, precios y programación del panel. Incluye este reporte y excluye fechas posteriores al corte. La programación corresponde a la versión vigente al enviar el correo.</p>
-    <h3 style="font-size:15px;color:#1e3a8a;">Producción de los últimos 5 días calendario</h3>
+    <h3 style="font-size:15px;color:#1e3a8a;">Producción de los últimos 5 días laborales</h3>
     <table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="background:#f1f5f9;text-align:left;"><th style="padding:8px;">Fecha</th><th style="padding:8px;">Rendimiento por partida (cantidad/día)</th><th style="padding:8px;">Reportes</th></tr></thead><tbody>${recent}</tbody></table>
-    <p style="font-size:11px;color:#64748b;">No se suman cantidades de unidades distintas. “Sin producción reportada” no demuestra que no se haya trabajado.</p>`;
+    <p style="font-size:11px;color:#64748b;">Se incluyen también los días no laborales con reporte dentro del período. No se suman cantidades de unidades distintas. “Sin producción reportada” no demuestra que no se haya trabajado.</p>`;
 }
 
 export function advanceCurveAttachment(summary, documentObject = globalThis.document) {
