@@ -31,13 +31,25 @@ test('full approval saves only past dates without native confirm and preserves e
  expect(calls[0].p_decisiones.map(d=>d.centro_id)).toEqual([10,20]);
 });
 
+test('automatic costing shows references and no required monthly setup',async({page})=>{
+ await page.goto('/e2e/fixtures/personnel-allocations.html?scenario=automatic');
+ await expect(page.getByText('Costeo automático listo',{exact:true})).toBeVisible();
+ await expect(page.getByText(/no incluye la tasa adicional particular de mutualidad/)).toBeVisible();
+ await expect(page.getByRole('button',{name:'Guardar configuración excepcional',exact:true})).not.toBeVisible();
+ await page.getByLabel('Seleccionar pendientes filtrados').check();
+ await page.getByLabel('Motivo común de aprobación').fill('Marcajes revisados');
+ await page.getByRole('button',{name:'Aprobar seleccionados (2) con este motivo',exact:true}).click();
+ await page.getByRole('button',{name:'Confirmar aprobación',exact:true}).click();
+ await expect(page.getByRole('status')).toContainText('2 cargos aprobados');
+});
+
 for(const scenario of ['missing-cost','server-error'])test(`approval shows ${scenario} next to the button without clearing selection`,async({page})=>{
  await page.goto(`/e2e/fixtures/personnel-allocations.html?scenario=${scenario}`);
  await page.getByLabel('Seleccionar pendientes filtrados').check();
  await page.getByLabel('Motivo común de aprobación').fill('Marcaje manual');
  await page.getByRole('button',{name:'Aprobar seleccionados (2) con este motivo',exact:true}).click();
  await page.getByRole('button',{name:'Confirmar aprobación',exact:true}).click();
- await expect(page.getByRole('status')).toContainText(scenario==='missing-cost'?'Parámetros de costeo mensual':'Cambió la asistencia');
+ await expect(page.getByRole('status')).toContainText(scenario==='missing-cost'?'ficha del trabajador':'Cambió la asistencia');
  await expect(page.getByRole('button',{name:'Aprobar seleccionados (2) con este motivo',exact:true})).toBeEnabled();
  expect(await page.evaluate(()=>window.approvalCalls.length)).toBe(scenario==='missing-cost'?0:1);
 });

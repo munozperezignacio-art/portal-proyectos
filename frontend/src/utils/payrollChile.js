@@ -38,12 +38,13 @@ export const calculatePayroll = (worker, attendance, parameters, novelty = {}) =
   const base = round(baseContract * paidDays / 30);
   const minSalary = num(parameters.salarioMinimo);
   const gratificationCap = round((parameters.topeGratificacionMensual ?? (4.75 * minSalary / 12)) * paidDays / 30);
-  const gratification = worker.gratificacion === 'Sin Gratificación' ? 0 : Math.min(round(base * 0.25), gratificationCap);
   const weeklyHours = Math.max(1, num(parameters.horasSemanales || 44));
   const hourly = baseContract * 7 / (30 * weeklyHours);
   const overtimeHours = num(novelty.horas_extra ?? attendance.overtime);
   const overtime = round(hourly * (parameters.factorHoraExtra || 1.5) * overtimeHours);
   const bonus = round(novelty.bonos ?? attendance.bonus);
+  const gratificationBase=base+(parameters.gratificarHaberesVariables ? overtime+bonus : 0);
+  const gratification = worker.gratificacion === 'Sin Gratificación' ? 0 : Math.min(round(gratificationBase * 0.25), gratificationCap);
   const taxableGrossRaw = base + gratification + overtime + bonus;
   const pensionCap = num(parameters.topeAfpUf) * num(parameters.uf);
   const unemploymentCap = num(parameters.topeCesantiaUf) * num(parameters.uf);

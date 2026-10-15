@@ -19,7 +19,7 @@ supabase.rpc=async(name,args)=>{
  return {data:args.p_decisiones.length,error:null};
 };
 supabase.from=table=>{
- const data=table==='rrhh_imputaciones_diarias'?rows:table==='rrhh_costeo_parametros'?{horas_semanales:42,tope_gratificacion_mensual:200000,cargas_empleador_pct:5,factor_hora_extra:1.5}:null;
+ const data=table==='rrhh_imputaciones_diarias'?rows:table==='rrhh_costeo_parametros'?{horas_semanales:42,tope_gratificacion_mensual:219114.73,cargas_empleador_pct:6.83,factor_hora_extra:1.5,...(scenario==='automatic'?{origen:'Automático',reglas:{advertencia:'Provisión referencial: no incluye la tasa adicional particular de mutualidad ni regímenes especiales. La nómina conciliada sustituye esta provisión.'}}:{})}:null;
  const result={data,error:null};
  const chain={select(){return this;},eq(){return this;},gte(){return this;},lt(){return this;},order(){return this;},range(){return Promise.resolve(result);},maybeSingle(){return Promise.resolve(result);},then(resolve,reject){return Promise.resolve(result).then(resolve,reject);}};
  return chain;

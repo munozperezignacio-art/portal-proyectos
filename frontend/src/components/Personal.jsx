@@ -631,6 +631,7 @@ function Personal({ user, onBack }) {
       sueldo_base: parseFloat(formData.sueldo_base) || 0,
       gratificacion: formData.gratificacion || 'Art. 50 (25% tope)',
       tipo_contrato: formData.tipo_contrato,
+      horas_semanales: formData.horas_semanales ? Number(formData.horas_semanales) : null,
       fecha_inicio_contrato: formData.fecha_inicio_contrato || null,
       fecha_vencimiento_contrato: formData.tipo_contrato === 'Indefinido' ? null : (formData.fecha_vencimiento_contrato || null),
       banco: formData.banco,
@@ -1676,6 +1677,10 @@ function Personal({ user, onBack }) {
                       <option value="Plazo Fijo">Plazo Fijo</option>
                       <option value="Por Obra o Faena">Por Obra o Faena</option>
                     </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Jornada contractual (h/semana, opcional)</label>
+                    <input type="number" min="1" max="60" step="0.5" value={formData.horas_semanales ?? ''} onChange={e=>setFormData({...formData,horas_semanales:e.target.value})} placeholder="Automática según período" className="w-full border border-slate-200 rounded-lg p-2 text-xs"/>
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Fecha Inicio Contrato</label>

@@ -1,0 +1,57 @@
+begin;
+do $$
+declare actor uuid; w integer; r public.rrhh_imputaciones_diarias; d jsonb; c public.rrhh_costeo_parametros; centro integer; aprobado numeric; rechazado boolean;
+  empresa_test text:='__TEST_COSTEO_AUTO_ROLLBACK__';
+begin
+  select auth_user_id into actor from public.usuarios where empresa='Obraxis' and lower(coalesce(rol_base,rol,'')) in ('superusuario','superadmin') and auth_user_id is not null limit 1;
+  if actor is null then raise exception 'Falta actor de prueba'; end if;
+  perform set_config('request.jwt.claim.sub',actor::text,true);
+  perform private.rrhh_completar_costeo(empresa_test,'2026-10');
+  if exists(select 1 from public.rrhh_costeo_parametros where empresa=empresa_test) then raise exception 'Activó una empresa que no optó por automatizar'; end if;
+  insert into public.rrhh_costeo_automatico_empresas(empresa) values(empresa_test);
+  insert into public.facturacion_centros_gestion(empresa,codigo,nombre,tipo) values(empresa_test,'AUTO','Centro de prueba','Administración') returning id into centro;
+  insert into public.maestro_personal(empresa,nombre,rut,sueldo_base,gratificacion,tipo_contrato,afp,centro_gestion_defecto_id,fecha_inicio_contrato,fecha_vencimiento_contrato)
+    values(empresa_test,'TEST AUTO','99999998-1',600000,'Sin Gratificación','Indefinido','Modelo',centro,'2026-10-01','2026-10-31') returning id into w;
+  perform public.preparar_imputaciones_personal(empresa_test,'2026-10');
+  select * into c from public.rrhh_costeo_parametros where empresa=empresa_test and periodo='2026-10';
+  if c.origen<>'Automático' or c.horas_semanales<>42 or c.cargas_empleador_pct<>6.83 or c.tope_gratificacion_mensual<>219114.73 then raise exception 'Referencias automáticas incorrectas: %',row_to_json(c); end if;
+  if exists(select 1 from public.rrhh_imputaciones_diarias where empresa=empresa_test and estado='Aprobada') then raise exception 'La preparación aprobó cargos'; end if;
+  select * into r from public.rrhh_imputaciones_diarias where empresa=empresa_test and trabajador_id=w and fecha='2026-10-01';
+  d:=private.rrhh_calcular_costo_dia(r.id,5000,2000,1);
+  if (d->>'total')::numeric<>34049 or (d->'parametros_aplicados'->>'cargas_empleador_pct')::numeric<>6.83 then raise exception 'Costo indefinido incorrecto: %',d; end if;
+  update public.maestro_personal set tipo_contrato='Plazo Fijo' where id=w;
+  d:=private.rrhh_calcular_costo_dia(r.id,5000,2000,1);
+  if (d->'parametros_aplicados'->>'cargas_empleador_pct')::numeric<>7.43 then raise exception 'No distingue plazo fijo'; end if;
+  update public.maestro_personal set horas_semanales=30 where id=w;
+  d:=private.rrhh_calcular_costo_dia(r.id,0,0,1);
+  if (d->>'monto_horas_extra')::numeric<>7000 then raise exception 'No usa jornada contractual'; end if;
+  update public.maestro_personal set sueldo_base=0 where id=w;
+  d:=private.rrhh_calcular_costo_dia(r.id,0,0,1);
+  if (d->>'listo')::boolean or d->>'motivo'<>'Falta el sueldo base en la ficha del trabajador' then raise exception 'Inventa sueldo faltante'; end if;
+  update public.maestro_personal set sueldo_base=600000,horas_semanales=null,tipo_contrato='Indefinido' where id=w;
+  perform public.preparar_imputaciones_personal(empresa_test,'2026-10');
+  select * into r from public.rrhh_imputaciones_diarias where id=r.id;
+  perform public.aprobar_imputaciones_personal(empresa_test,jsonb_build_array(jsonb_build_object('id',r.id,'evidencia',r.evidencia,'costo_evidencia',r.costo_evidencia,'centro_id',centro,'horas_extra',1,'haber_imponible',5000,'haber_no_imponible',2000,'comentario','Prueba de costeo automático')));
+  select costo_total into aprobado from public.rrhh_imputaciones_diarias where id=r.id;
+  perform public.preparar_imputaciones_personal(empresa_test,'2026-10');
+  perform public.preparar_imputaciones_personal(empresa_test,'2026-10');
+  if not exists(select 1 from public.rrhh_imputaciones_diarias where id=r.id and estado='Aprobada' and costo_total=aprobado) then raise exception 'Preparar otra vez altera una aprobación vigente'; end if;
+  if (select count(*) from public.rrhh_costeo_parametros where empresa=empresa_test and periodo='2026-10')<>1 then raise exception 'Configuración duplicada'; end if;
+  perform private.rrhh_completar_costeo(empresa_test,'2026-11');
+  if not exists(select 1 from public.rrhh_costeo_parametros where empresa=empresa_test and periodo='2026-11' and origen='Automático') then raise exception 'El mes siguiente no es automático'; end if;
+  perform private.rrhh_completar_costeo(empresa_test,'2027-01');
+  if exists(select 1 from public.rrhh_costeo_parametros where empresa=empresa_test and periodo='2027-01') then raise exception 'Extendió tasas fuera de vigencia'; end if;
+  update public.rrhh_costeo_parametros set origen='Manual',cargas_empleador_pct=12 where empresa=empresa_test and periodo='2026-10';
+  perform private.rrhh_completar_costeo(empresa_test,'2026-12'); -- latest November is auto: do not revive an older manual override.
+  perform private.rrhh_completar_costeo(empresa_test,'2026-10');
+  if not exists(select 1 from public.rrhh_costeo_parametros where empresa=empresa_test and periodo='2026-10' and origen='Manual' and cargas_empleador_pct=12) then raise exception 'Sobrescribió configuración particular'; end if;
+  update public.rrhh_costeo_parametros set origen='Manual',cargas_empleador_pct=13 where empresa=empresa_test and periodo='2026-12';
+  perform private.rrhh_completar_costeo(empresa_test,'2027-02');
+  if not exists(select 1 from public.rrhh_costeo_parametros where empresa=empresa_test and periodo='2027-02' and cargas_empleador_pct=13 and heredado_de='2026-12') then raise exception 'No reutiliza configuración anterior de la empresa'; end if;
+  perform set_config('request.jwt.claim.sub',gen_random_uuid()::text,true);
+  rechazado:=false;
+  begin perform private.rrhh_completar_costeo(empresa_test,'2026-09'); exception when others then rechazado:=true; end;
+  if not rechazado then raise exception 'Un actor ajeno pudo generar configuración'; end if;
+  if has_function_privilege('anon','private.rrhh_completar_costeo(text,text)','EXECUTE') or has_function_privilege('authenticated','private.rrhh_completar_costeo(text,text)','EXECUTE') then raise exception 'Función interna expuesta'; end if;
+end; $$;
+rollback;
