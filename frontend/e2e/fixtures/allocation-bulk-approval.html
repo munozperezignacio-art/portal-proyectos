@@ -1,0 +1,9 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="fixture"></div><script type="module">
+import React,{useState} from 'react';
+import {createRoot} from 'react-dom/client';
+import AllocationBulkApproval from '../../src/components/AllocationBulkApproval.jsx';
+import {allocationApprovalDecisions} from '../../src/utils/allocationApproval.js';
+window.decisions=[];
+function Fixture(){const [reason,setReason]=useState('');return React.createElement(AllocationBulkApproval,{count:2,reason,onReasonChange:setReason,busy:false,onApprove:()=>{window.decisions=allocationApprovalDecisions([{id:1,fecha:'2026-10-01',centro_propuesto_id:10,costo_detalle:{horas_extra:1}},{id:2,fecha:'2026-10-02',centro_propuesto_id:20,costo_detalle:{horas_extra:2}}],{},[1,2],{today:'2026-10-15',commonReason:reason});}});}
+createRoot(document.getElementById('fixture')).render(React.createElement(Fixture));
+</script></body></html>

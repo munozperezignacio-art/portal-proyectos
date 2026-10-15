@@ -3,6 +3,8 @@ import { supabase } from '../supabaseClient';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
 import { laborCostPreview } from '../utils/laborCostPreview';
+import {allocationApprovalDecisions} from '../utils/allocationApproval';
+import AllocationBulkApproval from './AllocationBulkApproval';
 
 const monthNow = () => new Date().toLocaleDateString('en-CA').slice(0, 7);
 export default function PersonnelAllocations({ user, personal, obras, centrosGestion }) {
@@ -17,6 +19,7 @@ export default function PersonnelAllocations({ user, personal, obras, centrosGes
   const [message, setMessage] = useState('');
   const [edits, setEdits] = useState({});
   const [selected, setSelected] = useState([]);
+  const [bulkReason,setBulkReason] = useState('');
   const [filter, setFilter] = useState('Pendiente');
   const [workerFilter, setWorkerFilter] = useState('');
   const [centerFilter, setCenterFilter] = useState('');
@@ -56,30 +59,25 @@ export default function PersonnelAllocations({ user, personal, obras, centrosGes
     finally { setBusy(false); }
   }, [period, user.empresa, permissionsLoading, canEdit, canApprove]);
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { setSelected([]); }, [filter, workerFilter, centerFilter, dateFilter]);
+  useEffect(() => { setSelected([]); setBulkReason(''); }, [period, filter, workerFilter, centerFilter, dateFilter]);
   const filtered = rows.filter(r => (!workerFilter || String(r.trabajador_id) === workerFilter)
     && (!dateFilter || r.fecha === dateFilter)
     && (!centerFilter || String(r.centro_aprobado_id || r.centro_propuesto_id || '') === centerFilter)
     && (filter === 'Todas' || (filter === 'Sin asistencia' ? r.origen === filter : filter === 'Sin centro' ? !r.centro_propuesto_id && r.estado !== 'Aprobada' : r.estado === filter)));
   const pending = rows.filter(r => r.estado !== 'Aprobada').length;
   const change = (id, key, value) => setEdits(current => ({ ...current, [id]: { ...current[id], [key]: value } }));
-  const approve = async ids => {
-    if (!ids.length || busy) return;
-    ids = ids.filter(id => rows.some(r => r.id === id && r.fecha <= today));
-    if (!ids.length) return setMessage('No se devengan costos de fechas futuras. Seleccione días hasta hoy.');
-    const decisions = rows.filter(r => ids.includes(r.id)).map(r => ({ id: r.id, evidencia: r.evidencia,
-      costo_evidencia: r.costo_evidencia,
-      horas_extra: Number(edits[r.id]?.hours ?? r.costo_detalle?.horas_extra ?? 0),
-      haber_imponible: Number(edits[r.id]?.taxable ?? r.haber_imponible ?? 0),
-      haber_no_imponible: Number(edits[r.id]?.nonTaxable ?? r.haber_no_imponible ?? 0),
-      centro_id: Number(edits[r.id]?.center ?? r.centro_aprobado_id ?? r.centro_propuesto_id) || null,
-      comentario: edits[r.id]?.comment || '' }));
-    if (decisions.length > 1000) return setMessage('Apruebe como máximo 1.000 días por lote.');
-    if (decisions.some(d => !d.centro_id)) return setMessage('Seleccione un centro de destino para todos los días del lote.');
+  const approve = async (ids,commonReason) => {
+    if (!canApprove || !ids.length || busy) return;
+    let decisions;
+    try { decisions=allocationApprovalDecisions(rows,edits,ids,{today,commonReason}); }
+    catch(error){setMessage(error.message);return;}
+    if(commonReason!==undefined && !window.confirm(`¿Aprobar ${decisions.length} días con el motivo común «${commonReason.trim()}»? Se conservarán los destinos, horas extras y haberes revisados de cada fila.`))return;
     setBusy(true); setMessage('');
-    const result = await supabase.rpc('aprobar_imputaciones_personal', { p_empresa: user.empresa, p_decisiones: decisions });
-    if (result.error) { setMessage(result.error.message); setBusy(false); }
-    else { await load(); setMessage(`${result.data} cargos aprobados: ya forman parte del costo devengado. La nómina definitiva los sustituirá sin duplicarlos.`); }
+    try {
+      const result = await supabase.rpc('aprobar_imputaciones_personal', { p_empresa: user.empresa, p_decisiones: decisions });
+      if(result.error)throw result.error;
+      await load();setBulkReason('');setMessage(`${result.data} cargos aprobados${commonReason!==undefined?' con el mismo motivo, registrado en cada historial':''}: ya forman parte del costo devengado. La nómina definitiva los sustituirá sin duplicarlos.`);
+    }catch(error){setMessage(error.message);}finally{setBusy(false);}
   };
   const saveParameters = async () => {
     const keys = ['horas_semanales','tope_gratificacion_mensual','cargas_empleador_pct','factor_hora_extra'];
@@ -111,7 +109,7 @@ export default function PersonnelAllocations({ user, personal, obras, centrosGes
       <input aria-label="Día" type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} className={cls}/>
       <button disabled={busy} onClick={load} className={cls}>{busy ? 'Procesando…' : 'Actualizar propuestas'}</button>
     </div>
-    {canApprove && <div className="flex flex-wrap gap-2"><button disabled={busy || !selected.length} onClick={() => approve(selected)} className={`${cls} disabled:opacity-40`}>Aprobar seleccionados ({selected.length})</button><button disabled={busy || !payroll || !['Cerrada','Pagada'].includes(payroll.estado)} onClick={distribute} className={`${cls} disabled:opacity-40`}>Distribuir costos de nómina {period}</button></div>}
+    {canApprove && <><AllocationBulkApproval count={selected.length} reason={bulkReason} onReasonChange={setBulkReason} onApprove={()=>approve(selected,bulkReason)} busy={busy}/><button disabled={busy || !payroll || !['Cerrada','Pagada'].includes(payroll.estado)} onClick={distribute} className={`${cls} disabled:opacity-40`}>Distribuir costos de nómina {period}</button></>}
     {!payroll && <p className="text-xs text-slate-500">Puede aprobar destinos antes de calcular la nómina. Para cargar los costos, primero guarde y cierre la nómina del período en Remuneraciones.</p>}
     <div className="max-h-[650px] overflow-auto rounded-xl border"><table className="w-full min-w-[1000px] text-left text-xs"><thead className="sticky top-0 bg-slate-100"><tr><th className="p-3"><input aria-label="Seleccionar pendientes filtrados" type="checkbox" disabled={busy || !canApprove} checked={filtered.some(r => r.estado === 'Pendiente') && filtered.filter(r => r.estado === 'Pendiente').every(r => selected.includes(r.id))} onChange={e => setSelected(e.target.checked ? filtered.filter(r => r.estado === 'Pendiente').slice(0,1000).map(r => r.id) : [])}/></th>{['Fecha / trabajador','Evidencia','Destino del cargo','Motivo / aprobación'].map(t => <th key={t} className="p-3">{t}</th>)}</tr></thead><tbody>{filtered.map(r => <tr key={r.id} className="border-t align-top">
       <td className="p-3"><input aria-label={`Seleccionar día ${r.fecha}`} type="checkbox" disabled={busy || !canApprove} checked={selected.includes(r.id)} onChange={e => setSelected(s => e.target.checked ? [...s,r.id] : s.filter(id => id !== r.id))}/></td>
