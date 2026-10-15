@@ -11,13 +11,15 @@ const currentPeriod = () => new Date().toISOString().slice(0, 7);
 export default function PayrollAutomation({ user, personal, centrosGestion = [], indicadores, onEmit }) {
   const [period, setPeriod] = useState(currentPeriod());
   const [attendance, setAttendance] = useState([]);
+  const [approvedDays, setApprovedDays] = useState([]);
+  const [costConfig, setCostConfig] = useState(null);
   const [novelties, setNovelties] = useState({});
   const [savedItems, setSavedItems] = useState([]);
   const [status, setStatus] = useState('Borrador');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [centerFilter, setCenterFilter] = useState('Todos');
-  const parameters = useMemo(() => ({ ...indicadores, horasSemanales: indicadores.horasSemanales || 44, afpRates: afpCommissionRates }), [indicadores]);
+  const parameters = useMemo(() => ({ ...indicadores, horasSemanales: costConfig?.horas_semanales || indicadores.horasSemanales || 42, topeGratificacionMensual: costConfig?.tope_gratificacion_mensual, cargasEmpleadorPct: costConfig?.cargas_empleador_pct, factorHoraExtra: costConfig?.factor_hora_extra, afpRates: afpCommissionRates }), [indicadores,costConfig]);
 
   const load = useCallback(async () => {
     setLoading(true); setMessage('');
@@ -27,6 +29,12 @@ export default function PayrollAutomation({ user, personal, centrosGestion = [],
       supabase.from('rrhh_nominas_mensuales').select('*,rrhh_nomina_items(*)').eq('empresa', user.empresa).eq('periodo', period).maybeSingle()
     ]);
     setAttendance(attendanceResult.data || []);
+    const [approved, config] = await Promise.all([
+      supabase.from('rrhh_imputaciones_diarias').select('trabajador_id,estado,fecha,horas_extra_aprobadas,haber_imponible,haber_no_imponible').eq('empresa',user.empresa).eq('estado','Aprobada').gte('fecha',start).lte('fecha',endDate.toISOString().slice(0,10)),
+      supabase.from('rrhh_costeo_parametros').select('*').eq('empresa',user.empresa).eq('periodo',period).maybeSingle()
+    ]);
+    if (attendanceResult.error || runResult.error || approved.error || config.error) { setMessage((attendanceResult.error || runResult.error || approved.error || config.error).message); setLoading(false); return; }
+    setApprovedDays(approved.data || []); setCostConfig(config.data);
     if (runResult.data) { setStatus(runResult.data.estado); setSavedItems(runResult.data.rrhh_nomina_items || []); setNovelties(Object.fromEntries((runResult.data.rrhh_nomina_items || []).map(item => [item.trabajador_id, item.novedades || {}]))); }
     else { setStatus('Borrador'); setSavedItems([]); setNovelties({}); }
     setLoading(false);
@@ -36,14 +44,15 @@ export default function PayrollAutomation({ user, personal, centrosGestion = [],
   const centerMap = useMemo(() => new Map(centrosGestion.map(center => [String(center.id), center])), [centrosGestion]);
   const allCalculations = useMemo(() => personal.filter(worker => String(worker.estado || 'Activo').toLowerCase() !== 'inactivo').map(worker => {
     const center = centerMap.get(String(worker.centro_gestion_id || ''));
-    return { ...calculatePayroll(worker, attendanceSummary(worker, attendance, period), parameters, novelties[worker.id] || {}), centroGestionId: worker.centro_gestion_id || null, centroGestion: center ? `${center.codigo} · ${center.nombre}` : 'Sin centro de gestión' };
-  }), [personal, attendance, period, parameters, novelties, centerMap]);
+    return { ...calculatePayroll(worker, attendanceSummary(worker, attendance, period, approvedDays), parameters, novelties[worker.id] || {}), centroGestionId: worker.centro_gestion_id || null, centroGestion: center ? `${center.codigo} · ${center.nombre}` : 'Sin centro de gestión' };
+  }), [personal, attendance, period, parameters, novelties, centerMap,approvedDays]);
   const calculations = useMemo(() => centerFilter === 'Todos' ? allCalculations : allCalculations.filter(row => String(row.centroGestionId || '') === centerFilter), [allCalculations, centerFilter]);
   const totals = useMemo(() => calculations.reduce((sum, row) => ({ gross: sum.gross + row.totalAssets, legal: sum.legal + row.legalDiscounts, net: sum.net + row.net }), { gross: 0, legal: 0, net: 0 }), [calculations]);
   const payrollTotals = useMemo(() => allCalculations.reduce((sum, row) => ({ gross: sum.gross + row.totalAssets, legal: sum.legal + row.legalDiscounts, net: sum.net + row.net }), { gross: 0, legal: 0, net: 0 }), [allCalculations]);
   const setNovelty = (id, key, value) => setNovelties(current => ({ ...current, [id]: { ...(current[id] || {}), [key]: value } }));
 
   const save = async (close = false) => {
+    if (!costConfig) { setMessage('Configure primero los parámetros de costeo del mes en Asignaciones y distribución de costos.'); return; }
     setMessage('');
     const header = { empresa: user.empresa, periodo: period, estado: close ? 'Cerrada' : 'Borrador', parametros: parameters, total_haberes: payrollTotals.gross, total_descuentos: payrollTotals.legal, total_liquido: payrollTotals.net, generado_por: user.nombre || user.usuario || user.correo, updated_at: new Date().toISOString() };
     const { data: payroll, error } = await supabase.from('rrhh_nominas_mensuales').upsert(header, { onConflict: 'empresa,periodo' }).select().single();
@@ -65,6 +74,11 @@ export default function PayrollAutomation({ user, personal, centrosGestion = [],
     }
     setStatus(header.estado);
     setSavedItems(items);
+    if (close) {
+      const reconciliation=await supabase.rpc('distribuir_nomina_a_obras',{p_nomina_id:payroll.id});
+      setMessage(reconciliation.error ? `Nómina cerrada; conciliación pendiente: ${reconciliation.error.message}. Se conserva la provisión sin duplicarla.` : reconciliation.data?.distribuida ? 'Nómina cerrada y conciliada: sustituye las provisiones diarias, sin duplicar costos.' : `Nómina cerrada; quedan ${reconciliation.data?.pendientes || 0} días por aprobar. No se duplicaron costos.`);
+      return;
+    }
     setMessage(close
       ? 'Nómina cerrada. Revise y apruebe los destinos en RRHH → Asignaciones y distribución de costos; luego distribuya esta nómina.'
       : 'Borrador mensual guardado.');

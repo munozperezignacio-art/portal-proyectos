@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
+import { laborCostPreview } from '../utils/laborCostPreview';
 
 const monthNow = () => new Date().toLocaleDateString('en-CA').slice(0, 7);
 export default function PersonnelAllocations({ user, personal, obras, centrosGestion }) {
@@ -20,9 +21,12 @@ export default function PersonnelAllocations({ user, personal, obras, centrosGes
   const [workerFilter, setWorkerFilter] = useState('');
   const [centerFilter, setCenterFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
+  const today = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago'}).format(new Date());
+  const [costParameters, setCostParameters] = useState({ horas_semanales: '42', tope_gratificacion_mensual: '', cargas_empleador_pct: '', factor_hora_extra: '1.5' });
   const workerMap = useMemo(() => new Map(personal.map(p => [p.id, p])), [personal]);
   const centerMap = useMemo(() => new Map(centrosGestion.map(c => [c.id, c])), [centrosGestion]);
   const centerLabel = id => { const c = centerMap.get(Number(id)); return c ? `${c.codigo} · ${c.nombre}` : 'Sin centro'; };
+  const preview = row => laborCostPreview(row.costo_detalle,edits[row.id],workerMap.get(row.trabajador_id),costParameters);
   const load = useCallback(async () => {
     if (permissionsLoading) return;
     setBusy(true); setMessage(''); setEdits({}); setSelected([]);
@@ -41,6 +45,9 @@ export default function PersonnelAllocations({ user, personal, obras, centrosGes
         if (result.data.length < 1000) break;
       }
       const run = await supabase.from('rrhh_nominas_mensuales').select('id,estado').eq('empresa', user.empresa).eq('periodo', period).maybeSingle();
+      const config = await supabase.from('rrhh_costeo_parametros').select('*').eq('empresa', user.empresa).eq('periodo', period).maybeSingle();
+      if (config.error) throw config.error;
+      setCostParameters(config.data || { horas_semanales: '42', tope_gratificacion_mensual: '', cargas_empleador_pct: '', factor_hora_extra: '1.5' });
       if (run.error) throw run.error;
       const ledger = run.data ? await supabase.from('rrhh_costos_centros_aprobados').select('*').eq('empresa', user.empresa).eq('nomina_id', run.data.id) : { data: [] };
       if (ledger.error) throw ledger.error;
@@ -58,7 +65,13 @@ export default function PersonnelAllocations({ user, personal, obras, centrosGes
   const change = (id, key, value) => setEdits(current => ({ ...current, [id]: { ...current[id], [key]: value } }));
   const approve = async ids => {
     if (!ids.length || busy) return;
+    ids = ids.filter(id => rows.some(r => r.id === id && r.fecha <= today));
+    if (!ids.length) return setMessage('No se devengan costos de fechas futuras. Seleccione días hasta hoy.');
     const decisions = rows.filter(r => ids.includes(r.id)).map(r => ({ id: r.id, evidencia: r.evidencia,
+      costo_evidencia: r.costo_evidencia,
+      horas_extra: Number(edits[r.id]?.hours ?? r.costo_detalle?.horas_extra ?? 0),
+      haber_imponible: Number(edits[r.id]?.taxable ?? r.haber_imponible ?? 0),
+      haber_no_imponible: Number(edits[r.id]?.nonTaxable ?? r.haber_no_imponible ?? 0),
       centro_id: Number(edits[r.id]?.center ?? r.centro_aprobado_id ?? r.centro_propuesto_id) || null,
       comentario: edits[r.id]?.comment || '' }));
     if (decisions.length > 1000) return setMessage('Apruebe como máximo 1.000 días por lote.');
@@ -66,7 +79,15 @@ export default function PersonnelAllocations({ user, personal, obras, centrosGes
     setBusy(true); setMessage('');
     const result = await supabase.rpc('aprobar_imputaciones_personal', { p_empresa: user.empresa, p_decisiones: decisions });
     if (result.error) { setMessage(result.error.message); setBusy(false); }
-    else { await load(); setMessage(`${result.data} imputaciones aprobadas. La distribución de costos se ejecuta por separado.`); }
+    else { await load(); setMessage(`${result.data} cargos aprobados: ya forman parte del costo devengado. La nómina definitiva los sustituirá sin duplicarlos.`); }
+  };
+  const saveParameters = async () => {
+    const keys = ['horas_semanales','tope_gratificacion_mensual','cargas_empleador_pct','factor_hora_extra'];
+    if (keys.some(k => costParameters[k] === '' || !Number.isFinite(Number(costParameters[k])))) return setMessage('Complete todos los parámetros. Una tasa 0 debe indicarse expresamente.');
+    setBusy(true);
+    const { data: auth } = await supabase.auth.getUser();
+    const result = await supabase.from('rrhh_costeo_parametros').upsert({ empresa: user.empresa, periodo: period, ...Object.fromEntries(keys.map(k => [k,Number(costParameters[k])])), actualizado_por: auth.user?.id, actualizado_en: new Date().toISOString() });
+    if (result.error) { setMessage(result.error.message); setBusy(false); } else { await load(); setMessage('Parámetros guardados. Los cargos afectados requieren nueva revisión.'); }
   };
   const distribute = async () => {
     if (!payroll || busy || !window.confirm('¿Recalcular exclusivamente los costos automáticos de esta nómina con los días aprobados? No se modificarán liquidaciones manuales ni otras nóminas.')) return;
@@ -81,6 +102,7 @@ export default function PersonnelAllocations({ user, personal, obras, centrosGes
     <div className="rounded-2xl bg-slate-900 p-5 text-white"><h3 className="font-black">Asignaciones y distribución de costos</h3><p className="mt-2 text-xs">La asistencia propone la obra; sin asistencia se propone el centro predeterminado de la ficha. Todo cargo requiere aprobación.</p></div>
     <div className="rounded-xl border bg-amber-50 p-3 text-xs text-amber-950">{pending} días pendientes · {rows.length - pending} aprobados. Base: lunes a viernes dentro del contrato y días adicionales con asistencia. No modifica sueldos ni convierte falta de marcación en ausencia. Si cambia la asistencia, revise y vuelva a distribuir: los costos anteriores no se alteran silenciosamente.</div>
     {message && <p role="status" className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm">{message}</p>}
+    <details className="rounded-xl border bg-white p-4"><summary className="text-sm font-bold">Parámetros de costeo mensual — {period}</summary><p className="my-2 text-xs">Provisión diaria: sueldo, gratificación y asignaciones mensuales ÷ 30 + horas extras + haberes del día + cargas configuradas sobre imponibles. Confirme las tasas y topes aplicables con remuneraciones.</p><div className="grid gap-2 sm:grid-cols-4">{[['horas_semanales','Horas semanales contractuales'],['tope_gratificacion_mensual','Tope mensual de gratificación ($)'],['cargas_empleador_pct','Provisión cargas empleador (%)'],['factor_hora_extra','Factor hora extra (mín. 1,5)']].map(([key,label]) => <label className="text-xs" key={key}>{label}<input disabled={!canApprove || busy} type="number" step="0.01" value={costParameters[key]} onChange={e => setCostParameters(p => ({ ...p,[key]:e.target.value }))} className="mt-1 w-full rounded border p-2"/></label>)}</div>{canApprove && <button disabled={busy} onClick={saveParameters} className="mt-3 rounded bg-slate-900 px-3 py-2 text-xs text-white">Guardar parámetros</button>}</details>
     <div className="flex flex-wrap gap-2">
       <input aria-label="Período" type="month" value={period} onChange={e => setPeriod(e.target.value)} disabled={busy} className={cls}/>
       <select aria-label="Estado" value={filter} onChange={e => setFilter(e.target.value)} className={cls}>{['Pendiente','Sin asistencia','Sin centro','Aprobada','Todas'].map(v => <option key={v}>{v}</option>)}</select>
@@ -94,8 +116,11 @@ export default function PersonnelAllocations({ user, personal, obras, centrosGes
     <div className="max-h-[650px] overflow-auto rounded-xl border"><table className="w-full min-w-[1000px] text-left text-xs"><thead className="sticky top-0 bg-slate-100"><tr><th className="p-3"><input aria-label="Seleccionar pendientes filtrados" type="checkbox" disabled={busy || !canApprove} checked={filtered.some(r => r.estado === 'Pendiente') && filtered.filter(r => r.estado === 'Pendiente').every(r => selected.includes(r.id))} onChange={e => setSelected(e.target.checked ? filtered.filter(r => r.estado === 'Pendiente').slice(0,1000).map(r => r.id) : [])}/></th>{['Fecha / trabajador','Evidencia','Destino del cargo','Motivo / aprobación'].map(t => <th key={t} className="p-3">{t}</th>)}</tr></thead><tbody>{filtered.map(r => <tr key={r.id} className="border-t align-top">
       <td className="p-3"><input aria-label={`Seleccionar día ${r.fecha}`} type="checkbox" disabled={busy || !canApprove} checked={selected.includes(r.id)} onChange={e => setSelected(s => e.target.checked ? [...s,r.id] : s.filter(id => id !== r.id))}/></td>
       <td className="p-3">{r.fecha}<b className="block">{workerMap.get(r.trabajador_id)?.nombre || `Trabajador ${r.trabajador_id}`}</b><span>{r.estado}</span></td>
-      <td className="p-3">{r.origen}<small className="block">Propuesta: {centerLabel(r.centro_propuesto_id)}</small>{Array.isArray(r.evidencia?.marcas) && r.evidencia.marcas.map(m => <small className="block" key={m[0]}>{obras.find(o => o.id === m[1])?.nombre || 'Sin obra'} · {m[2]}</small>)}</td>
-      <td className="p-3"><select aria-label={`Destino ${r.fecha}`} disabled={busy || !canApprove} value={edits[r.id]?.center ?? r.centro_aprobado_id ?? r.centro_propuesto_id ?? ''} onChange={e => change(r.id,'center',e.target.value)} className={`${cls} w-full`}><option value="">Seleccione un centro</option>{centrosGestion.filter(c => c.activo !== false).map(c => <option key={c.id} value={c.id}>{centerLabel(c.id)}</option>)}</select></td>
+      <td className="p-3">{r.origen}<small className="block">Propuesta: {centerLabel(r.centro_propuesto_id)}</small><small className="block">H. extra detectadas: {r.costo_evidencia?.horas_detectadas ?? 'Por calcular'}</small>{Array.isArray(r.evidencia?.marcas) && r.evidencia.marcas.map(m => <small className="block" key={m[0]}>{obras.find(o => o.id === m[1])?.nombre || 'Sin obra'} · {m[2]}</small>)}</td>
+      <td className="p-3"><select aria-label={`Destino ${r.fecha}`} disabled={busy || !canApprove} value={edits[r.id]?.center ?? r.centro_aprobado_id ?? r.centro_propuesto_id ?? ''} onChange={e => change(r.id,'center',e.target.value)} className={`${cls} w-full`}><option value="">Seleccione un centro</option>{centrosGestion.filter(c => c.activo !== false).map(c => <option key={c.id} value={c.id}>{centerLabel(c.id)}</option>)}</select>
+        <div className="mt-2 space-y-1">{[['hours','Horas extras a aprobar',r.costo_detalle?.horas_extra],['taxable','Haber adicional imponible ($)',r.haber_imponible],['nonTaxable','Haber adicional no imponible ($)',r.haber_no_imponible]].map(([key,label,value]) => <label className="block text-[10px]" key={key}>{label}<input type="number" min="0" step="0.01" disabled={busy || !canApprove} value={edits[r.id]?.[key] ?? value ?? 0} onChange={e => change(r.id,key,e.target.value)} className="ml-1 w-24 rounded border p-1"/></label>)}</div>
+        <details className="mt-2 text-[10px]"><summary>{r.costo_detalle?.listo ? `Costo propuesto: $${Number(preview(r).total).toLocaleString('es-CL')}` : 'Falta configuración de costo'}</summary>{Object.entries(preview(r)).filter(([k,v]) => typeof v === 'number' && k !== 'horas_extra').map(([k,v]) => <p key={k}>{k}: ${v.toLocaleString('es-CL')}</p>)}<p>Vista previa. El servidor recalcula y registra el desglose al aprobar.</p></details>
+      </td>
       <td className="p-3"><input aria-label="Motivo de reasignación" placeholder="Motivo obligatorio si cambia destino" disabled={busy || !canApprove} value={edits[r.id]?.comment ?? ''} onChange={e => change(r.id,'comment',e.target.value)} className={`${cls} w-full`}/>{canApprove && <button disabled={busy} onClick={() => approve([r.id])} className="mt-2 rounded bg-emerald-800 px-3 py-2 font-bold text-white">{r.estado === 'Aprobada' ? 'Reasignar y aprobar' : 'Aprobar'}</button>}<details className="mt-2"><summary>Historial ({r.historial.length})</summary>{r.historial.map((h,i) => <p className="mt-1 text-[10px]" key={i}>{new Date(h.fecha).toLocaleString('es-CL')} · {h.accion} · {centerLabel(h.centro || h.centro_anterior)} · {h.comentario || ''} · Usuario: {h.actor}</p>)}</details></td>
     </tr>)}</tbody></table>{!filtered.length && <p className="p-5 text-sm">No hay registros con estos filtros.</p>}</div>
     {!!costs.length && <div className="rounded-xl border bg-white p-4"><h4 className="text-sm font-bold">Última distribución de costos del período</h4><p className="my-2 text-xs text-slate-500">Se conserva hasta volver a distribuir la nómina, aunque existan días por revisar.</p>{Object.entries(totals).map(([id,total]) => <p key={id} className="text-sm">{centerLabel(id)}: ${total.toLocaleString('es-CL')}</p>)}</div>}

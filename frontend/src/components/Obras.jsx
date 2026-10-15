@@ -402,6 +402,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const [proyeccionesList, setProyeccionesList] = useState([]);
   const [, setProyeccionesRrhhList] = useState([]);
   const [liquidacionesList, setLiquidacionesList] = useState([]);
+  const [laborCostError, setLaborCostError] = useState('');
   const [showProyeccionRrhhModal, setShowProyeccionRrhhModal] = useState(false);
   const [showProyeccionMasivaRrhhModal, setShowProyeccionMasivaRrhhModal] = useState(false);
   const [showEditSueldoModal, setShowEditSueldoModal] = useState(false);
@@ -1471,6 +1472,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   };
 
   const fetchObraDetails = async (obraNombre) => {
+    setLaborCostError('Cargando costos de personal');
+    setLiquidacionesList([]);
+    setCostosList([]);
     if (!obraNombre) return;
     const isMatchObra = (itemObra, targetObra) => {
       if (!itemObra || !targetObra) return false;
@@ -1517,7 +1521,16 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         if (liquidacionesResult.error) throw liquidacionesResult.error;
         if (costosResult.error) throw costosResult.error;
         setProyeccionesRrhhList(proyeccionesResult.data || []);
-        setLiquidacionesList(liquidacionesResult.data || []);
+        const laborRows = [];
+        for (let offset = 0; ; offset += 1000) {
+          const result = await supabase.from('rrhh_costos_personal_vigentes').select('*').eq('empresa',user?.empresa || 'Obraxis').eq('obra_nombre',obraNombre).order('fecha').order('id').range(offset,offset+999);
+          if (result.error) { setLaborCostError(result.error.message); throw result.error; }
+          laborRows.push(...result.data);
+          if (result.data.length < 1000) break;
+        }
+        setLaborCostError('');
+        const reconciled = new Set(laborRows.filter(r => r.nomina_item_id).map(r => String(r.nomina_item_id)));
+        setLiquidacionesList([...(liquidacionesResult.data || []).filter(r => !reconciled.has(String(r.nomina_item_id))), ...laborRows]);
         setCostosList(costosResult.data || []);
         try {
           const { data: facturasObra, error: facturasError } = await supabase
@@ -4840,6 +4853,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     : sum;
                 }, 0);
                 const getCostoManoObraPartida = (partidaName) => (liquidacionesList || []).reduce((sum, liquidacion) => {
+                  if (liquidacion.fecha && liquidacion.fecha > fCorteStr) return sum;
                   if (String(liquidacion.periodo || '') > fCorteStr.substring(0, 7)) return sum;
                   const detalles = Array.isArray(liquidacion.obra_liquidaciones_partidas) ? liquidacion.obra_liquidaciones_partidas : [];
                   return sum + detalles
@@ -4860,10 +4874,17 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 const BAC = totalVentaPresupuestada; // Presupuesto Total Venta
                 const evm = calculateEarnedValue({ earnedValue: EV, plannedValue: PV, actualCost: AC, budgetAtCompletion: BAC });
                 // La interfaz conserva valores neutros cuando aún no existe base suficiente para un índice.
-                const CPI = evm.cpi ?? 1.0;
-                const SPI = evm.spi ?? 1.0;
-                const EAC = evm.eac;
-                const CV = evm.costVariance;
+                const costBudget = isGlobalStats ? Number(selectedObra?.presupuesto_costo_control) || 0 : 0;
+                const earnedCost = costBudget * Number(pctAvanceGlobal) / 100;
+                const CPI = costBudget > 0 && AC > 0 && !laborCostError ? earnedCost / AC : null;
+                const SPI = evm.spi;
+                const EAC = CPI > 0 ? Math.round(costBudget / CPI) : null;
+                const CV = CPI !== null ? earnedCost - AC : null;
+                const actualCostRecords = [
+                  ...(costosList || []).filter(c => getCostDate(c) <= fCorteStr).map(c => ({ ...c,fecha:getCostDate(c),monto:isGlobalStats ? Number(c.monto)||0 : (c.imputaciones || []).filter(i => targetPartidas.some(p => isMatchPartidaName(i.partida,p.partida))).reduce((sum,i)=>sum+Math.round((Number(c.monto)||0)*(Number(i.porcentaje)||0)/100),0) })),
+                  ...(liquidacionesList || []).filter(c => (c.fecha || String(c.created_at || '').slice(0,10)) <= fCorteStr).map(c => ({ ...c,fecha:c.fecha || String(c.created_at || '').slice(0,10),monto:isGlobalStats ? Number(c.monto_real)||0 : (c.obra_liquidaciones_partidas || []).filter(i => targetPartidas.some(p => isMatchPartidaName(i.partida,p.partida))).reduce((sum,i)=>sum+(Number(i.monto_imputado)||0),0) })),
+                  ...(isGlobalStats ? filteredMantenciones : []).map(c => ({ ...c,monto:Number(c.costo)||0 }))
+                ];
 
                 // PARTIDAS CON ALERTA Y DESVIACIÓN CRÍTICA DE COSTO
                 const partidasConDesviacion = targetPartidas.map(p => {
@@ -5030,7 +5051,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                             </div>
                             <div className="flex flex-wrap gap-2 text-xs font-bold">
                               <span className={`px-3 py-1.5 rounded-xl border ${SPI >= 1 ? 'bg-emerald-500/20 border-emerald-300/40 text-emerald-100' : 'bg-amber-500/20 border-amber-300/40 text-amber-100'}`}>Plazo: {SPI >= 1 ? 'En línea / adelantado' : 'Requiere recuperación'}</span>
-                              <span className={`px-3 py-1.5 rounded-xl border ${CPI >= 1 ? 'bg-emerald-500/20 border-emerald-300/40 text-emerald-100' : 'bg-rose-500/20 border-rose-300/40 text-rose-100'}`}>Costo: {CPI >= 1 ? 'Controlado' : 'En desviación'}</span>
+                              <span className={`px-3 py-1.5 rounded-xl border ${CPI >= 1 ? 'bg-emerald-500/20 border-emerald-300/40 text-emerald-100' : 'bg-rose-500/20 border-rose-300/40 text-rose-100'}`}>Costo: {CPI == null ? 'Sin base de costo' : CPI >= 1 ? 'Controlado' : 'En desviación'}</span>
                               <span className="px-3 py-1.5 rounded-xl border border-blue-300/40 bg-blue-500/20 text-blue-100">{activeWorkerCount} personas | {totalEquiposFlota} equipos</span>
                             </div>
                           </div>
@@ -5039,8 +5060,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Avance real vs. plan</span><p className="text-2xl font-black text-blue-950">{pctAvanceGlobal}% <span className="text-xs text-slate-400 font-bold">/ {plannedGlobalPct.toFixed(1)}%</span></p><p className={`text-[10px] font-bold ${scheduleGapGlobal >= 0 ? 'text-emerald-700' : 'text-amber-700'}`}>{scheduleGapGlobal >= 0 ? '+' : ''}{scheduleGapGlobal.toFixed(1)}% contra programación</p></div>
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Plazo proyectado</span><p className={`text-2xl font-black ${scheduleDaysGlobal === null || scheduleDaysGlobal >= 0 ? 'text-emerald-700' : 'text-amber-700'}`}>{scheduleDaysGlobal === null ? 'Sin base' : scheduleDaysGlobal === 0 ? 'En plazo' : `${Math.abs(scheduleDaysGlobal)} días ${scheduleDaysGlobal > 0 ? 'ganados' : 'perdidos'}`}</p><p className="text-[10px] text-slate-500 font-semibold">{projectedFinish ? `Término proyectado ${projectedFinish}` : 'Configura inicio y término contractual'}</p></div>
-                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Índice de plazo (SPI)</span><p className={`text-2xl font-black ${SPI >= 1 ? 'text-emerald-700' : 'text-amber-700'}`}>{SPI.toFixed(2)}</p><p className="text-[10px] text-slate-500 font-semibold">{partidasAtrasadas} partida(s) con atraso relevante</p></div>
-                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Índice de costo (CPI)</span><p className={`text-2xl font-black ${CPI >= 1 ? 'text-emerald-700' : 'text-rose-700'}`}>{CPI.toFixed(2)}</p><p className="text-[10px] text-slate-500 font-semibold">EAC: ${EAC.toLocaleString('es-CL')}</p></div>
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Índice de plazo (SPI)</span><p className={`text-2xl font-black ${SPI >= 1 ? 'text-emerald-700' : 'text-amber-700'}`}>{SPI?.toFixed(2) ?? 'N/D'}</p><p className="text-[10px] text-slate-500 font-semibold">{partidasAtrasadas} partida(s) con atraso relevante</p></div>
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Índice de costo (CPI)</span><p className={`text-2xl font-black ${CPI >= 1 ? 'text-emerald-700' : 'text-rose-700'}`}>{CPI?.toFixed(2) ?? 'N/D'}</p><p className="text-[10px] text-slate-500 font-semibold">EAC: {EAC == null ? 'Sin información suficiente' : `${EAC.toLocaleString('es-CL')}`}</p></div>
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Capacidad y seguridad</span><p className="text-2xl font-black text-slate-800">{avgDailyWorkers} <span className="text-xs text-slate-400 font-bold">pers./día</span></p><p className={`text-[10px] font-semibold ${countCTP > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{countCTP > 0 ? `${countCTP} accidente(s) CTP` : 'Sin accidentes con tiempo perdido'}</p></div>
                         </div>
 
@@ -5065,13 +5086,19 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         cutoff={fCorteStr}
                         baselineFinish={fechaTerminoEstimada || getObraDateRange(selectedObra).end}
                         bac={BAC}
+                        costBudget={costBudget}
+                        actualCost={AC}
+                        costError={laborCostError}
+                        holidays={CHILEAN_HOLIDAYS}
+                        canConfigure={can(user,userPermissions,'obras.gestion.configurar')}
+                        onBudgetSaved={value => setSelectedObra(prev => ({ ...prev,presupuesto_costo_control:value }))}
                         eac={EAC}
                         spi={SPI}
                         cpi={CPI}
                         actualProgress={pctAvanceGlobal}
                         plannedProgress={plannedGlobalPct}
                         advances={filteredAvances}
-                        costs={(costosList || []).filter(cost => getCostDate(cost) <= fCorteStr)}
+                        costs={actualCostRecords}
                         criticalItems={criticalPartidas}
                         incidents={filteredAccidentes}
                         equipment={equipmentAvailability}
@@ -5542,12 +5569,12 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                             </div>
                           </div>
                         ) : (
-                          <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl flex items-center justify-between">
+                          <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-2xl flex items-center justify-between">
                             <span className="text-xs font-bold text-emerald-950 flex items-center gap-2">
                               <CheckCircle2 className="w-4 h-4 text-emerald-700" />
-                              <span>✓ Control de Costos Saludable: Ninguna partida presenta sobrecosto respecto a su venta de avance.</span>
+                              <span>{laborCostError ? `No se pudo cargar el costo de personal: ${laborCostError}` : AC <= 0 ? 'Sin costos registrados o aprobados al corte. No es posible concluir que la obra esté bajo presupuesto.' : 'No se detectaron costos superiores a la venta de avance. Esto no certifica que todos los costos estén registrados.'}</span>
                             </span>
-                            <span className="text-[10px] bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded font-extrabold">100% Bajo Control</span>
+                            <span className="text-[10px] bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded font-extrabold">Revisar cobertura de costos</span>
                           </div>
                         )}
                         {/* GRÁFICO DE CURVA S Y ANÁLISIS COMPARATIVO DE COSTOS */}
@@ -5599,10 +5626,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                   return sum + Math.round(Math.min(parseFloat(p.cantidad) || 0, cantAv) * pu);
                                 }, 0);
 
-                                const ptAC_fact = (costosList || []).filter(c => (c.fecha || c.created_at?.substring(0, 10)) <= ptDate).reduce((acc, c) => acc + (parseFloat(c.monto) || 0), 0);
-                                const ptAC_pers = Math.round(AC_personal * pct);
-                                const ptAC_maq = Math.round(AC_maquinaria * pct);
-                                const ptAC = ptAC_fact + ptAC_pers + ptAC_maq;
+                                const ptAC = actualCostRecords.filter(c => c.fecha <= ptDate).reduce((sum,c) => sum+c.monto,0);
 
                                 return { dateStr: ptDate.substring(5), ev: ptEV, pv: ptPV, ac: ptAC };
                               });
@@ -5730,13 +5754,13 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">CPI (Índice Eficiencia de Costo)</span>
-                            <p className={`text-2xl font-black ${CPI >= 1.0 ? 'text-emerald-700' : 'text-rose-700'}`}>{CPI.toFixed(2)}</p>
-                            <p className="text-[10px] font-bold">{CPI >= 1.0 ? '🟢 Bajo Presupuesto (Eficiente)' : '🔴 Sobre Presupuesto'}</p>
+                            <p className={`text-2xl font-black ${CPI >= 1.0 ? 'text-emerald-700' : 'text-rose-700'}`}>{CPI?.toFixed(2) ?? 'N/D'}</p>
+                            <p className="text-[10px] font-bold">{CPI == null ? 'Sin costos o presupuesto de costo aprobado' : CPI >= 1.0 ? '🟢 Dentro del presupuesto de costo' : '🔴 Sobre presupuesto de costo'}</p>
                           </div>
 
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">SPI (Índice Eficiencia Cronograma)</span>
-                            <p className={`text-2xl font-black ${SPI >= 1.0 ? 'text-emerald-700' : 'text-amber-700'}`}>{SPI.toFixed(2)}</p>
+                            <p className={`text-2xl font-black ${SPI >= 1.0 ? 'text-emerald-700' : 'text-amber-700'}`}>{SPI?.toFixed(2) ?? 'N/D'}</p>
                             <p className="text-[10px] font-bold">{SPI >= 1.0 ? '🟢 Adelantado según Carta Gantt' : '⚠️ Atrasado según Carta Gantt'}</p>
                           </div>
                         </div>
@@ -5752,15 +5776,15 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                             </div>
                             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
                               <span className="text-[10px] font-bold text-slate-500 uppercase">EAC - Costo Proyectado al Término</span>
-                              <p className="text-base font-black text-blue-900">${EAC.toLocaleString('es-CL')}</p>
+                              <p className="text-base font-black text-blue-900">{EAC == null ? 'Sin información suficiente' : `${EAC.toLocaleString('es-CL')}`}</p>
                               <p className="text-[9.5px] text-slate-500">Proyección final ajustada por CPI actual</p>
                             </div>
                             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
-                              <span className="text-[10px] font-bold text-slate-500 uppercase">Variación de Costo (CV = EV - AC)</span>
+                              <span className="text-[10px] font-bold text-slate-500 uppercase">Variación de costo (avance a costo presupuestado − AC)</span>
                               <p className={`text-base font-black ${CV >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                                {CV >= 0 ? `+$${CV.toLocaleString('es-CL')}` : `-$${Math.abs(CV).toLocaleString('es-CL')}`}
+                                {CV == null ? 'N/D' : CV >= 0 ? `+${CV.toLocaleString('es-CL')}` : `-${Math.abs(CV).toLocaleString('es-CL')}`}
                               </p>
-                              <p className="text-[9.5px] text-slate-500">{CV >= 0 ? 'Ahorro a la fecha' : 'Pérdida/Diferencia a la fecha'}</p>
+                              <p className="text-[9.5px] text-slate-500">{CV == null ? 'Falta presupuesto de costos o costos aprobados' : 'Diferencia contra costo presupuestado del avance'}</p>
                             </div>
                           </div>
                         </div>
@@ -7231,7 +7255,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                   ${(parseFloat(liq.monto_real) || 0).toLocaleString('es-CL')}
                                 </td>
                                 <td className="p-2.5 text-center">
-                                  <button
+                                  {!liq.fuente && <button
                                     onClick={async () => {
                                       const { error } = await supabase.from('obra_liquidaciones').delete().eq('id', liq.id);
                                       if (error) return setErrorMsg(`No fue posible eliminar la liquidación: ${error.message}`);
@@ -7241,7 +7265,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                     title="Eliminar Liquidación"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
+                                  </button>}
+                                  {liq.fuente && <span className="text-[10px] text-slate-500">{liq.fuente} · {liq.fecha}</span>}
                                 </td>
                               </tr>
                             ))}
