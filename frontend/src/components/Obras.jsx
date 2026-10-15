@@ -22,7 +22,10 @@ import DailySCurve from './DailySCurve';
 import { plannedValueAt } from '../utils/plannedProgress';
 import useSignatureCanvas from '../utils/useSignatureCanvas';
 import AttendanceDateField from './AttendanceDateField';
-import { chileanAttendanceToday, resolveAttendanceDate, attendanceDay, attendanceDateLabel } from '../utils/attendanceDates';
+import { chileanAttendanceToday, resolveAttendanceDate, attendanceDay, attendanceDateLabel, sortAttendanceRecords } from '../utils/attendanceDates';
+import { calculateAttendanceHours } from '../utils/attendanceHours';
+import AttendanceHoursField from './AttendanceHoursField';
+import AttendanceExtraHours from './AttendanceExtraHours';
 import { buildAdvanceEmailSummary, renderAdvanceSummaryHtml, advanceCurveAttachment, escapeEmailText } from '../utils/advanceEmailSummary';
 
 const ContextualEmailConfigModal = React.lazy(() => import('./ContextualEmailConfigModal'));
@@ -598,6 +601,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   // Estados locales para los formularios
   const [asistenciaData, setAsistenciaData] = useState({ trabajador: '', rut: '', asistencia: 'PRESENTE', ingreso: '08:00', salida: '18:00', colacion: 'SI' });
   const [asistenciaFecha, setAsistenciaFecha] = useState(chileanAttendanceToday);
+  const [asistenciaJornada, setAsistenciaJornada] = useState(9);
+  const [editingAttendanceRecord, setEditingAttendanceRecord] = useState(null);
+  useEffect(() => { if (activeModal !== 'asistencia') { setAsistenciaJornada(selectedObra?.jornada_ordinaria_horas ?? 9); setEditingAttendanceRecord(null); } }, [activeModal,selectedObra?.id,selectedObra?.jornada_ordinaria_horas]);
   useEffect(() => { if (activeModal !== 'asistencia') setAsistenciaFecha(chileanAttendanceToday()); }, [activeModal]);
   const [avanceItems, setAvanceItems] = useState([
     { frente: 'Frente Principal', partida_id: null, partida: '', unidad: 'UND', cantidad: '', cuadrilla_id: '', observaciones: '' }
@@ -1687,8 +1693,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     try {
       const { data: asist1 } = await supabase.from('asistencia_personal').select('*');
       const { data: asist2 } = await supabase.from('asistencia').select('*');
-      const combinedAsist = [...(asist1 || []), ...(asist2 || [])];
-      fullAsist = combinedAsist.filter(a => isMatchObra(a.obra_nombre, obraNombre)).map(a=>({...a,fecha:attendanceDay(a)}));
+      const combinedAsist = [...(asist1 || []).map(a=>({...a,_sourceTable:'asistencia_personal'})), ...(asist2 || []).map(a=>({...a,_sourceTable:'asistencia'}))];
+      fullAsist = sortAttendanceRecords(combinedAsist.filter(a => isMatchObra(a.obra_nombre, obraNombre)).map(a=>({...a,fecha:attendanceDay(a)})));
       setAsistenciaList(fullAsist);
     } catch {}
 
@@ -1782,6 +1788,21 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     setRecentLogs(combined);
   };
 
+  const saveAttendanceWorkday = async () => {
+    if (!can(user,userPermissions,'obras.gestion.configurar') || !selectedObra?.id) return;
+    setErrorMsg('');
+    try {
+      calculateAttendanceHours({ordinaryHours:asistenciaJornada});
+      setModalLoading(true);
+      const value=Number(asistenciaJornada);
+      const {data,error}=await supabase.from('obras').update({jornada_ordinaria_horas:value}).eq('id',selectedObra.id).eq('empresa',selectedObra.empresa || user.empresa).select('id');
+      if(error)throw error;
+      if(!data?.length)throw new Error('No se pudo guardar la jornada; revisa tus permisos.');
+      setSelectedObra(previous=>({...previous,jornada_ordinaria_horas:value}));
+      setObras(previous=>previous.map(work=>work.id===selectedObra.id?{...work,jornada_ordinaria_horas:value}:work));
+      setSuccessMsg('Jornada base guardada para los próximos marcajes. No modifica registros históricos.');
+    } catch(error) {setErrorMsg(error.message);} finally {setModalLoading(false);}
+  };
   const submitAsistencia = async (e) => {
     e.preventDefault();
     setModalLoading(true);
@@ -1801,6 +1822,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       }
 
       const fechaMarcacion = resolveAttendanceDate(asistenciaMode, asistenciaFecha);
+      const calculatedHours = calculateAttendanceHours({...asistenciaData,ordinaryHours:asistenciaJornada,status:asistenciaData.asistencia});
       let firmaBase64 = null;
       if (canvasRef.current && hasSignature) {
         firmaBase64 = canvasRef.current.toDataURL('image/png');
@@ -1818,7 +1840,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         ingreso: asistenciaData.asistencia === 'PRESENTE' ? asistenciaData.ingreso : null,
         salida: asistenciaData.asistencia === 'PRESENTE' ? asistenciaData.salida : null,
         colacion: asistenciaData.asistencia === 'PRESENTE' ? asistenciaData.colacion : null,
-        horas_ordinarias: asistenciaData.asistencia === 'PRESENTE' ? 9 : 0,
+        jornada_ordinaria_horas: Number(asistenciaJornada),
+        horas_ordinarias: calculatedHours.ordinary,
+        horas_extras_auto: calculatedHours.extra,
         firma_base64: firmaBase64,
         latitud: gpsUserLoc.lat,
         longitud: gpsUserLoc.lng,
@@ -1826,8 +1850,13 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         verificado_qr: asistenciaMode === 'qr'
       };
 
-      const { error } = await supabase.from('asistencia_personal').insert([payload]);
+      if (editingAttendanceRecord && !canManageRecordsAccess) throw new Error('No tienes permisos para editar este marcaje.');
+      if (editingAttendanceRecord && !hasSignature) delete payload.firma_base64;
+      const { data: savedRows, error } = editingAttendanceRecord
+        ? await supabase.from('asistencia_personal').update(payload).eq('id',editingAttendanceRecord.id).eq('empresa',selectedObra.empresa || user.empresa).eq('obra_id',selectedObra.id).select('id')
+        : await supabase.from('asistencia_personal').insert([payload]).select('id');
       if (error) throw error;
+      if (!savedRows?.length) throw new Error('No se guardó el marcaje; revisa tus permisos y actualiza la vista.');
 
       setSuccessMsg(`Asistencia de ${asistenciaData.trabajador} registrada para el ${fechaMarcacion.split('-').reverse().join('/')}.`);
       fetchObraDetails(selectedObra.nombre);
@@ -2212,6 +2241,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
   const handleEditAsistenciaRecord = (a) => {
     if (!canManageRecordsAccess) return alert('No tienes permisos de Nivel 0, 1 o 2 para editar este registro.');
+    if (a._sourceTable === 'asistencia') return alert('Este marcaje pertenece al registro antiguo. Debe revisarse desde su módulo de origen.');
+    setEditingAttendanceRecord({id:a.id});
+    setAsistenciaJornada(a.jornada_ordinaria_horas ?? 9);
     setEditingRecordId(a.id);
     setAsistenciaFecha(attendanceDay(a) || chileanAttendanceToday());
     setAsistenciaMode('manual');
@@ -3435,24 +3467,6 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                 {canManageRecordsAccess && (
                                   <td className="p-2.5 text-center">
                                     <div className="flex items-center justify-center gap-1">
-                                    <button
-                                      type="button"
-                                      disabled={idx === 0}
-                                      onClick={() => handleReorderPartidaObra(idx, idx - 1)}
-                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
-                                      title="Mover arriba"
-                                    >
-                                      ▲
-                                    </button>
-                                    <button
-                                      type="button"
-                                      disabled={idx === partidasList.length - 1}
-                                      onClick={() => handleReorderPartidaObra(idx, idx + 1)}
-                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
-                                      title="Mover abajo"
-                                    >
-                                      ▼
-                                    </button>
                                       <button
                                         onClick={() => handleEditAvanceReport(r)}
                                         className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition cursor-pointer"
@@ -3682,7 +3696,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         <table className="w-full text-xs text-left border-collapse">
                           <thead>
                             <tr className="bg-slate-100 border-b text-slate-700 font-bold uppercase text-[10px]">
-                              <th className="p-2.5">Fecha / Hora</th>
+                          <th className="p-2.5">Fecha de marcaje ↓</th>
                               <th className="p-2.5">Nombre Trabajador</th>
                               <th className="p-2.5">RUT</th>
                               <th className="p-2.5">Estado</th>
@@ -3710,7 +3724,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                   <td className="p-2.5 font-mono font-semibold text-blue-900">{a.ingreso || '-'}</td>
                                   <td className="p-2.5 font-mono font-semibold text-slate-700">{a.salida || '-'}</td>
                                   <td className="p-2.5 font-semibold text-slate-600">{a.colacion || 'SI'}</td>
-                                  <td className="p-2.5 font-bold text-emerald-700">{a.horas_extras_auto || 0} hrs</td>
+                                  <td className="p-2.5 font-bold text-emerald-700"><AttendanceExtraHours record={a} onReview={canManageRecordsAccess ? ()=>handleEditAsistenciaRecord(a) : undefined}/></td>
                                   <td className="p-2.5">
                                     {a.verificado_qr ? (
                                       <span className="text-[10px] bg-blue-50 text-blue-900 font-bold px-2 py-0.5 rounded border border-blue-200">✓ QR + GPS ({a.distancia_obra_m ? `${a.distancia_obra_m}m` : 'Verificado'})</span>
@@ -8391,6 +8405,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   </label>
 
                   {/* Firma Digital Canvas */}
+                  <AttendanceHoursField value={asistenciaJornada} onChange={setAsistenciaJornada} data={asistenciaData} canSave={can(user,userPermissions,'obras.gestion.configurar')} onSave={saveAttendanceWorkday} busy={modalLoading}/>
                   <div>
                     <div className="flex justify-between items-center mb-1">
                       <label className="block text-[10px] font-bold uppercase text-slate-500">Firma Manuscrita del Trabajador</label>

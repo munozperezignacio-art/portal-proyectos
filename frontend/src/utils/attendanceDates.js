@@ -18,3 +18,4 @@ export function attendanceDay(record) {
   return Number.isNaN(created.getTime()) ? '' : chileanAttendanceToday(created);
 }
 export const attendanceDateLabel = record => attendanceDay(record).split('-').reverse().join('/') || 'Sin fecha';
+export const sortAttendanceRecords = records => [...records].sort((a,b)=>attendanceDay(b).localeCompare(attendanceDay(a)) || String(b.created_at || '').localeCompare(String(a.created_at || '')) || Number(b.id || 0)-Number(a.id || 0));
