@@ -11,6 +11,7 @@ import {
 import { HrStatistics } from './OperationalStatistics';
 import WorkforceProjection from './WorkforceProjection';
 import PayrollAutomation from './PayrollAutomation';
+import PersonnelAllocations from './PersonnelAllocations';
 import WorkerBulkImport from './WorkerBulkImport';
 import WorkerDocumentsPanel from './WorkerDocumentsPanel';
 
@@ -117,6 +118,7 @@ function Personal({ user, onBack }) {
     fecha_asig: new Date().toISOString().substring(0, 10),
     centro_trabajo: 'Oficina Central / Obra',
     centro_gestion_id: '',
+    centro_gestion_defecto_id: '',
     area: 'Operaciones',
     sueldo_base: '600000',
     gratificacion: 'Art. 50 (25% tope)',
@@ -373,6 +375,7 @@ function Personal({ user, onBack }) {
       fecha_asig: new Date().toISOString().substring(0, 10),
       centro_trabajo: '',
       centro_gestion_id: '',
+      centro_gestion_defecto_id: '',
       area: 'Construcción',
       sueldo_base: '600000',
       gratificacion: 'Art. 50 (25% tope)',
@@ -404,6 +407,7 @@ function Personal({ user, onBack }) {
       fecha_asig: worker.fecha_asig ? String(worker.fecha_asig).substring(0, 10) : new Date().toISOString().substring(0, 10),
       centro_trabajo: worker.centro_trabajo || 'Obra Principal',
       centro_gestion_id: worker.centro_gestion_id || '',
+      centro_gestion_defecto_id: worker.centro_gestion_defecto_id || '',
       area: worker.area || 'Construcción',
       sueldo_base: worker.sueldo_base ? worker.sueldo_base.toString() : '600000',
       gratificacion: worker.gratificacion || 'Art. 50 (25% tope)',
@@ -619,6 +623,7 @@ function Personal({ user, onBack }) {
       obra_nombre: formData.obra_nombre?.trim() || null,
       fecha_asig: formData.fecha_asig || new Date().toISOString().substring(0, 10),
       centro_trabajo: formData.centro_trabajo,
+      centro_gestion_defecto_id: formData.centro_gestion_defecto_id ? Number(formData.centro_gestion_defecto_id) : null,
       centro_gestion_id: formData.obra_nombre
         ? (obras.find(work => work.nombre === formData.obra_nombre)?.centro_gestion_id || null)
         : (formData.centro_gestion_id ? Number(formData.centro_gestion_id) : null),
@@ -757,6 +762,7 @@ function Personal({ user, onBack }) {
               </div>
             </button>
 
+            {can(user, permissions, 'rrhh.imputaciones.ver') && <button onClick={() => setActiveSubmodule('imputaciones')} className="p-6 bg-white border border-slate-200 hover:border-amber-600 rounded-2xl text-left space-y-3"><CalendarRange className="h-7 w-7 text-amber-700"/><h4 className="font-extrabold text-sm">Asignaciones y distribución de costos</h4><p className="text-xs text-slate-500">Pendientes de imputación, sin asistencia, aprobación y reasignación por centro de gestión.</p></button>}
             {/* Rectángulo 2: Asignar Personal a Obra */}
             <button
               onClick={() => setActiveSubmodule('asignar_obra')}
@@ -965,6 +971,7 @@ function Personal({ user, onBack }) {
         </div>
       )}
 
+      {activeSubmodule === 'imputaciones' && can(user, permissions, 'rrhh.imputaciones.ver') && <PersonnelAllocations user={user} personal={personal} obras={obras} centrosGestion={centrosGestion}/>}
       {/* SUBMÓDULO 2: ASIGNAR PERSONAL A OBRA */}
       {activeSubmodule === 'asignar_obra' && (
         <div className="space-y-4 animate-in fade-in duration-200">
@@ -1625,6 +1632,14 @@ function Personal({ user, onBack }) {
                   </div>
                 </div>
 
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Centro predeterminado de costos si no hay asistencia</label>
+                  <select value={formData.centro_gestion_defecto_id || ''} onChange={e => setFormData({ ...formData, centro_gestion_defecto_id: e.target.value })} className="w-full border rounded-lg bg-white p-2.5 text-xs">
+                    <option value="">Sin predeterminar — pendiente de asignación</option>
+                    {centrosGestion.map(c => <option key={c.id} value={c.id}>{c.codigo} · {c.nombre}</option>)}
+                  </select>
+                  <p className="mt-1 text-[10px] text-slate-500">Es una propuesta, no un cargo automático. Se aprueba en RRHH → Asignaciones y distribución de costos.</p>
+                </div>
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                   <div>
                     <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Obra Asignada</label>
