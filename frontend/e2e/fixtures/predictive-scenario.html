@@ -1,0 +1,11 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body class="bg-slate-50"><div id="fixture" class="p-5"></div><script type="module">
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import PredictiveScenarioPanel from '../../src/components/PredictiveScenarioPanel.jsx';
+import { supabase } from '../../src/supabaseClient.js';
+import '../../src/index.css';
+const empty={then:resolve=>Promise.resolve({data:[],error:null}).then(resolve)};
+for(const method of ['select','eq','in','order','limit'])empty[method]=()=>empty;
+supabase.from=()=>empty;
+createRoot(document.getElementById('fixture')).render(React.createElement(PredictiveScenarioPanel,{obra:{id:1,nombre:'TEST'},user:{empresa:'TEST_ONLY'},cutoff:'2026-10-15',baselineFinish:'2026-12-28',costBudget:0,actualCost:0,actualProgress:27.7,plannedProgress:43.9,holidays:['2026-12-25'],productionParts:[{id:1,partida:'Pilotes',unidad:'UND',quantity:463,start:'2026-10-01',finish:'2026-11-05'}],advances:[{partida_id:1,cantidad:100,created_at:'2026-10-01'},{partida_id:1,cantidad:12,created_at:'2026-10-13'}]}));
+</script></body></html>

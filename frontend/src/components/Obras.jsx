@@ -4905,8 +4905,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 const CV = CPI !== null ? earnedCost - AC : null;
                 const actualCostRecords = [
                   ...(costosList || []).filter(c => getCostDate(c) <= fCorteStr).map(c => ({ ...c,fecha:getCostDate(c),monto:isGlobalStats ? Number(c.monto)||0 : (c.imputaciones || []).filter(i => targetPartidas.some(p => isMatchPartidaName(i.partida,p.partida))).reduce((sum,i)=>sum+Math.round((Number(c.monto)||0)*(Number(i.porcentaje)||0)/100),0) })),
-                  ...(liquidacionesList || []).filter(c => (c.fecha || String(c.created_at || '').slice(0,10)) <= fCorteStr).map(c => ({ ...c,fecha:c.fecha || String(c.created_at || '').slice(0,10),monto:isGlobalStats ? Number(c.monto_real)||0 : (c.obra_liquidaciones_partidas || []).filter(i => targetPartidas.some(p => isMatchPartidaName(i.partida,p.partida))).reduce((sum,i)=>sum+(Number(i.monto_imputado)||0),0) })),
-                  ...(isGlobalStats ? filteredMantenciones : []).map(c => ({ ...c,monto:Number(c.costo)||0 }))
+                  ...(liquidacionesList || []).filter(c => (c.fecha || String(c.created_at || '').slice(0,10)) <= fCorteStr).map(c => ({ ...c,categoria_proyeccion:'Mano de obra',fecha:c.fecha || String(c.created_at || '').slice(0,10),monto:isGlobalStats ? Number(c.monto_real)||0 : (c.obra_liquidaciones_partidas || []).filter(i => targetPartidas.some(p => isMatchPartidaName(i.partida,p.partida))).reduce((sum,i)=>sum+(Number(i.monto_imputado)||0),0) })),
+                  ...(isGlobalStats ? filteredMantenciones : []).map(c => ({ ...c,categoria_proyeccion:'Mantenciones de equipos',monto:Number(c.costo)||0 }))
                 ];
 
                 // PARTIDAS CON ALERTA Y DESVIACIÓN CRÍTICA DE COSTO
@@ -5122,6 +5122,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         plannedProgress={plannedGlobalPct}
                         advances={filteredAvances}
                         costs={actualCostRecords}
+                        productionParts={targetPartidas.map(p => ({ ...p,quantity:Number(p.cantidad ?? p.cantidad_presupuestada)||0,start:getPartidaScheduledStart(p),finish:partidaExecutiveStats.find(item=>item.partida===p.partida)?.scheduledFinish || '',actualCost:getCostoImputadoPartida(p.partida) }))}
                         criticalItems={criticalPartidas}
                         incidents={filteredAccidentes}
                         equipment={equipmentAvailability}

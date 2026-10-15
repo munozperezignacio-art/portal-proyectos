@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { forecastModel } from './forecastModel.js';
 const input={cutoff:'2026-10-15',baselineFinish:'2026-11-10',actualProgress:25,plannedProgress:40,actualCost:200000,costBudget:1000000,holidays:['2026-11-02']};
-test('no actual costs or no cost budget means unknown cost, not zero overrun',()=>{
-  for(const changes of [{actualCost:0},{costBudget:0},{costError:'Falló carga'}]) {
+test('no actual costs or loading error means unknown cost, not zero overrun',()=>{
+  for(const changes of [{actualCost:0},{costError:'Falló carga'}]) {
     const m=forecastModel({...input,...changes});assert.equal(m.baseCost,null);assert.equal(m.overrun,null);assert.equal(m.cpi,null);assert.deepEqual(m.cashflow,[]);
   }
 });
@@ -13,8 +13,15 @@ test('CPI and EAC use cost budget, cost records and progress; conserve remaining
 test('honors holidays and no arbitrary favorable/adverse factors',()=>{
   const m=forecastModel({...input,holidays:['2026-11-20']}), other=forecastModel({...input,holidays:['2026-01-01']});assert.notEqual(m.finish,other.finish);assert.equal(m.spi,0.625);
 });
-test('missing schedule, expired baseline and unavailable calendar never fabricate a date',()=>{
+test('missing schedule and expired baseline have precise reasons; incomplete calendar keeps reference date',()=>{
   assert.equal(forecastModel({...input,plannedProgress:0}).finish,null);
   assert.equal(forecastModel({...input,baselineFinish:'2026-10-01'}).finish,null);
-  const m=forecastModel({...input,baselineFinish:'2027-02-01'});assert.equal(m.finish,null);assert.ok(m.calendarWarning);assert.deepEqual(m.cashflow,[]);
+  const m=forecastModel({...input,baselineFinish:'2027-02-01'});assert.ok(m.finish>='2027-02-01');assert.ok(m.calendarWarning.includes('2027'));assert.ok(m.cashflow.length>0);assert.ok(m.delay>0);
+});
+test('time forecast remains available without any monetary inputs, including a future calendar year',()=>{
+ const m=forecastModel({...input,baselineFinish:'2026-12-28',actualProgress:27.7,plannedProgress:43.9,actualCost:0,costBudget:0});
+ assert.ok(m.finish);assert.ok(m.delay>0);assert.equal(m.baseCost,null);assert.equal(m.overrun,null);assert.ok(m.costWarning);assert.deepEqual(m.cashflow,[]);assert.equal(m.scenarios[0].finish,m.finish);
+});
+test('cost extrapolation needs actual costs and progress, not a sales or cost budget substitute',()=>{
+ const m=forecastModel({...input,costBudget:0});assert.equal(m.baseCost,800000);assert.equal(m.cpi,null);assert.equal(m.overrun,null);assert.equal(m.cashflow.reduce((s,r)=>s+r.amount,0),600000);
 });
