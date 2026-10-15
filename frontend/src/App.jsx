@@ -364,18 +364,18 @@ function App() {
 
   if (authLoading) return <ModuleLoader />;
 
-  // 1. Ruta /login -> Inicio de Sesión y Marcación QR
-  if (normalizedPath === '/login') {
+  // La portada y /login ofrecen el mismo acceso a la plataforma.
+  if (['', '/', '/home', '/login'].includes(normalizedPath) || normalizedPath.endsWith('/index.html')) {
     return (
       <React.Suspense fallback={<ModuleLoader />}><Login
         onLoginSuccess={handleLoginSuccess}
-        onBackHome={() => navigateTo('/')}
+        onBackHome={() => navigateTo('/landing')}
       /></React.Suspense>
     );
   }
 
-  // 2. Ruta / (Raíz), /home o /landing -> Home & Landing Page Oficial Obraxis
-  if (normalizedPath === '/' || normalizedPath === '' || normalizedPath === '/home' || normalizedPath === '/landing' || normalizedPath.endsWith('/index.html')) {
+  // La presentación comercial sigue disponible mediante /landing.
+  if (normalizedPath === '/landing') {
     return (
       <React.Suspense fallback={<ModuleLoader />}><LandingPage
         user={user}
