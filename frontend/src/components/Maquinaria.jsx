@@ -309,6 +309,7 @@ export default function Maquinaria({ user, onBack }) {
       patente: '',
       marca: '',
       obra_nombre: obras.length > 0 ? obras[0].nombre : 'Bodega Central / Libre',
+      fecha_asig: new Date().toLocaleDateString('en-CA'),
       horometro_inicial: '0',
       planes_mantencion: [],
       costo_interno: '',
@@ -337,6 +338,7 @@ export default function Maquinaria({ user, onBack }) {
       patente: equip.patente || '',
       marca: equip.marca || '',
       obra_nombre: equip.obra_nombre || 'Bodega Central / Libre',
+      fecha_asig: equip.fecha_asig || '',
       horometro_inicial: equip.horometro_inicial ? equip.horometro_inicial.toString() : '0',
       planes_mantencion: Array.isArray(equip.planes_mantencion) ? equip.planes_mantencion : (equip.mantenimiento_intervalo ? [{ nombre: equip.mantenimiento_descripcion || 'Mantención preventiva', intervalo: equip.mantenimiento_intervalo, unidad: equip.mantenimiento_unidad || 'horas', ultima_lectura: equip.mantenimiento_ultima_lectura || '', ultima_fecha: equip.mantenimiento_ultima_fecha || '' }] : []),
       costo_interno: (equip.costo_interno !== undefined && equip.costo_interno !== null && equip.costo_interno !== 0) ? equip.costo_interno.toString() : '',
@@ -392,6 +394,7 @@ export default function Maquinaria({ user, onBack }) {
       patente: formData.patente.toUpperCase().trim(),
       marca: formData.marca.trim(),
       obra_nombre: validObraNombre,
+      fecha_asig: validObraNombre === 'Bodega Central / Libre' ? null : (formData.fecha_asig || null),
       horometro_inicial: parseFloat(formData.horometro_inicial) || 0,
       planes_mantencion: formData.planes_mantencion || [],
       costo_interno: parseFloat(formData.costo_interno) || 0,
@@ -2961,6 +2964,7 @@ export default function Maquinaria({ user, onBack }) {
                     <option value="Bodega Central / Libre">Bodega Central / Libre</option>
                     {obras.map(o => <option key={o.nombre} value={o.nombre}>{o.nombre}</option>)}
                   </select>
+                  {formData.obra_nombre && formData.obra_nombre !== 'Bodega Central / Libre' && <label className="mt-3 block"><span className="mb-1 block text-[10px] font-bold uppercase text-slate-600">Asignado desde *</span><input required type="date" value={formData.fecha_asig || ''} onChange={e => setFormData(prev => ({ ...prev, fecha_asig: e.target.value }))} className="w-full rounded-xl border border-slate-200 p-2.5 font-bold text-slate-800"/></label>}
                 </div>
               </div>
 
