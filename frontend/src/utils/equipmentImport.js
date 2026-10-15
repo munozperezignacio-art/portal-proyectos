@@ -1,7 +1,7 @@
 export const equipmentCode = value => String(value ?? '').trim().toUpperCase();
 const normalize = value => equipmentCode(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 export function parseEquipmentCost(value) {
-  if (typeof value === 'number') return Number.isSafeInteger(value) && value >= 0 ? value : NaN;
+  if (typeof value === 'number') return Number.isFinite(value) && value >= 0 && Number.isSafeInteger(Math.round(value)) ? Math.round(value) : NaN;
   const text = String(value ?? '').replace(/CLP/gi, '').replace(/[$\s]/g, '');
   if (!/^\d+$/.test(text) && !/^\d{1,3}([.,])\d{3}(?:\1\d{3})*$/.test(text)) return NaN;
   const amount = Number(text.replace(/[.,]/g, ''));

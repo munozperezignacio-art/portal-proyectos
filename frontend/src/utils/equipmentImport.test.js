@@ -6,7 +6,11 @@ test('CLP accepts both thousands conventions and real numeric cells without divi
   for (const value of ['510,747', '$510.747', 510747, 'CLP 510747']) assert.equal(parseEquipmentCost(value), 510747);
   assert.equal(parseEquipmentCost('1,086,820'), 1086820);
   assert.equal(parseEquipmentCost(0), 0);
-  for (const value of ['', -1, 'abc', '510,74', '1.000,50', 1.5]) assert.ok(Number.isNaN(parseEquipmentCost(value)));
+  assert.equal(parseEquipmentCost(510746.667161747), 510747);
+  assert.equal(parseEquipmentCost(383060.000371311), 383060);
+  assert.equal(parseEquipmentCost(1086820.11942095), 1086820);
+  assert.equal(parseEquipmentCost(1.5), 2);
+  for (const value of ['', -1, 'abc', '510,74', '1.000,50', Infinity, NaN]) assert.ok(Number.isNaN(parseEquipmentCost(value)));
 });
 test('legacy headings, offset columns and title rows preserve mappings', () => {
   const result = parseEquipmentSheet([['Título'], ['', 'Modelo', 'Código', 'Maquinaria', 'Costo Día (22 días)', 'Marca'], ['', '460X2', ' exc-02 ', 'EXCAVADORA', '510,747', 'LINKBELT']]);
