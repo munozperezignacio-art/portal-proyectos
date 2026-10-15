@@ -25,6 +25,8 @@ import AttendanceDateField from './AttendanceDateField';
 import { chileanAttendanceToday, resolveAttendanceDate, attendanceDay, attendanceDateLabel, sortAttendanceRecords } from '../utils/attendanceDates';
 import { calculateScheduledAttendance, scheduleForDate, scheduledDayHours } from '../utils/weeklyWorkSchedule';
 import WeeklyWorkSchedule from './WeeklyWorkSchedule';
+import AttendanceWorkerPicker from './AttendanceWorkerPicker';
+import {attendanceWorkerKey, buildManualAttendanceBatch} from '../utils/attendanceBatch';
 import AttendanceHoursField from './AttendanceHoursField';
 import AttendanceExtraHours from './AttendanceExtraHours';
 import { buildAdvanceEmailSummary, renderAdvanceSummaryHtml, advanceCurveAttachment, escapeEmailText } from '../utils/advanceEmailSummary';
@@ -603,8 +605,11 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const [asistenciaData, setAsistenciaData] = useState({ trabajador: '', rut: '', asistencia: 'PRESENTE', ingreso: '08:00', salida: '18:00', colacion: 'SI' });
   const [asistenciaFecha, setAsistenciaFecha] = useState(chileanAttendanceToday);
   const [editingAttendanceRecord, setEditingAttendanceRecord] = useState(null);
+  const [multiAttendance,setMultiAttendance] = useState(false);
+  const [attendanceWorkerIds,setAttendanceWorkerIds] = useState([]);
   const [showWeeklySchedule,setShowWeeklySchedule] = useState(false);
   useEffect(() => { if (activeModal !== 'asistencia') setEditingAttendanceRecord(null); }, [activeModal,selectedObra?.id]);
+  useEffect(() => { if (activeModal !== 'asistencia') {setMultiAttendance(false);setAttendanceWorkerIds([]);} }, [activeModal,selectedObra?.id]);
   useEffect(() => { if (activeModal !== 'asistencia') setAsistenciaFecha(chileanAttendanceToday()); }, [activeModal]);
   const [avanceItems, setAvanceItems] = useState([
     { frente: 'Frente Principal', partida_id: null, partida: '', unidad: 'UND', cantidad: '', cuadrilla_id: '', observaciones: '' }
@@ -895,10 +900,11 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const [gpsUserLoc, setGpsUserLoc] = useState({ lat: null, lng: null, distance: null, status: 'idle', isWithin: false, error: '' });
   
   const attendanceAppliedDate = asistenciaMode === 'manual' ? asistenciaFecha : chileanAttendanceToday();
+  const isBulkAttendance = asistenciaMode==='manual' && multiAttendance && !editingAttendanceRecord;
   const asistenciaDaySchedule = editingAttendanceRecord?.fecha === attendanceAppliedDate && editingAttendanceRecord?.applied ? editingAttendanceRecord.applied : scheduleForDate(selectedObra,attendanceAppliedDate);
   const asistenciaJornada = asistenciaDaySchedule ? scheduledDayHours(asistenciaDaySchedule) : editingAttendanceRecord?.hours ?? selectedObra?.jornada_ordinaria_horas ?? 9;
   const { canvasRef, hasSignature, clearSignature, handleStartDraw, handleDraw, handleStopDraw } = useSignatureCanvas(
-    `${activeModal}:${selectedObra?.id}:${asistenciaData.trabajador}:${asistenciaData.rut}:${asistenciaData.asistencia}:${asistenciaMode}:${asistenciaFecha}`
+    `${activeModal}:${selectedObra?.id}:${asistenciaData.trabajador}:${asistenciaData.rut}:${asistenciaData.asistencia}:${asistenciaMode}:${asistenciaFecha}:${isBulkAttendance}:${attendanceWorkerIds.join(',')}`
   );
   const getPartidaScheduledStart = (partidaObj, fInicioFallback) => {
     if (!partidaObj) return fInicioFallback || new Date().toISOString().substring(0, 10);
@@ -1799,7 +1805,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     setSuccessMsg('');
 
     try {
-      if (!asistenciaData.trabajador) {
+      if (!isBulkAttendance && !asistenciaData.trabajador) {
         throw new Error('Debes ingresar o seleccionar un trabajador.');
       }
 
@@ -1813,7 +1819,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       const fechaMarcacion = resolveAttendanceDate(asistenciaMode, asistenciaFecha);
       const calculatedHours = calculateScheduledAttendance(asistenciaData,asistenciaDaySchedule,asistenciaJornada);
       let firmaBase64 = null;
-      if (canvasRef.current && hasSignature) {
+      if (!isBulkAttendance && canvasRef.current && hasSignature) {
         firmaBase64 = canvasRef.current.toDataURL('image/png');
       }
 
@@ -1842,13 +1848,26 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
       if (editingAttendanceRecord && !canManageRecordsAccess) throw new Error('No tienes permisos para editar este marcaje.');
       if (editingAttendanceRecord && !hasSignature) delete payload.firma_base64;
+      let batch=[payload];
+      if (isBulkAttendance) {
+        const workers=personalList.filter(worker=>attendanceWorkerIds.includes(attendanceWorkerKey(worker)));
+        if(workers.length!==attendanceWorkerIds.length)throw new Error('Cambió la lista de trabajadores. Revisa la selección.');
+        buildManualAttendanceBatch(payload,workers);
+        const existing=[];
+        for(let offset=0;;offset+=1000){
+          const result=await supabase.from('asistencia_personal').select('rut,rut_normalizado,trabajador').eq('empresa',payload.empresa).eq('obra_id',payload.obra_id).eq('fecha_marcacion',fechaMarcacion).order('id').range(offset,offset+999);
+          if(result.error)throw result.error;existing.push(...result.data);if(result.data.length<1000)break;
+        }
+        batch=buildManualAttendanceBatch(payload,workers,existing);
+        if(!window.confirm(`¿Registrar ${batch.length} trabajadores para el ${fechaMarcacion.split('-').reverse().join('/')} con el mismo estado, horario y colación? No se copiará ninguna firma personal.`))return;
+      }
       const { data: savedRows, error } = editingAttendanceRecord
         ? await supabase.from('asistencia_personal').update(payload).eq('id',editingAttendanceRecord.id).eq('empresa',selectedObra.empresa || user.empresa).eq('obra_id',selectedObra.id).select('id')
-        : await supabase.from('asistencia_personal').insert([payload]).select('id');
+        : await supabase.from('asistencia_personal').insert(batch).select('id');
       if (error) throw error;
       if (!savedRows?.length) throw new Error('No se guardó el marcaje; revisa tus permisos y actualiza la vista.');
 
-      setSuccessMsg(`Asistencia de ${asistenciaData.trabajador} registrada para el ${fechaMarcacion.split('-').reverse().join('/')}.`);
+      setSuccessMsg(`Asistencia de ${isBulkAttendance ? `${batch.length} trabajadores` : asistenciaData.trabajador} registrada para el ${fechaMarcacion.split('-').reverse().join('/')}.`);
       fetchObraDetails(selectedObra.nombre);
       setTimeout(() => {
         setActiveModal(null);
@@ -8320,10 +8339,13 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
             <form onSubmit={submitAsistencia} className="space-y-4">
               <AttendanceDateField mode={asistenciaMode} value={asistenciaFecha} onChange={setAsistenciaFecha}/>
-              <div>
+              {asistenciaMode==='manual' && !editingAttendanceRecord && <label className="flex items-center gap-2 rounded-xl bg-blue-50 p-3 text-xs font-bold text-blue-950"><input type="checkbox" checked={multiAttendance} disabled={modalLoading} onChange={e=>setMultiAttendance(e.target.checked)}/>Registrar varios trabajadores</label>}
+              {isBulkAttendance && <AttendanceWorkerPicker workers={personalList.filter(worker=>!worker.empresa || worker.empresa===(selectedObra.empresa || user.empresa))} selected={attendanceWorkerIds} onChange={setAttendanceWorkerIds} disabled={modalLoading}/>}
+              <div className={isBulkAttendance?'hidden':''}>
                 <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Trabajador</label>
                 <select
-                  required
+                  required={!isBulkAttendance}
+                  disabled={isBulkAttendance}
                   value={asistenciaData.trabajador}
                   onChange={(e) => handleTrabajadorSelect(e.target.value)}
                   className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600"
@@ -8339,7 +8361,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   <input
                     type="text"
                     disabled
-                    value={asistenciaData.rut}
+                    value={isBulkAttendance ? 'RUT individual por trabajador' : asistenciaData.rut}
                     className="w-full border border-slate-150 bg-slate-50 rounded-lg p-2.5 text-xs text-slate-500 focus:outline-none"
                   />
                 </div>
@@ -8399,7 +8421,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
                   {/* Firma Digital Canvas */}
                   <AttendanceHoursField value={asistenciaJornada} day={asistenciaDaySchedule} data={asistenciaData}/>
-                  <div>
+                  <div className={isBulkAttendance?'hidden':''}>
                     <div className="flex justify-between items-center mb-1">
                       <label className="block text-[10px] font-bold uppercase text-slate-500">Firma Manuscrita del Trabajador</label>
                       {hasSignature && (
@@ -8440,10 +8462,10 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
               <button
                 type="submit"
-                disabled={modalLoading || (asistenciaMode === 'qr' && selectedObra?.latitud && selectedObra?.longitud && gpsUserLoc.status === 'success' && !gpsUserLoc.isWithin)}
+                disabled={modalLoading || (isBulkAttendance && !attendanceWorkerIds.length) || (asistenciaMode === 'qr' && selectedObra?.latitud && selectedObra?.longitud && gpsUserLoc.status === 'success' && !gpsUserLoc.isWithin)}
                 className="w-full bg-blue-900 hover:bg-blue-800 text-white font-semibold py-3 rounded-xl shadow-sm text-xs cursor-pointer disabled:opacity-50 transition"
               >
-                {modalLoading ? 'Guardando Registro...' : 'Confirmar y Enviar Asistencia'}
+                {modalLoading ? 'Guardando Registro...' : isBulkAttendance ? `Registrar ${attendanceWorkerIds.length} trabajadores` : 'Confirmar y Enviar Asistencia'}
               </button>
             </form>
           </div>
