@@ -19,6 +19,7 @@ import { matchesWorkReport, reportedProgress, dailyTimeRate } from '../utils/wor
 import { advanceNotificationRecipients } from '../utils/advanceNotificationRecipients';
 import { calendarTimeline } from '../utils/sCurveTimeline';
 import DailySCurve from './DailySCurve';
+import { plannedValueAt } from '../utils/plannedProgress';
 
 const ContextualEmailConfigModal = React.lazy(() => import('./ContextualEmailConfigModal'));
 const LastPlannerLookahead = React.lazy(() => import('./LastPlannerLookahead'));
@@ -4726,6 +4727,14 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 const timelineMilestones = calendarTimeline(fInicioObraDefault, fCorteStr);
 
                 const totalPresupuestoObra = totalVentaPresupuestada > 0 ? totalVentaPresupuestada : 1;
+                // Shared schedule: resolved dependencies, configured duration and budget prices.
+                const plannedItems = targetPartidas.map(p => ({
+                  start: getPartidaScheduledStart(p),
+                  duration: Math.max(1, parseInt(p.duracion_programada, 10) || Math.ceil((parseFloat(p.cantidad) || 0) / (parseFloat(p.rendimiento_meta || p.rendimiento) || 10))),
+                  quantity: parseFloat(p.cantidad) || 0,
+                  unitPrice: partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (parseFloat(p.pu) || 0)
+                }));
+                const getPlannedValueAt = date => plannedValueAt(plannedItems, date, countChileanBusinessDays);
                 
                 const curvaSPoints = timelineMilestones.map((m) => {
                   const mStr = m.dateStr;
@@ -4737,30 +4746,18 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   });
 
                   const valRealAtM = targetPartidas.reduce((sum, p) => {
-                    const pu = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (parseFloat(p.pu) || parseFloat(p.costo_por_dia) || 0);
+                    const pu = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (parseFloat(p.pu) || 0);
                     const pReps = revAtM.filter(r => isMatchPartidaName(r.partida, p.partida));
                     const cantAv = pReps.reduce((rSum, r) => rSum + (parseFloat(r.cantidad) || 0), 0);
                     return sum + Math.round(Math.min(parseFloat(p.cantidad) || 0, cantAv) * pu);
                   }, 0);
 
-                  const evPct = Math.min(100, Math.round((valRealAtM / totalPresupuestoObra) * 100));
+                  const evPct = Math.min(100, Math.round((valRealAtM / totalPresupuestoObra) * 1000) / 10);
 
                   // Programado Acumulado a la fecha (Gantt)
-                  const valProgAtM = targetPartidas.reduce((sum, p) => {
-                    const pu = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (parseFloat(p.pu) || parseFloat(p.costo_por_dia) || 0);
-                    const pCant = parseFloat(p.cantidad) || 0;
-                    const pStart = p.fecha_inicio || fInicioObraDefault;
-                    const pDur = Math.max(1, parseInt(p.duracion_programada, 10) || Math.round(pCant / (parseFloat(p.rendimiento) || 10)));
-                    const pEnd = p.fecha_termino || addChileanBusinessDays(pStart, pDur);
+                  const valProgAtM = getPlannedValueAt(mStr);
 
-                    if (mStr >= pEnd) return sum + Math.round(pCant * pu);
-                    if (mStr <= pStart) return sum;
-                    const elapsed = countChileanBusinessDays(pStart, mStr);
-                    const frac = Math.min(1, elapsed / pDur);
-                    return sum + Math.round(pCant * pu * frac);
-                  }, 0);
-
-                  const pvPct = Math.min(100, Math.round((valProgAtM / totalPresupuestoObra) * 100));
+                  const pvPct = Math.min(100, Math.round((valProgAtM / totalPresupuestoObra) * 1000) / 10);
 
                   return { evPct, pvPct, label: m.label, dateStr: mStr };
                 });
@@ -4829,23 +4826,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 const EV = avanceMontoAcumulado; // Earned Value ($)
                 
                 // PV (Planned Value): Venta programada al corte
-                const PV = targetPartidas.reduce((sum, p) => {
-                  const pu = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (parseFloat(p.pu) || 0);
-                  const startP = getPartidaScheduledStart(p);
-                  let dEf = 0;
-                  if (startP && startP <= fCorteStr) {
-                    const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
-                    const cantTotal = parseFloat(p.cantidad) || 0;
-                    const duracionProgramada = Math.max(1, parseInt(p.duracion_programada, 10) || Math.ceil(cantTotal / rend));
-                    const dBus = countChileanBusinessDays(startP, fCorteStr);
-                    dEf = Math.min(dBus, duracionProgramada);
-                  }
-                  const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
-                  const cantTotal = parseFloat(p.cantidad) || 0;
-                  const duracionProgramada = Math.max(1, parseInt(p.duracion_programada, 10) || Math.ceil(cantTotal / rend));
-                  const cantProg = Math.min(cantTotal, cantTotal * Math.min(1, dEf / duracionProgramada));
-                  return sum + Math.round(cantProg * pu);
-                }, 0);
+                const PV = getPlannedValueAt(fCorteStr);
 
                 // AC (Actual Cost): solo costos disponibles al corte y atribuibles al alcance seleccionado.
                 // Los gastos generales se conservan en la vista global, pero no se cargan artificialmente a una partida.
@@ -5606,20 +5587,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                 const ptTime = dStart + (validEnd - dStart) * pct;
                                 const ptDate = new Date(ptTime).toISOString().substring(0, 10);
                                 
-                                const ptPV = targetPartidas.reduce((sum, p) => {
-                                  const pu = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (parseFloat(p.pu) || 0);
-                                  const startP = getPartidaScheduledStart(p);
-                                  let dEf = 0;
-                                  if (startP && startP <= ptDate) {
-                                    const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
-                                    const cantTotal = parseFloat(p.cantidad) || 0;
-                                    const dBus = countChileanBusinessDays(startP, ptDate);
-                                    dEf = Math.min(dBus, rend > 0 ? (cantTotal / rend) : 1);
-                                  }
-                                  const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
-                                  const cantProg = Math.min(parseFloat(p.cantidad) || 0, Math.round(dEf * rend));
-                                  return sum + Math.round(cantProg * pu);
-                                }, 0);
+                                const ptPV = getPlannedValueAt(ptDate);
 
                                 const ptEV = targetPartidas.reduce((sum, p) => {
                                   const pu = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (parseFloat(p.pu) || 0);
