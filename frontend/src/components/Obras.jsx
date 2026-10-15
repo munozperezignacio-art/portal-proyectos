@@ -20,6 +20,7 @@ import { advanceNotificationRecipients } from '../utils/advanceNotificationRecip
 import { calendarTimeline } from '../utils/sCurveTimeline';
 import DailySCurve from './DailySCurve';
 import { plannedValueAt } from '../utils/plannedProgress';
+import { buildAdvanceEmailSummary, renderAdvanceSummaryHtml, advanceCurveAttachment, escapeEmailText } from '../utils/advanceEmailSummary';
 
 const ContextualEmailConfigModal = React.lazy(() => import('./ContextualEmailConfigModal'));
 const LastPlannerLookahead = React.lazy(() => import('./LastPlannerLookahead'));
@@ -2015,6 +2016,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       if (!savedReports?.length) throw new Error('No fue posible guardar el reporte seleccionado. Actualiza la obra y vuelve a intentar.');
 
       // --- DISPARAR NOTIFICACIÓN VÍA CORREO ELECTRÓNICO CON RESEND ---
+      let notificationWarning = '';
       try {
         const obraNombre = selectedObra?.nombre || 'Obra';
         let recipients = [];
@@ -2046,14 +2048,30 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
         if (uniqueRecipients.length > 0) {
           const supervisorName = user?.nombre || user?.usuario || 'Supervisor';
-          const fechaStr = avanceFecha || new Date().toLocaleDateString('es-CL');
+          const fechaStr = avanceFecha || new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago'}).format(new Date());
+          // Leer después de guardar: incluye el nuevo registro y no duplica una edición.
+          const snapshotReports = [];
+          for (let offset=0; ; offset+=1000) {
+            const result=await supabase.from('avances_produccion_partidas').select('id,partida_id,partida,cantidad,created_at').eq('empresa',user.empresa).eq('obra_id',selectedObra.id).lte('created_at',`${fechaStr}T23:59:59.999Z`).order('created_at').order('id').range(offset,offset+999);
+            if(result.error)throw result.error;
+            snapshotReports.push(...result.data);
+            if(result.data.length<1000)break;
+          }
+          const summary=buildAdvanceEmailSummary({
+            parts:partidasList.map(p=>({ ...p,quantity:Number(p.cantidad ?? p.cantidad_presupuestada)||0,unitPrice:partidasCostos[p.partida] !== undefined ? Number(partidasCostos[p.partida]) : Number(p.pu)||0,
+              start:getPartidaScheduledStart(p),duration:Math.max(1,parseInt(p.duracion_programada,10)||Math.ceil((Number(p.cantidad ?? p.cantidad_presupuestada)||0)/(Number(p.rendimiento_meta || p.rendimiento)||10))) })),
+            reports:snapshotReports,cutoff:fechaStr,start:selectedObra.fecha_inicio?.slice(0,10)||fechaInicioReal,businessDays:countChileanBusinessDays
+          });
+          let curveImage=null;
+          try { curveImage=advanceCurveAttachment(summary); } catch(imageError) { console.warn('No se pudo generar la imagen de curva S:',imageError.message); }
+          const summaryHtml=renderAdvanceSummaryHtml(summary,Boolean(curveImage));
 
           const tableRowsHtml = avanceItems.map(item => `
             <tr style="border-bottom: 1px solid #e2e8f0;">
-              <td style="padding: 10px; font-weight: bold; color: #1e293b;">${item.partida}</td>
-              <td style="padding: 10px; color: #475569;">${item.frente || 'Frente Principal'}</td>
-              <td style="padding: 10px; font-weight: bold; color: #047857; text-align: right;">${item.cantidad} ${item.unidad || 'UND'}</td>
-              <td style="padding: 10px; color: #334155; font-style: italic;">${item.observaciones || 'Sin comentarios'}</td>
+              <td style="padding: 10px; font-weight: bold; color: #1e293b;">${escapeEmailText(item.partida)}</td>
+              <td style="padding: 10px; color: #475569;">${escapeEmailText(item.frente || 'Frente Principal')}</td>
+              <td style="padding: 10px; font-weight: bold; color: #047857; text-align: right;">${escapeEmailText(item.cantidad)} ${escapeEmailText(item.unidad || 'UND')}</td>
+              <td style="padding: 10px; color: #334155; font-style: italic;">${escapeEmailText(item.observaciones || 'Sin comentarios')}</td>
             </tr>
           `).join('');
 
@@ -2061,12 +2079,12 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
             <div style="font-family: Arial, sans-serif; max-width: 650px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
               <div style="border-bottom: 2px solid #1e3a8a; padding-bottom: 16px; margin-bottom: 20px;">
                 <span style="font-size: 11px; font-weight: bold; color: #1e3a8a; text-transform: uppercase; letter-spacing: 0.1em;">Obraxis • Control de Faena</span>
-                <h2 style="color: #0f172a; margin: 6px 0 0 0; font-size: 20px;">📊 Nuevo Reporte de Avance de Producción</h2>
-                <p style="color: #64748b; font-size: 13px; margin: 4px 0 0 0;">Obra: <strong>${obraNombre}</strong> | Fecha: <strong>${fechaStr}</strong></p>
+                <h2 style="color: #0f172a; margin: 6px 0 0 0; font-size: 20px;">📊 ${editingRecordId ? 'Actualización de' : 'Nuevo'} Reporte de Avance de Producción</h2>
+                <p style="color: #64748b; font-size: 13px; margin: 4px 0 0 0;">Obra: <strong>${escapeEmailText(obraNombre)}</strong> | Fecha: <strong>${fechaStr}</strong></p>
               </div>
 
               <div style="background-color: #f8fafc; padding: 14px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #cbd5e1; font-size: 13px;">
-                <p style="margin: 0; color: #334155;">👤 <strong>Supervisor Responsable:</strong> ${supervisorName}</p>
+                <p style="margin: 0; color: #334155;">👤 <strong>Supervisor Responsable:</strong> ${escapeEmailText(supervisorName)}</p>
                 <p style="margin: 4px 0 0 0; color: #334155;">📋 <strong>Partidas Reportadas:</strong> ${avanceItems.length} partida(s)</p>
               </div>
 
@@ -2084,6 +2102,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 </tbody>
               </table>
 
+              ${summaryHtml}
+
               <div style="text-align: center; margin-top: 24px; padding-top: 16px; border-top: 1px solid #f1f5f9;">
                 <a href="${window.location.origin}" style="background-color: #1e3a8a; color: #ffffff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 12px; display: inline-block;">Ver Obra en el Portal Obraxis</a>
               </div>
@@ -2095,6 +2115,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
             to: uniqueRecipients.slice(offset, offset + 10),
             subject: `📊 Reporte de Avance (${obraNombre}) - ${fechaStr}`,
             htmlContent: htmlEmail,
+            attachments: curveImage ? [curveImage] : [],
             customSender: 'notificaciones@obraxis.cl',
             permissionKey: 'obras.avances.enviar'
           });
@@ -2102,10 +2123,11 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           }
         }
       } catch (emailErr) {
+        notificationWarning = ` El reporte quedó guardado, pero no se completó el correo: ${emailErr.message}`;
         console.warn("Aviso al enviar notificación por correo:", emailErr.message);
       }
 
-      setSuccessMsg(editingRecordId ? 'Reporte de avance actualizado correctamente.' : `Reporte de Avance (${avanceItems.length} partida/s) registrado con éxito.`);
+      setSuccessMsg((editingRecordId ? 'Reporte de avance actualizado correctamente.' : `Reporte de Avance (${avanceItems.length} partida/s) registrado con éxito.`) + notificationWarning);
       setEditingRecordId(null);
       fetchObraDetails(selectedObra.nombre);
       setTimeout(() => {
