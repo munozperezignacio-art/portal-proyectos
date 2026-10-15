@@ -1,9 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
 import { laborCostPreview } from '../utils/laborCostPreview';
-import {allocationApprovalDecisions} from '../utils/allocationApproval';
+import {allocationApprovalDecisions,selectableAllocationRows} from '../utils/allocationApproval';
 import AllocationBulkApproval from './AllocationBulkApproval';
 
 const monthNow = () => new Date().toLocaleDateString('en-CA').slice(0, 7);
@@ -20,6 +20,8 @@ export default function PersonnelAllocations({ user, personal, obras, centrosGes
   const [edits, setEdits] = useState({});
   const [selected, setSelected] = useState([]);
   const [bulkReason,setBulkReason] = useState('');
+  const [approvalMessage,setApprovalMessage] = useState('');
+  const approvalInFlight=useRef(false);
   const [filter, setFilter] = useState('Pendiente');
   const [workerFilter, setWorkerFilter] = useState('');
   const [centerFilter, setCenterFilter] = useState('');
@@ -65,19 +67,20 @@ export default function PersonnelAllocations({ user, personal, obras, centrosGes
     && (!centerFilter || String(r.centro_aprobado_id || r.centro_propuesto_id || '') === centerFilter)
     && (filter === 'Todas' || (filter === 'Sin asistencia' ? r.origen === filter : filter === 'Sin centro' ? !r.centro_propuesto_id && r.estado !== 'Aprobada' : r.estado === filter)));
   const pending = rows.filter(r => r.estado !== 'Aprobada').length;
+  const selectable = selectableAllocationRows(filtered,today);
   const change = (id, key, value) => setEdits(current => ({ ...current, [id]: { ...current[id], [key]: value } }));
   const approve = async (ids,commonReason) => {
-    if (!canApprove || !ids.length || busy) return;
+    if (!canApprove || !ids.length || busy || approvalInFlight.current) return;
     let decisions;
     try { decisions=allocationApprovalDecisions(rows,edits,ids,{today,commonReason}); }
-    catch(error){setMessage(error.message);return;}
-    if(commonReason!==undefined && !window.confirm(`¿Aprobar ${decisions.length} días con el motivo común «${commonReason.trim()}»? Se conservarán los destinos, horas extras y haberes revisados de cada fila.`))return;
-    setBusy(true); setMessage('');
+    catch(error){setApprovalMessage(`No se aprobó ningún cargo. ${error.message}`);return;}
+    approvalInFlight.current=true;
+    setBusy(true); setMessage('');setApprovalMessage('Guardando aprobación…');
     try {
       const result = await supabase.rpc('aprobar_imputaciones_personal', { p_empresa: user.empresa, p_decisiones: decisions });
       if(result.error)throw result.error;
-      await load();setBulkReason('');setMessage(`${result.data} cargos aprobados${commonReason!==undefined?' con el mismo motivo, registrado en cada historial':''}: ya forman parte del costo devengado. La nómina definitiva los sustituirá sin duplicarlos.`);
-    }catch(error){setMessage(error.message);}finally{setBusy(false);}
+      await load();setBulkReason('');setApprovalMessage(`${result.data} cargos aprobados${commonReason!==undefined?' con el mismo motivo, registrado en cada historial':''}: ya forman parte del costo devengado. La nómina definitiva los sustituirá sin duplicarlos.`);
+    }catch(error){setApprovalMessage(`No se pudo completar la aprobación. ${error.message || 'Revise su conexión y vuelva a intentarlo.'}`);}finally{approvalInFlight.current=false;setBusy(false);}
   };
   const saveParameters = async () => {
     const keys = ['horas_semanales','tope_gratificacion_mensual','cargas_empleador_pct','factor_hora_extra'];
@@ -109,10 +112,10 @@ export default function PersonnelAllocations({ user, personal, obras, centrosGes
       <input aria-label="Día" type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} className={cls}/>
       <button disabled={busy} onClick={load} className={cls}>{busy ? 'Procesando…' : 'Actualizar propuestas'}</button>
     </div>
-    {canApprove && <><AllocationBulkApproval count={selected.length} reason={bulkReason} onReasonChange={setBulkReason} onApprove={()=>approve(selected,bulkReason)} busy={busy}/><button disabled={busy || !payroll || !['Cerrada','Pagada'].includes(payroll.estado)} onClick={distribute} className={`${cls} disabled:opacity-40`}>Distribuir costos de nómina {period}</button></>}
+    {canApprove && <><AllocationBulkApproval count={selected.length} reason={bulkReason} onReasonChange={setBulkReason} onApprove={()=>approve(selected,bulkReason)} busy={busy} message={approvalMessage} selectionKey={JSON.stringify([period,selected,edits])}/><p className="text-xs text-slate-500">Seleccionar todos incluye solo pendientes hasta hoy ({today}). Las fechas futuras no se pueden aprobar.</p><button disabled={busy || !payroll || !['Cerrada','Pagada'].includes(payroll.estado)} onClick={distribute} className={`${cls} disabled:opacity-40`}>Distribuir costos de nómina {period}</button></>}
     {!payroll && <p className="text-xs text-slate-500">Puede aprobar destinos antes de calcular la nómina. Para cargar los costos, primero guarde y cierre la nómina del período en Remuneraciones.</p>}
-    <div className="max-h-[650px] overflow-auto rounded-xl border"><table className="w-full min-w-[1000px] text-left text-xs"><thead className="sticky top-0 bg-slate-100"><tr><th className="p-3"><input aria-label="Seleccionar pendientes filtrados" type="checkbox" disabled={busy || !canApprove} checked={filtered.some(r => r.estado === 'Pendiente') && filtered.filter(r => r.estado === 'Pendiente').every(r => selected.includes(r.id))} onChange={e => setSelected(e.target.checked ? filtered.filter(r => r.estado === 'Pendiente').slice(0,1000).map(r => r.id) : [])}/></th>{['Fecha / trabajador','Evidencia','Destino del cargo','Motivo / aprobación'].map(t => <th key={t} className="p-3">{t}</th>)}</tr></thead><tbody>{filtered.map(r => <tr key={r.id} className="border-t align-top">
-      <td className="p-3"><input aria-label={`Seleccionar día ${r.fecha}`} type="checkbox" disabled={busy || !canApprove} checked={selected.includes(r.id)} onChange={e => setSelected(s => e.target.checked ? [...s,r.id] : s.filter(id => id !== r.id))}/></td>
+    <div className="max-h-[650px] overflow-auto rounded-xl border"><table className="w-full min-w-[1000px] text-left text-xs"><thead className="sticky top-0 bg-slate-100"><tr><th className="p-3"><input aria-label="Seleccionar pendientes filtrados" type="checkbox" disabled={busy || !canApprove || !selectable.length} checked={selectable.length>0 && selectable.slice(0,1000).every(r => selected.includes(r.id))} onChange={e => setSelected(e.target.checked ? selectable.slice(0,1000).map(r => r.id) : [])}/></th>{['Fecha / trabajador','Evidencia','Destino del cargo','Motivo / aprobación'].map(t => <th key={t} className="p-3">{t}</th>)}</tr></thead><tbody>{filtered.map(r => <tr key={r.id} className="border-t align-top">
+      <td className="p-3"><input aria-label={`Seleccionar día ${r.fecha}`} type="checkbox" disabled={busy || !canApprove || r.fecha>today} checked={selected.includes(r.id)} onChange={e => setSelected(s => e.target.checked ? [...s,r.id] : s.filter(id => id !== r.id))}/>{r.fecha>today && <small className="block">Fecha futura</small>}</td>
       <td className="p-3">{r.fecha}<b className="block">{workerMap.get(r.trabajador_id)?.nombre || `Trabajador ${r.trabajador_id}`}</b><span>{r.estado}</span></td>
       <td className="p-3">{r.origen}<small className="block">Propuesta: {centerLabel(r.centro_propuesto_id)}</small><small className="block">H. extra detectadas: {r.costo_evidencia?.horas_detectadas ?? 'Por calcular'}</small>{Array.isArray(r.evidencia?.marcas) && r.evidencia.marcas.map(m => <small className="block" key={m[0]}>{obras.find(o => o.id === m[1])?.nombre || 'Sin obra'} · {m[2]}</small>)}</td>
       <td className="p-3"><select aria-label={`Destino ${r.fecha}`} disabled={busy || !canApprove} value={edits[r.id]?.center ?? r.centro_aprobado_id ?? r.centro_propuesto_id ?? ''} onChange={e => change(r.id,'center',e.target.value)} className={`${cls} w-full`}><option value="">Seleccione un centro</option>{centrosGestion.filter(c => c.activo !== false).map(c => <option key={c.id} value={c.id}>{centerLabel(c.id)}</option>)}</select>

@@ -1,0 +1,31 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="fixture"></div><script type="module">
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import '../../src/index.css';
+import PersonnelAllocations from '../../src/components/PersonnelAllocations.jsx';
+import {supabase} from '../../src/supabaseClient.js';
+// Isolated integration fixture: all database calls are mocked, no real approvals.
+const scenario=new URLSearchParams(location.search).get('scenario');
+const rows=[1,2,3].map((id)=>({id,trabajador_id:id,fecha:id===3?'2099-01-01':`2000-01-0${id+2}`,estado:'Pendiente',origen:'Asistencia',centro_propuesto_id:id*10,historial:[],evidencia:{version:1},costo_evidencia:{version:1},costo_detalle:scenario==='missing-cost'?{listo:false,motivo:'Configure parámetros de costeo del mes y sueldo del trabajador'}:{listo:true,horas_extra:id,total:10000},haber_imponible:5000,haber_no_imponible:1000}));
+window.approvalCalls=[];
+window.confirm=()=>{throw new Error('Native confirm must not be used');};
+supabase.rpc=async(name,args)=>{
+ if(name==='preparar_imputaciones_personal')return {data:0,error:null};
+ if(name!=='aprobar_imputaciones_personal')throw new Error(`Unexpected RPC ${name}`);
+ window.approvalCalls.push(args);
+ if(scenario==='server-error')return {data:null,error:{message:'Cambió la asistencia. Actualice y revise.'}};
+ await new Promise(resolve=>setTimeout(resolve,100));
+ for(const decision of args.p_decisiones)rows.find(r=>r.id===decision.id).estado='Aprobada';
+ return {data:args.p_decisiones.length,error:null};
+};
+supabase.from=table=>{
+ const data=table==='rrhh_imputaciones_diarias'?rows:table==='rrhh_costeo_parametros'?{horas_semanales:42,tope_gratificacion_mensual:200000,cargas_empleador_pct:5,factor_hora_extra:1.5}:null;
+ const result={data,error:null};
+ const chain={select(){return this;},eq(){return this;},gte(){return this;},lt(){return this;},order(){return this;},range(){return Promise.resolve(result);},maybeSingle(){return Promise.resolve(result);},then(resolve,reject){return Promise.resolve(result).then(resolve,reject);}};
+ return chain;
+};
+const user={id:'fixture',empresa:'Prueba',rol:'Administrador'};
+const personal=rows.map(r=>({id:r.trabajador_id,nombre:`Trabajador ${r.id}`,sueldo_base:900000}));
+const centrosGestion=rows.map(r=>({id:r.centro_propuesto_id,codigo:String(r.centro_propuesto_id),nombre:`Centro ${r.id}`,activo:true}));
+createRoot(document.getElementById('fixture')).render(React.createElement(PersonnelAllocations,{user,personal,centrosGestion,obras:[]}));
+</script></body></html>
