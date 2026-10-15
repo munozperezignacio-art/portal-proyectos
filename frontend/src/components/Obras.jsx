@@ -5326,34 +5326,6 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     {/* PESTAÑA 3: 🚜 MAQUINARIAS & FLOTA */}
                     {estadisticasTab === 'maquinarias' && (
                       <div className="space-y-6">
-                        <div className="flex justify-between items-center bg-amber-50/60 p-3.5 border border-amber-200 rounded-2xl">
-                          <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
-                            <Truck className="w-4 h-4 text-amber-800" />
-                            <span>Gestión Operativa de Mantenciones y Fallas Técnicas de Maquinarias</span>
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => {
-                                setMantencionFormData({ equipo_nombre: (maquinariaList[0]?.nombre || arriendosList[0]?.equipo || ''), fecha: fCorteStr, tipo: 'Preventiva', costo: '', descripcion: '' });
-                                setShowMantencionModal(true);
-                              }}
-                              className="bg-amber-800 hover:bg-amber-900 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 cursor-pointer shadow-xs"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                              <span>Registrar Mantención</span>
-                            </button>
-                            <button
-                              onClick={() => {
-                                setParalizacionFormData({ equipo_nombre: (maquinariaList[0]?.nombre || arriendosList[0]?.equipo || ''), fecha_inicio: fCorteStr, horas_parada: 8, motivo: '' });
-                                setShowParalizacionModal(true);
-                              }}
-                              className="bg-rose-800 hover:bg-rose-900 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 cursor-pointer shadow-xs"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                              <span>Registrar Paralización</span>
-                            </button>
-                          </div>
-                        </div>
 
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
