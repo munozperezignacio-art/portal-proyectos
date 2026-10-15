@@ -16,6 +16,7 @@ import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
 import MachineryEquipmentDetailModal from './MachineryEquipmentDetailModal';
 import { matchesWorkReport, reportedProgress, dailyTimeRate } from '../utils/workReportCalculations';
+import { advanceNotificationRecipients } from '../utils/advanceNotificationRecipients';
 
 const ContextualEmailConfigModal = React.lazy(() => import('./ContextualEmailConfigModal'));
 const LastPlannerLookahead = React.lazy(() => import('./LastPlannerLookahead'));
@@ -2020,7 +2021,12 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           recipients = [user.email || user.correo];
         }
 
-        const uniqueRecipients = Array.from(new Set(recipients.filter(e => e && e.includes('@'))));
+        const [rulesResult, usersResult] = await Promise.all([
+          supabase.from('notificaciones_reglas').select('*').eq('empresa', user.empresa).eq('evento_codigo', 'avance_registrado').eq('activa', true).eq('canal_email', true),
+          supabase.from('usuarios').select('id,empresa,correo,rol,rol_base,obras').eq('empresa', user.empresa)
+        ]);
+        if (rulesResult.error || usersResult.error) throw rulesResult.error || usersResult.error;
+        const uniqueRecipients = advanceNotificationRecipients({ rules: rulesResult.data || [], users: usersResult.data || [], company: user.empresa, work: obraNombre, fallback: recipients });
 
         if (uniqueRecipients.length > 0) {
           const supervisorName = user?.nombre || user?.usuario || 'Supervisor';
@@ -2068,13 +2074,16 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
             </div>
           `;
 
-          await sendSystemEmail({
-            to: uniqueRecipients,
+          for (let offset = 0; offset < uniqueRecipients.length; offset += 10) {
+          const mailResult = await sendSystemEmail({
+            to: uniqueRecipients.slice(offset, offset + 10),
             subject: `📊 Reporte de Avance (${obraNombre}) - ${fechaStr}`,
             htmlContent: htmlEmail,
             customSender: 'notificaciones@obraxis.cl',
             permissionKey: 'obras.avances.enviar'
           });
+          if (!mailResult.success) throw new Error(mailResult.error || 'No fue posible enviar el aviso de avance.');
+          }
         }
       } catch (emailErr) {
         console.warn("Aviso al enviar notificación por correo:", emailErr.message);
