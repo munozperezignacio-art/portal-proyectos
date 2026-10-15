@@ -17,6 +17,8 @@ import { can } from '../utils/permissionsCatalog';
 import MachineryEquipmentDetailModal from './MachineryEquipmentDetailModal';
 import { matchesWorkReport, reportedProgress, dailyTimeRate } from '../utils/workReportCalculations';
 import { advanceNotificationRecipients } from '../utils/advanceNotificationRecipients';
+import { calendarTimeline } from '../utils/sCurveTimeline';
+import DailySCurve from './DailySCurve';
 
 const ContextualEmailConfigModal = React.lazy(() => import('./ContextualEmailConfigModal'));
 const LastPlannerLookahead = React.lazy(() => import('./LastPlannerLookahead'));
@@ -4713,7 +4715,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 const minPartida = pAvanceRates.length > 0 ? [...pAvanceRates].sort((a, b) => a.pct - b.pct)[0] : null;
                 const avgPctPerDay = pAvanceRates.length > 0 ? (pAvanceRates.reduce((acc, p) => acc + p.pctPerDay, 0) / pAvanceRates.length).toFixed(2) : "0.00";
 
-                // 3. CÁLCULO DE PUNTOS PARA CURVA S DE AVANCE FÍSICO (SEMANAL - REAL VS PROGRAMADO)
+                // 3. Curva S diaria: incluye fines de semana, feriados y la fecha de corte.
                 const minPartidaStart = targetPartidas.reduce((min, p) => {
                   const f = p.fecha_inicio ? String(p.fecha_inicio).split('T')[0] : null;
                   if (!f) return min;
@@ -4721,30 +4723,12 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 }, null);
 
                 const fInicioObraDefault = minPartidaStart || fechaInicioReal || getObraDateRange(selectedObra).start;
-                const timelineMilestones = [];
-                let sDate = new Date(fInicioObraDefault + 'T00:00:00');
-                const eDate = new Date(fCorteStr + 'T00:00:00');
-
-                if (!isNaN(sDate.getTime()) && !isNaN(eDate.getTime())) {
-                  const mCursor = new Date(sDate);
-                  while (mCursor <= eDate) {
-                    const mStr = mCursor.getFullYear() + '-' + String(mCursor.getMonth() + 1).padStart(2, '0') + '-' + String(mCursor.getDate()).padStart(2, '0');
-                    
-                    // Formato de fecha semanal (ej: 06-Abr, 13-Abr)
-                    const dayNum = String(mCursor.getDate()).padStart(2, '0');
-                    const monthShort = mCursor.toLocaleDateString('es-CL', { month: 'short' }).replace('.', '');
-                    const weekLabel = `${dayNum}-${monthShort.charAt(0).toUpperCase() + monthShort.slice(1)}`;
-                    
-                    timelineMilestones.push({ dateStr: mStr, label: weekLabel });
-                    mCursor.setDate(mCursor.getDate() + 7);
-                  }
-                }
+                const timelineMilestones = calendarTimeline(fInicioObraDefault, fCorteStr);
 
                 const totalPresupuestoObra = totalVentaPresupuestada > 0 ? totalVentaPresupuestada : 1;
                 
-                const curvaSPoints = timelineMilestones.map((m, idx) => {
+                const curvaSPoints = timelineMilestones.map((m) => {
                   const mStr = m.dateStr;
-                  const x = 45 + (idx / Math.max(1, timelineMilestones.length - 1)) * 430;
 
                   // Real Acumulado a la fecha
                   const revAtM = (reportesAvanceList || []).filter(r => {
@@ -4778,14 +4762,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
                   const pvPct = Math.min(100, Math.round((valProgAtM / totalPresupuestoObra) * 100));
 
-                  const yEV = 170 - (evPct / 100) * 150;
-                  const yPV = 170 - (pvPct / 100) * 150;
-
-                  return { x, yEV, yPV, evPct, pvPct, label: m.label, dateStr: mStr };
+                  return { evPct, pvPct, label: m.label, dateStr: mStr };
                 });
 
-                const pathEV = curvaSPoints.reduce((acc, p, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${p.x} ${p.yEV}`, '');
-                const pathPV = curvaSPoints.reduce((acc, p, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${p.x} ${p.yPV}`, '');
 
                 // 4. Últimos 5 Días Laborales para Gráfico de Barras de Avance
                 const last5BusinessDays = [];
@@ -5182,50 +5161,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                               </div>
                             </div>
 
-                            {/* SVG CURVA S CON PROPORCIÓN DE ASPECTO FIJA Y LIMPIA */}
-                            <div className="w-full h-52 relative bg-slate-50 rounded-xl p-2 border border-slate-100 flex items-center justify-center">
-                              <svg className="w-full h-full" viewBox="0 0 500 200">
-                                {/* Guías Horizontales 0%, 25%, 50%, 75%, 100% */}
-                                <line x1="45" y1="20" x2="475" y2="20" stroke="#e2e8f0" strokeDasharray="3 3" />
-                                <text x="36" y="24" textAnchor="end" className="text-[10px] fill-slate-400 font-mono font-bold">100%</text>
-
-                                <line x1="45" y1="58" x2="475" y2="58" stroke="#e2e8f0" strokeDasharray="3 3" />
-                                <text x="36" y="62" textAnchor="end" className="text-[10px] fill-slate-400 font-mono font-bold">75%</text>
-
-                                <line x1="45" y1="95" x2="475" y2="95" stroke="#e2e8f0" strokeDasharray="3 3" />
-                                <text x="36" y="99" textAnchor="end" className="text-[10px] fill-slate-400 font-mono font-bold">50%</text>
-
-                                <line x1="45" y1="133" x2="475" y2="133" stroke="#e2e8f0" strokeDasharray="3 3" />
-                                <text x="36" y="137" textAnchor="end" className="text-[10px] fill-slate-400 font-mono font-bold">25%</text>
-
-                                <line x1="45" y1="170" x2="475" y2="170" stroke="#cbd5e1" strokeWidth="1.5" />
-                                <text x="36" y="174" textAnchor="end" className="text-[10px] fill-slate-400 font-mono font-bold">0%</text>
-
-                                {/* Trazo Línea Programada (Verde) */}
-                                <path d={pathPV} fill="none" stroke="#16a34a" strokeWidth="3" strokeDasharray="4 2" />
-
-                                {/* Trazo Línea Real (Azul) */}
-                                <path d={pathEV} fill="none" stroke="#1e3a8a" strokeWidth="3.5" />
-
-                                {/* Puntos y Nodos Semanales */}
-                                {curvaSPoints.map((pt, pIdx) => {
-                                  const step = Math.max(1, Math.ceil(curvaSPoints.length / 8));
-                                  const showLabel = pIdx % step === 0 || pIdx === curvaSPoints.length - 1;
-                                  return (
-                                    <g key={pIdx}>
-                                      <circle cx={pt.x} cy={pt.yEV} r="4" fill="#1e3a8a" stroke="#ffffff" strokeWidth="2" />
-                                      <circle cx={pt.x} cy={pt.yPV} r="3" fill="#16a34a" stroke="#ffffff" strokeWidth="1.5" />
-                                      {showLabel && (
-                                        <text x={pt.x} y={Math.max(14, pt.yEV - 7)} textAnchor="middle" className="text-[9px] fill-blue-950 font-extrabold font-mono">{pt.evPct}%</text>
-                                      )}
-                                      {showLabel && (
-                                        <text x={pt.x} y="188" textAnchor="middle" className="text-[8.5px] fill-slate-600 font-mono font-bold">{pt.label}</text>
-                                      )}
-                                    </g>
-                                  );
-                                })}
-                              </svg>
-                            </div>
+                            <DailySCurve points={curvaSPoints}/>
                           </div>
 
                           {/* 2. GRÁFICO DE BARRAS: ÚLTIMOS 5 DÍAS LABORALES */}
