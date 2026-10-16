@@ -8,16 +8,17 @@ import {companyPermissionCatalog,modulePermissionKeys} from '../../src/utils/com
 const company={empresa:'Prueba',modulos_activos:'obras,rrhh',submenus_activos:'obras_produccion,obras_asistencia'};
 const denied=Object.fromEntries(companyPermissionCatalog(company).flatMap(modulePermissionKeys).map(key=>[key,false]));
 const roles=[{id:11,empresa:'Prueba',nombre:'Supervisor',rol_base:'Personalizado',archivado:false,permisos:{...denied,'obras.avances.ver':true},modulos:'',submenus:''}];
-window.savedUsers=[];window.mockEmails=0;
-supabase.functions.invoke=async()=>{window.mockEmails++;return {data:{success:true},error:null};};
+window.savedUsers=[];window.savedUpdates=[];window.mockEmails=0;window.emailBodies=[];window.failEmail=false;window.failInsert=false;
+Object.defineProperty(supabase,'functions',{value:{invoke:async(name,options)=>{window.mockEmails++;window.emailBodies.push(options.body);return window.failEmail?{data:null,error:{message:'Fixture mail failure'}}:{data:{success:true},error:null};}}});
 supabase.from=table=>{
- let inserted=null;const filters={};
+ let inserted=null,updated=null;const filters={};
  const result=()=>{
-  if(inserted){window.savedUsers.push(...structuredClone(inserted));return {data:inserted,error:null};}
+  if(inserted){if(window.failInsert)return {data:null,error:{message:'Fixture creation failed'}};window.savedUsers.push(...structuredClone(inserted).map((row,i)=>({...row,id:i+1})));return {data:inserted,error:null};}
+  if(updated){window.savedUpdates.push(structuredClone(updated));return {data:null,error:null};}
   const rows=table==='config_empresa'?[company]:table==='roles'?roles:table==='usuarios'?window.savedUsers:[];
   return {data:rows.filter(row=>Object.entries(filters).every(([key,value])=>row[key]===value)),error:null};
  };
- const chain={select(){return this;},eq(key,value){filters[key]=value;return this;},order(){return this;},limit(){return this;},insert(rows){inserted=rows;return this;},maybeSingle(){const r=result();return Promise.resolve({...r,data:r.data[0] || null});},then(resolve,reject){return Promise.resolve(result()).then(resolve,reject);}};
+ const chain={select(){return this;},eq(key,value){filters[key]=value;return this;},order(){return this;},limit(){return this;},insert(rows){inserted=rows;return this;},update(row){updated=row;return this;},maybeSingle(){const r=result();return Promise.resolve({...r,data:r.data[0] || null});},then(resolve,reject){return Promise.resolve(result()).then(resolve,reject);}};
  return chain;
 };
 createRoot(document.getElementById('fixture')).render(React.createElement(ConfigCorreos,{user:{id:99,empresa:'Prueba',rol:'Administrador',nombre:'Administrador de prueba'},onBack:()=>{}}));

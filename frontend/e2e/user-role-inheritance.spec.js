@@ -9,7 +9,7 @@ test('real create-user form saves inherited access without manual module selecti
  await page.getByPlaceholder('ej: juan@empresa.cl').fill('prueba@example.invalid');
  await page.getByPlaceholder('ej: Supervisor de Obra').fill('Supervisor');
  await page.getByPlaceholder('ej: jperez').fill('fixture_user');
- await page.getByPlaceholder('Contraseña inicial',{exact:true}).fill('Fixture-only-123!');
+ await expect(page.getByText('Contraseña inicial automática',{exact:true})).toBeVisible();
  await page.getByRole('button',{name:'Guardar Usuario',exact:true}).click();
  await expect.poll(()=>page.evaluate(()=>window.savedUsers.length)).toBe(1);
  const saved=await page.evaluate(()=>{const r=window.savedUsers[0];return {empresa:r.empresa,rol:r.rol,modulos:r.modulos,submenus:r.submenus,permisos:r.permisos};});

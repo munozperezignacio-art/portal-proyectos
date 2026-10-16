@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { sendSystemEmail } from '../utils/emailService';
+import { generateInitialPassword, escapeCredentialText } from '../utils/initialPassword';
 import { formatRut } from '../utils/rutUtils';
 import PermissionsGovernancePanel from './PermissionsGovernancePanel';
 import UserRoleAccess from './UserRoleAccess';
@@ -62,6 +63,8 @@ function ConfigCorreos({ user, onBack }) {
   const [allCompaniesList, setAllCompaniesList] = useState([]);
   const [userModalOpen, setUserModalOpen] = useState(false);
   const [userEditing, setUserEditing] = useState(null);
+  // Credentials exist only in this open modal while a failed delivery can be retried.
+  const [userDelivery, setUserDelivery] = useState(null);
   const [companyModalOpen, setCompanyModalOpen] = useState(false);
   const [companyEditing, setCompanyEditing] = useState(null);
   
@@ -445,6 +448,7 @@ function ConfigCorreos({ user, onBack }) {
 
 
   const handleOpenAddUserModal = () => {
+    setUserDelivery(null);
     setUserEditing(null);
     const defaultEmpresa = user?.empresa || 'Obraxis';
     const defaultRole = rolesList.find(role => role.empresa === defaultEmpresa && !role.archivado);
@@ -467,6 +471,7 @@ function ConfigCorreos({ user, onBack }) {
   };
 
   const handleOpenEditUserModal = (usr) => {
+    setUserDelivery(null);
     setUserEditing(usr);
     setUserFormData({
       usuario: usr.usuario || '',
@@ -519,6 +524,7 @@ function ConfigCorreos({ user, onBack }) {
 
   const handleSubmitUser = async (e) => {
     e.preventDefault();
+    if (userModalLoading || userDelivery) return;
     setUserModalLoading(true);
     setSuccessMsg('');
     setErrorMsg('');
@@ -548,9 +554,10 @@ function ConfigCorreos({ user, onBack }) {
       obras: (userFormData.obras || []).join(','),
       ...navigation
     };
-    if (!userEditing || userFormData.contrasena.trim()) dataToSave.contrasena = userFormData.contrasena.trim();
 
     try {
+      if (!userEditing) dataToSave.contrasena = generateInitialPassword();
+      else if (userFormData.contrasena.trim()) dataToSave.contrasena = userFormData.contrasena.trim();
       if (userEditing) {
         const { error } = await supabase
           .from('usuarios')
@@ -568,10 +575,11 @@ function ConfigCorreos({ user, onBack }) {
 
         // Enviar correo de bienvenida si se registró un correo
         if (dataToSave.correo) {
+          const safeData = Object.fromEntries(Object.entries(dataToSave).map(([key, value]) => [key, escapeCredentialText(value)]));
           const welcomeHtml = `
             <div style="font-family: sans-serif; padding: 24px; color: #1e293b; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
               <h2 style="color: #1e3a8a; font-size: 20px; font-weight: 700; margin-bottom: 16px;">¡Bienvenido/a a Obraxis!</h2>
-              <p style="font-size: 14px; line-height: 1.5;">Hola <strong>${dataToSave.nombre || dataToSave.usuario}</strong>,</p>
+              <p style="font-size: 14px; line-height: 1.5;">Hola <strong>${safeData.nombre || safeData.usuario}</strong>,</p>
               <p style="font-size: 14px; line-height: 1.5;">Tu cuenta de usuario ha sido creada de manera exitosa en nuestra plataforma de gestión de proyectos. A continuación, te compartimos tus credenciales de acceso:</p>
               
               <div style="background-color: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; margin: 24px 0;">
@@ -579,23 +587,23 @@ function ConfigCorreos({ user, onBack }) {
                 <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
                   <tr>
                     <td style="padding: 6px 0; color: #475569; width: 120px;"><strong>🏢 Empresa:</strong></td>
-                    <td style="padding: 6px 0; color: #1e293b;">${dataToSave.empresa}</td>
+                    <td style="padding: 6px 0; color: #1e293b;">${safeData.empresa}</td>
                   </tr>
                   <tr>
                     <td style="padding: 6px 0; color: #475569;"><strong>👤 Usuario:</strong></td>
-                    <td style="padding: 6px 0; color: #1e293b; font-family: monospace; font-weight: bold;">${dataToSave.usuario}</td>
+                    <td style="padding: 6px 0; color: #1e293b; font-family: monospace; font-weight: bold;">${safeData.usuario}</td>
                   </tr>
                   <tr>
                     <td style="padding: 6px 0; color: #475569;"><strong>🔑 Contraseña:</strong></td>
-                    <td style="padding: 6px 0; color: #1e293b; font-family: monospace; font-weight: bold;">${dataToSave.contrasena}</td>
+                    <td style="padding: 6px 0; color: #1e293b; font-family: monospace; font-weight: bold;">${safeData.contrasena}</td>
                   </tr>
                   <tr>
                     <td style="padding: 6px 0; color: #475569;"><strong>💼 Cargo:</strong></td>
-                    <td style="padding: 6px 0; color: #1e293b;">${dataToSave.cargo || 'No especificado'}</td>
+                    <td style="padding: 6px 0; color: #1e293b;">${safeData.cargo || 'No especificado'}</td>
                   </tr>
                   <tr>
                     <td style="padding: 6px 0; color: #475569;"><strong>🛡️ Rol:</strong></td>
-                    <td style="padding: 6px 0; color: #1e293b;">${dataToSave.rol}</td>
+                    <td style="padding: 6px 0; color: #1e293b;">${safeData.rol}</td>
                   </tr>
                 </table>
               </div>
@@ -610,25 +618,40 @@ function ConfigCorreos({ user, onBack }) {
             </div>
           `;
 
-          try {
-            await sendSystemEmail({
+          const delivery = {
               to: dataToSave.correo,
               subject: '🔐 Tus credenciales de acceso a Obraxis',
               htmlContent: welcomeHtml,
               customSender: 'usuarios@obraxis.cl',
               permissionKey: 'admin.usuarios.enviar'
-            });
-          } catch (mailErr) {
-            console.error('Error al enviar correo de credenciales:', mailErr.message);
-          }
+          };
+          setUserDelivery(delivery);
+          await deliverUserWelcome(delivery);
         }
       }
 
       window.dispatchEvent(new CustomEvent('obraxis:permissions-updated',{detail:{empresa:userFormData.empresa}}));
       fetchUsers();
-      setTimeout(() => setUserModalOpen(false), 1500);
+      if (userEditing) setTimeout(() => setUserModalOpen(false), 1500);
     } catch (err) {
       setErrorMsg(err.message);
+    } finally {
+      setUserModalLoading(false);
+    }
+  };
+
+  const deliverUserWelcome = async delivery => {
+    setUserModalLoading(true);
+    setErrorMsg('');
+    try {
+      const result = await sendSystemEmail(delivery);
+      if (!result?.success) throw new Error('delivery-failed');
+      setSuccessMsg(`Usuario creado. Correo de bienvenida enviado a ${delivery.to}.`);
+      // Discard the password/HTML as soon as the service accepts the email.
+      setUserDelivery({sent: true, to: delivery.to});
+    } catch {
+      setSuccessMsg('El usuario ya está creado. No es necesario crearlo nuevamente.');
+      setErrorMsg('No se pudo enviar el correo de bienvenida. Reintenta el envío sin cerrar esta ventana. Si la cierras, el usuario podrá usar «¿Olvidaste tu contraseña?» en el inicio de sesión.');
     } finally {
       setUserModalLoading(false);
     }
@@ -1888,13 +1911,16 @@ function ConfigCorreos({ user, onBack }) {
               <h3 className="font-bold text-slate-800 text-sm">
                 {userEditing ? 'Editar Usuario' : 'Agregar Nuevo Usuario'}
               </h3>
-              <button onClick={() => setUserModalOpen(false)} className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer">✕</button>
+              <button disabled={userModalLoading} aria-label="Cerrar usuario" onClick={() => {setUserDelivery(null);setUserModalOpen(false);}} className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer disabled:opacity-50">✕</button>
             </div>
 
             {successMsg && <div className="bg-emerald-50 text-emerald-700 p-2.5 rounded-lg text-xs font-semibold mb-3">{successMsg}</div>}
             {errorMsg && <div className="bg-red-50 text-red-700 p-2.5 rounded-lg text-xs font-semibold mb-3">{errorMsg}</div>}
 
-            <form onSubmit={handleSubmitUser} className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+            {userDelivery ? <div className="space-y-3">
+              {!userDelivery.sent && <button type="button" disabled={userModalLoading} onClick={() => deliverUserWelcome(userDelivery)} className="w-full rounded-lg bg-primary p-3 text-sm font-semibold text-white disabled:opacity-50">{userModalLoading ? 'Enviando correo…' : 'Reintentar envío del correo'}</button>}
+              <button type="button" disabled={userModalLoading} onClick={() => {setUserDelivery(null);setUserModalOpen(false);}} className="w-full rounded-lg border border-slate-200 p-3 text-sm font-semibold disabled:opacity-50">Cerrar</button>
+            </div> : <form onSubmit={handleSubmitUser} className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nombre Real</label>
                 <input
@@ -1907,7 +1933,7 @@ function ConfigCorreos({ user, onBack }) {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Correo Electrónico</label>
                   <input
@@ -1932,7 +1958,7 @@ function ConfigCorreos({ user, onBack }) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Usuario de Login</label>
                   <input
@@ -1945,17 +1971,20 @@ function ConfigCorreos({ user, onBack }) {
                     className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary disabled:bg-slate-100"
                   />
                 </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">{userEditing ? 'Nueva contraseña (opcional)' : 'Contraseña inicial'}</label>
+                {userEditing ? <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nueva contraseña (opcional)</label>
                   <input
-                    type="text"
-                    required={!userEditing}
+                    type="password"
+                    autoComplete="new-password"
                     value={userFormData.contrasena}
                     onChange={(e) => setUserFormData({ ...userFormData, contrasena: e.target.value })}
-                    placeholder={userEditing ? 'Dejar vacío para conservarla' : 'Contraseña inicial'}
+                    placeholder="Dejar vacío para conservarla"
                     className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-primary"
                   />
-                </div>
+                </div> : <div className="rounded-lg border border-indigo-100 bg-indigo-50 p-3 text-xs text-indigo-900">
+                  <p className="font-bold">Contraseña inicial automática</p>
+                  <p className="mt-1">Al guardar se generará una contraseña segura y se enviará al correo del nuevo usuario, junto con su acceso a Obraxis.</p>
+                </div>}
               </div>
 
               <div>
@@ -2143,7 +2172,7 @@ function ConfigCorreos({ user, onBack }) {
               >
                 {userModalLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Guardar Usuario</span>}
               </button>
-            </form>
+            </form>}
           </div>
         </div>
       )}
