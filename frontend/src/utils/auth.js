@@ -1,6 +1,6 @@
 import { supabase } from '../supabaseClient';
 
-const PROFILE_FIELDS = 'id, usuario, empresa, rol, rol_base, obras, modulos, correo, trabajador_rut, submenus, nombre, cargo';
+const PROFILE_FIELDS = 'id, usuario, empresa, rol, rol_base, obras, modulos, correo, trabajador_rut, submenus, nombre, cargo, permisos';
 
 export async function getAuthenticatedProfile(authUser, company) {
   if (!authUser?.email) throw new Error('La cuenta autenticada no tiene un correo asociado.');

@@ -4,6 +4,7 @@ import ModuleHeader from './ModuleHeader';
 import { sendSystemEmail } from '../utils/emailService';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
+import {navigationSubmenuEnabled} from '../utils/roleNavigation';
 import { 
   ShieldAlert, Plus, Save, Trash2, FileText, CheckCircle2,
   ChevronUp, ChevronDown, GripVertical, 
@@ -27,17 +28,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
   const [activeSection, setActiveSection] = useState('');
 
   const isSubmenuEnabled = (submenuId) => {
-    const rBase = (user?.rol_base || user?.rol || 'Inspector').toLowerCase();
-    if (user && rBase === 'superusuario') return true;
-    if (companyBranding && companyBranding.submenus_activos) {
-      const activeSubs = companyBranding.submenus_activos.split(',').map(s => s.trim().toLowerCase());
-      if (!activeSubs.includes(submenuId)) return false;
-    }
-    if (user && user.submenus) {
-      const allowedSubs = user.submenus.split(',').map(s => s.trim().toLowerCase());
-      return allowedSubs.includes(submenuId);
-    }
-    return true;
+    return navigationSubmenuEnabled(user,companyBranding,submenuId);
   };
 
   // Lista de Formularios Guardados (Plantillas)

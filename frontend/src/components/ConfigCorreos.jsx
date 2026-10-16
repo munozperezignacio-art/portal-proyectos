@@ -3,6 +3,8 @@ import { supabase } from '../supabaseClient';
 import { sendSystemEmail } from '../utils/emailService';
 import { formatRut } from '../utils/rutUtils';
 import PermissionsGovernancePanel from './PermissionsGovernancePanel';
+import UserRoleAccess from './UserRoleAccess';
+import {deriveRoleNavigation,inheritsRoleAccess,userNavigationPayload} from '../utils/roleNavigation';
 import NotificationMaster from './NotificationMaster';
 import AIControlCenter from './AIControlCenter';
 import PlatformAudit from './PlatformAudit';
@@ -71,6 +73,7 @@ function ConfigCorreos({ user, onBack }) {
     contrasena: '',
     empresa: '',
     rol: 'Inspector',
+    heredar_accesos_rol:true,
     obras: ['todas'],
     modulos: [],
     submenus: []
@@ -453,6 +456,7 @@ function ConfigCorreos({ user, onBack }) {
       contrasena: '',
       empresa: defaultEmpresa,
       rol: defaultRole?.nombre || 'Inspector',
+      heredar_accesos_rol:true,
       obras: ['todas'],
       modulos: defaultRole?.modulos ? defaultRole.modulos.split(',').map(item => item.trim()).filter(Boolean) : [],
       submenus: defaultRole?.submenus ? defaultRole.submenus.split(',').map(item => item.trim()).filter(Boolean) : []
@@ -472,6 +476,7 @@ function ConfigCorreos({ user, onBack }) {
       contrasena: '',
       empresa: usr.empresa || 'Obraxis',
       rol: usr.rol || 'Inspector',
+      heredar_accesos_rol:inheritsRoleAccess(usr),
       obras: usr.obras ? String(usr.obras).split(',').map(item => item.trim()).filter(Boolean) : [],
       modulos: usr.modulos ? usr.modulos.split(',').map(m => m.trim()) : [],
       submenus: usr.submenus ? usr.submenus.split(',').map(s => s.trim()) : []
@@ -500,6 +505,7 @@ function ConfigCorreos({ user, onBack }) {
       setUserFormData({
         ...userFormData,
         rol: roleName,
+        heredar_accesos_rol:true,
         modulos: selectedCustomRole.modulos ? selectedCustomRole.modulos.split(',').map(m => m.trim()) : [],
         submenus: selectedCustomRole.submenus ? selectedCustomRole.submenus.split(',').map(s => s.trim()) : []
       });
@@ -519,6 +525,17 @@ function ConfigCorreos({ user, onBack }) {
 
     const selectedRole = rolesList.find(r => r.nombre === userFormData.rol && r.empresa === userFormData.empresa);
     const rolBase = selectedRole?.rol_base || userFormData.rol_base || 'Personalizado';
+    let navigation;
+    try{
+      let previousPermissions={};
+      if(userEditing && userEditing.empresa===userFormData.empresa){
+        const current=await supabase.from('usuarios').select('permisos').eq('id',userEditing.id).eq('empresa',userEditing.empresa).maybeSingle();
+        if(current.error || !current.data)throw current.error || new Error('No fue posible verificar los permisos actuales del usuario.');
+        previousPermissions=current.data.permisos || {};
+      }
+      navigation=userNavigationPayload(userFormData,selectedRole,allCompaniesList.find(company=>company.empresa===userFormData.empresa),previousPermissions);
+    }
+    catch(error){setErrorMsg(error.message);setUserModalLoading(false);return;}
 
     const dataToSave = {
       usuario: userFormData.usuario.trim(),
@@ -529,8 +546,7 @@ function ConfigCorreos({ user, onBack }) {
       rol: userFormData.rol,
       rol_base: rolBase,
       obras: (userFormData.obras || []).join(','),
-      modulos: userFormData.modulos.join(','),
-      submenus: (userFormData.submenus || []).join(',')
+      ...navigation
     };
     if (!userEditing || userFormData.contrasena.trim()) dataToSave.contrasena = userFormData.contrasena.trim();
 
@@ -608,6 +624,7 @@ function ConfigCorreos({ user, onBack }) {
         }
       }
 
+      window.dispatchEvent(new CustomEvent('obraxis:permissions-updated',{detail:{empresa:userFormData.empresa}}));
       fetchUsers();
       setTimeout(() => setUserModalOpen(false), 1500);
     } catch (err) {
@@ -1953,6 +1970,7 @@ function ConfigCorreos({ user, onBack }) {
                         ...userFormData,
                         empresa,
                         rol: nextRole?.nombre || '',
+                        heredar_accesos_rol:true,
                         obras: ['todas'],
                         modulos: nextRole?.modulos ? nextRole.modulos.split(',').map(item => item.trim()).filter(Boolean) : [],
                         submenus: nextRole?.submenus ? nextRole.submenus.split(',').map(item => item.trim()).filter(Boolean) : []
@@ -2037,6 +2055,8 @@ function ConfigCorreos({ user, onBack }) {
                 {!userFormData.obras?.length && <p className="mt-2 text-[10px] font-semibold text-amber-700">Sin obras seleccionadas: el usuario no verá ninguna obra.</p>}
               </div>
 
+              <UserRoleAccess inherited={userFormData.heredar_accesos_rol===true} roleName={userFormData.rol} moduleLabel={moduleLabel} access={deriveRoleNavigation(rolesList.find(role=>role.empresa===userFormData.empresa && role.nombre===userFormData.rol),allCompaniesList.find(company=>company.empresa===userFormData.empresa),userEditing?.permisos || {})} onChange={inherited=>{const access=deriveRoleNavigation(rolesList.find(role=>role.empresa===userFormData.empresa && role.nombre===userFormData.rol),allCompaniesList.find(company=>company.empresa===userFormData.empresa),userEditing?.permisos || {});setUserFormData(current=>({...current,heredar_accesos_rol:inherited,...(!inherited?access:{})}));}}/>
+              {!userFormData.heredar_accesos_rol && <>
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1.5">Módulos Permitidos</label>
                 <div className="flex flex-wrap gap-2">
@@ -2115,6 +2135,7 @@ function ConfigCorreos({ user, onBack }) {
                 </div>
               </div>
 
+              </>}
               <button
                 type="submit"
                 disabled={userModalLoading}

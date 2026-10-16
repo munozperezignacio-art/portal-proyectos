@@ -1,0 +1,30 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><main class="p-3 space-y-3" id="fixture"></main><script type="module">
+import React,{useState} from 'react';
+import {createRoot} from 'react-dom/client';
+import '../../src/index.css';
+import UserRoleAccess from '../../src/components/UserRoleAccess.jsx';
+import useUserPermissions from '../../src/utils/useUserPermissions.js';
+import {companyPermissionCatalog,modulePermissionKeys} from '../../src/utils/companyPermissions.js';
+import {deriveRoleNavigation,userNavigationPayload} from '../../src/utils/roleNavigation.js';
+import {supabase} from '../../src/supabaseClient.js';
+const company={empresa:'Prueba',modulos_activos:'obras,rrhh',submenus_activos:'obras_produccion,obras_asistencia'};
+const denied=Object.fromEntries(companyPermissionCatalog(company).flatMap(modulePermissionKeys).map(key=>[key,false]));
+const roles=[{empresa:'Prueba',nombre:'Supervisor',rol_base:'Personalizado',archivado:false,permisos:{...denied,'obras.avances.ver':true}},{empresa:'Prueba',nombre:'Personal',rol_base:'Personalizado',archivado:false,permisos:{...denied,'rrhh.personal.ver':true}}];
+let created=null;window.savedUser=null;
+supabase.from=table=>{
+ const filters={};const chain={select(){return this;},eq(key,value){filters[key]=value;return this;},maybeSingle(){const data=table==='config_empresa'?company:table==='usuarios'?created:roles.find(r=>r.nombre===filters.nombre && r.empresa===filters.empresa);return Promise.resolve({data:data?structuredClone(data):null,error:null});}};return chain;
+};
+function Runtime({user}){const {navigation,loading}=useUserPermissions(user);return React.createElement('p',{'data-testid':'runtime-modules'},loading?'Cargando':navigation?.modulos || 'Sin módulos');}
+function Fixture(){const [form,setForm]=useState({empresa:'Prueba',rol:'Supervisor',heredar_accesos_rol:true,modulos:[],submenus:[]}),[runtimeUser,setRuntimeUser]=useState(null);
+ const role=roles.find(r=>r.nombre===form.rol),access=deriveRoleNavigation(role,company);
+ return React.createElement(React.Fragment,null,
+ React.createElement('label',null,'Rol para el usuario',React.createElement('select',{'aria-label':'Rol para el usuario',value:form.rol,onChange:e=>setForm({...form,rol:e.target.value,heredar_accesos_rol:true})},roles.map(r=>React.createElement('option',{key:r.nombre},r.nombre)))),
+ React.createElement(UserRoleAccess,{inherited:form.heredar_accesos_rol,roleName:role.nombre,access,onChange:inherited=>setForm({...form,heredar_accesos_rol:inherited,...(!inherited?access:{})})}),
+ !form.heredar_accesos_rol && React.createElement('div',{'data-testid':'individual-settings'},'Configuración individual',React.createElement('button',{onClick:()=>setForm({...form,modulos:[],submenus:[]})},'Quitar módulos individuales')),
+ React.createElement('button',{onClick:()=>{const payload=userNavigationPayload(form,role,company);window.savedUser=payload;created={id:17,empresa:'Prueba',rol:role.nombre,rol_base:role.rol_base,...payload};setRuntimeUser({...created});}},'Guardar usuario de prueba'),
+ runtimeUser && React.createElement(Runtime,{user:runtimeUser}),
+ React.createElement('button',{onClick:()=>{roles[0].permisos['rrhh.personal.ver']=true;roles[0].permisos['facturacion.documentos.ver']=true;window.dispatchEvent(new CustomEvent('obraxis:permissions-updated',{detail:{empresa:'Prueba'}}));}},'Actualizar permisos del rol'),
+ React.createElement('button',{onClick:()=>{roles[0].archivado=true;window.dispatchEvent(new CustomEvent('obraxis:permissions-updated',{detail:{empresa:'Prueba'}}));}},'Archivar rol de prueba'));
+}
+createRoot(document.getElementById('fixture')).render(React.createElement(Fixture));
+</script></body></html>

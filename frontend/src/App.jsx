@@ -126,10 +126,11 @@ function App() {
   const [oxObra, setOxObra] = useState(null);
   const [oxDestination, setOxDestination] = useState(null);
 
-  const activeUserContext = useMemo(() => user
+  const baseUserContext = useMemo(() => user
     ? (selectedCompanyOverride ? { ...user, empresa: selectedCompanyOverride } : user)
     : null, [selectedCompanyOverride, user]);
-  const {permissions:modulePermissions,loading:modulePermissionsLoading}=useUserPermissions(activeUserContext);
+  const {permissions:modulePermissions,loading:modulePermissionsLoading,navigation}=useUserPermissions(baseUserContext);
+  const activeUserContext=useMemo(()=>baseUserContext?{...baseUserContext,...navigation}:null,[baseUserContext,navigation]);
 
   // Favoritos guardados en localStorage
   const [favorites, setFavorites] = useState(() => {
@@ -226,7 +227,7 @@ function App() {
         let data = null;
         const { data: brandData, error: brandErr } = await supabase
           .from('config_empresa')
-          .select('logo_base64, color_primario, color_secundario, modulos_activos')
+          .select('logo_base64, color_primario, color_secundario, modulos_activos, submenus_activos')
           .eq('empresa', activeUserContext.empresa)
           .maybeSingle();
 
@@ -234,7 +235,7 @@ function App() {
           // Fallback en caso de que no existan las columnas de IA en la tabla config_empresa
           const { data: fallbackData, error: fallbackErr } = await supabase
             .from('config_empresa')
-            .select('logo_base64, color_primario, color_secundario, modulos_activos')
+            .select('logo_base64, color_primario, color_secundario, modulos_activos, submenus_activos')
             .eq('empresa', activeUserContext.empresa)
             .maybeSingle();
           if (fallbackErr) throw fallbackErr;
@@ -400,8 +401,8 @@ function App() {
   }
 
   // Parsear módulos permitidos del usuario
-  const modulosPermitidos = user.modulos
-    ? user.modulos.split(',').map((m) => m.trim().toLowerCase())
+  const modulosPermitidos = activeUserContext.modulos
+    ? activeUserContext.modulos.split(',').map((m) => m.trim().toLowerCase())
     : [];
 
   // Módulos habilitados para la empresa actual (Obraxis siempre tiene todos los módulos habilitados)

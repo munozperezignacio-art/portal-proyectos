@@ -1,0 +1,7 @@
+import React from 'react';
+export default function UserRoleAccess({inherited,onChange,roleName,access,moduleLabel=id=>id}) {
+ return <section className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/50 p-3">
+  <label className="flex items-start gap-2 text-xs font-bold text-blue-950"><input aria-label="Heredar módulos y submenús del rol" type="checkbox" checked={inherited} onChange={e=>onChange(e.target.checked)} className="mt-0.5"/><span>Heredar módulos y submenús del rol (recomendado)</span></label>
+  {inherited?<><p className="text-xs text-slate-600">Rol: <b>{roleName || 'Sin seleccionar'}</b>. No necesitas marcar accesos nuevamente. Los cambios del rol se aplicarán al actualizar la sesión; nunca se habilitan módulos no contratados.</p><div className="flex flex-wrap gap-2">{access.modulos.map(id=><span key={id} className="rounded-lg border border-blue-100 bg-white px-2 py-1 text-xs text-blue-950">{moduleLabel(id)}</span>)}</div>{!access.modulos.length && <p className="text-xs text-amber-800">Este rol no tiene módulos habilitados. Configura sus permisos antes de utilizarlo.</p>}<p className="text-xs text-slate-500">{access.submenus.length} submenús heredados. Las obras se asignan por separado.</p></>:<p className="text-xs text-amber-900">Excepción individual: los módulos y submenús de abajo se guardarán solo para este usuario. Sus permisos de acciones siguen dependiendo del rol y de las excepciones en Gobierno de accesos.</p>}
+ </section>;
+}

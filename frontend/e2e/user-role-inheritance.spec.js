@@ -1,0 +1,43 @@
+import {test,expect} from '@playwright/test';
+test('real create-user form saves inherited access without manual module selection',async({page})=>{
+ await page.goto('/e2e/fixtures/create-user-role-access.html');
+ await page.getByRole('button',{name:'Gestión de Usuarios',exact:true}).click();
+ await page.getByRole('button',{name:'Agregar Usuario',exact:true}).click();
+ await expect(page.getByLabel('Heredar módulos y submenús del rol')).toBeChecked();
+ await expect(page.getByText('Módulos Permitidos',{exact:true})).toHaveCount(0);
+ await page.getByPlaceholder('ej: Juan Pérez').fill('Usuario de prueba');
+ await page.getByPlaceholder('ej: juan@empresa.cl').fill('prueba@example.invalid');
+ await page.getByPlaceholder('ej: Supervisor de Obra').fill('Supervisor');
+ await page.getByPlaceholder('ej: jperez').fill('fixture_user');
+ await page.getByPlaceholder('Contraseña inicial',{exact:true}).fill('Fixture-only-123!');
+ await page.getByRole('button',{name:'Guardar Usuario',exact:true}).click();
+ await expect.poll(()=>page.evaluate(()=>window.savedUsers.length)).toBe(1);
+ const saved=await page.evaluate(()=>{const r=window.savedUsers[0];return {empresa:r.empresa,rol:r.rol,modulos:r.modulos,submenus:r.submenus,permisos:r.permisos};});
+ expect(saved).toEqual({empresa:'Prueba',rol:'Supervisor',modulos:'obras',submenus:'obras_produccion',permisos:{'accesos.heredar_rol':true}});
+});
+test('new user inherits navigation and follows later role changes without copying action permissions',async({page})=>{
+ await page.goto('/e2e/fixtures/user-role-inheritance.html');
+ await expect(page.getByLabel('Heredar módulos y submenús del rol')).toBeChecked();
+ await expect(page.getByTestId('individual-settings')).toHaveCount(0);
+ await page.getByRole('button',{name:'Guardar usuario de prueba'}).click();
+ await expect(page.getByTestId('runtime-modules')).toHaveText('obras');
+ const saved=await page.evaluate(()=>window.savedUser);
+ expect(saved).toEqual({modulos:'obras',submenus:'obras_produccion',permisos:{'accesos.heredar_rol':true}});
+ await page.getByRole('button',{name:'Actualizar permisos del rol'}).click();
+ await expect(page.getByTestId('runtime-modules')).toHaveText('obras,rrhh');
+ await page.getByRole('button',{name:'Archivar rol de prueba'}).click();
+ await expect(page.getByTestId('runtime-modules')).toHaveText('Sin módulos');
+});
+test('individual exceptions are opt-in and selecting another role restores inheritance',async({page})=>{
+ await page.goto('/e2e/fixtures/user-role-inheritance.html');
+ await page.getByLabel('Heredar módulos y submenús del rol').uncheck();
+ await expect(page.getByTestId('individual-settings')).toBeVisible();
+ await page.getByRole('button',{name:'Quitar módulos individuales'}).click();
+ await page.getByRole('button',{name:'Guardar usuario de prueba'}).click();
+ await expect(page.getByTestId('runtime-modules')).toHaveText('Sin módulos');
+ await page.getByLabel('Rol para el usuario').selectOption('Personal');
+ await expect(page.getByLabel('Heredar módulos y submenús del rol')).toBeChecked();
+ await page.getByRole('button',{name:'Guardar usuario de prueba'}).click();
+ await expect(page.getByTestId('runtime-modules')).toHaveText('rrhh');
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+});

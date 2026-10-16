@@ -167,8 +167,8 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
       const activeSubs = companyBranding.submenus_activos.split(',').map(s => s.trim().toLowerCase());
       if (!activeSubs.includes(submenuId)) return false;
     }
-    if (user && user.submenus) {
-      const allowedSubs = user.submenus.split(',').map(s => s.trim().toLowerCase());
+    if (user && (user.submenus || user._hereda_accesos_rol===true || typeof user.permisos?.['accesos.heredar_rol']==='boolean')) {
+      const allowedSubs = String(user.submenus || '').split(',').map(s => s.trim().toLowerCase());
       return allowedSubs.includes(submenuId);
     }
     return true;

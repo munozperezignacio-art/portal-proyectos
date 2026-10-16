@@ -85,7 +85,8 @@ export default function PermissionsGovernancePanel({ user, initialRoleId = '' })
     setSaving(true); setMessage(null);
     try{
     const table = subjectType === 'rol' ? 'roles' : 'usuarios';
-    const payload = { permisos: permissions, permisos_actualizados_por: user.nombre || user.usuario || user.correo, permisos_actualizados_en: new Date().toISOString() };
+    const savedPermissions=subjectType==='rol'?{...permissions,...Object.fromEntries(catalog.flatMap(module=>modulePermissionKeys(module)).map(key=>[key,checked(key)]))}:permissions;
+    const payload = { permisos: savedPermissions, permisos_actualizados_por: user.nombre || user.usuario || user.correo, permisos_actualizados_en: new Date().toISOString() };
     const { data, error } = await supabase.from(table).update(payload).eq('empresa',user.empresa).eq('id', selected.id).select('id,permisos').maybeSingle();
     if (error || !data) setMessage({ ok: false, text: `No fue posible guardar los permisos${error?.message ? `: ${error.message}` : '.'}` });
     else {

@@ -1,0 +1,24 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="fixture"></div><script type="module">
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import '../../src/index.css';
+import ConfigCorreos from '../../src/components/ConfigCorreos.jsx';
+import {supabase} from '../../src/supabaseClient.js';
+import {companyPermissionCatalog,modulePermissionKeys} from '../../src/utils/companyPermissions.js';
+const company={empresa:'Prueba',modulos_activos:'obras,rrhh',submenus_activos:'obras_produccion,obras_asistencia'};
+const denied=Object.fromEntries(companyPermissionCatalog(company).flatMap(modulePermissionKeys).map(key=>[key,false]));
+const roles=[{id:11,empresa:'Prueba',nombre:'Supervisor',rol_base:'Personalizado',archivado:false,permisos:{...denied,'obras.avances.ver':true},modulos:'',submenus:''}];
+window.savedUsers=[];window.mockEmails=0;
+supabase.functions.invoke=async()=>{window.mockEmails++;return {data:{success:true},error:null};};
+supabase.from=table=>{
+ let inserted=null;const filters={};
+ const result=()=>{
+  if(inserted){window.savedUsers.push(...structuredClone(inserted));return {data:inserted,error:null};}
+  const rows=table==='config_empresa'?[company]:table==='roles'?roles:table==='usuarios'?window.savedUsers:[];
+  return {data:rows.filter(row=>Object.entries(filters).every(([key,value])=>row[key]===value)),error:null};
+ };
+ const chain={select(){return this;},eq(key,value){filters[key]=value;return this;},order(){return this;},limit(){return this;},insert(rows){inserted=rows;return this;},maybeSingle(){const r=result();return Promise.resolve({...r,data:r.data[0] || null});},then(resolve,reject){return Promise.resolve(result()).then(resolve,reject);}};
+ return chain;
+};
+createRoot(document.getElementById('fixture')).render(React.createElement(ConfigCorreos,{user:{id:99,empresa:'Prueba',rol:'Administrador',nombre:'Administrador de prueba'},onBack:()=>{}}));
+</script></body></html>

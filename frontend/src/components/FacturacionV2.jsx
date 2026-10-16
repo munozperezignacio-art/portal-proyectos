@@ -4,14 +4,14 @@ import { supabase } from '../supabaseClient';
 import ModuleHeader from './ModuleHeader';
 import FacturacionElectronica from './FacturacionElectronica';
 import OperacionDTE from './OperacionDTE';
+import {navigationSubmenuEnabled} from '../utils/roleNavigation';
 
 export default function FacturacionV2({ user, companyBranding, onBack }) {
   const [workspace, setWorkspace] = useState('integrada');
   const [sessionReady, setSessionReady] = useState(false);
   const role = String(user?.rol_base || user?.rol || '').toLowerCase();
   const isPlatformAdmin = role.includes('superusuario') || role.includes('superadmin') || (user?.empresa === 'Obraxis' && role.includes('admin'));
-  const enabledSubmenus = String(companyBranding?.submenus_activos || user?.submenus || '').split(',').map(value => value.trim().toLowerCase()).filter(Boolean);
-  const dteEnabled = isPlatformAdmin || enabledSubmenus.length === 0 || enabledSubmenus.includes('facturacion_operacion_dte');
+  const dteEnabled = isPlatformAdmin || navigationSubmenuEnabled(user,companyBranding,'facturacion_operacion_dte');
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
