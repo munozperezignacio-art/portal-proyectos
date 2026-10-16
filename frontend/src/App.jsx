@@ -7,6 +7,8 @@ import {
 import { supabase } from './supabaseClient';
 import { getAuthenticatedProfile } from './utils/auth';
 import { recoverFromStaleChunk } from './utils/staleChunkRecovery';
+import useUserPermissions from './utils/useUserPermissions';
+import {moduleHasViewAccess} from './utils/companyPermissions';
 
 // Cada módulo operativo se descarga solo cuando el usuario lo abre. Esto acelera el ingreso al portal y al dashboard.
 // Si Vercel publica una versión nueva mientras el portal está abierto, los archivos con hash de la versión anterior pueden dejar de existir.
@@ -127,6 +129,7 @@ function App() {
   const activeUserContext = useMemo(() => user
     ? (selectedCompanyOverride ? { ...user, empresa: selectedCompanyOverride } : user)
     : null, [selectedCompanyOverride, user]);
+  const {permissions:modulePermissions,loading:modulePermissionsLoading}=useUserPermissions(activeUserContext);
 
   // Favoritos guardados en localStorage
   const [favorites, setFavorites] = useState(() => {
@@ -515,6 +518,7 @@ function App() {
   ];
 
   const visibleModules = allModulesList.filter(m => {
+    if(!moduleHasViewAccess(activeUserContext,modulePermissions,m.id))return false;
     // 1. Filtrar por permisos del usuario
     const permitidoUsuario = modulosPermitidos.includes(m.id) || (user.rol_base || user.rol || 'Inspector').toLowerCase() === 'superusuario';
     if (!permitidoUsuario) return false;
@@ -532,6 +536,8 @@ function App() {
   const dashboardModules = visibleModules
     .filter(module => `${module.title} ${module.description}`.toLowerCase().includes(moduleSearch.trim().toLowerCase()))
     .sort((left, right) => Number(favorites.includes(right.id)) - Number(favorites.includes(left.id)) || left.title.localeCompare(right.title));
+  const canAccessAdmin=(modulosPermitidos.includes('admin') || (user.rol_base || user.rol || '').toLowerCase()==='superusuario') && moduleHasViewAccess(activeUserContext,modulePermissions,'admin');
+  const canAccessCurrentModule=currentModule==='dashboard' || (currentModule==='admin'?canAccessAdmin:visibleModules.some(module=>module.id===currentModule));
 
   return (
     <div className="min-h-screen flex bg-slate-50 text-slate-800 font-sans">
@@ -624,7 +630,7 @@ function App() {
           <GroupedModuleLinks modules={visibleModules.filter(m => m.id !== 'admin')} currentModule={currentModule} onSelect={module => module.action()} />
 
           {/* Panel de Administración en la base si corresponde */}
-          {(modulosPermitidos.includes('admin') || (user.rol_base || user.rol || 'Inspector').toLowerCase() === 'superusuario') && (
+          {canAccessAdmin && (
             <>
               <div className="border-t border-slate-150 my-2" />
               <button
@@ -774,7 +780,7 @@ function App() {
                 {/* Módulos en formato plano */}
                 <GroupedModuleLinks modules={visibleModules.filter(m => m.id !== 'admin')} currentModule={currentModule} onSelect={module => { module.action(); setSidebarOpen(false); }} />
 
-                {(modulosPermitidos.includes('admin') || (user.rol_base || user.rol || 'Inspector').toLowerCase() === 'superusuario') && (
+                {canAccessAdmin && (
                   <>
                     <div className="border-t border-slate-150 my-2" />
                     <button
@@ -812,7 +818,7 @@ function App() {
         {/* MAIN PANEL CONTENT (Desktop & Mobile) */}
         <main className="p-3 sm:p-5 lg:p-8 flex-1 max-w-7xl w-full mx-auto space-y-5 sm:space-y-6">
           <React.Suspense fallback={<ModuleLoader />}>
-          {currentModule === 'dashboard' ? (
+          {currentModule!=='dashboard' && modulePermissionsLoading ? <ModuleLoader/> : !canAccessCurrentModule ? <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950">Este módulo no está habilitado para tu empresa o perfil. <button type="button" onClick={()=>setCurrentModule('dashboard')} className="ml-2 font-bold underline">Volver al inicio</button></div> : currentModule === 'dashboard' ? (
             <div className="space-y-6">
                   {/* Dashboard Banner/Header */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 sm:p-6 border border-slate-200 rounded-3xl shadow-xs">
