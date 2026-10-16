@@ -29,6 +29,8 @@ import AttendanceWorkerPicker from './AttendanceWorkerPicker';
 import {attendanceWorkerKey, buildManualAttendanceBatch} from '../utils/attendanceBatch';
 import AttendanceHoursField from './AttendanceHoursField';
 import AttendanceExtraHours from './AttendanceExtraHours';
+import AdvanceReportDateFilter from './AdvanceReportDateFilter';
+import {filterAdvanceReports,advanceReportDateLabel} from '../utils/advanceReportDates';
 import { buildAdvanceEmailSummary, renderAdvanceSummaryHtml, advanceCurveAttachment, escapeEmailText } from '../utils/advanceEmailSummary';
 
 const ContextualEmailConfigModal = React.lazy(() => import('./ContextualEmailConfigModal'));
@@ -586,6 +588,10 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const [asistenciaList, setAsistenciaList] = useState([]);
   const [personalAsignadoList, setPersonalAsignadoList] = useState([]);
   const [reportesAvanceList, setReportesAvanceList] = useState([]);
+  const [advanceReportDate,setAdvanceReportDate] = useState('');
+  const [advanceReportOrder,setAdvanceReportOrder] = useState('desc');
+  useEffect(()=>{setAdvanceReportDate('');setAdvanceReportOrder('desc');},[selectedObra?.id,selectedObra?.nombre]);
+  const visibleAdvanceReports=React.useMemo(()=>filterAdvanceReports(reportesAvanceList,{date:advanceReportDate,order:advanceReportOrder}),[reportesAvanceList,advanceReportDate,advanceReportOrder]);
   const [, setRdisBitacoraList] = useState([]);
   const [, setEstadosPagoBitacoraList] = useState([]);
   const [eventosBitacoraList, setEventosBitacoraList] = useState([]);
@@ -3429,6 +3435,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     </div>
                   </div>
 
+                  <AdvanceReportDateFilter date={advanceReportDate} order={advanceReportOrder} onDateChange={setAdvanceReportDate} onOrderChange={setAdvanceReportOrder} shown={visibleAdvanceReports.length} total={reportesAvanceList.length}/>
+
                   {reportesAvanceList.length === 0 ? (
                     <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl space-y-2">
                       <FileSpreadsheet className="w-8 h-8 text-slate-300 mx-auto" />
@@ -3455,17 +3463,11 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-150 text-[11px]">
-                          {reportesAvanceList.map((r, idx) => {
-                            const fechaStr = r.created_at ? new Date(r.created_at).toLocaleDateString('es-CL') : 'Hoy';
+                          {!visibleAdvanceReports.length && <tr><td colSpan={canManageRecordsAccess?7:6} className="p-6 text-center text-slate-500">No hay reportes de avance para la fecha seleccionada. Puedes limpiar la fecha para ver todos.</td></tr>}
+                          {visibleAdvanceReports.map((r) => {
+                            const fechaStr = advanceReportDateLabel(r);
                             return (
-                              <tr 
-    key={idx} 
-    draggable={true}
-    onDragStart={(e) => e.dataTransfer.setData('text/plain', idx)}
-    onDragOver={(e) => e.preventDefault()}
-    onDrop={(e) => { e.preventDefault(); const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10); if (!isNaN(fromIdx)) handleReorderPartidaObra(fromIdx, idx); }}
-    className="hover:bg-slate-50 cursor-grab active:cursor-grabbing"
-  >
+                              <tr key={r.id} className="hover:bg-slate-50">
                                 <td className="p-2.5 font-mono font-bold text-slate-700">{fechaStr}</td>
                                 <td className="p-2.5 font-semibold text-slate-800">{r.supervisor || 'Supervisor'}</td>
                                 <td className="p-2.5 font-medium text-slate-600">{r.frente || 'Frente Principal'}</td>
