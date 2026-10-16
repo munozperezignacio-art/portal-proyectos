@@ -1,11 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {emailRecipientLists} from './recipients.js';
 
 const cors={"Access-Control-Allow-Origin":"https://www.obraxis.cl","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const reply=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json"}});
 const hash=async(value:string)=>Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value)))).map(v=>v.toString(16).padStart(2,"0")).join("");
-const email=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const allowedPermission=/^(obras\.(avances|estados_pago|libro_obra|calidad|prevencion|subcontratos)|acreditaciones\.subcontratos|formularios\.formularios|clientes\.portales|mandante\.(contratos|acreditaciones)|prevencion\.registros|admin\.(usuarios|permisos))\.enviar$/;
+const allowedPermission=/^(obras\.(avances|personal|maquinaria|gestion|estados_pago|libro_obra|calidad|prevencion|subcontratos)|acreditaciones\.subcontratos|formularios\.formularios|clientes\.portales|mandante\.(contratos|acreditaciones)|prevencion\.registros|admin\.(usuarios|permisos))\.enviar$/;
 const basePermission=(roleValue:unknown,key:string)=>{
   const role=String(roleValue||"").toLowerCase(),action=key.split(".").pop();
   if(role.includes("superusuario")||role.includes("superadmin")||role.includes("admin")||role.includes("gerencia"))return true;
@@ -45,8 +45,9 @@ Deno.serve(async req=>{
     const permitted=explicitlyConfigured?Boolean(effective[permissionKey]):basePermission(profile.rol_base||role?.rol_base||profile.rol,permissionKey);
     if(!permitted)return reply({error:"No tienes permiso para enviar este correo"},403);
     if(body.action==="health")return reply({configured:true});
-    const recipients=(Array.isArray(body.to)?body.to:String(body.to||"").split(",")).map((v:unknown)=>String(v).trim().toLowerCase()).filter(Boolean);
-    if(!recipients.length||recipients.length>10||recipients.some((v:string)=>!email.test(v)))return reply({error:"Destinatarios invalidos"},400);
+    let recipientLists;
+    try{recipientLists=emailRecipientLists(body);}catch{return reply({error:"Destinatarios invalidos"},400);}
+    const recipients=recipientLists.to,copies=recipientLists.cc,recipientCount=recipients.length+copies.length;
     const subject=String(body.subject||"").trim().slice(0,200),html=String(body.htmlContent||"");
     if(!subject||!html||new TextEncoder().encode(html).length>500_000)return reply({error:"Contenido invalido o demasiado extenso"},400);
     const attachments=Array.isArray(body.attachments)?body.attachments.slice(0,5):[];
@@ -55,10 +56,10 @@ Deno.serve(async req=>{
     const allowedSenders=new Set(["usuarios@obraxis.cl","notificaciones@obraxis.cl"]);
     const requested=String(body.customSender||"").trim().toLowerCase();
     const sender=allowedSenders.has(requested)?requested:"notificaciones@obraxis.cl";
-    const response=await fetch("https://api.resend.com/emails",{method:"POST",headers:{Authorization:`Bearer ${resendKey}`,"Content-Type":"application/json"},body:JSON.stringify({from:`Obraxis <${sender}>`,to:recipients,subject,html,attachments})});
+    const response=await fetch("https://api.resend.com/emails",{method:"POST",headers:{Authorization:`Bearer ${resendKey}`,"Content-Type":"application/json"},body:JSON.stringify({from:`Obraxis <${sender}>`,to:recipients,...(copies.length?{cc:copies}:{}),subject,html,attachments})});
     const result=await response.json();
     await log(response.ok);
-    await db.from("auditoria_plataforma").insert({empresa:profile.empresa,modulo:permissionKey.split(".")[0],categoria:"Correo",accion:"Enviar correo",descripcion:`${subject} - ${recipients.length} destinatario(s)`,entidad_tipo:"correo_sistema",actor_auth_user_id:user.id,actor_usuario:profile.usuario,actor_nombre:profile.nombre,actor_rol:profile.rol,actor_empresa:profile.empresa,origen:"Supabase Edge Function",resultado:response.ok?"Exitoso":"Error",nivel:response.ok?"info":"warning",metadatos:{permission_key:permissionKey,recipient_count:recipients.length,attachment_count:attachments.length}});
+    await db.from("auditoria_plataforma").insert({empresa:profile.empresa,modulo:permissionKey.split(".")[0],categoria:"Correo",accion:"Enviar correo",descripcion:`${subject} - ${recipientCount} destinatario(s)`,entidad_tipo:"correo_sistema",actor_auth_user_id:user.id,actor_usuario:profile.usuario,actor_nombre:profile.nombre,actor_rol:profile.rol,actor_empresa:profile.empresa,origen:"Supabase Edge Function",resultado:response.ok?"Exitoso":"Error",nivel:response.ok?"info":"warning",metadatos:{permission_key:permissionKey,recipient_count:recipientCount,attachment_count:attachments.length}});
     if(!response.ok)return reply({error:result?.message||"No fue posible enviar el correo"},502);
     return reply({success:true,id:result?.id||null});
   }catch(error){await log(false);return reply({error:error instanceof Error?error.message:"Error inesperado"},500);}

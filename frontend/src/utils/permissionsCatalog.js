@@ -15,13 +15,13 @@ export const PERMISSIONS_CATALOG = [
   { id: 'obras', label: 'Obras', menus: [
     { id: 'ficha', label: 'Ficha de la obra', actions: ['ver', 'crear', 'editar', 'eliminar', 'configurar'] },
     { id: 'avances', label: 'Avances', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'revisar', 'descargar'] },
-    { id: 'gestion', label: 'Presupuesto, programación y costos', actions: ['ver', 'crear', 'editar', 'eliminar', 'descargar', 'configurar'] },
+    { id: 'gestion', label: 'Presupuesto, programación y costos', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'descargar', 'configurar'] },
     { id: 'estados_pago', label: 'Estados de Pago', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'revisar', 'aprobar', 'descargar', 'configurar'] },
     { id: 'libro_obra', label: 'Libro de Obra', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'revisar', 'aprobar', 'descargar', 'configurar'] },
     { id: 'calidad', label: 'Calidad de obra', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'revisar', 'aprobar', 'descargar', 'configurar'] },
     { id: 'prevencion', label: 'Prevención de obra', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'revisar', 'aprobar', 'descargar', 'configurar'] },
-    { id: 'personal', label: 'Personal, asistencia y cuadrillas', actions: ['ver', 'crear', 'editar', 'eliminar', 'descargar', 'configurar'] },
-    { id: 'maquinaria', label: 'Maquinaria de obra', actions: ['ver', 'crear', 'editar', 'eliminar', 'descargar', 'configurar'] },
+    { id: 'personal', label: 'Personal, asistencia y cuadrillas', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'descargar', 'configurar'] },
+    { id: 'maquinaria', label: 'Maquinaria de obra', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'descargar', 'configurar'] },
     { id: 'subcontratos', label: 'Subcontratos de obra y sus estados de pago', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'revisar', 'aprobar', 'descargar', 'configurar'] },
   ]},
   { id: 'presupuestos', label: 'Presupuestos', menus: [

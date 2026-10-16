@@ -16,7 +16,8 @@ import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
 import MachineryEquipmentDetailModal from './MachineryEquipmentDetailModal';
 import { matchesWorkReport, reportedProgress, dailyTimeRate } from '../utils/workReportCalculations';
-import { advanceNotificationRecipients } from '../utils/advanceNotificationRecipients';
+import {workEmailRecipients,workEmailSetting,workEmailBatches} from '../utils/workEmailRouting';
+import {sendWorkRecordNotification} from '../utils/workRecordNotifications';
 import { calendarTimeline } from '../utils/sCurveTimeline';
 import DailySCurve from './DailySCurve';
 import { plannedValueAt } from '../utils/plannedProgress';
@@ -821,7 +822,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     if (error) { setErrorMsg(`No fue posible registrar la mantención: ${error.message}`); return; }
     setMantencionesMaquinariaList(current => [{ ...newMant, ...data }, ...current]);
     setShowMantencionModal(false);
-    setSuccessMsg('Mantención registrada en la obra y en el historial corporativo del equipo.');
+    const warning=await notifyWorkRecord('mantenimiento_registrado',`Mantención del ${newMant.fecha}. Equipo: ${newMant.equipo_nombre}. Tipo: ${newMant.tipo}.`);
+    setSuccessMsg('Mantención registrada en la obra y en el historial corporativo del equipo.'+warning);
   };
 
   const handleSaveUsoEquipo = async (e) => {
@@ -835,12 +837,16 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     const { data, error } = await supabase.from('maquinaria_uso_diario').insert([payload]).select().single();
     if (error) { setErrorMsg(`No fue posible registrar el uso: ${error.message}`); return; }
     const { error: updateError } = await supabase.from('inventario_maquinaria').update({ horometro_inicial: final }).eq('id', equipo.id).eq('empresa', user?.empresa || 'OBRAXIS');
-    if (updateError) { setErrorMsg(`El uso se registró, pero no se actualizó la lectura del equipo: ${updateError.message}`); return; }
+    if (updateError) {
+      const warning=await notifyWorkRecord('maquinaria_registrada',`Uso del ${payload.fecha}. Equipo: ${payload.equipo_tipo} ${payload.equipo_patente}. Horas registradas: ${payload.horas_trabajadas}. La lectura corporativa requiere revisión.`);
+      setErrorMsg(`El uso se registró, pero no se actualizó la lectura del equipo: ${updateError.message}`+warning);return;
+    }
     setMaquinariaUsoObra(current => [data, ...current]);
     setMaquinariaList(current => current.map(item => String(item.id) === String(equipo.id) ? { ...item, horometro_inicial: final } : item));
     setSelectedObraEquipment(current => current && String(current.id) === String(equipo.id) ? { ...current, horometro_inicial: final } : current);
     setShowUsoEquipoModal(false);
-    setSuccessMsg('Uso y lectura del equipo registrados en la obra y en su historial corporativo.');
+    const warning=await notifyWorkRecord('maquinaria_registrada',`Uso del ${payload.fecha}. Equipo: ${payload.equipo_tipo} ${payload.equipo_patente}. Horas registradas: ${payload.horas_trabajadas}.`);
+    setSuccessMsg('Uso y lectura del equipo registrados en la obra y en su historial corporativo.'+warning);
   };
 
   const handleSaveParalizacion = async (e) => {
@@ -865,7 +871,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     if (error) { setErrorMsg(`No fue posible reportar la falla: ${error.message}`); return; }
     setParalizacionesMaquinariaList(current => [{ ...newPara, ...data }, ...current]);
     setShowParalizacionModal(false);
-    setSuccessMsg('Falla reportada desde la obra y registrada en el historial corporativo del equipo.');
+    const warning=await notifyWorkRecord('maquinaria_falla_reportada',`Falla del ${newPara.fecha_inicio}. Equipo: ${newPara.equipo_nombre}. Horas de paralización: ${newPara.horas_parada}.`);
+    setSuccessMsg('Falla reportada desde la obra y registrada en el historial corporativo del equipo.'+warning);
   };
 
   const handleSaveAccidente = async (e) => {
@@ -888,7 +895,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     }
     await registrarEventoBitacora({ empresa: user?.empresa, obraNombre: newAcc.obra_nombre, categoria: 'Prevención', accion: `${newAcc.tipo} registrado`, detalle: `${newAcc.trabajador || 'Sin trabajador informado'} · ${newAcc.dias_perdidos} día(s) perdidos. ${newAcc.descripcion || ''}`, actor: user?.nombre || user?.email || 'Prevención de riesgos', fecha: newAcc.fecha });
     setShowAccidenteModal(false);
-    alert('Incidente / Accidente registrado con éxito.');
+    const warning=await notifyWorkRecord('incidente_accidente',`Se registró un evento HSE para el ${newAcc.fecha}. Consulta el detalle en el módulo de prevención según tus permisos.`);
+    alert('Incidente / Accidente registrado con éxito.'+warning);
   };
 
   // Estado para Libro de Asistencia Digital
@@ -1810,6 +1818,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     setRecentLogs(combined);
   };
 
+  const notifyWorkRecord=(event,summary)=>sendWorkRecordNotification({company:user.empresa,work:selectedObra.nombre,workId:selectedObra.id,event,summary});
+
   const submitAsistencia = async (e) => {
     e.preventDefault();
     setModalLoading(true);
@@ -1879,7 +1889,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       if (error) throw error;
       if (!savedRows?.length) throw new Error('No se guardó el marcaje; revisa tus permisos y actualiza la vista.');
 
-      setSuccessMsg(`Asistencia de ${isBulkAttendance ? `${batch.length} trabajadores` : asistenciaData.trabajador} registrada para el ${fechaMarcacion.split('-').reverse().join('/')}.`);
+      const warning=await notifyWorkRecord('asistencia_registrada',`${editingAttendanceRecord?'Actualización':'Registro'} de asistencia del ${fechaMarcacion}: ${savedRows.length} trabajador(es). Estado: ${asistenciaData.asistencia}. Horario: ${payload.ingreso||'—'} a ${payload.salida||'—'}.`);
+      setSuccessMsg(`Asistencia de ${isBulkAttendance ? `${batch.length} trabajadores` : asistenciaData.trabajador} registrada para el ${fechaMarcacion.split('-').reverse().join('/')}.`+warning);
       fetchObraDetails(selectedObra.nombre);
       setTimeout(() => {
         setActiveModal(null);
@@ -2038,34 +2049,28 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       let notificationWarning = '';
       try {
         const obraNombre = selectedObra?.nombre || 'Obra';
-        let recipients = [];
+        let companyEmailConfig = {};
         if (user?.empresa) {
-          const { data: cData } = await supabase
+          const { data: cData,error:configError } = await supabase
             .from('config_empresa')
-            .select('email_notificaciones, email_notificaciones_cc')
+            .select('email_notificaciones, email_notificaciones_cc, notificaciones_automaticas, correos_contextuales')
             .eq('empresa', user.empresa)
             .maybeSingle();
 
-          if (cData) {
-            const toArr = cData.email_notificaciones ? cData.email_notificaciones.split(',').map(e => e.trim()).filter(Boolean) : [];
-            const ccArr = cData.email_notificaciones_cc ? cData.email_notificaciones_cc.split(',').map(e => e.trim()).filter(Boolean) : [];
-            recipients = [...toArr, ...ccArr];
-          }
+          if(configError)throw configError;
+          companyEmailConfig=cData||{};
         }
 
-        // Si el usuario actual tiene correo registrado y aún no hay destinatarios, enviárselo a él
-        if (recipients.length === 0 && (user?.email || user?.correo)) {
-          recipients = [user.email || user.correo];
-        }
-
-        const [rulesResult, usersResult] = await Promise.all([
+        const setting=workEmailSetting(companyEmailConfig,obraNombre,selectedObra.id,'avance_registrado');
+        const [rulesResult, usersResult] = setting.autoNotify && !setting.exclusive ? await Promise.all([
           supabase.from('notificaciones_reglas').select('*').eq('empresa', user.empresa).eq('evento_codigo', 'avance_registrado').eq('activa', true).eq('canal_email', true),
           supabase.from('usuarios').select('id,empresa,correo,rol,rol_base,obras').eq('empresa', user.empresa)
-        ]);
+        ]) : [{data:[]},{data:[]}];
         if (rulesResult.error || usersResult.error) throw rulesResult.error || usersResult.error;
-        const uniqueRecipients = advanceNotificationRecipients({ rules: rulesResult.data || [], users: usersResult.data || [], company: user.empresa, work: obraNombre, fallback: recipients });
+        const recipients=workEmailRecipients({config:companyEmailConfig,workId:selectedObra.id,event:'avance_registrado',rules:rulesResult.data||[],users:usersResult.data||[],company:user.empresa,work:obraNombre});
+        const emailBatches=workEmailBatches(recipients);
 
-        if (uniqueRecipients.length > 0) {
+        if (emailBatches.length > 0) {
           const supervisorName = user?.nombre || user?.usuario || 'Supervisor';
           const fechaStr = avanceFecha || new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago'}).format(new Date());
           // Leer después de guardar: incluye el nuevo registro y no duplica una edición.
@@ -2130,9 +2135,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
             </div>
           `;
 
-          for (let offset = 0; offset < uniqueRecipients.length; offset += 10) {
+          for (const batch of emailBatches) {
           const mailResult = await sendSystemEmail({
-            to: uniqueRecipients.slice(offset, offset + 10),
+            ...batch,
             subject: `📊 Reporte de Avance (${obraNombre}) - ${fechaStr}`,
             htmlContent: htmlEmail,
             attachments: curveImage ? [curveImage] : [],
@@ -2686,7 +2691,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
       if (error) throw error;
 
-      setSuccessMsg(`Parte de maquinaria enviado y guardado con éxito.`);
+      const warning=await notifyWorkRecord('maquinaria_registrada',`Parte de maquinaria: ${maqData.maquinaria}. Horómetro: ${maqData.horometroEntrada||0} a ${maqData.horometroSalida||0}.`);
+      setSuccessMsg(`Parte de maquinaria enviado y guardado con éxito.`+warning);
       fetchObraDetails(selectedObra.nombre);
       setTimeout(() => setActiveModal(null), 1500);
     } catch (err) {
@@ -2717,7 +2723,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
       if (error) throw error;
 
-      setSuccessMsg(`Movimiento de material registrado con éxito.`);
+      const warning=await notifyWorkRecord('material_registrado',`${materialData.tipoMovimiento}: ${materialData.material}. Cantidad: ${materialData.cantidad}. Guía: ${materialData.guia||'N/A'}.`);
+      setSuccessMsg(`Movimiento de material registrado con éxito.`+warning);
       fetchObraDetails(selectedObra.nombre);
       setTimeout(() => setActiveModal(null), 1500);
     } catch (err) {
@@ -11771,6 +11778,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         moduloTitle={`Configurar Correos de Obra`}
         moduloKey="avances_obra"
         obraNombre={selectedObra?.nombre}
+        obraId={selectedObra?.id}
         user={user}
       />
 

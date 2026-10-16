@@ -1,0 +1,25 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="fixture"></div><script type="module">
+import React,{useState} from 'react';
+import {createRoot} from 'react-dom/client';
+import '../../src/index.css';
+import ContextualEmailConfigModal from '../../src/components/ContextualEmailConfigModal.jsx';
+import {supabase} from '../../src/supabaseClient.js';
+import {sendWorkRecordNotification} from '../../src/utils/workRecordNotifications.js';
+window.config={empresa:'Prueba',email_notificaciones:'general@example.invalid',email_notificaciones_cc:'general-copy@example.invalid',notificaciones_automaticas:true,updated_at:'2026-10-16T00:00:00Z',correos_contextuales:{'avances_obra:Lonco':{emails:['advance@example.invalid'],emailsCC:[],autoNotify:true},'obra:99':{events:{avance_registrado:{emails:['other@example.invalid'],autoNotify:true}}}}};
+window.savedPatches=[];window.mails=[];window.failLoad=false;window.failSave=false;window.failMail=false;
+Object.defineProperty(supabase,'functions',{value:{invoke:async(name,options)=>{if(window.failMail)return {data:null,error:{message:'Simulated email failure'}};window.mails.push(options.body);return {data:{success:true},error:null};}}});
+supabase.from=table=>{
+ let patch=null;const filters={};
+ const chain={select(){return this;},eq(key,value){filters[key]=value;return this;},update(value){patch=value;return this;},single(){
+  if(table!=='config_empresa'||filters.empresa!==window.config.empresa)return Promise.resolve({data:null,error:{message:'Company not found'}});
+  if(!patch)return Promise.resolve(window.failLoad?{data:null,error:{message:'Simulated load failure'}}:{data:structuredClone(window.config),error:null});
+  if(window.failSave)return Promise.resolve({data:null,error:{message:'Simulated save failure'}});
+  if(filters.updated_at!==window.config.updated_at)return Promise.resolve({data:null,error:{message:'Stale configuration'}});
+  window.savedPatches.push(structuredClone(patch));window.config={...window.config,...structuredClone(patch)};
+  return Promise.resolve({data:{empresa:window.config.empresa},error:null});
+ }};return chain;
+};
+window.notifyFixture=(event='asistencia_registrada')=>sendWorkRecordNotification({company:'Prueba',work:'Lonco',workId:3,event,summary:'Resumen del registro de prueba.'});
+function Fixture(){const [open,setOpen]=useState(true);return React.createElement(React.Fragment,null,React.createElement('button',{onClick:()=>setOpen(true)},'Abrir configuración'),React.createElement(ContextualEmailConfigModal,{isOpen:open,onClose:()=>setOpen(false),moduloTitle:'Configurar Correos de Obra',moduloKey:'avances_obra',obraNombre:'Lonco',obraId:3,user:{empresa:'Prueba'}}));}
+createRoot(document.getElementById('fixture')).render(React.createElement(Fixture));
+</script></body></html>

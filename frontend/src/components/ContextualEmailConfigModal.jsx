@@ -1,6 +1,7 @@
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { Settings, Mail, Check, Plus } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+import {WORK_EMAIL_EVENTS,workEmailSetting,workEmailPatch,normalizeEmails,validEmail} from '../utils/workEmailRouting';
 
 export default function ContextualEmailConfigModal({
   isOpen,
@@ -8,20 +9,37 @@ export default function ContextualEmailConfigModal({
   moduloTitle = 'Configuración de Correos',
   moduloKey = 'general',
   obraNombre = '',
+  obraId,
   user
 }) {
-  const [emails, setEmails] = useState([]);
+  const isWork=moduloKey==='avances_obra';
+  const [event,setEvent]=useState('avance_registrado');
+  const [eventForms,setEventForms]=useState({});
+  const [dirtyEvents,setDirtyEvents]=useState([]);
+  const [configLoaded,setConfigLoaded]=useState(false);
+  const requestVersion=useRef(0);
+  const [baseEmails, setBaseEmails] = useState([]);
   const [newEmail, setNewEmail] = useState('');
-  const [emailsCC, setEmailsCC] = useState([]);
+  const [baseEmailsCC, setBaseEmailsCC] = useState([]);
   const [newEmailCC, setNewEmailCC] = useState('');
-  const [autoNotify, setAutoNotify] = useState(true);
+  const [baseAutoNotify, setBaseAutoNotify] = useState(true);
+  const currentEvent=eventForms[event]||{};
+  const emails=isWork?(currentEvent.emails||[]):baseEmails;
+  const emailsCC=isWork?(currentEvent.emailsCC||[]):baseEmailsCC;
+  const autoNotify=isWork?Boolean(currentEvent.autoNotify):baseAutoNotify;
+  const updateEvent=patch=>{setDirtyEvents(current=>[...new Set([...current,event])]);setEventForms(current=>({...current,[event]:{...current[event],...patch}}));};
+  const setEmails=value=>isWork?updateEvent({emails:value}):setBaseEmails(value);
+  const setEmailsCC=value=>isWork?updateEvent({emailsCC:value}):setBaseEmailsCC(value);
+  const setAutoNotify=value=>isWork?updateEvent({autoNotify:value}):setBaseAutoNotify(value);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState({ type: '', text: '' });
 
   const contextKey = `${moduloKey}:${obraNombre || 'global'}`;
 
   const loadConfig = useCallback(async () => {
+    const version=++requestVersion.current;
     setLoading(true);
+    setConfigLoaded(false);
     setMsg({ type: '', text: '' });
     try {
       if (user?.empresa) {
@@ -30,36 +48,48 @@ export default function ContextualEmailConfigModal({
           .select('email_notificaciones, email_notificaciones_cc, notificaciones_automaticas, correos_contextuales')
           .eq('empresa', user.empresa)
           .single();
+        if(version!==requestVersion.current)return;
         if (error) throw error;
 
         const contextual = data?.correos_contextuales?.[contextKey];
-        setEmails(contextual?.emails || data?.email_notificaciones?.split(',').map(e => e.trim()).filter(Boolean) || []);
-        setEmailsCC(contextual?.emailsCC || data?.email_notificaciones_cc?.split(',').map(e => e.trim()).filter(Boolean) || []);
-        setAutoNotify(contextual?.autoNotify ?? data?.notificaciones_automaticas ?? true);
+        setBaseEmails(normalizeEmails(contextual?.emails ?? data?.email_notificaciones));
+        setBaseEmailsCC(normalizeEmails(contextual?.emailsCC ?? data?.email_notificaciones_cc));
+        setBaseAutoNotify(contextual?.autoNotify ?? data?.notificaciones_automaticas ?? true);
+        if(isWork)setEventForms(Object.fromEntries(WORK_EMAIL_EVENTS.map(item=>{
+          const setting=workEmailSetting(data,obraNombre,obraId,item.id);
+          return [item.id,{emails:normalizeEmails(setting.emails),emailsCC:normalizeEmails(setting.emailsCC),autoNotify:Boolean(setting.autoNotify)}];
+        })));
+        setConfigLoaded(true);
       }
     } catch (e) {
+      if(version!==requestVersion.current)return;
       setMsg({ type: 'error', text: e.message || 'No fue posible cargar la configuración de correos.' });
     } finally {
-      setLoading(false);
+      if(version===requestVersion.current)setLoading(false);
     }
-  }, [contextKey, user?.empresa]);
+  }, [contextKey, user?.empresa,isWork,obraId,obraNombre]);
 
   useEffect(() => {
     if (!isOpen) return;
+    setEvent('avance_registrado');setEventForms({});setDirtyEvents([]);setNewEmail('');setNewEmailCC('');
     loadConfig();
+    return ()=>{requestVersion.current++;};
   }, [isOpen, loadConfig]);
 
   const handleAddEmail = (type) => {
+    const address=(type==='to'?newEmail:newEmailCC).trim().toLowerCase();
+    if(!validEmail(address)){setMsg({type:'error',text:'Ingresa un correo válido antes de agregarlo.'});return;}
+    setMsg({type:'',text:''});
     if (type === 'to') {
       if (!newEmail || !newEmail.includes('@')) return;
-      if (!emails.includes(newEmail.trim())) {
-        setEmails([...emails, newEmail.trim()]);
+      if (!emails.includes(address) && !emailsCC.includes(address)) {
+        setEmails([...emails, address]);
       }
       setNewEmail('');
     } else {
       if (!newEmailCC || !newEmailCC.includes('@')) return;
-      if (!emailsCC.includes(newEmailCC.trim())) {
-        setEmailsCC([...emailsCC, newEmailCC.trim()]);
+      if (!emailsCC.includes(address) && !emails.includes(address)) {
+        setEmailsCC([...emailsCC, address]);
       }
       setNewEmailCC('');
     }
@@ -79,10 +109,13 @@ export default function ContextualEmailConfigModal({
     setMsg({ type: '', text: '' });
     try {
       if (!user?.empresa) throw new Error('No existe una empresa activa para guardar esta configuración.');
+      if(!configLoaded)throw new Error('Primero debe cargarse la configuración de la empresa.');
+      if(newEmail.trim() || newEmailCC.trim())throw new Error('Agrega el correo que escribiste con el botón Agregar antes de guardar.');
+      if(isWork && Object.values(eventForms).some(item=>[...item.emails,...item.emailsCC].some(email=>!validEmail(email))))throw new Error('Revisa los correos de los tipos de notificación.');
 
       const { data: current, error: loadError } = await supabase
         .from('config_empresa')
-        .select('correos_contextuales')
+        .select('correos_contextuales, updated_at')
         .eq('empresa', user.empresa)
         .single();
       if (loadError) throw loadError;
@@ -92,22 +125,20 @@ export default function ContextualEmailConfigModal({
         [contextKey]: { emails, emailsCC, autoNotify, updatedAt: new Date().toISOString() }
       };
 
-      const { error: saveError } = await supabase
+      const changedEvents=Object.fromEntries(dirtyEvents.map(id=>[id,eventForms[id]]));
+      const patch=isWork?workEmailPatch(current,obraNombre,obraId,changedEvents):{
+        email_notificaciones:emails.join(', '),email_notificaciones_cc:emailsCC.join(', '),notificaciones_automaticas:autoNotify,correos_contextuales:contexts
+      };
+      let query = supabase
         .from('config_empresa')
-        .update({
-          email_notificaciones: emails.join(', '),
-          email_notificaciones_cc: emailsCC.join(', '),
-          notificaciones_automaticas: autoNotify,
-          correos_contextuales: contexts,
-          updated_at: new Date().toISOString()
-        })
+        .update({...patch,updated_at:new Date().toISOString()})
         .eq('empresa', user.empresa);
+      if(current?.updated_at)query=query.eq('updated_at',current.updated_at);
+      const {error:saveError}=await query.select('empresa').single();
       if (saveError) throw saveError;
+      setDirtyEvents([]);
 
       setMsg({ type: 'success', text: 'Configuración de correos guardada exitosamente.' });
-      setTimeout(() => {
-        onClose();
-      }, 1000);
     } catch (err) {
       setMsg({ type: 'error', text: err.message || 'Error al guardar la configuración.' });
     } finally {
@@ -132,7 +163,7 @@ export default function ContextualEmailConfigModal({
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer">✕</button>
+          <button disabled={loading} aria-label="Cerrar configuración de correos" onClick={onClose} className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer disabled:opacity-50">✕</button>
         </div>
 
         {msg.text && (
@@ -142,6 +173,23 @@ export default function ContextualEmailConfigModal({
         )}
 
         <form onSubmit={handleSave} className="space-y-4">
+          <fieldset disabled={loading||!configLoaded} className="space-y-4 disabled:opacity-60">
+          {isWork && <div className="space-y-2 rounded-xl border border-blue-100 bg-blue-50 p-3">
+            <label htmlFor="workEmailEvent" className="block text-xs font-bold text-slate-800">Tipo de notificación</label>
+            <select id="workEmailEvent" value={event} onChange={e=>{
+              if(newEmail.trim()||newEmailCC.trim()){setMsg({type:'error',text:'Agrega o borra el correo escrito antes de cambiar de tipo.'});return;}
+              setEvent(e.target.value);setMsg({type:'',text:''});
+            }} className="w-full rounded-lg border border-slate-200 bg-white p-3 text-xs">
+              {WORK_EMAIL_EVENTS.map(item=><option key={item.id} value={item.id}>{item.label}{eventForms[item.id]?.autoNotify?' · Activo':' · Desactivado'}</option>)}
+            </select>
+            <p className="text-xs text-slate-600">{WORK_EMAIL_EVENTS.find(item=>item.id===event)?.description}</p>
+            <p className="text-xs text-slate-600">Cada tipo tiene sus propios destinatarios. Al guardar se conservan todos los tipos editados, sin cambiar otras obras ni los correos generales.</p>
+            <details className="text-xs text-slate-600"><summary className="cursor-pointer font-semibold">Prioridad y otras notificaciones</summary>
+              <p className="mt-2">La configuración guardada de este tipo tiene prioridad sobre las reglas generales de avance. Desactivarlo detiene sus correos para esta obra.</p>
+              <p className="mt-2">Los recordatorios de pendientes, registros de prevención e informes programados se administran en Control de notificaciones y en sus módulos respectivos. No se activan desde aquí.</p>
+              <p className="mt-2">El envío respeta los permisos del usuario. Si solo agregas CC, una dirección se usará como destinatario principal.</p>
+            </details>
+          </div>}
           
           {/* Destinatarios Principales */}
           <div>
@@ -155,7 +203,7 @@ export default function ContextualEmailConfigModal({
                 onChange={(e) => setNewEmail(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddEmail('to'); } }}
                 placeholder="ejemplo@obraxis.cl"
-                className="flex-1 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-900"
+                className="min-w-0 flex-1 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-900"
               />
               <button
                 type="button"
@@ -194,7 +242,7 @@ export default function ContextualEmailConfigModal({
                 onChange={(e) => setNewEmailCC(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddEmail('cc'); } }}
                 placeholder="gerencia@obraxis.cl"
-                className="flex-1 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-900"
+                className="min-w-0 flex-1 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-900"
               />
               <button
                 type="button"
@@ -231,9 +279,10 @@ export default function ContextualEmailConfigModal({
               className="w-4 h-4 accent-blue-900 rounded cursor-pointer"
             />
             <label htmlFor="autoNotifyCheck" className="text-xs font-medium text-slate-700 cursor-pointer">
-              Enviar notificaciones por correo automáticamente al generar o guardar registros.
+              {isWork?'Enviar automáticamente este tipo de registro a sus destinatarios.':'Enviar notificaciones por correo automáticamente al generar o guardar registros.'}
             </label>
           </div>
+          {isWork && autoNotify && !emails.length && !emailsCC.length && <p className="text-xs text-amber-800">Sin destinatarios: este tipo no enviará correos. No se usará el correo del usuario como respaldo.</p>}
 
           <div className="flex gap-2 pt-2">
             <button
@@ -242,7 +291,7 @@ export default function ContextualEmailConfigModal({
               className="flex-1 bg-blue-900 hover:bg-blue-800 text-white font-bold py-3 rounded-xl text-xs shadow-sm cursor-pointer disabled:opacity-70 transition flex items-center justify-center gap-1.5"
             >
               <Check className="w-4 h-4" />
-              <span>{loading ? 'Guardando...' : 'Guardar Destinatarios'}</span>
+              <span>{loading ? 'Guardando...' : isWork?'Guardar configuración de obra':'Guardar Destinatarios'}</span>
             </button>
             <button
               type="button"
@@ -252,6 +301,7 @@ export default function ContextualEmailConfigModal({
               Cancelar
             </button>
           </div>
+          </fieldset>
         </form>
       </div>
     </div>
