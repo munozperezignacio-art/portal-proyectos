@@ -1,0 +1,10 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="fixture"></div><script type="module">
+import React,{useState} from 'react';
+import {createRoot} from 'react-dom/client';
+import '../../src/index.css';
+import AttendanceRegisterFilters from '../../src/components/AttendanceRegisterFilters.jsx';
+import {filterAttendanceRegister} from '../../src/utils/attendanceRegisterFilters.js';
+const rows=[{id:1,fecha_marcacion:'2026-10-12',trabajador:'Franco Muñoz',rut:'18.009.385-0'},{id:2,fecha_marcacion:'2026-10-13',trabajador:'Franco Muñoz',rut:'18.009.385-0'},{id:3,fecha_marcacion:'2026-10-13',trabajador:'María Pérez',rut:'20.709.581-8'}];
+function Fixture(){const [date,setDate]=useState(''),[person,setPerson]=useState('');const filtered=filterAttendanceRegister(rows,{date,person});return React.createElement('main',{className:'p-4 space-y-3'},React.createElement(AttendanceRegisterFilters,{date,person,onDateChange:setDate,onPersonChange:setPerson,onClear:()=>{setDate('');setPerson('');},shown:filtered.length,total:rows.length}),React.createElement('ul',null,filtered.length?filtered.map(r=>React.createElement('li',{key:r.id},`${r.fecha_marcacion} · ${r.trabajador}`)):React.createElement('li',null,'No hay marcajes con estos filtros.')));}
+createRoot(document.getElementById('fixture')).render(React.createElement(Fixture));
+</script></body></html>

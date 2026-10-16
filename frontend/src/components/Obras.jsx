@@ -29,6 +29,8 @@ import AttendanceWorkerPicker from './AttendanceWorkerPicker';
 import {attendanceWorkerKey, buildManualAttendanceBatch} from '../utils/attendanceBatch';
 import AttendanceHoursField from './AttendanceHoursField';
 import AttendanceExtraHours from './AttendanceExtraHours';
+import AttendanceRegisterFilters from './AttendanceRegisterFilters';
+import {filterAttendanceRegister} from '../utils/attendanceRegisterFilters';
 import AdvanceReportDateFilter from './AdvanceReportDateFilter';
 import {filterAdvanceReports,advanceReportDateLabel} from '../utils/advanceReportDates';
 import { buildAdvanceEmailSummary, renderAdvanceSummaryHtml, advanceCurveAttachment, escapeEmailText } from '../utils/advanceEmailSummary';
@@ -586,6 +588,10 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
   // Registros reales de Supabase
   const [asistenciaList, setAsistenciaList] = useState([]);
+  const [attendanceRegisterDate,setAttendanceRegisterDate]=useState('');
+  const [attendanceRegisterPerson,setAttendanceRegisterPerson]=useState('');
+  useEffect(()=>{setAttendanceRegisterDate('');setAttendanceRegisterPerson('');},[selectedObra?.id,selectedObra?.nombre]);
+  const visibleAttendanceRecords=React.useMemo(()=>filterAttendanceRegister(asistenciaList,{date:attendanceRegisterDate,person:attendanceRegisterPerson}),[asistenciaList,attendanceRegisterDate,attendanceRegisterPerson]);
   const [personalAsignadoList, setPersonalAsignadoList] = useState([]);
   const [reportesAvanceList, setReportesAvanceList] = useState([]);
   const [advanceReportDate,setAdvanceReportDate] = useState('');
@@ -3699,6 +3705,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                       📋 Registros Recientes de Marcaje en Faena ({asistenciaList.length} registros)
                     </h4>
 
+                    <AttendanceRegisterFilters date={attendanceRegisterDate} person={attendanceRegisterPerson} onDateChange={setAttendanceRegisterDate} onPersonChange={setAttendanceRegisterPerson} onClear={()=>{setAttendanceRegisterDate('');setAttendanceRegisterPerson('');}} shown={visibleAttendanceRecords.length} total={asistenciaList.length}/>
+
                     {asistenciaList.length === 0 ? (
                       <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl space-y-2">
                         <UserCheck className="w-8 h-8 text-slate-300 mx-auto" />
@@ -3722,10 +3730,11 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-150 text-[11px]">
-                            {asistenciaList.map((a, idx) => {
+                            {!visibleAttendanceRecords.length && <tr><td colSpan={canManageRecordsAccess?10:9} className="p-6 text-center text-slate-500">No hay marcajes con los filtros seleccionados. Puedes limpiar los filtros para ver todos.</td></tr>}
+                            {visibleAttendanceRecords.map((a, idx) => {
                               const fechaStr = attendanceDateLabel(a);
                               return (
-                                <tr key={a.id || idx} className="hover:bg-slate-50">
+                                <tr key={`${a._sourceTable || 'asistencia'}-${a.id ?? idx}`} className="hover:bg-slate-50">
                                   <td className="p-2.5 font-mono font-bold text-slate-700">{fechaStr}</td>
                                   <td className="p-2.5 font-bold text-slate-800">{a.trabajador}</td>
                                   <td className="p-2.5 font-mono text-slate-600">{a.rut || '-'}</td>
@@ -3748,24 +3757,6 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                   {canManageRecordsAccess && (
                                     <td className="p-2.5 text-center">
                                       <div className="flex items-center justify-center gap-1">
-                                    <button
-                                      type="button"
-                                      disabled={idx === 0}
-                                      onClick={() => handleReorderPartidaObra(idx, idx - 1)}
-                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
-                                      title="Mover arriba"
-                                    >
-                                      ▲
-                                    </button>
-                                    <button
-                                      type="button"
-                                      disabled={idx === partidasList.length - 1}
-                                      onClick={() => handleReorderPartidaObra(idx, idx + 1)}
-                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
-                                      title="Mover abajo"
-                                    >
-                                      ▼
-                                    </button>
                                         <button
                                           onClick={() => handleEditAsistenciaRecord(a)}
                                           className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition cursor-pointer"
