@@ -1,0 +1,22 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="fixture"></div><script type="module">
+import React from 'react';import {createRoot} from 'react-dom/client';import '../../src/index.css';
+import Maquinaria from '../../src/components/Maquinaria.jsx';import {supabase} from '../../src/supabaseClient.js';
+const params=new URLSearchParams(location.search),readonly=params.has('readonly');
+const user={id:7,empresa:'Prueba',rol:readonly?'Supervisor':'Administrador',usuario:'fixture_user'};
+window.categories=[{id:1,empresa:'Prueba',nombre:'Excavadoras'},{id:2,empresa:'Prueba',nombre:'Apoyo'}];
+window.equipment=[{id:1,empresa:'Prueba',patente:'COM-01',tipo:'Compresor',marca:'ATLAS COPCO',obra_nombre:null,estado_equipo:'Operativo',categoria_id:2,horometro_inicial:null},{id:2,empresa:'Prueba',patente:'EXC-01',tipo:'Excavadora',marca:'LINKBELT 210X2',obra_nombre:'Edificio Lonco',estado_equipo:'Operativo',categoria_id:1,costo_interno:12000,unidad_costo_interno:'$/día',fecha_hasta_estimada:'2026-11-30',fecha_asig:'2026-10-01'},{id:3,empresa:'Prueba',patente:'EXC-02',tipo:'Excavadora',marca:'KOMATSU',obra_nombre:null,estado_equipo:'En Mantención',categoria_id:1},{id:4,empresa:'Prueba',patente:'GEN-01',tipo:'Generador',marca:'CAT',obra_nombre:null,estado_equipo:'Fuera de Servicio',categoria_id:2}];
+if(params.has('many'))window.equipment.push(...Array.from({length:26},(_,index)=>({id:10+index,empresa:'Prueba',patente:`EQ-${index+1}`,tipo:'Equipo adicional',categoria_id:2})));
+window.categoryCalls=[];window.savedEquipment=[];window.failCategory=false;
+supabase.rpc=async(name,args)=>{window.categoryCalls.push({name,args});if(window.failCategory)return {error:{message:'Error simulado de categoría'}};
+ if(args.p_accion==='crear'){if(window.categories.some(item=>item.nombre.toLowerCase()===args.p_nombre.toLowerCase()))return {error:{message:'Categoría duplicada'}};window.categories.push({id:Math.max(0,...window.categories.map(item=>item.id))+1,empresa:args.p_empresa,nombre:args.p_nombre});}
+ if(args.p_accion==='editar')window.categories=window.categories.map(item=>item.id===args.p_id?{...item,nombre:args.p_nombre}:item);
+ if(args.p_accion==='eliminar'){if(window.equipment.some(item=>item.categoria_id===args.p_id)&&!args.p_reemplazo)return {error:{message:'Selecciona reemplazo'}};window.equipment=window.equipment.map(item=>item.categoria_id===args.p_id?{...item,categoria_id:args.p_reemplazo}:item);window.categories=window.categories.filter(item=>item.id!==args.p_id);}
+ return {data:1,error:null};};
+supabase.from=table=>{const filters={},bounds={};let update=null,insert=null;
+ const result=()=>{if(insert){window.savedEquipment.push(...structuredClone(insert));return {data:insert,error:null};}if(update){window.savedEquipment.push(structuredClone(update));window.equipment=window.equipment.map(item=>item.id===filters.id?{...item,...update}:item);return {data:null,error:null};}
+ let rows=table==='inventario_maquinaria'?window.equipment:table==='maquinaria_categorias'?window.categories:table==='obras'?[{nombre:'Edificio Lonco',empresa:'Prueba'}]:table==='usuarios'?[user]:[];
+ rows=rows.filter(item=>Object.entries(filters).every(([key,value])=>item[key]===value));if(bounds.end!==undefined)rows=rows.slice(bounds.start,bounds.end+1);return {data:structuredClone(rows),error:null};};
+ return {select(){return this;},eq(key,value){filters[key]=value;return this;},order(){return this;},limit(){return this;},range(start,end){bounds.start=start;bounds.end=end;return this;},insert(rows){insert=rows;return this;},update(value){update=value;return this;},maybeSingle(){const data=result();return Promise.resolve({...data,data:data.data[0]||null});},then(resolve,reject){return Promise.resolve(result()).then(resolve,reject);}};
+};
+createRoot(document.getElementById('fixture')).render(React.createElement(Maquinaria,{user,onBack:()=>{}}));
+</script></body></html>

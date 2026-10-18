@@ -1,0 +1,67 @@
+import {expect} from '@playwright/test';
+const open=async(page,suffix='')=>{await page.goto('/e2e/fixtures/equipment-inventory.html'+suffix);await page.getByText('Ver Inventario',{exact:true}).click();await expect(page.getByLabel('Buscar equipos')).toBeVisible();};
+export async function checkEquipmentInventory(page){
+ await open(page);
+ await expect(page.getByRole('status')).toHaveText('4 de 4 equipos');
+ await page.getByRole('button',{name:'Disponibles 1',exact:true}).click();
+ await expect(page.getByRole('status')).toHaveText('1 de 4 equipos');
+ await expect(page.getByText('COM-01',{exact:true}).locator('visible=true').first()).toBeVisible();
+ await page.getByRole('button',{name:'Limpiar filtros'}).click();
+ await page.getByLabel('Buscar equipos').fill('210x2');
+ await expect(page.getByRole('status')).toHaveText('1 de 4 equipos');
+ await page.getByRole('button',{name:'Limpiar filtros'}).click();
+ await page.getByLabel('Filtrar categoría').selectOption('1');
+ await expect(page.getByRole('status')).toHaveText('2 de 4 equipos');
+ await page.getByRole('button',{name:'Acciones EXC-01',exact:true}).filter({visible:true}).click();
+ await page.getByRole('button',{name:'Editar equipo',exact:true}).click();
+ await expect(page.getByLabel('Categoría del equipo')).toHaveValue('1');
+ await page.getByLabel('Categoría del equipo').selectOption('2');
+ await page.getByRole('button',{name:'Guardar Equipo',exact:true}).click();
+ await expect.poll(()=>page.evaluate(()=>window.savedEquipment.length)).toBe(1);
+ expect(await page.evaluate(()=>window.savedEquipment[0].categoria_id)).toBe(2);
+ await expect(page.getByLabel('Categoría del equipo')).toHaveCount(0);
+ await page.getByRole('button',{name:'Subir nómina de equipos',exact:true}).click();
+ await expect(page.getByLabel('Categoría de equipos importados')).toBeVisible();
+ await page.getByLabel('Categoría de equipos importados').selectOption('1');
+ await page.getByRole('button',{name:'Cerrar',exact:true}).click();
+ await page.getByRole('button',{name:'Limpiar filtros'}).click();
+ await page.getByRole('button',{name:'Gestionar categorías',exact:true}).click();
+ await page.getByLabel('Nombre de categoría').fill('Movimiento');
+ await page.getByRole('button',{name:'Crear categoría',exact:true}).click();
+ await expect(page.getByText('Categoría guardada.',{exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Renombrar Movimiento',exact:true}).click();
+ await page.getByLabel('Nombre de categoría').fill('Movimiento de tierras');
+ await page.getByRole('button',{name:'Guardar nombre',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Renombrar Movimiento de tierras',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Eliminar categoría Excavadoras',exact:true}).click();
+ const remove=page.getByRole('button',{name:'Confirmar eliminación de categoría',exact:true});
+ await expect(remove).toBeDisabled();
+ await page.getByLabel('Categoría de reemplazo').selectOption('3');
+ await remove.click();
+ await expect(page.getByText('Categoría eliminada. Los equipos se conservaron.',{exact:true})).toBeVisible();
+ expect(await page.evaluate(()=>window.equipment.length)).toBe(4);
+ expect(await page.evaluate(()=>window.equipment.find(item=>item.id===3).categoria_id)).toBe(3);
+ await page.evaluate(()=>{window.failCategory=true;});
+ await page.getByLabel('Nombre de categoría').fill('Prueba de error');
+ await page.getByRole('button',{name:'Crear categoría',exact:true}).click();
+ await expect(page.getByText('Error simulado de categoría',{exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Cerrar categorías'}).click();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+}
+export async function checkInventoryReadOnly(page){
+ await open(page,'?readonly');
+ await expect(page.getByRole('button',{name:'Gestionar categorías',exact:true})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'+ Nuevo equipo',exact:true})).toHaveCount(0);
+ await page.getByRole('button',{name:'Acciones EXC-01',exact:true}).filter({visible:true}).click();
+ await expect(page.getByRole('button',{name:'Editar equipo',exact:true})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'Eliminar equipo',exact:true})).toHaveCount(0);
+}
+export async function checkInventoryPages(page){
+ await open(page,'?many');
+ await expect(page.getByRole('status')).toHaveText('30 de 30 equipos');
+ await expect(page.getByText('1 / 2',{exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Siguiente',exact:true}).click();
+ await expect(page.getByText('2 / 2',{exact:true})).toBeVisible();
+ await page.getByLabel('Buscar equipos').fill('210X2');
+ await expect(page.getByText('1 / 1',{exact:true})).toBeVisible();
+}

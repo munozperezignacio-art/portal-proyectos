@@ -14,6 +14,8 @@ import MachineryMeterAI from './MachineryMeterAI';
 import MachineryEquipmentDetailModal from './MachineryEquipmentDetailModal';
 import EquipmentBulkImport from './EquipmentBulkImport';
 import EquipmentAssignments from './EquipmentAssignments';
+import EquipmentInventory from './EquipmentInventory';
+import EquipmentCategories from './EquipmentCategories';
 import { hasAssignedWork } from '../utils/equipmentAssignments';
 
 
@@ -79,6 +81,9 @@ export default function Maquinaria({ user, onBack }) {
   const canCreate = can(user, permissions, 'maquinaria.inventario.crear');
   const canEdit = can(user, permissions, 'maquinaria.inventario.editar');
   const canDelete = can(user, permissions, 'maquinaria.inventario.eliminar');
+  const canConfigure = can(user, permissions, 'maquinaria.inventario.configurar');
+  const [categories,setCategories]=useState([]);
+  const [categoriesOpen,setCategoriesOpen]=useState(false);
   const [activeSection, setActiveSection] = useState(''); // '', 'inventario', 'asignaciones', 'uso', 'reservas', 'arriendos'
   const [maquinaria, setMaquinaria] = useState([]);
   const [obras, setObras] = useState([]);
@@ -99,7 +104,8 @@ export default function Maquinaria({ user, onBack }) {
   const [viewingEquip, setViewingEquip] = useState(null);
 
   const [formData, setFormData] = useState({
-    tipo: 'Retroexcavadora',
+    tipo: '',
+    categoria_id:'',
     patente: '',
     marca: '',
     obra_nombre: '',
@@ -218,12 +224,16 @@ export default function Maquinaria({ user, onBack }) {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const { data: dataMaq, error: errMaq } = await supabase
-        .from('inventario_maquinaria')
-        .select('*')
-        .eq('empresa', user.empresa)
-        .order('tipo', { ascending: true });
-      if (errMaq) throw errMaq;
+      const dataMaq=[],categoryRows=[];
+      for(let offset=0;;offset+=1000){
+        const result=await supabase.from('inventario_maquinaria').select('*').eq('empresa',user.empresa).order('id').range(offset,offset+999);
+        if(result.error)throw result.error;dataMaq.push(...result.data);if(result.data.length<1000)break;
+      }
+      for(let offset=0;;offset+=1000){
+        const result=await supabase.from('maquinaria_categorias').select('id,nombre').eq('empresa',user.empresa).order('nombre').order('id').range(offset,offset+999);
+        if(result.error)throw result.error;categoryRows.push(...result.data);if(result.data.length<1000)break;
+      }
+      setCategories(categoryRows);
       const isReal = (n) => n && typeof n === 'string' && n.trim() !== '' && !n.toLowerCase().includes('bodega') && n.toLowerCase() !== 'libre';
       const mergedData = (dataMaq || []).map(remoteItem => {
         const finalObraNombre = isReal(remoteItem.obra_nombre) 
@@ -231,7 +241,7 @@ export default function Maquinaria({ user, onBack }) {
           : (remoteItem.obra_nombre || 'Bodega Central / Libre');
 
         const rCosto = parseFloat(remoteItem.costo_interno !== undefined && remoteItem.costo_interno !== null ? remoteItem.costo_interno : remoteItem.costo);
-        const finalCosto = (!isNaN(rCosto) && rCosto > 0) ? rCosto : 0;
+        const finalCosto = (Number.isFinite(rCosto) && rCosto >= 0) ? rCosto : null;
 
         return {
           ...remoteItem,
@@ -250,8 +260,10 @@ export default function Maquinaria({ user, onBack }) {
         .order('nombre', { ascending: true });
       if (errObras) throw errObras;
       setObras(dataObras || []);
+      return true;
     } catch (err) {
       setErrorMsg(`No fue posible cargar el inventario de maquinaria: ${err.message}`);
+      return false;
     } finally {
       setLoading(false);
     }
@@ -304,7 +316,8 @@ export default function Maquinaria({ user, onBack }) {
     setEditingEquip(null);
     setMaintenanceDraft({ nombre: '', intervalo: '', unidad: 'horas', ultima_lectura: '', ultima_fecha: '' });
     setFormData({
-      tipo: 'Retroexcavadora',
+      tipo: '',
+      categoria_id:'',
       patente: '',
       marca: '',
       obra_nombre: obras.length > 0 ? obras[0].nombre : 'Bodega Central / Libre',
@@ -333,7 +346,8 @@ export default function Maquinaria({ user, onBack }) {
     setEditingEquip(equip);
     setMaintenanceDraft({ nombre: '', intervalo: '', unidad: 'horas', ultima_lectura: '', ultima_fecha: '' });
     setFormData({
-      tipo: equip.tipo || 'Retroexcavadora',
+      tipo: equip.tipo || '',
+      categoria_id:equip.categoria_id||'',
       patente: equip.patente || '',
       marca: equip.marca || '',
       obra_nombre: equip.obra_nombre || 'Bodega Central / Libre',
@@ -363,7 +377,7 @@ export default function Maquinaria({ user, onBack }) {
     if (!window.confirm(`¿Estás seguro de eliminar el equipo ${equip.tipo} (${equip.patente})?`)) return;
 
     try {
-      const { error } = await supabase.from('inventario_maquinaria').delete().eq('id', equip.id);
+      const { error } = await supabase.from('inventario_maquinaria').delete().eq('id', equip.id).eq('empresa',user.empresa);
       if (error) throw error;
       setSuccessMsg('Equipo eliminado.');
       fetchData();
@@ -389,7 +403,8 @@ export default function Maquinaria({ user, onBack }) {
     const validObraNombre = formData.obra_nombre || 'Bodega Central / Libre';
 
     const dataToSave = {
-      tipo: formData.tipo,
+      tipo: formData.tipo.trim(),
+      categoria_id:formData.categoria_id?Number(formData.categoria_id):null,
       patente: formData.patente.toUpperCase().trim(),
       marca: formData.marca.trim(),
       obra_nombre: validObraNombre,
@@ -421,7 +436,7 @@ export default function Maquinaria({ user, onBack }) {
       while (attempts < 10 && !success) {
         attempts++;
         const res = editingEquip
-          ? await supabase.from("inventario_maquinaria").update(payload).eq("id", editingEquip.id)
+          ? await supabase.from("inventario_maquinaria").update(payload).eq("id", editingEquip.id).eq('empresa',user.empresa)
           : await supabase.from("inventario_maquinaria").insert([payload]);
 
         if (!res.error) {
@@ -434,6 +449,7 @@ export default function Maquinaria({ user, onBack }) {
 
         const match = msg.match(/Could not find the '([^']+)' column/i) || msg.match(/column "([^"]+)"/i);
         if (match && match[1] && payload[match[1]] !== undefined) {
+          if(match[1]==='categoria_id')break;
           delete payload[match[1]];
         } else {
           if (payload.registrado_por !== undefined) delete payload.registrado_por;
@@ -823,7 +839,7 @@ export default function Maquinaria({ user, onBack }) {
       selectedTipoFilter === '' || 
       (m.tipo && m.tipo.toLowerCase() === selectedTipoFilter.toLowerCase());
 
-    const isEnUso = Boolean(m.obra_nombre && m.obra_nombre.trim() !== '');
+    const isEnUso = hasAssignedWork(m.obra_nombre);
     const isReservado = reservasList.some(r => r.equipo_id.toString() === m.id.toString());
     const isArrendado = arriendosList.some(a => a.equipo_id.toString() === m.id.toString() && a.estado === 'Activo');
     const isLibre = !isEnUso && !isReservado && !isArrendado;
@@ -837,10 +853,6 @@ export default function Maquinaria({ user, onBack }) {
     return matchesSearch && matchesObra && matchesTipo && matchesEstado;
   });
 
-  const tiposMaquinaria = [
-    'Retroexcavadora', 'Excavadora', 'Camión Tolva', 'Cargador Frontal', 
-    'Rodillo Compactador', 'Minibuses / Camionetas', 'Generador / Torre Luz', 'Otro'
-  ];
 
   if (permissionsLoading) return <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">Cargando permisos…</div>;
   if (!canView) return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center text-sm font-bold text-amber-900">Tu perfil no tiene permiso para ver Maquinaria y Equipos.</div>;
@@ -1066,143 +1078,12 @@ export default function Maquinaria({ user, onBack }) {
       )}
 
       {/* 3. SUBMÓDULO 1: INVENTARIO DE MAQUINARIAS Y EQUIPOS */}
-      {bulkImportOpen && canCreate && <EquipmentBulkImport company={user.empresa} onClose={() => setBulkImportOpen(false)} onImported={fetchData} />}
-      {activeSection === 'inventario' && (
-        <div className="space-y-6 animate-in fade-in duration-200">
-          <div className="flex justify-between items-center bg-white p-5 border border-slate-200 rounded-3xl shadow-xs">
-            <div>
-              <h3 className="text-sm font-extrabold text-slate-850 uppercase tracking-wider">Inventario de Equipos y Maquinarias</h3>
-              <p className="text-xs text-slate-500">Catálogo general de flota con filtros y estado operacional.</p>
-              {canCreate && <button onClick={() => setBulkImportOpen(true)} className="mt-2 border border-primary text-primary text-xs font-extrabold px-4 py-2.5 rounded-xl">Subir nómina de equipos</button>}
-            </div>
-            <button
-              onClick={handleOpenAddModal}
-              className="bg-primary hover:bg-primary-hover text-white text-xs font-extrabold px-4 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer shadow-sm"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Nuevo Equipo</span>
-            </button>
-          </div>
-
-          {/* Filtros */}
-          <div className="bg-white p-3.5 border border-slate-200 rounded-2xl shadow-xs grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
-                <Search className="w-3.5 h-3.5" />
-              </span>
-              <input
-                type="text"
-                placeholder="Buscar por tipo, patente o marca..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-10 w-full rounded-lg border border-slate-200 px-3 pl-8 text-[11px] font-medium text-slate-800 transition focus:border-primary focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <select
-                value={selectedTipoFilter}
-                onChange={(e) => setSelectedTipoFilter(e.target.value)}
-                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-medium text-slate-800 transition focus:border-primary focus:outline-none"
-              >
-                <option value="">Filtrar por Tipo (Todos)</option>
-                {tiposMaquinaria.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-
-            <div>
-              <select
-                value={selectedObraFilter}
-                onChange={(e) => setSelectedObraFilter(e.target.value)}
-                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-medium text-slate-800 transition focus:border-primary focus:outline-none"
-              >
-                <option value="">Filtrar por Obra (Todas)</option>
-                {obras.map(o => <option key={o.nombre} value={o.nombre}>{o.nombre}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {/* Grid de Equipos */}
-          {loading ? (
-            <p className="text-xs text-slate-500 p-4">⏳ Cargando catálogo de equipos...</p>
-          ) : filteredMaquinaria.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-3xl border border-slate-200 text-slate-400">
-              <Truck className="w-12 h-12 mx-auto mb-2 opacity-40" />
-              <p className="text-xs font-bold">No se encontraron equipos con los filtros seleccionados.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredMaquinaria.map((m) => {
-                const est = getEquipoEstadoDetallado(m);
-                return (
-                  <div
-                    key={m.id} 
-                    onClick={() => setViewingEquip(m)}
-                    className="bg-white border border-slate-200 rounded-3xl shadow-xs overflow-hidden flex flex-col justify-between hover:shadow-md hover:border-primary transition duration-200 cursor-pointer"
-                  >
-                    <div className="p-5 flex gap-4">
-                      <div className="w-20 h-20 bg-slate-100 rounded-2xl border border-slate-200 flex-shrink-0 flex items-center justify-center overflow-hidden">
-                        {m.foto_frontal ? (
-                          <img src={m.foto_frontal} alt={m.tipo} className="w-full h-full object-cover" />
-                        ) : (
-                          <Truck className="w-8 h-8 text-slate-400" />
-                        )}
-                      </div>
-                      
-                      <div className="space-y-1 flex-1">
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <span className={`text-[9px] font-black px-2.5 py-0.5 rounded-full inline-block border ${est.badgeClass}`}>
-                            {est.label}
-                          </span>
-                          <span className="text-[10px] font-bold text-slate-400 uppercase">
-                            Horómetro: {m.horometro_inicial || 0} hrs
-                          </span>
-                        </div>
-
-                        <h4 className="text-xs font-extrabold text-slate-850 uppercase leading-snug">{m.tipo}</h4>
-                        <p className="text-[11px] text-slate-500 font-semibold">{m.marca} | Patente: <span className="text-slate-700 font-bold">{m.patente || 'N/A'}</span></p>
-                        
-                        <p className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
-                          <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{m.obra_nombre || 'Bodega Central / Libre'}</span>
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="bg-slate-50 px-5 py-3 border-t border-slate-100 flex justify-between items-center text-xs">
-                      <button
-                        onClick={(event) => { event.stopPropagation(); setViewingEquip(m); }}
-                        className="text-slate-600 hover:text-primary font-bold text-[11px] flex items-center gap-1 cursor-pointer"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>Ficha Completa</span>
-                      </button>
-
-                      <div className="flex gap-2">
-                        <button
-                          onClick={(event) => { event.stopPropagation(); handleOpenEditModal(m); }}
-                          className="flex items-center gap-1 rounded-lg bg-slate-200 px-2 py-1.5 text-[10px] font-black text-slate-700 transition hover:bg-slate-300 cursor-pointer"
-                          title="Editar Equipo"
-                        >
-                          <Edit className="w-3.5 h-3.5" />
-                          <span>Editar</span>
-                        </button>
-                        <button
-                          onClick={(event) => { event.stopPropagation(); handleDeleteEquip(m); }}
-                          className="p-1.5 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 transition cursor-pointer"
-                          title="Eliminar Equipo"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
+      {bulkImportOpen && canCreate && <EquipmentBulkImport company={user.empresa} categories={categories} onClose={() => setBulkImportOpen(false)} onImported={fetchData} />}
+      {categoriesOpen && canConfigure && <EquipmentCategories company={user.empresa} categories={categories} equipment={maquinaria} onClose={()=>setCategoriesOpen(false)} onChanged={async()=>{if(!await fetchData())throw new Error('El cambio se guardó, pero no se pudo recargar el inventario. Actualiza la pantalla.');}}/>}
+      {activeSection === 'inventario' && <EquipmentInventory equipment={maquinaria} categories={categories} works={obras} bookings={reservasList} rentals={arriendosList} loading={loading}
+        canCreate={canCreate} canEdit={canEdit} canDelete={canDelete} canConfigure={canConfigure}
+        onCreate={handleOpenAddModal} onImport={()=>setBulkImportOpen(true)} onCategories={()=>setCategoriesOpen(true)}
+        onView={setViewingEquip} onEdit={handleOpenEditModal} onDelete={handleDeleteEquip}/>}
 
       {/* 4. SUBMÓDULO 2: ASIGNACIÓN DE EQUIPOS CON FECHA HASTA ESTIMADA */}
       {activeSection === 'asignaciones' && (
@@ -2720,21 +2601,26 @@ export default function Maquinaria({ user, onBack }) {
             </h3>
 
             <form onSubmit={handleSubmitEquip} className="space-y-4 text-xs">
+              <label className="block text-xs font-bold text-slate-600">Categoría
+                <select aria-label="Categoría del equipo" value={formData.categoria_id||''} onChange={event=>setFormData({...formData,categoria_id:event.target.value})} className="mt-1 w-full rounded-xl border border-slate-200 bg-white p-2.5">
+                  <option value="">Sin categoría</option>{categories.map(category=><option key={category.id} value={category.id}>{category.nombre}</option>)}
+                </select>
+                <span className="mt-1 block text-[10px] font-normal">Las categorías se crean y administran en «Gestionar categorías» del inventario.</span>
+              </label>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Tipo de Equipo *</label>
-                  <select
+                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Nombre de equipo *</label>
+                  <input
                     value={formData.tipo}
                     onChange={(e) => setFormData(prev => ({ ...prev, tipo: e.target.value }))}
                     className="w-full border border-slate-200 rounded-xl p-2.5 font-bold text-slate-800"
                     required
-                  >
-                    {tiposMaquinaria.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
+                    placeholder="Ej: Excavadora sobre orugas"
+                  />
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Patente / Código *</label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Código / Patente *</label>
                   <input
                     type="text"
                     placeholder="ej: BBBB-99"
