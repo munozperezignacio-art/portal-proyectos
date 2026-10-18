@@ -1,4 +1,9 @@
 {
+  "git": {
+    "deploymentEnabled": {
+      "fix/android-sdk-and-dependency-audit": false
+    }
+  },
   "headers": [
     {
       "source": "/",

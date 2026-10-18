@@ -37,6 +37,9 @@ jobs:
       # 4. Configurar Android SDK
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # Avoid the obsolete `tools` package included in the action defaults.
+          packages: 'platform-tools platforms;android-36 build-tools;35.0.0'
 
       # 5. Instalar dependencias del Frontend
       - name: Install Frontend Dependencies
