@@ -1,0 +1,244 @@
+{
+  "titulo": "Armado de equipo Impact",
+  "estado": "Borrador para revisión técnica",
+  "fuente": "PC-MN-06, archivo entregado de 31 páginas",
+  "nota": "Fotografías del procedimiento original. Las acciones sin fotografía se muestran como controles de texto; requieren fotografías propias si se desea una imagen por paso. Portada Rev. 01 e interiores Rev. 00: validar versión y especificaciones antes de publicar.",
+  "pasos": [
+    {
+      "paso": 1,
+      "titulo": "Preparar el trabajo",
+      "texto": "Revisa el terreno, delimita el área y coordina al equipo.",
+      "detalle": "Terreno estable, nivelado y seco; sin lluvia ni interferencias eléctricas. Personal capacitado, supervisor presente, charla de 5 minutos, HCR, EPP y radios. Revisar equipos, herramientas, cables y elementos de izaje. Documentación y GPS según el procedimiento. Disponer de control de derrames.",
+      "imagen": null,
+      "paginas_fuente": "7, 23–26",
+      "tipo_visual": "control_textual_sin_fotografia",
+      "elementos_visuales": [
+        "Terreno estable y área delimitada",
+        "Personal capacitado y supervisor",
+        "Charla, HCR, EPP y radios"
+      ]
+    },
+    {
+      "paso": 2,
+      "titulo": "Extender el mástil",
+      "texto": "Apoya el mástil horizontal y extiende su segunda etapa con la excavadora de apoyo.",
+      "detalle": "Usar la excavadora de apoyo de 20 t y los estrobos, cadenas y grilletes indicados. Mantener al personal fuera de la carga suspendida y de la línea de fuego.",
+      "imagen": "imagenes/foto-paso-02.png",
+      "paginas_fuente": "7",
+      "imagen_descripcion": "Excavadora de apoyo y extensión del mástil",
+      "tipo_visual": "fotografia_del_procedimiento"
+    },
+    {
+      "paso": 3,
+      "titulo": "Unir los cuerpos del mástil",
+      "texto": "Alinea ambas vigas e instala las placas de unión.",
+      "detalle": "Instalar pernos de 1¼ pulgadas, grado 8, con tuercas y golillas. Torque indicado en el documento: 1700 lb·ft; revisar tabla de torque del procedimiento.",
+      "imagen": "imagenes/foto-paso-03.png",
+      "paginas_fuente": "8",
+      "imagen_descripcion": "Placas de unión entre los dos cuerpos del mástil",
+      "tipo_visual": "fotografia_del_procedimiento"
+    },
+    {
+      "paso": 4,
+      "titulo": "Posicionar sobre cuñas",
+      "texto": "Instala las cuñas a ambos lados del mástil y posiciona la excavadora.",
+      "detalle": "La altura debe permitir introducir el mástil por debajo de la excavadora. Realizar la maniobra coordinada con el equipo de apoyo.",
+      "imagen": "imagenes/foto-paso-04.png",
+      "paginas_fuente": "9",
+      "imagen_descripcion": "Cuñas ubicadas a ambos lados del mástil",
+      "tipo_visual": "fotografia_del_procedimiento"
+    },
+    {
+      "paso": 5,
+      "titulo": "Acoplar el mástil",
+      "texto": "Instala primero el pasador del boom y después el del cilindro del brazo.",
+      "detalle": "Colocar los pernos de seguridad en los extremos de ambos pasadores.",
+      "imagen": "imagenes/foto-paso-05.png",
+      "paginas_fuente": "9–10",
+      "imagen_descripcion": "Puntos de unión y pasadores del mástil",
+      "tipo_visual": "fotografia_del_procedimiento"
+    },
+    {
+      "paso": 6,
+      "titulo": "Conectar las líneas hidráulicas",
+      "texto": "Con la excavadora apagada o con bloqueo hidráulico, conecta las líneas en orden.",
+      "detalle": "Orden del documento: presión de 1½ pulgadas; dos retornos de 1¼ pulgadas y uno de 1 pulgada; luego las 8 líneas de pilotaje. No intervenir conexiones con la máquina en funcionamiento.",
+      "imagen": "imagenes/foto-paso-06.png",
+      "paginas_fuente": "10",
+      "imagen_descripcion": "Conexiones hidráulicas entre excavadora y mástil",
+      "tipo_visual": "fotografia_del_procedimiento"
+    },
+    {
+      "paso": 7,
+      "titulo": "Liberar el carro y revisar huinches",
+      "texto": "Retira los pernos de seguridad del carro en ambos lados y verifica los huinches.",
+      "detalle": "Realizar después de instalar las líneas hidráulicas. Instalar los cables de los huinches si faltan y verificar sus movimientos.",
+      "imagen": "imagenes/foto-paso-07.png",
+      "paginas_fuente": "11–12",
+      "imagen_descripcion": "Perno de seguridad del carro: ubicación en el mástil",
+      "tipo_visual": "fotografia_del_procedimiento"
+    },
+    {
+      "paso": 8,
+      "titulo": "Montar el cabezal",
+      "texto": "Eleva el mástil lo necesario y monta el cabezal con apoyo de otro equipo de levante.",
+      "detalle": "Instalar todos los pasadores y sus seguros. Nadie debe permanecer bajo la carga suspendida.",
+      "imagen": "imagenes/foto-paso-08.png",
+      "paginas_fuente": "12",
+      "imagen_descripcion": "Pasadores de fijación del cabezal",
+      "tipo_visual": "fotografia_del_procedimiento"
+    },
+    {
+      "paso": 9,
+      "titulo": "Pasar el cable del capacho",
+      "texto": "Pasa el cable por el cabezal y por el interior del balancín.",
+      "detalle": "Retirar los seguros de las poleas del cabezal para introducir el cable. En el balancín, retirar las poleas, pasar el cable y reinstalarlas. Comprobar la reposición de los seguros intervenidos.",
+      "imagen": "imagenes/foto-paso-09.png",
+      "paginas_fuente": "13",
+      "imagen_descripcion": "Cabezal y poleas por donde pasa el cable del capacho",
+      "tipo_visual": "fotografia_del_procedimiento"
+    },
+    {
+      "paso": 10,
+      "titulo": "Verticalizar el mástil",
+      "texto": "Levanta el mástil, baja la excavadora de las cuñas y desciende el carro.",
+      "detalle": "Bajar el carro para la posterior instalación del martillo vibrador. Coordinar las maniobras por radio.",
+      "imagen": null,
+      "paginas_fuente": "13",
+      "tipo_visual": "control_textual_sin_fotografia",
+      "elementos_visuales": [
+        "1. Levantar el mástil",
+        "2. Bajar de las cuñas",
+        "3. Descender el carro"
+      ]
+    },
+    {
+      "paso": 11,
+      "titulo": "Unir martillo y buzón",
+      "texto": "Sobre terreno plano y seco, alinea y une el martillo con el buzón.",
+      "detalle": "El armado del sistema MBT puede realizarse en paralelo al mástil por una cuadrilla coordinada. Usar equipo de apoyo. Instalar 12 pernos de 1¼ pulgadas, grado 8, con tuercas y golillas Nord-Lock. Torque indicado: 1700 lb·ft.",
+      "imagen": "imagenes/foto-paso-11.png",
+      "paginas_fuente": "14",
+      "imagen_descripcion": "Flanges de acople del martillo y el buzón",
+      "tipo_visual": "fotografia_del_procedimiento"
+    },
+    {
+      "paso": 12,
+      "titulo": "Acoplar el tubo y mandril",
+      "texto": "Une el tubo al buzón, con el mandril ya soldado y la numeración visible desde la cabina.",
+      "detalle": "Alinear flanges. Instalar 12 pernos de 1 pulgada, grado 8, con tuercas y golillas Nord-Lock. Torque indicado: 850 lb·ft.",
+      "imagen": "imagenes/foto-paso-12.png",
+      "paginas_fuente": "15",
+      "imagen_descripcion": "Unión del tubo al buzón mediante flanges",
+      "tipo_visual": "fotografia_del_procedimiento"
+    },
+    {
+      "paso": 13,
+      "titulo": "Marcar las uniones",
+      "texto": "Marca cada unión para detectar visualmente si un perno se afloja.",
+      "detalle": "La marca debe abarcar la tuerca, la golilla y el flange. Aplicar a cada perno instalado.",
+      "imagen": null,
+      "paginas_fuente": "16",
+      "tipo_visual": "control_textual_sin_fotografia",
+      "elementos_visuales": [
+        "Marca continua",
+        "Tuerca → golilla → flange",
+        "Comprobar si la marca se desplaza"
+      ]
+    },
+    {
+      "paso": 14,
+      "titulo": "Alinear el conjunto con el carro",
+      "texto": "Sujeta el martillo con doble cadena y grilletes; alinea el conjunto con el carro.",
+      "detalle": "Excavadora de apoyo perpendicular al MBT. Equipo con mástil frente al conjunto y en línea, a 1 m según el documento. Bajar el carro hasta su tope y elevar el MBT hasta alinear los ojos. Ordenar las cadenas antes del izaje.",
+      "imagen": null,
+      "paginas_fuente": "16",
+      "tipo_visual": "control_textual_sin_fotografia",
+      "elementos_visuales": [
+        "Sujetar con doble cadena y grilletes",
+        "Bajar el carro hasta el tope",
+        "Alinear los ojos de unión"
+      ]
+    },
+    {
+      "paso": 15,
+      "titulo": "Instalar el pasador de unión",
+      "texto": "Con los ojos alineados, instala el pasador y su seguro con doble tuerca.",
+      "detalle": "Acceso del personal capacitado mediante manipulador telescópico con jaula de seguridad y arnés, según el documento. Maniobra dirigida por el encargado. No ubicarse bajo cargas suspendidas.",
+      "imagen": null,
+      "paginas_fuente": "17",
+      "tipo_visual": "control_textual_sin_fotografia",
+      "elementos_visuales": [
+        "Alinear los ojos",
+        "Instalar el pasador",
+        "Asegurar con perno y doble tuerca"
+      ]
+    },
+    {
+      "paso": 16,
+      "titulo": "Conectar el sistema del capacho",
+      "texto": "Baja el balancín y pasa sus cables por las poleas del brazo del buzón.",
+      "detalle": "Asegurar con pernos de doble tuerca. Con el martillo asegurado al carro, retirar las cadenas y la excavadora de apoyo en la secuencia indicada.",
+      "imagen": "imagenes/foto-paso-16.png",
+      "paginas_fuente": "17",
+      "imagen_descripcion": "Balancín y poleas del capacho: identificación de piezas",
+      "tipo_visual": "fotografia_del_procedimiento"
+    },
+    {
+      "paso": 17,
+      "titulo": "Instalar los cables de seguridad",
+      "texto": "Conecta los cables de seguridad entre martillo, buzón y carro del mástil.",
+      "detalle": "Usar estrobos y grilletes. Retirar luego la eslinga que sujeta el buzón al brazo de alineación del cable del capacho.",
+      "imagen": null,
+      "paginas_fuente": "17",
+      "tipo_visual": "control_textual_sin_fotografia",
+      "elementos_visuales": [
+        "Martillo ↔ buzón",
+        "Martillo ↔ carro del mástil",
+        "Estrobos y grilletes"
+      ]
+    },
+    {
+      "paso": 18,
+      "titulo": "Conectar y comprobar el martillo",
+      "texto": "Conecta alta presión y refrigeración; verifica la vibración del martillo.",
+      "detalle": "Aplicar el control de energía antes de conectar. El documento contempla luego levantar el sistema MBT, bajar al personal del canastillo a nivel de piso y retirar los equipos de apoyo. La coordinación de la prueba y la exclusión de personas deben validarse con el responsable técnico.",
+      "imagen": null,
+      "paginas_fuente": "17",
+      "tipo_visual": "control_textual_sin_fotografia",
+      "elementos_visuales": [
+        "Alta presión",
+        "Refrigeración",
+        "Verificar vibración bajo coordinación"
+      ]
+    },
+    {
+      "paso": 19,
+      "titulo": "Asegurar el conjunto",
+      "texto": "Eleva el MBT e instala el seguro del tubo y la placa base del mástil.",
+      "detalle": "Con el personal a nivel de piso y los equipos de apoyo retirados, elevar el conjunto hasta la parte superior del mástil. Instalar el seguro que evita el efecto péndulo del tubo. Asegurar la placa base mediante su pasador.",
+      "imagen": null,
+      "paginas_fuente": "17",
+      "tipo_visual": "control_textual_sin_fotografia",
+      "elementos_visuales": [
+        "Seguro del tubo contra efecto péndulo",
+        "Placa base del mástil",
+        "Pasador de la placa base"
+      ]
+    },
+    {
+      "paso": 20,
+      "titulo": "Registrar la revisión final",
+      "texto": "Completa el protocolo de armado y el checklist del equipo.",
+      "detalle": "Protocolo RG.MN-06-01 y checklist RG-MN-06-02; revisión y aprobación por los responsables indicados en el procedimiento. Esta tarjeta resume las responsabilidades y registros del documento.",
+      "imagen": null,
+      "paginas_fuente": "3–4, 26",
+      "tipo_visual": "control_textual_sin_fotografia",
+      "elementos_visuales": [
+        "Protocolo de armado",
+        "Checklist del equipo",
+        "Revisión de los responsables"
+      ]
+    }
+  ]
+}

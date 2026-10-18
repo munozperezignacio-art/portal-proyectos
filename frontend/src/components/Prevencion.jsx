@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import ModuleHeader from './ModuleHeader';
+import ImpactManual from './ImpactManual';
 import { sendSystemEmail } from '../utils/emailService';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
@@ -4313,6 +4314,7 @@ export default function Prevencion({ user, onBack, companyBranding }) {
       {/* ================= APARTADO: PROCEDIMIENTOS (PTS) ================= */}
       {activeSection === 'procedimientos' && (
         <div className="space-y-6 animate-in fade-in duration-200">
+          <ImpactManual />
           <div className="bg-white p-6 border border-slate-200 rounded-3xl shadow-xs flex justify-between items-center">
             <div>
               <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
