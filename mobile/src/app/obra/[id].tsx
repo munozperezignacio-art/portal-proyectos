@@ -6,10 +6,13 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '@/auth/AuthProvider';
 import { SimpleBars } from '@/components/SimpleBars';
 import { Badge, Card, Empty, ErrorBox, Header, Loading, Progress, Screen, Segments } from '@/components/ui';
+import { ManualAttendance } from '@/components/ManualAttendance';
 import { WorkEntryActions } from '@/components/WorkEntryActions';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
 import { can, canAccessWork } from '@/lib/types';
+
+import { countChileanBusinessDays, shiftChileanBusinessDays, normalizeParts, productionMetrics } from '@/lib/workStatistics';
 
 type Row = Record<string, any>;
 const tabs = [
@@ -17,30 +20,10 @@ const tabs = [
   { key: 'asistencia', label: 'Asistencia' }, { key: 'subcontratos', label: 'Subcontratos' },
   { key: 'estadisticas', label: 'Estadísticas' },
 ];
-const HOLIDAYS = new Set(['2026-01-01', '2026-04-03', '2026-04-04', '2026-05-01', '2026-05-21', '2026-06-07', '2026-06-29', '2026-07-16', '2026-08-15', '2026-09-18', '2026-09-19', '2026-10-12', '2026-10-31', '2026-11-01', '2026-12-08', '2026-12-25']);
 const day = (value: any) => String(value || '').slice(0, 10);
 const today = () => new Date().toISOString().slice(0, 10);
-const isBusinessDay = (date: Date) => date.getDay() !== 0 && date.getDay() !== 6 && !HOLIDAYS.has(day(date.toISOString()));
-const businessDays = (startValue: string, endValue: string) => {
-  if (!startValue || !endValue) return 0;
-  const start = new Date(`${startValue}T00:00:00`); const end = new Date(`${endValue}T00:00:00`);
-  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) return 0;
-  const sign = start <= end ? 1 : -1; const from = sign > 0 ? start : end; const to = sign > 0 ? end : start;
-  let count = 0; const cursor = new Date(from);
-  while (cursor <= to) { if (isBusinessDay(cursor)) count += 1; cursor.setDate(cursor.getDate() + 1); }
-  return count * sign;
-};
-const shiftBusinessDays = (value: string, amount: number) => {
-  if (!value || !amount) return value;
-  const cursor = new Date(`${value}T00:00:00`); const direction = amount > 0 ? 1 : -1; let moved = 0;
-  while (moved < Math.abs(Math.round(amount))) { cursor.setDate(cursor.getDate() + direction); if (isBusinessDay(cursor)) moved += 1; }
-  return cursor.toISOString().slice(0, 10);
-};
-const pctForPart = (part: Row, advances: Row[]) => {
-  const total = Number(part.cantidad_presupuestada || 0);
-  const done = advances.filter(a => a.partida === part.partida).reduce((sum, a) => sum + Number(a.cantidad || 0), 0);
-  return { done, pct: total > 0 ? Math.min(100, (done / total) * 100) : 0 };
-};
+const businessDays = countChileanBusinessDays;
+const shiftBusinessDays = shiftChileanBusinessDays;
 
 export default function WorkDetail() {
   const { id, nombre } = useLocalSearchParams<{ id: string; nombre: string }>();
@@ -54,9 +37,9 @@ export default function WorkDetail() {
     if (!authorized) { setError('No tienes acceso asignado a esta obra.'); setLoading(false); return; }
     try {
       const [work, p, a, e, att, w, sub, sa, sat, sep, m] = await Promise.all([
-        supabase.from('obras').select('id,nombre,estado,fecha_inicio_real,fecha_termino_estimada,fecha_termino_real').eq('empresa', profile!.empresa).eq('id', Number(id)).maybeSingle(),
-        supabase.from('partidas_obra').select('id,partida,unidad,cantidad_presupuestada,es_titulo,fecha_inicio,fecha_termino,rendimiento_meta').eq('empresa', profile!.empresa).eq('obra_id', Number(id)).order('orden'),
-        supabase.from('avances_produccion_partidas').select('partida,cantidad,created_at').eq('empresa', profile!.empresa).eq('obra_id', Number(id)),
+        supabase.from('obras').select('*').eq('empresa', profile!.empresa).eq('id', Number(id)).maybeSingle(),
+        supabase.from('partidas_obra').select('*').eq('empresa', profile!.empresa).eq('obra_id', Number(id)).order('orden'),
+        supabase.from('avances_produccion_partidas').select('*').eq('empresa', profile!.empresa).eq('obra_id', Number(id)),
         supabase.from('inventario_maquinaria').select('*').eq('empresa', profile!.empresa).eq('obra_nombre', nombre),
         supabase.from('asistencia_personal').select('*').eq('empresa', profile!.empresa).eq('obra_nombre', nombre).order('created_at', { ascending: false }).limit(400),
         supabase.from('maestro_personal').select('id,nombre,rut,cargo').eq('empresa', profile!.empresa).eq('obra_nombre', nombre),
@@ -68,31 +51,38 @@ export default function WorkDetail() {
       ]);
       const failure = [work, p, a, e, att, w, sub, sa, sat, sep, m].find(result => result.error);
       if (failure?.error) throw failure.error;
+      const relation = await supabase.from('obra_presupuestos').select('presupuesto_id').eq('empresa', profile!.empresa).eq('obra_nombre', nombre).maybeSingle();
+      if (relation.error) throw relation.error;
+      let budgetRows: Row[] = []; let scheduleRows: Row[] = [];
+      if (relation.data?.presupuesto_id) {
+        const [budget, schedule] = await Promise.all([
+          supabase.from('presupuestos_items').select('codigo,partida').eq('presupuesto_id', relation.data.presupuesto_id),
+          supabase.from('planificacion_cronogramas').select('*').eq('presupuesto_id', relation.data.presupuesto_id),
+        ]);
+        if (budget.error || schedule.error) throw budget.error || schedule.error;
+        budgetRows = budget.data || []; scheduleRows = schedule.data || [];
+      }
+      const projectStart = day(work.data?.fecha_inicio_real || work.data?.fecha_inicio || work.data?.created_at) || today();
+      const parts = normalizeParts(p.data || [], budgetRows, scheduleRows, projectStart);
       const equipment = e.data || []; const ids = new Set(equipment.map(item => item.id));
-      setData({ work: work.data, parts: p.data || [], adv: a.data || [], equip: equipment, attendance: att.data || [], workers: w.data || [], sub: sub.data || [], subAdv: sa.data || [], subAttendance: sat.data || [], subPayments: sep.data || [], maintenance: (m.data || []).filter(item => ids.has(item.equipo_id)) });
+      setData({ work: work.data, parts, adv: a.data || [], equip: equipment, attendance: att.data || [], workers: w.data || [], sub: sub.data || [], subAdv: sa.data || [], subAttendance: sat.data || [], subPayments: sep.data || [], maintenance: (m.data || []).filter(item => ids.has(item.equipo_id)) });
     } catch (x) { setError(x instanceof Error ? x.message : 'No fue posible cargar la obra.'); } finally { setLoading(false); }
   };
   useEffect(() => { void load(); }, [id, profile, nombre, authorized]);
 
   const metrics = useMemo(() => {
-    const parts = data.parts.filter((item: Row) => !item.es_titulo); const cutoff = today();
-    const detail = parts.map((part: Row) => {
-      const actual = pctForPart(part, data.adv); const start = day(part.fecha_inicio);
-      const duration = start && part.fecha_termino ? Math.max(1, businessDays(start, day(part.fecha_termino))) : Math.max(1, Math.ceil(Number(part.cantidad_presupuestada || 0) / Math.max(1, Number(part.rendimiento_meta || 1))));
-      const planned = start && start <= cutoff ? Math.min(100, (Math.max(0, businessDays(start, cutoff)) / duration) * 100) : 0;
-      const scheduleDays = Math.round(((actual.pct - planned) / 100) * duration);
-      return { ...part, ...actual, planned, scheduleDays, duration };
-    });
-    const progress = detail.length ? detail.reduce((sum: number, item: Row) => sum + item.pct, 0) / detail.length : 0;
-    const planned = detail.length ? detail.reduce((sum: number, item: Row) => sum + item.planned, 0) / detail.length : 0;
-    const start = day(data.work?.fecha_inicio_real) || detail.map((p: Row) => day(p.fecha_inicio)).filter(Boolean).sort()[0] || '';
-    const finish = day(data.work?.fecha_termino_estimada) || detail.map((p: Row) => day(p.fecha_termino)).filter(Boolean).sort().at(-1) || '';
+    const cutoff = today();
+    const { detail, progress, planned } = productionMetrics(data.parts, data.adv, cutoff);
+    const start = detail.map((p: Row) => day(p.baselineStart || p.fecha_inicio)).filter(Boolean).sort()[0] || day(data.work?.fecha_inicio_real || data.work?.fecha_inicio || data.work?.created_at);
+    const fallbackEnd = new Date(`${day(data.work?.fecha_inicio_real || data.work?.fecha_inicio || data.work?.created_at) || cutoff}T00:00:00`);
+    fallbackEnd.setDate(fallbackEnd.getDate() + 90);
+    const finish = day(data.work?.fecha_termino_estimada || data.work?.fecha_termino) || day(fallbackEnd.toISOString());
     const totalDays = start && finish ? Math.max(1, businessDays(start, finish)) : 0;
     const scheduleDays = totalDays ? Math.round(((progress - planned) / 100) * totalDays) : null;
     const projectedFinish = finish && scheduleDays !== null ? shiftBusinessDays(finish, -scheduleDays) : '';
     const latest = data.attendance.map((item: Row) => day(item.fecha_marcacion || item.created_at)).filter(Boolean).sort().at(-1);
     const present = new Set(data.attendance.filter((item: Row) => day(item.fecha_marcacion || item.created_at) === latest && String(item.asistencia).toLowerCase().includes('pres')).map((item: Row) => item.rut || item.trabajador));
-    const recentReports = data.adv.filter((a: Row) => businessDays(day(a.created_at), cutoff) >= 0 && businessDays(day(a.created_at), cutoff) <= 7).length;
+    const recentReports = data.adv.filter((a: Row) => day(a.created_at) <= cutoff && businessDays(day(a.created_at), cutoff) <= 7).length;
     return { detail, progress, planned, scheduleDays, projectedFinish, contractualFinish: finish, delayed: detail.filter((p: Row) => p.scheduleDays < 0).length, completed: detail.filter((p: Row) => p.pct >= 100).length, noProgress: detail.filter((p: Row) => p.planned > 0 && p.pct === 0).length, recentReports, present: present.size, total: data.workers.length, latest };
   }, [data]);
   const upcoming = useMemo(() => data.equip.flatMap((item: Row) => (Array.isArray(item.planes_mantencion) ? item.planes_mantencion : []).map((plan: Row) => ({ item, plan, remaining: Number(plan.intervalo || 0) - (Number(item.horometro_inicial || 0) - Number(plan.ultima_lectura || 0)) }))).sort((a: Row, b: Row) => a.remaining - b.remaining), [data.equip]);
@@ -103,7 +93,8 @@ export default function WorkDetail() {
     <Pressable onPress={() => router.back()} style={s.back}><Ionicons name="arrow-back" size={20} /><Text style={s.backText}>Volver a obras</Text></Pressable>
     <Header title={nombre || 'Obra'} subtitle="Vista operativa en terreno" icon="business-outline" />
     <Segments value={tab} options={tabs.filter(item => item.key === 'avance' ? can(profile,'obras.avances.ver') : item.key === 'equipos' ? can(profile,'obras.maquinaria.ver') : item.key === 'asistencia' ? can(profile,'obras.personal.ver') : item.key === 'subcontratos' ? can(profile,'obras.subcontratos.ver') : true)} onChange={setTab} />
-    {((tab === 'avance' && can(profile,'obras.avances.crear')) || (tab === 'asistencia' && can(profile,'obras.personal.crear'))) && <WorkEntryActions mode={tab === 'avance' ? 'progress' : 'attendance'} profile={profile!} workId={Number(id)} workName={nombre || ''} parts={data.parts} onSaved={load} />}
+    {tab === 'avance' && can(profile,'obras.avances.crear') && <WorkEntryActions mode="progress" profile={profile!} workId={Number(id)} workName={nombre || ''} parts={data.parts} onSaved={load} />}
+    {tab === 'asistencia' && can(profile,'obras.personal.crear') && <ManualAttendance profile={profile!} workId={Number(id)} workName={nombre || ''} work={data.work} onSaved={load} />}
     <ErrorBox text={error} />
     {loading && !data.parts.length ? <Loading /> : <>
       {tab === 'avance' && (metrics.detail.length ? metrics.detail.map((part: Row) => <Card key={part.id}><Text style={s.name}>{part.partida}</Text><Text style={s.meta}>{part.done.toLocaleString('es-CL')} de {Number(part.cantidad_presupuestada || 0).toLocaleString('es-CL')} {part.unidad}</Text><Progress value={part.pct} /></Card>) : <Empty text="La obra aún no tiene partidas cargadas." />)}

@@ -1,0 +1,11 @@
+node_modules/
+.git/
+.expo/
+.vscode/
+.claude/
+dist/
+dist-apk-check/
+tests/
+*.log
+.env*
+!.env
