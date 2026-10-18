@@ -4,8 +4,8 @@
 
 1. RRHH → Asignaciones y distribución de costos → seleccionar mes → Parámetros de costeo mensual.
 2. Confirmar jornada semanal contractual, tope mensual de gratificación, factor de hora extra y tasa de provisión de cargas del empleador. No se precargan tasas previsionales ni topes supuestos. Una tasa cero debe indicarse expresamente.
-3. Actualizar propuestas, revisar destino, horas extras, haberes imponibles/no imponibles del día y desglose. Aprobar individualmente o por lote. No se aprueban costos futuros.
-4. La provisión aprobada aparece como costo devengado en la obra. Las marcas sin aprobación no son cargos.
+3. El marcaje manual presente, único y con centro y costeo válidos carga directamente su provisión diaria, incluidas las HE detectadas. No requiere una segunda confirmación. Los QR, días con varios marcajes, ausencia informada, centros faltantes o costeo incompleto permanecen como excepciones para revisión.
+4. RRHH → Asignaciones y distribución de costos → Reglas sin asistencia permite autorizar por trabajador un centro de respaldo, vigencia, días de semana y hora de cierre (Chile; predeterminada 20:00). Una tarea interna revisa cada 15 minutos y recupera hasta 31 días. Solo aplica si no existe ningún marcaje en ninguna obra ese día; un AUSENTE o permiso registrado no equivale a falta de marcaje. El centro predeterminado antiguo de la ficha sigue siendo solo una propuesta, no una autorización automática. No se cargan fechas futuras ni días fuera de contrato.
 5. La nómina mensual incorpora horas y haberes diarios aprobados. Los campos mensuales permiten reemplazar los valores propuestos, no sumarlos de nuevo. Guardar y cerrar intenta conciliar; si faltan aprobaciones, conserva la provisión y muestra el pendiente.
 6. Reintentar la distribución desde la bandeja cuando todos los destinos estén aprobados.
 
@@ -15,7 +15,7 @@ Provisión diaria = sueldo mensual/30 + gratificación mensual provisionada/30 +
 
 Hora extra mensual = sueldo mensual × 7 / (30 × horas semanales) × factor pactado (mínimo 1,5). Referencia: [Dirección del Trabajo](https://www.dt.gob.cl/portal/1628/w3-article-95182.html).
 
-En los registros antiguos, el campo manual de horas extras tiene valor cero por defecto. La propuesta toma el mayor entre automático y manual (no los suma). La aprobación permite reemplazar expresamente las horas, incluso por cero. Las marcas en varias obras el mismo día generan una única imputación que requiere decidir su destino.
+En los registros antiguos, el campo manual de horas extras tiene valor cero por defecto. El cálculo toma el mayor entre automático y manual (no los suma). La corrección manual permite reemplazar expresamente las horas, incluso por cero, y agregar haberes del día. Las marcas en varias obras el mismo día generan una única imputación pendiente que requiere decidir su destino.
 
 La nómina definitiva usa costo empleador, no sueldo líquido. Sus horas/haberes aprobados se incorporan por defecto; los haberes adicionales imponibles van al campo de bonos y los no imponibles a su componente mensual. Los descuentos personales no reducen el costo del empleador.
 
@@ -28,7 +28,7 @@ La nómina definitiva usa costo empleador, no sueldo líquido. Sus horas/haberes
 - Cuando la nómina supera la provisión acumulada, distribuye la diferencia entre los días aprobados. Si es menor, ajusta proporcionalmente sin producir cargos negativos. Conserva el total en CLP con ajuste de redondeo.
 - Las liquidaciones automáticas antiguas se conservan cuando aún no tienen una representación conciliada. Las manuales se conservan siempre: no es posible deducir automáticamente que un cargo manual es una provisión del mismo sueldo. No registrar manualmente la misma nómina además del circuito automático.
 - Las fechas de devengo, no la fecha de cierre, determinan el corte histórico. El monto definitivo puede revisar el histórico provisional; los días definitivos quedan congelados hasta una nueva distribución explícita.
-- Los cambios de asistencia invalidan la aprobación provisional; el importe definitivo congelado no desaparece silenciosamente. Los cambios de sueldo/parámetros se detectan al actualizar o conciliar y exigen revisión.
+- Una asistencia tardía reemplaza el centro de respaldo en la misma imputación, sin crear un segundo cargo. Editar o borrar el marcaje reevalúa el día; conflictos quedan pendientes. Las correcciones humanas se respetan mientras no cambie la evidencia. Los cargos automáticos se recalculan al actualizar; el importe definitivo de una nómina conciliada no desaparece ni se reemplaza silenciosamente: una diferencia requiere revisión y conciliación explícita.
 
 La conciliación solo modifica las imputaciones automáticas de la nómina seleccionada. Las nóminas antiguas sin `employerCost` requieren revisión antes de su conciliación con este modelo.
 

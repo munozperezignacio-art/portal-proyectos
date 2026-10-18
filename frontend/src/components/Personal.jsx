@@ -1639,7 +1639,7 @@ function Personal({ user, onBack }) {
                     <option value="">Sin predeterminar — pendiente de asignación</option>
                     {centrosGestion.map(c => <option key={c.id} value={c.id}>{c.codigo} · {c.nombre}</option>)}
                   </select>
-                  <p className="mt-1 text-[10px] text-slate-500">Es una propuesta, no un cargo automático. Se aprueba en RRHH → Asignaciones y distribución de costos.</p>
+                  <p className="mt-1 text-[10px] text-slate-500">Este centro es una propuesta. Para cargar automáticamente días sin marcaje, autoriza la regla en RRHH → Asignaciones y distribución de costos → Reglas sin asistencia.</p>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                   <div>

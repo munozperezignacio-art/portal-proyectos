@@ -8339,6 +8339,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
             <form onSubmit={submitAsistencia} className="space-y-4">
               <AttendanceDateField mode={asistenciaMode} value={asistenciaFecha} onChange={setAsistenciaFecha}/>
+              {asistenciaMode==='manual'&&<p className="rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-xs text-emerald-950">Al guardar un presente, el costo se carga directamente al centro de gestión de esta obra, con las HE calculadas, sin una segunda confirmación. Si falta centro o información de costeo, o existe más de un marcaje ese día, se revisa en RRHH → Asignaciones y distribución de costos.</p>}
               {asistenciaMode==='manual' && !editingAttendanceRecord && <label className="flex items-center gap-2 rounded-xl bg-blue-50 p-3 text-xs font-bold text-blue-950"><input type="checkbox" checked={multiAttendance} disabled={modalLoading} onChange={e=>setMultiAttendance(e.target.checked)}/>Registrar varios trabajadores</label>}
               {isBulkAttendance && <AttendanceWorkerPicker workers={personalList.filter(worker=>!worker.empresa || worker.empresa===(selectedObra.empresa || user.empresa))} selected={attendanceWorkerIds} onChange={setAttendanceWorkerIds} disabled={modalLoading}/>}
               <div className={isBulkAttendance?'hidden':''}>
@@ -8420,7 +8421,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   </label>
 
                   {/* Firma Digital Canvas */}
-                  <AttendanceHoursField value={asistenciaJornada} day={asistenciaDaySchedule} data={asistenciaData}/>
+                  <AttendanceHoursField value={asistenciaJornada} day={asistenciaDaySchedule} data={asistenciaData} manual={asistenciaMode==='manual'}/>
                   <div className={isBulkAttendance?'hidden':''}>
                     <div className="flex justify-between items-center mb-1">
                       <label className="block text-[10px] font-bold uppercase text-slate-500">Firma Manuscrita del Trabajador</label>

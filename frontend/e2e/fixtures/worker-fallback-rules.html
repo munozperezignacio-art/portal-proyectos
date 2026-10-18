@@ -1,0 +1,8 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="fixture"></div><script type="module">
+import React from 'react';import {createRoot} from 'react-dom/client';import '../../src/index.css';
+import WorkerFallbackRules from '../../src/components/WorkerFallbackRules.jsx';import {supabase} from '../../src/supabaseClient.js';
+window.rules=[];window.calls=[];window.changed=0;window.fail=false;
+supabase.from=table=>{const filters={};return {select(){return this;},eq(key,value){filters[key]=value;return this;},order(){return this;},range(){return Promise.resolve({data:table==='rrhh_reglas_sin_asistencia'?window.rules.filter(rule=>rule.empresa===filters.empresa):[],error:null});}};};
+supabase.rpc=async(name,args)=>{window.calls.push({name,args});if(window.fail)return {error:{message:'Error simulado de guardado'}};const rule={id:1,empresa:args.p_empresa,trabajador_id:args.p_trabajador,centro_gestion_id:args.p_centro,fecha_desde:args.p_desde,fecha_hasta:args.p_hasta,dias_semana:args.p_dias,hora_cierre:args.p_hora,activa:args.p_activa};window.rules=[...window.rules.filter(item=>item.trabajador_id!==rule.trabajador_id),rule];return {data:1,error:null};};
+createRoot(document.getElementById('fixture')).render(React.createElement(WorkerFallbackRules,{user:{empresa:'Prueba'},personal:[{id:1,nombre:'Trabajador Uno'},{id:2,nombre:'Trabajador Dos'}],centrosGestion:[{id:10,codigo:'ADM',nombre:'Administración',activo:true},{id:20,codigo:'OBR',nombre:'Obra',activo:true}],canApprove:!new URLSearchParams(location.search).has('readonly'),onChanged:()=>window.changed++}));
+</script></body></html>
