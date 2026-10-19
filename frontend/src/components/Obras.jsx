@@ -5171,6 +5171,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         criticalItems={criticalPartidas}
                         incidents={filteredAccidentes}
                         equipment={equipmentAvailability}
+                        simulationEquipment={[...maquinariaList,...arriendosList]}
+                        scopeLabel={isGlobalStats?'Obra completa':'Partidas del filtro seleccionado (no toda la obra)'}
                       />
                     )}
 
