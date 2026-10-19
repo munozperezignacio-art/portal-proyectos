@@ -13,6 +13,7 @@ import WorkforceProjection from './WorkforceProjection';
 import PayrollAutomation from './PayrollAutomation';
 import PersonnelAllocations from './PersonnelAllocations';
 import WorkerBulkImport from './WorkerBulkImport';
+import { workerContractSummary } from '../utils/workerImport.js';
 import WorkerDocumentsPanel from './WorkerDocumentsPanel';
 
 const afpCommissionRates = {
@@ -921,18 +922,18 @@ function Personal({ user, onBack }) {
                         </td>
                         <td className="p-3">
                           <span className={`text-[10px] px-2 py-0.5 rounded font-bold border ${p.tipo_contrato === 'Indefinido' ? 'bg-emerald-50 text-emerald-900 border-emerald-200' : 'bg-amber-50 text-amber-900 border-amber-200'}`}>
-                            {p.tipo_contrato || 'Indefinido'}
+                            {p.tipo_contrato || 'No informado'}
                           </span>
-                          {p.tipo_contrato !== 'Indefinido' && p.fecha_vencimiento_contrato && (
-                            <span className="block text-[10px] text-slate-500 font-mono mt-0.5">Vence: {p.fecha_vencimiento_contrato}</span>
+                          {(p.fecha_vencimiento_contrato || p.causal_termino_contrato || p.fecha_inicio_contrato > new Date().toISOString().slice(0,10)) && (
+                            <span className="block text-[10px] text-slate-500 mt-0.5">{workerContractSummary(p)}</span>
                           )}
                         </td>
                         <td className="p-3">
-                          <span className="font-bold text-slate-800">{p.afp || 'Habitat'}</span>
-                          <span className="block text-[10px] text-slate-500">{p.prevision_salud || 'FONASA'}</span>
+                          <span className="font-bold text-slate-800">{p.afp || 'AFP no informada'}</span>
+                          <span className="block text-[10px] text-slate-500">{p.prevision_salud || 'Salud no informada'}</span>
                         </td>
                         <td className="p-3">
-                          <span className="font-bold text-emerald-800 font-mono">${p.sueldo_base ? p.sueldo_base.toLocaleString('es-CL') : '600.000'}</span>
+                          <span className="font-bold text-emerald-800 font-mono">{p.sueldo_base == null ? 'No informado' : `$${Number(p.sueldo_base).toLocaleString('es-CL')}`}</span>
                           <span className="block text-[10px] text-slate-500">{p.tipo_cuenta || 'CuentaRUT'} ({p.banco || 'BancoEstado'})</span>
                         </td>
                         <td className="p-3 text-center">
@@ -1676,6 +1677,7 @@ function Personal({ user, onBack }) {
                       <option value="Indefinido">Indefinido</option>
                       <option value="Plazo Fijo">Plazo Fijo</option>
                       <option value="Por Obra o Faena">Por Obra o Faena</option>
+                      <option value="No informado">No informado</option>
                     </select>
                   </div>
                   <div>
