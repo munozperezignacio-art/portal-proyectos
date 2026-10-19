@@ -70,7 +70,7 @@ begin
   insert into public.rrhh_costeo_parametros(empresa,periodo,horas_semanales,tope_gratificacion_mensual,cargas_empleador_pct) values(empresa_test,to_char(hoy,'YYYY-MM'),42,100000,10);
   perform public.guardar_regla_sin_asistencia(empresa_test,corte,respaldo,hoy,null,array[1,2,3,4,5,6,7],'23:59:59',true);
   perform private.rrhh_sincronizar_cargo_dia(empresa_test,corte,hoy);
-  if exists(select 1 from public.rrhh_imputaciones_diarias where trabajador_id=corte and estado='Aprobada') then raise exception 'Cargo antes de la hora de cierre'; end if;
+  if not exists(select 1 from public.rrhh_imputaciones_diarias where trabajador_id=corte and estado='Aprobada') then raise exception 'La regla sigue esperando una hora de cierre'; end if;
   perform public.guardar_regla_sin_asistencia(empresa_test,corte,respaldo,hoy,null,array[1,2,3,4,5,6,7],'00:00',true);
   perform set_config('request.jwt.claim.sub','',true);
   perform private.rrhh_sincronizar_cargo_dia(empresa_test,corte,hoy);

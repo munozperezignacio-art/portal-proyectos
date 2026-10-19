@@ -1,8 +1,18 @@
 <!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="fixture"></div><script type="module">
 import React from 'react';import {createRoot} from 'react-dom/client';import '../../src/index.css';
 import WorkerFallbackRules from '../../src/components/WorkerFallbackRules.jsx';import {supabase} from '../../src/supabaseClient.js';
-window.rules=[];window.calls=[];window.changed=0;window.fail=false;
-supabase.from=table=>{const filters={};return {select(){return this;},eq(key,value){filters[key]=value;return this;},order(){return this;},range(){return Promise.resolve({data:table==='rrhh_reglas_sin_asistencia'?window.rules.filter(rule=>rule.empresa===filters.empresa):[],error:null});}};};
-supabase.rpc=async(name,args)=>{window.calls.push({name,args});if(window.fail)return {error:{message:'Error simulado de guardado'}};const rule={id:1,empresa:args.p_empresa,trabajador_id:args.p_trabajador,centro_gestion_id:args.p_centro,fecha_desde:args.p_desde,fecha_hasta:args.p_hasta,dias_semana:args.p_dias,hora_cierre:args.p_hora,activa:args.p_activa};window.rules=[...window.rules.filter(item=>item.trabajador_id!==rule.trabajador_id),rule];return {data:1,error:null};};
-createRoot(document.getElementById('fixture')).render(React.createElement(WorkerFallbackRules,{user:{empresa:'Prueba'},personal:[{id:1,nombre:'Trabajador Uno'},{id:2,nombre:'Trabajador Dos'}],centrosGestion:[{id:10,codigo:'ADM',nombre:'Administración',activo:true},{id:20,codigo:'OBR',nombre:'Obra',activo:true}],canApprove:!new URLSearchParams(location.search).has('readonly'),onChanged:()=>window.changed++}));
+const initial=(id,active)=>({id,empresa:'Prueba',trabajador_id:id,centro_gestion_id:10,fecha_desde:'2020-01-01',fecha_hasta:null,dias_semana:[1,2,3,4,5],hora_cierre:'20:00',horas_extra_diarias:1,activa:active});
+window.rules=[initial(3,true),initial(4,false)];window.calls=[];window.changed=0;window.fail=false;
+supabase.from=table=>{const filters={};return {select(){return this;},eq(key,value){filters[key]=value;return this;},order(){return this;},range(){return Promise.resolve({data:window.rules.filter(rule=>rule.empresa===filters.empresa),error:new URLSearchParams(location.search).has('loadfail')?{message:'Error de lectura'}:null});}};};
+supabase.rpc=async(name,args)=>{window.calls.push({name,args});if(window.fail)return {error:{message:'Error simulado de guardado'}};
+let saved=0,skipped=0;
+for(const id of args.p_trabajadores){const exists=window.rules.find(item=>item.trabajador_id===id);
+if(exists&&!args.p_reemplazar){skipped++;continue;}
+const rule={id,empresa:args.p_empresa,trabajador_id:id,centro_gestion_id:args.p_centro,fecha_desde:args.p_desde,fecha_hasta:args.p_hasta,dias_semana:args.p_dias,horas_extra_diarias:args.p_horas_extra,activa:args.p_activa};
+window.rules=[...window.rules.filter(item=>item.trabajador_id!==id),rule];saved++;}
+return {data:{guardadas:saved,omitidas:skipped},error:null};};
+createRoot(document.getElementById('fixture')).render(React.createElement(WorkerFallbackRules,{user:{empresa:'Prueba'},personal:[
+{id:1,empresa:'Prueba',nombre:'José Álvarez',rut:'12.345.678-5',cargo:'Operador'},{id:2,empresa:'Prueba',nombre:'Pedro Hernández',rut:'11111111-1',cargo:'Ayudante'},
+{id:3,empresa:'Prueba',nombre:'Ana Soto',rut:'22222222-2'},{id:4,empresa:'Prueba',nombre:'Berta Rojas',rut:'33333333-3'},
+{id:99,empresa:'Otra',nombre:'Otro no visible'}],centrosGestion:[{id:10,empresa:'Prueba',codigo:'ADM',nombre:'Administración',activo:true},{id:20,empresa:'Prueba',codigo:'OBR',nombre:'Obra',activo:true}],canApprove:!new URLSearchParams(location.search).has('readonly'),onChanged:()=>window.changed++}));
 </script></body></html>
