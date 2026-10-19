@@ -36,6 +36,7 @@ import AttendanceWorkerPicker from './AttendanceWorkerPicker';
 import {attendanceWorkerKey, buildManualAttendanceBatch} from '../utils/attendanceBatch';
 import AttendanceHoursField from './AttendanceHoursField';
 import AttendanceExtraHours from './AttendanceExtraHours';
+import {parseOtherHours} from '../utils/attendanceOtherHours';
 import AttendanceRegisterFilters from './AttendanceRegisterFilters';
 import {filterAttendanceRegister} from '../utils/attendanceRegisterFilters';
 import AdvanceReportDateFilter from './AdvanceReportDateFilter';
@@ -635,7 +636,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const [newWorkerData, setNewWorkerData] = useState({ nombre: '', rut: '', cargo: 'Operario', fono: '', email: '' });
 
   // Estados locales para los formularios
-  const [asistenciaData, setAsistenciaData] = useState({ trabajador: '', rut: '', asistencia: 'PRESENTE', ingreso: '08:00', salida: '18:00', colacion: 'SI' });
+  const [asistenciaData, setAsistenciaData] = useState({ trabajador: '', rut: '', asistencia: 'PRESENTE', ingreso: '08:00', salida: '18:00', colacion: 'SI', otras_horas: 0 });
   const [asistenciaFecha, setAsistenciaFecha] = useState(chileanAttendanceToday);
   const [editingAttendanceRecord, setEditingAttendanceRecord] = useState(null);
   const [multiAttendance,setMultiAttendance] = useState(false);
@@ -1898,6 +1899,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         jornada_aplicada: asistenciaDaySchedule,
         horas_ordinarias: calculatedHours.ordinary,
         horas_extras_auto: calculatedHours.extra,
+        ...(asistenciaMode === 'manual' ? {otras_horas: parseOtherHours(asistenciaData.otras_horas)} : {}),
         firma_base64: firmaBase64,
         latitud: gpsUserLoc.lat,
         longitud: gpsUserLoc.lng,
@@ -2317,7 +2319,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       asistencia: a.asistencia || 'PRESENTE',
       ingreso: a.ingreso || '08:00',
       salida: a.salida || '18:00',
-      colacion: a.colacion || 'SI'
+      colacion: a.colacion || 'SI',
+      otras_horas: a.otras_horas ?? 0
     });
     setSuccessMsg('');
     setErrorMsg('');
@@ -3664,7 +3667,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     <div className="flex flex-wrap gap-2">
                     <button onClick={()=>setShowWeeklySchedule(true)} className="border border-blue-200 bg-white text-blue-900 font-bold px-4 py-2.5 rounded-xl text-xs">Jornada semanal</button>
                     <button
-                      onClick={() => { setActiveModal('asistencia'); setSuccessMsg(''); setErrorMsg(''); }}
+                      onClick={() => { setAsistenciaData(current=>({...current,otras_horas:0})); setActiveModal('asistencia'); setSuccessMsg(''); setErrorMsg(''); }}
                       className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
                     >
                       <UserCheck className="w-4 h-4" />
@@ -3771,12 +3774,13 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                               <th className="p-2.5">Salida</th>
                               <th className="p-2.5">Colación</th>
                               <th className="p-2.5">Horas Extra</th>
+                              <th className="p-2.5">Otras horas</th>
                               <th className="p-2.5">Validación QR/GPS</th>
                               {canManageRecordsAccess && <th className="p-2.5 text-center">Acciones</th>}
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-150 text-[11px]">
-                            {!visibleAttendanceRecords.length && <tr><td colSpan={canManageRecordsAccess?10:9} className="p-6 text-center text-slate-500">No hay marcajes con los filtros seleccionados. Puedes limpiar los filtros para ver todos.</td></tr>}
+                            {!visibleAttendanceRecords.length && <tr><td colSpan={canManageRecordsAccess?11:10} className="p-6 text-center text-slate-500">No hay marcajes con los filtros seleccionados. Puedes limpiar los filtros para ver todos.</td></tr>}
                             {visibleAttendanceRecords.map((a, idx) => {
                               const fechaStr = attendanceDateLabel(a);
                               return (
@@ -3793,6 +3797,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                   <td className="p-2.5 font-mono font-semibold text-slate-700">{a.salida || '-'}</td>
                                   <td className="p-2.5 font-semibold text-slate-600">{a.colacion || 'SI'}</td>
                                   <td className="p-2.5 font-bold text-emerald-700"><AttendanceExtraHours record={a} onReview={canManageRecordsAccess ? ()=>handleEditAsistenciaRecord(a) : undefined}/></td>
+                                  <td className="p-2.5 font-semibold">{Number(a.otras_horas ?? 0).toLocaleString('es-CL')} h</td>
                                   <td className="p-2.5">
                                     {a.verificado_qr ? (
                                       <span className="text-[10px] bg-blue-50 text-blue-900 font-bold px-2 py-0.5 rounded border border-blue-200">✓ QR + GPS ({a.distancia_obra_m ? `${a.distancia_obra_m}m` : 'Verificado'})</span>
@@ -8404,6 +8409,10 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 </div>
               </div>
 
+              {asistenciaMode === 'manual' && <label className="block rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs font-bold">Otras horas
+                <input aria-label="Otras horas" type="number" min="0" max="99999999.99" step="0.01" value={asistenciaData.otras_horas ?? 0} onChange={e=>setAsistenciaData(current=>({...current,otras_horas:e.target.value}))} className="mt-2 block w-full rounded-lg border border-slate-200 bg-white p-2.5"/>
+                <span className="mt-1 block text-[10px] font-normal text-slate-500">Dato independiente de las horas extras; no modifica su cálculo ni el pago.{isBulkAttendance?' Se aplica el mismo valor a cada trabajador seleccionado.':''}</span>
+              </label>}
               {asistenciaData.asistencia === 'PRESENTE' && (
                 <div className="space-y-3 border-t border-slate-100 pt-3">
                   <div className="grid grid-cols-2 gap-3">

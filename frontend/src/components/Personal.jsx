@@ -16,6 +16,7 @@ import PersonnelAllocations from './PersonnelAllocations';
 import WorkerBulkImport from './WorkerBulkImport';
 import WorkerBulkAssignment from './WorkerBulkAssignment';
 import WorkerCenterAssignments from './WorkerCenterAssignments';
+import MonthlyWorkerAssignments from './MonthlyWorkerAssignments';
 import {workerAdditionalCenters,workerAssignedToWork} from '../utils/workerCenters';
 import {toggleVisibleWorkers,workerMatchesSearch} from '../utils/workerAssignment.js';
 import { workerContractSummary } from '../utils/workerImport.js';
@@ -78,6 +79,7 @@ function Personal({ user, onBack }) {
   const [assignmentNotice, setAssignmentNotice] = useState('');
   const [workerCenterLinks,setWorkerCenterLinks]=useState([]);
   const [centerWorkerIds,setCenterWorkerIds]=useState([]);
+  const [showMonthlyReport,setShowMonthlyReport]=useState(false);
   useEffect(() => { setAssignmentNotice(''); }, [user?.empresa]);
   useEffect(() => {
     setSelectedWorkerIds(current => current.filter(id => personal.some(worker => String(worker.id) === id && worker.empresa === user?.empresa)));
@@ -749,11 +751,13 @@ function Personal({ user, onBack }) {
   if (!canView) return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center text-sm font-bold text-amber-900">Tu perfil no tiene permiso para ver Recursos Humanos.</div>;
   return (
     <div className="space-y-6">
+      {canDownloadStatistics&&showMonthlyReport&&<MonthlyWorkerAssignments key={user.empresa} company={user.empresa} workers={personal} initialSelected={selectedWorkerIds} onClose={()=>setShowMonthlyReport(false)}/>}
       {canEdit&&centerWorkerIds.length>0&&<WorkerCenterAssignments company={user.empresa} workers={personal.filter(worker=>centerWorkerIds.includes(String(worker.id)))} centers={centrosGestion} assignments={workerCenterLinks} onClose={()=>setCenterWorkerIds([])} onSaved={async result=>{const refreshed=await fetchData();setAssignmentNotice(`${result.agregados} vínculos agregados · ${result.omitidos} ya existían · ${result.finalizados} finalizados. El centro principal y los costos se conservaron.${refreshed?'':' No se pudo refrescar el listado; recarga la pantalla.'}`);}}/>}
       
       {/* Encabezado */}
       <ModuleHeader title="Recursos Humanos (RRHH)" subtitle="Gestión de personal, asignaciones a obra y planillas de remuneraciones." Icon={Users} onBack={activeSubmodule !== null ? () => setActiveSubmodule(null) : onBack} actions={activeSubmodule === 'personal_empresa' && (
           <div className="flex flex-wrap gap-2">
+            {canDownloadStatistics&&<button type="button" onClick={()=>setShowMonthlyReport(true)} className="flex items-center gap-1.5 rounded-xl bg-emerald-800 px-4 py-2.5 text-xs font-bold text-white"><Download className="h-4 w-4"/>Asignaciones del mes · Excel</button>}
             {canImport && <button onClick={() => setShowBulkImport(true)} className="flex items-center gap-1.5 rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-xs font-bold text-blue-950 transition hover:bg-blue-50"><Upload className="h-4 w-4"/><span>Importar Excel</span></button>}
             {canCreate && <button onClick={handleOpenAddModal} className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition"><Plus className="w-4 h-4"/><span>Crear Ficha Trabajador</span></button>}
           </div>

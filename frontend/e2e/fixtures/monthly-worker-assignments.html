@@ -1,0 +1,18 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="fixture"></div><script type="module">
+import React from 'react';import{createRoot}from'react-dom/client';import '../../src/index.css';
+import MonthlyWorkerAssignments from '../../src/components/MonthlyWorkerAssignments.jsx';import{supabase}from'../../src/supabaseClient.js';
+import PersonnelAllocations from '../../src/components/PersonnelAllocations.jsx';
+const allocationsMode=new URLSearchParams(location.search).has('allocations');
+const workers=[{id:1,empresa:'TEST',nombre:'Ana Rojas',rut:'1-9',cargo:'Operadora'},{id:2,empresa:'TEST',nombre:'Luis Soto',rut:'2-7',cargo:'Maestro'}];
+const mark={id:10,empresa:'TEST',trabajador:'Ana Rojas',rut:'1-9',fecha_marcacion:'2026-10-01',asistencia:'PRESENTE',obra_id:8,ingreso:'08:00',salida:'19:00',horas_extras_auto:1,horas_extras_manual:0,otras_horas:2.5};
+const sources={asistencia_personal:[mark],rrhh_imputaciones_diarias:[{id:1,empresa:'TEST',trabajador_id:1,fecha:'2026-10-01',estado:'Aprobada',origen:'Asistencia',centro_aprobado_id:2,horas_extra_aprobadas:1}],facturacion_centros_gestion:[{id:2,empresa:'TEST',codigo:'C2',nombre:'Obra A'}],obras:[{id:8,empresa:'TEST',nombre:'Obra A',centro_gestion_id:2}]};
+sources.rrhh_imputaciones_diarias[0].historial=[];
+window.failReport=false;window.queries=[];
+supabase.from=table=>{const filters=[];window.queries.push({table,filters});const chain={};
+for(const method of ['select','eq','gte','lt','is','or','order'])chain[method]=(...args)=>{filters.push([method,...args]);return chain;};
+chain.range=async()=>window.failReport?{error:{message:'Error simulado de lectura'}}:{data:table==='asistencia_personal'&&filters.some(f=>f[0]==='is')?[]:sources[table]||[],error:null};return chain;};
+const originalFrom=supabase.from;
+supabase.from=table=>{const chain=originalFrom(table);chain.maybeSingle=async()=>({data:null,error:null});return chain;};
+supabase.rpc=()=>{if(allocationsMode)return Promise.resolve({data:0,error:null});throw Error('Una descarga nunca debe escribir cargos');};
+createRoot(document.getElementById('fixture')).render(allocationsMode?React.createElement(PersonnelAllocations,{user:{id:1,empresa:'TEST',rol:'Administrador'},personal:workers,obras:sources.obras,centrosGestion:sources.facturacion_centros_gestion}):React.createElement(MonthlyWorkerAssignments,{company:'TEST',workers,onClose:()=>{}}));
+</script></body></html>

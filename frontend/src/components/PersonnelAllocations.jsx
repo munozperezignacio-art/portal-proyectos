@@ -6,6 +6,8 @@ import { laborCostPreview } from '../utils/laborCostPreview';
 import {allocationApprovalDecisions,selectableAllocationRows} from '../utils/allocationApproval';
 import AllocationBulkApproval from './AllocationBulkApproval';
 import WorkerFallbackRules from './WorkerFallbackRules';
+import {readMonthlyAttendance,attendanceForWorker} from '../utils/monthlyWorkerReport';
+import {attendanceDay} from '../utils/attendanceDates';
 
 const monthNow = () => new Date().toLocaleDateString('en-CA').slice(0, 7);
 export default function PersonnelAllocations({ user, personal, obras, centrosGestion }) {
@@ -14,6 +16,15 @@ export default function PersonnelAllocations({ user, personal, obras, centrosGes
   const canEdit = can(user, permissions, 'rrhh.imputaciones.editar');
   const [period, setPeriod] = useState(monthNow);
   const [rows, setRows] = useState([]);
+  const [attendance,setAttendance]=useState([]);
+  const otherHoursByDay=useMemo(()=>{
+    const map=new Map();
+    for(const worker of personal)for(const mark of attendanceForWorker(attendance,worker,personal)){
+      const key=`${worker.id}:${attendanceDay(mark)}`;
+      map.set(key,(map.get(key)||0)+Number(mark.otras_horas||0));
+    }
+    return map;
+  },[attendance,personal]);
   const [payroll, setPayroll] = useState(null);
   const [costs, setCosts] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -58,8 +69,9 @@ export default function PersonnelAllocations({ user, personal, obras, centrosGes
       if (run.error) throw run.error;
       const ledger = run.data ? await supabase.from('rrhh_costos_centros_aprobados').select('*').eq('empresa', user.empresa).eq('nomina_id', run.data.id) : { data: [] };
       if (ledger.error) throw ledger.error;
-      setRows(all); setPayroll(run.data); setCosts(ledger.data || []);
-    } catch (error) { setRows([]); setPayroll(null); setCosts([]); setMessage(error.message); }
+      const marks=await readMonthlyAttendance(supabase,user.empresa,period);
+      setAttendance(marks);setRows(all); setPayroll(run.data); setCosts(ledger.data || []);
+    } catch (error) { setAttendance([]);setRows([]); setPayroll(null); setCosts([]); setMessage(error.message); }
     finally { setBusy(false); }
   }, [period, user.empresa, permissionsLoading, canEdit, canApprove]);
   useEffect(() => { load(); }, [load]);
@@ -122,7 +134,7 @@ export default function PersonnelAllocations({ user, personal, obras, centrosGes
     <div className="max-h-[650px] overflow-auto rounded-xl border"><table className="w-full min-w-[1000px] text-left text-xs"><thead className="sticky top-0 bg-slate-100"><tr><th className="p-3"><input aria-label="Seleccionar pendientes filtrados" type="checkbox" disabled={busy || !canApprove || !selectable.length} checked={selectable.length>0 && selectable.slice(0,1000).every(r => selected.includes(r.id))} onChange={e => setSelected(e.target.checked ? selectable.slice(0,1000).map(r => r.id) : [])}/></th>{['Fecha / trabajador','Evidencia','Destino del cargo','Motivo / aprobación'].map(t => <th key={t} className="p-3">{t}</th>)}</tr></thead><tbody>{filtered.map(r => <tr key={r.id} className="border-t align-top">
       <td className="p-3"><input aria-label={`Seleccionar día ${r.fecha}`} type="checkbox" disabled={busy || !canApprove || r.fecha>today || r.estado==='Aprobada'} checked={selected.includes(r.id)} onChange={e => setSelected(s => e.target.checked ? [...s,r.id] : s.filter(id => id !== r.id))}/>{r.fecha>today && <small className="block">Fecha futura</small>}</td>
       <td className="p-3">{r.fecha}<b className="block">{workerMap.get(r.trabajador_id)?.nombre || `Trabajador ${r.trabajador_id}`}</b><span>{r.asignacion_automatica?'Cargada automáticamente':r.estado}</span></td>
-      <td className="p-3">{r.origen}<small className="block">Propuesta: {centerLabel(r.centro_propuesto_id)}</small><small className="block">H. extra detectadas: {r.costo_evidencia?.horas_detectadas ?? 'Por calcular'}</small>{Array.isArray(r.evidencia?.marcas) && r.evidencia.marcas.map(m => <small className="block" key={m[0]}>{obras.find(o => o.id === m[1])?.nombre || 'Sin obra'} · {m[2]}</small>)}</td>
+      <td className="p-3">{r.origen}<small className="block">Propuesta: {centerLabel(r.centro_propuesto_id)}</small><small className="block">H. extra detectadas: {r.costo_evidencia?.horas_detectadas ?? 'Por calcular'}</small><small className="block">Otras horas: {otherHoursByDay.has(`${r.trabajador_id}:${r.fecha}`)?`${Math.round(otherHoursByDay.get(`${r.trabajador_id}:${r.fecha}`)*100)/100} h`:'Sin registro'} (informativas)</small>{Array.isArray(r.evidencia?.marcas) && r.evidencia.marcas.map(m => <small className="block" key={m[0]}>{obras.find(o => o.id === m[1])?.nombre || 'Sin obra'} · {m[2]}</small>)}</td>
       <td className="p-3"><select aria-label={`Destino ${r.fecha}`} disabled={busy || !canApprove} value={edits[r.id]?.center ?? r.centro_aprobado_id ?? r.centro_propuesto_id ?? ''} onChange={e => change(r.id,'center',e.target.value)} className={`${cls} w-full`}><option value="">Seleccione un centro</option>{centrosGestion.filter(c => c.activo !== false).map(c => <option key={c.id} value={c.id}>{centerLabel(c.id)}</option>)}</select>
         <div className="mt-2 space-y-1">{[['hours','Horas extras a aprobar',r.costo_detalle?.horas_extra],['taxable','Haber adicional imponible ($)',r.haber_imponible],['nonTaxable','Haber adicional no imponible ($)',r.haber_no_imponible]].map(([key,label,value]) => <label className="block text-[10px]" key={key}>{label}<input type="number" min="0" step="0.01" disabled={busy || !canApprove} value={edits[r.id]?.[key] ?? value ?? 0} onChange={e => change(r.id,key,e.target.value)} className="ml-1 w-24 rounded border p-1"/></label>)}</div>
         <details className="mt-2 text-[10px]"><summary>{r.costo_detalle?.listo ? `Costo propuesto: $${Number(preview(r).total).toLocaleString('es-CL')}` : 'Falta configuración de costo'}</summary>{Object.entries(preview(r)).filter(([k,v]) => typeof v === 'number' && k !== 'horas_extra').map(([k,v]) => <p key={k}>{k}: ${v.toLocaleString('es-CL')}</p>)}<p>Vista previa. El servidor recalcula y registra el desglose al aprobar.</p></details>
