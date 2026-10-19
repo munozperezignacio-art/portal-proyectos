@@ -8,4 +8,4 @@ dist-apk-check/
 tests/
 *.log
 .env*
-!.env
+!release-manifest.json

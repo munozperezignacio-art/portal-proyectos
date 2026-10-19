@@ -27,11 +27,42 @@ npm run lint
 npx expo export --platform web
 ```
 
-Para binarios instalables se configurará EAS Build cuando se definan las cuentas de Apple Developer y Google Play.
-
 ## Compilaciones
 
-- `npx eas-cli build --platform android --profile preview`: genera una APK instalable para pruebas.
-- `npx eas-cli build --platform android --profile production`: genera el AAB destinado a Google Play.
+Desde la raíz del repositorio:
+
+```bash
+npm run mobile:apk:check
+npm run mobile:apk:inspect
+npm run mobile:apk
+```
+
+El primer comando verifica sin iniciar una compilación remota. El segundo inspecciona
+el archivo real que EAS enviaría y comprueba su inventario, sin generar una APK.
+El tercero actualiza
+la referencia de `origin/main`, ejecuta tipos y pruebas, prepara una copia completa
+del commit y solicita el APK a Expo. No selecciona archivos individuales ni realiza
+commits o publicaciones automáticamente.
+
+Antes de compilar, todas las mejoras del móvil deben estar integradas y publicadas
+en `main`. Si hay archivos modificados, nuevos o código ignorado en `src`, `assets`
+o `scripts`, el proceso se detiene e indica cuáles faltan. Tampoco admite ejecutar
+desde una copia parcial ni con variables que cambien el origen de los archivos.
+
+El envío lleva un inventario de archivos y huellas SHA-256. Expo comprueba ese
+inventario antes de instalar dependencias: si falta un archivo, cambia su contenido
+o falta el inventario, la compilación se bloquea. El incremento remoto del contador
+Android/iOS se permite sin alterar la versión ni el resto de la configuración.
+
+Los registros quedan en `entregables/apk/registros/`, con versión, commit, inventario
+e identificador del build. La pantalla de inicio de las próximas APK mostrará la
+versión y la revisión para identificar el instalador. La compilación enviada queda
+pendiente hasta que Expo confirme su finalización; no se entrega un enlace antiguo
+como si correspondiera a una nueva versión.
+
+No usar `eas build` directamente, copias de `git archive` manuales o carpetas de
+compilaciones anteriores. Los comandos directos no generan el inventario obligatorio.
+La única copia sin Git permitida es la que crea el proceso después de verificar el
+proyecto original: contiene todos los archivos del commit, no una selección.
 
 Las variables públicas de Supabase deben configurarse también en el entorno EAS antes de la primera compilación remota.

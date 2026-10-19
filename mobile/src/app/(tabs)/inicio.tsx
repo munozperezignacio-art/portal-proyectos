@@ -5,6 +5,7 @@ import { Alert, Modal, Pressable, StyleSheet, Switch, Text, View } from 'react-n
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/auth/AuthProvider';
 import { Card, Header, Screen } from '@/components/ui';
+import { BuildVersion } from '@/components/BuildVersion';
 import { colors } from '@/lib/theme';
 import { can, canUse } from '@/lib/types';
 import { fetchNotificationInbox } from '@/lib/notifications';
@@ -39,6 +40,7 @@ export default function Home() {
     <View style={s.hero}><Text style={s.kicker}>OPERACIÓN EN TERRENO</Text><Text style={s.heroTitle}>Todo lo esencial de la obra, en tu bolsillo.</Text><Text style={s.heroText}>Consulta datos reales y registra información con trazabilidad Obraxis.</Text></View>
     {modules.filter(item => visible(item[4])).map(item => <Card key={item[0]} onPress={() => router.push(item[3] as never)}><View style={s.row}><View style={s.moduleIcon}><Ionicons name={item[2]} size={23} color={colors.orange}/></View><View style={s.flex}><Text style={s.moduleTitle}>{item[0]}</Text><Text style={s.moduleText}>{item[1]}</Text></View><Ionicons name="chevron-forward" size={20} color={colors.muted}/></View></Card>)}
     <Modal visible={menu} transparent animationType="fade" onRequestClose={() => setMenu(false)}><Pressable style={s.overlay} onPress={() => setMenu(false)}><Pressable style={[s.drawer, { paddingTop: Math.max(28, insets.top + 12) }]} onPress={event => event.stopPropagation()}><View style={s.drawerTop}><View><Text style={s.drawerTitle}>Mi cuenta</Text><Text style={s.drawerMeta}>{profile?.usuario} · {profile?.empresa}</Text></View><Pressable onPress={() => setMenu(false)} style={s.close}><Ionicons name="close" size={23} color={colors.ink}/></Pressable></View><Pressable style={s.setting} onPress={()=>{setMenu(false);router.push('/notificaciones')}}><View style={s.securityIcon}><Ionicons name="notifications-outline" size={22} color={colors.blue}/></View><View style={s.flex}><Text style={s.moduleTitle}>Centro de notificaciones</Text><Text style={s.moduleText}>{unread?`${unread} notificación${unread===1?'':'es'} sin leer.`:'No tienes avisos pendientes.'}</Text></View><Ionicons name="chevron-forward" size={19} color={colors.muted}/></Pressable><View style={s.setting}><View style={s.securityIcon}><Ionicons name="finger-print" size={23} color={colors.blue}/></View><View style={s.flex}><Text style={s.moduleTitle}>Acceso biométrico</Text><Text style={s.moduleText}>{biometricAvailable ? 'Protege el inicio de la sesión guardada.' : 'No disponible en este teléfono.'}</Text></View><Switch disabled={!biometricAvailable} value={biometricEnabled} onValueChange={toggle}/></View><Pressable onPress={signOut} style={s.logout}><Ionicons name="log-out-outline" size={20} color={colors.red}/><Text style={s.logoutText}>Cerrar sesión</Text></Pressable></Pressable></Pressable></Modal>
+    <BuildVersion />
   </Screen>;
 }
 

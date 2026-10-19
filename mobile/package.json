@@ -49,7 +49,12 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node scripts/test.cjs",
+    "apk": "node scripts/release-apk.mjs",
+    "apk:check": "node scripts/release-apk.mjs --check",
+    "apk:inspect": "node scripts/release-apk.mjs --inspect",
+    "eas-build-pre-install": "node scripts/verify-release.cjs"
   },
   "private": true
 }

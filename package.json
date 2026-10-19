@@ -8,6 +8,9 @@
     "mobile": "npm run start --prefix mobile",
     "mobile:android": "npm run android --prefix mobile",
     "mobile:ios": "npm run ios --prefix mobile",
-    "mobile:check": "npm run typecheck --prefix mobile"
+    "mobile:check": "npm run typecheck --prefix mobile",
+    "mobile:apk": "npm run apk --prefix mobile",
+    "mobile:apk:check": "npm run apk:check --prefix mobile",
+    "mobile:apk:inspect": "npm run apk:inspect --prefix mobile"
   }
 }
