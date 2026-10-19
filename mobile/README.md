@@ -65,4 +65,9 @@ compilaciones anteriores. Los comandos directos no generan el inventario obligat
 La única copia sin Git permitida es la que crea el proceso después de verificar el
 proyecto original: contiene todos los archivos del commit, no una selección.
 
+El flujo histórico `Android web (Capacitor, legado)` empaqueta la plataforma web,
+no Obraxis Terreno. Queda limitado a ejecución manual y su artefacto se identifica
+como `obraxis-web-capacitor-debug-apk`. No debe entregarse como actualización de la
+app nativa ni usarse para validar sus mejoras de asistencia o estadísticas.
+
 Las variables públicas de Supabase deben configurarse también en el entorno EAS antes de la primera compilación remota.
