@@ -20,6 +20,8 @@ import {workEmailRecipients,workEmailSetting,workEmailBatches} from '../utils/wo
 import {sendWorkRecordNotification} from '../utils/workRecordNotifications';
 import { calendarTimeline } from '../utils/sCurveTimeline';
 import DailySCurve from './DailySCurve';
+import ProjectProfileModal from './ProjectProfileModal';
+import {projectName,migrateProjectStorage} from '../utils/projectProfile';
 import { plannedValueAt } from '../utils/plannedProgress';
 import useSignatureCanvas from '../utils/useSignatureCanvas';
 import AttendanceDateField from './AttendanceDateField';
@@ -185,7 +187,7 @@ function ObraGpsMapPicker({ lat, lng, radius, onChange, canEdit }) {
   );
 }
 
-function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChange, oxDestination, onOXDestinationHandled }) {
+function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChange, oxDestination, onOXDestinationHandled, onProjectRenamed }) {
   const { permissions: userPermissions } = useUserPermissions(user);
   const canPrevView = can(user, userPermissions, 'obras.prevencion.ver');
   const canPrevCreate = can(user, userPermissions, 'obras.prevencion.crear');
@@ -193,6 +195,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const canPrevReview = can(user, userPermissions, 'obras.prevencion.revisar');
   const canPrevDownload = can(user, userPermissions, 'obras.prevencion.descargar');
   const canObraFichaView = can(user, userPermissions, 'obras.ficha.ver');
+  const canObraFichaEdit = can(user, userPermissions, 'obras.ficha.editar');
+  const savingProfile = React.useRef(false);
   const canObraAvancesView = can(user, userPermissions, 'obras.avances.ver');
   const canObraGestionView = can(user, userPermissions, 'obras.gestion.ver');
   const canObraPersonalView = can(user, userPermissions, 'obras.personal.ver');
@@ -288,7 +292,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const [obraStatusFilter, setObraStatusFilter] = useState('activas');
   const [showObraTools, setShowObraTools] = useState(false);
   const [showObraDetails, setShowObraDetails] = useState(false);
-  const [obraDetailsForm, setObraDetailsForm] = useState({ especialidad: '', cliente: '', cliente_email: '', cliente_telefono: '', ubicacion: '', admin_contrato: '', oficina_tecnica: '', prevencionista: '', estado: 'Activa', fecha_termino_real: '', motivo_cierre: '' });
+  const [obraDetailsForm, setObraDetailsForm] = useState({ nombre: '', especialidad: '', cliente: '', cliente_email: '', cliente_telefono: '', ubicacion: '', admin_contrato: '', oficina_tecnica: '', prevencionista: '', estado: 'Activa', fecha_termino_real: '', motivo_cierre: '' });
 
   const toggleFavorite = (e, name) => {
     e.stopPropagation();
@@ -311,22 +315,32 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   }).sort((left, right) => Number(favorites.includes(right.nombre)) - Number(favorites.includes(left.nombre)) || String(left.nombre).localeCompare(String(right.nombre)));
 
   const openObraDetails = () => {
-    setObraDetailsForm({ especialidad: selectedObra?.tipo || '', cliente: selectedObra?.cliente || '', cliente_email: selectedObra?.cliente_email || '', cliente_telefono: selectedObra?.cliente_telefono || '', ubicacion: selectedObra?.ubicacion || '', admin_contrato: selectedObra?.admin_contrato || '', oficina_tecnica: selectedObra?.oficina_tecnica || '', prevencionista: selectedObra?.prevencionista || '', estado: selectedObra?.estado || 'Activa', fecha_termino_real: toDateKey(selectedObra?.fecha_termino_real), motivo_cierre: selectedObra?.motivo_cierre || '' });
+    setErrorMsg('');
+    setObraDetailsForm({ nombre: selectedObra?.nombre || '', especialidad: selectedObra?.tipo || '', cliente: selectedObra?.cliente || '', cliente_email: selectedObra?.cliente_email || '', cliente_telefono: selectedObra?.cliente_telefono || '', ubicacion: selectedObra?.ubicacion || '', admin_contrato: selectedObra?.admin_contrato || '', oficina_tecnica: selectedObra?.oficina_tecnica || '', prevencionista: selectedObra?.prevencionista || '', estado: selectedObra?.estado || 'Activa', fecha_termino_real: toDateKey(selectedObra?.fecha_termino_real), motivo_cierre: selectedObra?.motivo_cierre || '' });
     setShowObraDetails(true);
   };
   const saveObraDetails = async (event) => {
     event.preventDefault();
+    if (!canObraFichaEdit || savingProfile.current) return;
+    let nombre;
+    try { nombre=projectName(obraDetailsForm.nombre); } catch(error) {setErrorMsg(error.message);return;}
     const isClosed = ['Terminada', 'Archivada'].includes(obraDetailsForm.estado);
     if (isClosed && (!obraDetailsForm.fecha_termino_real || !obraDetailsForm.motivo_cierre.trim())) { setErrorMsg('Para cerrar una obra registra la fecha real de término y el motivo de cierre.'); return; }
-    setModalLoading(true); setErrorMsg('');
+    savingProfile.current=true; setModalLoading(true); setErrorMsg('');
     try {
       const payload = { tipo: obraDetailsForm.especialidad.trim() || 'Construcción General', cliente: obraDetailsForm.cliente.trim() || null, cliente_email: obraDetailsForm.cliente_email.trim() || null, cliente_telefono: obraDetailsForm.cliente_telefono.trim() || null, ubicacion: obraDetailsForm.ubicacion.trim() || null, admin_contrato: obraDetailsForm.admin_contrato.trim() || null, oficina_tecnica: obraDetailsForm.oficina_tecnica.trim() || null, prevencionista: obraDetailsForm.prevencionista.trim() || null, estado: obraDetailsForm.estado, fecha_termino_real: obraDetailsForm.fecha_termino_real || null, motivo_cierre: obraDetailsForm.motivo_cierre.trim() || null };
-      const { error } = await supabase.from('obras').update(payload).eq('id', selectedObra.id);
+      const { data, error } = await supabase.rpc('actualizar_ficha_obra', {p_empresa:selectedObra.empresa,p_obra:selectedObra.id,p_nombre_anterior:selectedObra.nombre,p_datos:{...payload,nombre}});
       if (error) throw error;
-      const updated = { ...selectedObra, ...payload };
+      if (!data || data.id!==selectedObra.id) throw new Error('No se recibió la confirmación del servidor. Actualiza la página antes de reintentar.');
+      const updated = data;
+      if(updated.nombre!==selectedObra.nombre) {
+        migrateProjectStorage(localStorage,selectedObra.nombre,updated.nombre);
+        setFavorites(current=>[...new Set(current.map(name=>name===selectedObra.nombre?updated.nombre:name))]);
+        onProjectRenamed?.({empresa:selectedObra.empresa,previous:selectedObra.nombre,next:updated.nombre});
+      }
       setSelectedObra(updated); setObras(current => current.map(obra => obra.id === updated.id ? updated : obra)); setShowObraDetails(false); setSuccessMsg(isClosed ? 'Obra cerrada y enviada al historial.' : 'Ficha de obra actualizada.');
     } catch (error) { setErrorMsg(error.message?.includes('column') ? 'El ciclo de vida de obras no está habilitado correctamente. Solicita al administrador revisar la configuración de Supabase.' : `No se pudo actualizar la ficha de obra: ${error.message}`); }
-    finally { setModalLoading(false); }
+    finally { savingProfile.current=false; setModalLoading(false); }
   };
   
   // Estados para métricas de la obra seleccionada
@@ -2846,7 +2860,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         <div className="space-y-6">
           
           {/* Cabecera */}
-          <div className="flex justify-between items-start border-b border-slate-200 pb-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-start border-b border-slate-200 pb-4">
             <div>
               <button 
                 onClick={handleBackToProjects} 
@@ -2862,8 +2876,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
             
             <div className="flex flex-wrap gap-2">
               <button onClick={() => setShowObraTools(value => !value)} className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-[11px] text-slate-700 font-bold px-3 py-2 border border-slate-300 rounded-lg transition"><Settings className="w-3.5 h-3.5" /><span>{showObraTools ? 'Ocultar herramientas' : 'Herramientas'}</span></button>
+              {canObraFichaView && <button onClick={openObraDetails} className="flex items-center gap-1.5 bg-blue-900 hover:bg-blue-800 text-xs text-white font-bold px-3 py-2 border border-blue-900 rounded-lg transition"><Edit className="w-4 h-4" /><span>Ficha del proyecto</span></button>}
               {showObraTools && <>
-              <button onClick={openObraDetails} className="flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-[11px] text-amber-900 font-bold px-3 py-2 border border-amber-200 rounded-lg transition"><Edit className="w-3.5 h-3.5" /><span>Ficha y cierre</span></button>
               {/* Configuración de Correos de la Obra (Engranaje ⚙️) */}
               {canConfigureEmails(user) && (
                 <button
@@ -9447,14 +9461,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         </div>
       )}
 
-      {showObraDetails && selectedObra && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto bg-slate-900/60 p-3 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
-            <div className="mb-4 flex items-start justify-between border-b border-slate-200 pb-3"><div><h3 className="text-base font-black text-slate-900">Ficha de Obra</h3><p className="mt-1 text-xs text-slate-500">Datos administrativos, responsables, contacto y ciclo de vida del proyecto.</p></div><button onClick={() => setShowObraDetails(false)} className="rounded-lg p-1 text-slate-500 hover:bg-slate-100">✕</button></div>
-            <form onSubmit={saveObraDetails} className="space-y-4"><section className="space-y-3"><p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Identificación y mandante</p><div className="grid gap-3 sm:grid-cols-2"><label className="block text-xs font-bold text-slate-700">Especialidad<input value={obraDetailsForm.especialidad} onChange={event => setObraDetailsForm({ ...obraDetailsForm, especialidad: event.target.value })} placeholder="Ej. Edificación, vialidad, montaje" className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /></label><label className="block text-xs font-bold text-slate-700">Cliente / mandante<input value={obraDetailsForm.cliente} onChange={event => setObraDetailsForm({ ...obraDetailsForm, cliente: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /></label><label className="block text-xs font-bold text-slate-700">Correo de contacto<input type="email" value={obraDetailsForm.cliente_email} onChange={event => setObraDetailsForm({ ...obraDetailsForm, cliente_email: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /></label><label className="block text-xs font-bold text-slate-700">Teléfono de contacto<input value={obraDetailsForm.cliente_telefono} onChange={event => setObraDetailsForm({ ...obraDetailsForm, cliente_telefono: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /></label></div><label className="block text-xs font-bold text-slate-700">Ubicación<input value={obraDetailsForm.ubicacion} onChange={event => setObraDetailsForm({ ...obraDetailsForm, ubicacion: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /></label></section><section className="space-y-3 border-t border-slate-200 pt-4"><p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Equipo responsable</p><div className="grid gap-3 sm:grid-cols-3"><label className="block text-xs font-bold text-slate-700">Administrador de contrato<input value={obraDetailsForm.admin_contrato} onChange={event => setObraDetailsForm({ ...obraDetailsForm, admin_contrato: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /></label><label className="block text-xs font-bold text-slate-700">Oficina técnica<input value={obraDetailsForm.oficina_tecnica} onChange={event => setObraDetailsForm({ ...obraDetailsForm, oficina_tecnica: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /></label><label className="block text-xs font-bold text-slate-700">Prevencionista<input value={obraDetailsForm.prevencionista} onChange={event => setObraDetailsForm({ ...obraDetailsForm, prevencionista: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /></label></div></section><section className="space-y-3 border-t border-slate-200 pt-4"><p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Ciclo de vida</p><label className="block text-xs font-bold text-slate-700">Estatus de la obra<select value={obraDetailsForm.estado} onChange={event => setObraDetailsForm({ ...obraDetailsForm, estado: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm"><option>Activa</option><option>En pausa</option><option>En cierre</option><option>Terminada</option><option>Archivada</option></select></label>{['Terminada', 'Archivada'].includes(obraDetailsForm.estado) && <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-3"><p className="text-xs font-bold text-amber-900">Al cerrar, la obra saldrá de la vista operativa y quedará disponible en el historial.</p><label className="block text-xs font-bold text-slate-700">Fecha real de término<input type="date" required value={obraDetailsForm.fecha_termino_real} onChange={event => setObraDetailsForm({ ...obraDetailsForm, fecha_termino_real: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /></label><label className="block text-xs font-bold text-slate-700">Motivo de cierre<textarea required rows={3} value={obraDetailsForm.motivo_cierre} onChange={event => setObraDetailsForm({ ...obraDetailsForm, motivo_cierre: event.target.value })} placeholder="Ej. Recepción conforme, término anticipado, cierre administrativo" className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /></label></div>}</section>{errorMsg && <p className="rounded-lg bg-rose-50 p-2 text-xs font-semibold text-rose-700">{errorMsg}</p>}<div className="flex justify-end gap-2 pt-2"><button type="button" onClick={() => setShowObraDetails(false)} className="rounded-xl bg-slate-100 px-4 py-2.5 text-xs font-bold text-slate-700">Cancelar</button><button disabled={modalLoading} type="submit" className="rounded-xl bg-blue-900 px-4 py-2.5 text-xs font-black text-white disabled:opacity-50">{modalLoading ? 'Guardando…' : 'Guardar ficha'}</button></div></form>
-          </div>
-        </div>
-      )}
+      {showObraDetails && selectedObra && <ProjectProfileModal form={obraDetailsForm} onChange={setObraDetailsForm} onSave={saveObraDetails} onClose={() => setShowObraDetails(false)} canEdit={canObraFichaEdit} busy={modalLoading} error={errorMsg} />}
 
       {/* MODAL ENRIQUECIDO: CREAR NUEVA OBRA */}
       {showCreateObraModal && (

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import { getAuthenticatedProfile } from './utils/auth';
+import {renameWorkScope} from './utils/projectProfile';
 import { recoverFromStaleChunk } from './utils/staleChunkRecovery';
 import useUserPermissions from './utils/useUserPermissions';
 import {moduleHasViewAccess} from './utils/companyPermissions';
@@ -877,6 +878,11 @@ function App() {
                 setCurrentModule('dashboard');
               }} 
               initialObraName={selectedObraName}
+              onProjectRenamed={({empresa,previous,next}) => {
+                setSelectedObraName(current=>current===previous?next:current);
+                setFavorites(current=>[...new Set(current.map(name=>name===previous?next:name))]);
+                setUser(current=>current?.empresa===empresa?{...current,obras:renameWorkScope(current.obras,previous,next)}:current);
+              }}
               companyBranding={companyBranding}
               onOXContextChange={setOxObra}
               oxDestination={oxDestination}
