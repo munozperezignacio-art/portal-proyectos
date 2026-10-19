@@ -9,10 +9,17 @@ window.workers=[{id:1,empresa:'Prueba',nombre:'José Álvarez',rut:'12.345.678-5
  {id:3,empresa:'Prueba',nombre:'Ana Rojas',rut:'22222222-2',obra_nombre:'Obra A',centro_gestion_id:10,fecha_asig:'2000-01-01',cargo:'Supervisor'},
  {id:4,empresa:'Prueba',nombre:'Ingreso futuro',rut:'33333333-3',fecha_inicio_contrato:'2099-01-01'}];
 const works=[{id:10,empresa:'Prueba',nombre:'Obra A',centro_gestion_id:10},{id:20,empresa:'Prueba',nombre:'Obra B',centro_gestion_id:20}];
-supabase.from=table=>{const filters={};const result=()=>{let rows=table==='maestro_personal'?window.workers:table==='obras'?works:table==='usuarios'?[user]:[];return {data:rows.filter(row=>Object.entries(filters).every(([key,value])=>row[key]===value)),error:null};};
+const multi=new URLSearchParams(location.search).has('multi');
+const centers=[{id:10,empresa:'Prueba',codigo:'A',nombre:'Obra A',activo:true},{id:20,empresa:'Prueba',codigo:'B',nombre:'Obra B',activo:true},{id:30,empresa:'Prueba',codigo:'OF',nombre:'Oficina',activo:true}];
+window.centerLinks=multi?[{id:1,empresa:'Prueba',trabajador_id:3,centro_gestion_id:20,centro_codigo:'B',centro_nombre:'Obra B',centro_activo:true,fecha_inicio:'2000-01-01',fecha_termino:null}]:[];
+supabase.from=table=>{const filters={};const result=()=>{let rows=table==='maestro_personal'?window.workers:table==='obras'?works:table==='usuarios'?[user]:table==='facturacion_centros_gestion'?centers:table==='rrhh_personal_centros_detalle'?window.centerLinks:[];return {data:rows.filter(row=>Object.entries(filters).every(([key,value])=>row[key]===value)),error:null};};
  return {select(){return this;},eq(key,value){filters[key]=value;return this;},order(){return this;},range(){return Promise.resolve(result());},maybeSingle(){const r=result();return Promise.resolve({...r,data:r.data[0]||null});},then(resolve,reject){return Promise.resolve(result()).then(resolve,reject);}};};
 supabase.rpc=async(name,args)=>{window.assignmentCalls.push({name,args});if(window.failAssignment)return {error:{message:'Error simulado de asignación'}};
- const work=works.find(item=>item.id===args.p_obra);window.workers=window.workers.map(worker=>args.p_trabajadores.includes(worker.id)?{...worker,obra_nombre:work.nombre,centro_gestion_id:work.centro_gestion_id,fecha_asig:args.p_fecha}:worker);
+if(name==='gestionar_personal_centros'){
+ for(const worker of args.p_trabajadores)for(const center of args.p_centros){const c=centers.find(c=>c.id===center);window.centerLinks.push({id:window.centerLinks.length+1,empresa:'Prueba',trabajador_id:worker,centro_gestion_id:center,centro_codigo:c.codigo,centro_nombre:c.nombre,centro_activo:true,fecha_inicio:args.p_inicio,fecha_termino:args.p_termino});}
+ return {data:{agregados:args.p_trabajadores.length*args.p_centros.length,omitidos:0,finalizados:0},error:null};
+ }
+const work=works.find(item=>item.id===args.p_obra);window.workers=window.workers.map(worker=>args.p_trabajadores.includes(worker.id)?{...worker,obra_nombre:work.nombre,centro_gestion_id:work.centro_gestion_id,fecha_asig:args.p_fecha}:worker);
  return {data:{asignados:args.p_trabajadores.length,omitidos:0},error:null};};
 createRoot(document.getElementById('fixture')).render(React.createElement(Personal,{user,onBack:()=>{}}));
 </script></body></html>

@@ -1,0 +1,10 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="fixture"></div><script type="module">
+import React,{useState} from 'react';import{createRoot}from'react-dom/client';import '../../src/index.css';
+import WorkerCenterAssignments from '../../src/components/WorkerCenterAssignments.jsx';import{ supabase }from'../../src/supabaseClient.js';
+const workers=[{id:1,empresa:'TEST',nombre:'Ana',rut:'1-9',centro_gestion_id:10,obra_nombre:'Principal'},{id:2,empresa:'TEST',nombre:'Luis',rut:'2-7',centro_gestion_id:10,obra_nombre:'Principal'}];
+const centers=[{id:10,codigo:'PRI',nombre:'Principal',activo:true},{id:20,codigo:'SEG',nombre:'Segunda obra',activo:true},{id:30,codigo:'ADM',nombre:'Oficina central',activo:true}];
+window.calls=[];window.fail=false;window.result=null;
+supabase.rpc=async(name,args)=>{window.calls.push({name,args});if(window.fail)return {error:Error('Sin permiso para asignar centros'),data:null};return {data:{agregados:args.p_accion==='agregar'?args.p_trabajadores.length*args.p_centros.length:0,omitidos:0,finalizados:args.p_accion==='finalizar'?1:0},error:null};};
+function Fixture(){const[open,setOpen]=useState(true);return React.createElement('main',null,React.createElement('button',{onClick:()=>setOpen(true)},'Abrir centros'),open&&React.createElement(WorkerCenterAssignments,{company:'TEST',workers,centers,assignments:[{id:1,empresa:'TEST',trabajador_id:1,centro_gestion_id:20,centro_codigo:'SEG',centro_nombre:'Segunda obra',fecha_inicio:'2026-10-01',fecha_termino:null,centro_activo:true}],onClose:()=>setOpen(false),onSaved:result=>{window.result=result;}}));}
+createRoot(document.getElementById('fixture')).render(React.createElement(Fixture));
+</script></body></html>

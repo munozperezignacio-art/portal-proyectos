@@ -15,6 +15,8 @@ import PayrollAutomation from './PayrollAutomation';
 import PersonnelAllocations from './PersonnelAllocations';
 import WorkerBulkImport from './WorkerBulkImport';
 import WorkerBulkAssignment from './WorkerBulkAssignment';
+import WorkerCenterAssignments from './WorkerCenterAssignments';
+import {workerAdditionalCenters,workerAssignedToWork} from '../utils/workerCenters';
 import {toggleVisibleWorkers,workerMatchesSearch} from '../utils/workerAssignment.js';
 import { workerContractSummary } from '../utils/workerImport.js';
 import WorkerDocumentsPanel from './WorkerDocumentsPanel';
@@ -74,6 +76,8 @@ function Personal({ user, onBack }) {
   const [selectedObraFilter, setSelectedObraFilter] = useState('');
   const [selectedWorkerIds, setSelectedWorkerIds] = useState([]);
   const [assignmentNotice, setAssignmentNotice] = useState('');
+  const [workerCenterLinks,setWorkerCenterLinks]=useState([]);
+  const [centerWorkerIds,setCenterWorkerIds]=useState([]);
   useEffect(() => { setAssignmentNotice(''); }, [user?.empresa]);
   useEffect(() => {
     setSelectedWorkerIds(current => current.filter(id => personal.some(worker => String(worker.id) === id && worker.empresa === user?.empresa)));
@@ -371,17 +375,21 @@ function Personal({ user, onBack }) {
       setPersonal(dataPers || []);
 
       // 2. Cargar obras
-      const [{ data: dataObras, error: errObras }, { data: dataCentros, error: errCentros }] = await Promise.all([
+      const [{ data: dataObras, error: errObras }, { data: dataCentros, error: errCentros }, {data:links,error:linkError}] = await Promise.all([
         supabase.from('obras').select('id,nombre,centro_gestion_id').eq('empresa', user?.empresa || 'Obraxis').order('nombre', { ascending: true }),
-        supabase.from('facturacion_centros_gestion').select('id,codigo,nombre,tipo,activo').eq('empresa', user?.empresa || 'Obraxis').eq('activo', true).order('codigo', { ascending: true })
+        supabase.from('facturacion_centros_gestion').select('id,codigo,nombre,tipo,activo').eq('empresa', user?.empresa || 'Obraxis').eq('activo', true).order('codigo', { ascending: true }),
+        supabase.from('rrhh_personal_centros_detalle').select('*').eq('empresa',user?.empresa || 'Obraxis').order('fecha_inicio',{ascending:false})
       ]);
       if (errObras) throw errObras;
       if (errCentros) throw errCentros;
+      if(linkError)throw linkError;
+      setWorkerCenterLinks(links||[]);
       setObras(dataObras || []);
       setCentrosGestion(dataCentros || []);
       return true;
     } catch (err) {
       console.error('Error cargando personal/obras:', err.message);
+      setAssignmentNotice(`No fue posible actualizar el personal y sus centros: ${err.message}`);
       return false;
     } finally {
       setLoading(false);
@@ -732,7 +740,7 @@ function Personal({ user, onBack }) {
       
     const matchesObra = 
       selectedObraFilter === '' || 
-      (selectedObraFilter === '__sin_obra__' ? !p.obra_nombre : p.obra_nombre && p.obra_nombre.toLowerCase() === selectedObraFilter.toLowerCase());
+      (selectedObraFilter === '__sin_obra__' ? !p.obra_nombre&&!obras.some(work=>workerAssignedToWork(p,{...work,empresa:user.empresa},workerCenterLinks)) : obras.some(work=>work.nombre===selectedObraFilter&&workerAssignedToWork(p,{...work,empresa:user.empresa},workerCenterLinks)));
 
     return p.empresa === user?.empresa && matchesSearch && matchesObra;
   });
@@ -741,6 +749,7 @@ function Personal({ user, onBack }) {
   if (!canView) return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center text-sm font-bold text-amber-900">Tu perfil no tiene permiso para ver Recursos Humanos.</div>;
   return (
     <div className="space-y-6">
+      {canEdit&&centerWorkerIds.length>0&&<WorkerCenterAssignments company={user.empresa} workers={personal.filter(worker=>centerWorkerIds.includes(String(worker.id)))} centers={centrosGestion} assignments={workerCenterLinks} onClose={()=>setCenterWorkerIds([])} onSaved={async result=>{const refreshed=await fetchData();setAssignmentNotice(`${result.agregados} vínculos agregados · ${result.omitidos} ya existían · ${result.finalizados} finalizados. El centro principal y los costos se conservaron.${refreshed?'':' No se pudo refrescar el listado; recarga la pantalla.'}`);}}/>}
       
       {/* Encabezado */}
       <ModuleHeader title="Recursos Humanos (RRHH)" subtitle="Gestión de personal, asignaciones a obra y planillas de remuneraciones." Icon={Users} onBack={activeSubmodule !== null ? () => setActiveSubmodule(null) : onBack} actions={activeSubmodule === 'personal_empresa' && (
@@ -889,6 +898,7 @@ function Personal({ user, onBack }) {
           </div>
 
           {assignmentNotice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">{assignmentNotice}</p>}
+          {canEdit&&selectedWorkerIds.length>0&&<div><button type="button" onClick={()=>setCenterWorkerIds([...selectedWorkerIds])} className="rounded-xl bg-emerald-800 px-4 py-3 text-xs font-bold text-white">Asignar centros de gestión ({selectedWorkerIds.length})</button><p className="mt-1 text-xs text-slate-500">Agrega centros sin reemplazar los actuales. «Asignar obra» sigue siendo un cambio de obra principal.</p></div>}
           {canEdit && selectedWorkerIds.length > 0 && <WorkerBulkAssignment
             company={user.empresa} workers={personal.filter(worker => worker.empresa === user.empresa && selectedWorkerIds.includes(String(worker.id)))} obras={obras}
             hiddenCount={selectedWorkerIds.filter(id => !filteredPersonal.some(worker => String(worker.id) === id)).length}
@@ -943,6 +953,8 @@ function Personal({ user, onBack }) {
                         <td className="p-3">
                           <span className="font-semibold text-blue-950">{p.cargo}</span>
                           <span className="block text-[10px] text-slate-500 font-medium">{p.obra_nombre || p.centro_trabajo || 'Sin obra asignada'}</span>
+                          <div className="mt-1 flex flex-wrap gap-1">{workerAdditionalCenters(p,workerCenterLinks).map(link=><span key={link.id} className="rounded-lg border border-blue-100 bg-blue-50 px-2 py-1 text-[10px] text-blue-900">{link.centro_codigo} · {link.centro_nombre}</span>)}</div>
+                          {canEdit&&<button type="button" onClick={()=>setCenterWorkerIds([String(p.id)])} className="mt-2 text-[10px] font-bold text-blue-900 underline">Centros de gestión</button>}
                         </td>
                         <td className="p-3">
                           <span className={`text-[10px] px-2 py-0.5 rounded font-bold border ${p.tipo_contrato === 'Indefinido' ? 'bg-emerald-50 text-emerald-900 border-emerald-200' : 'bg-amber-50 text-amber-900 border-amber-200'}`}>

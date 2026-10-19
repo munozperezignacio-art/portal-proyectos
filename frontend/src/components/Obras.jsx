@@ -24,6 +24,7 @@ import ProjectProfileModal from './ProjectProfileModal';
 import PartidaCurrencyField from './PartidaCurrencyField';
 import {budgetPriceView,budgetViewTotals,formatBudgetViewAmount} from '../utils/workBudgetCurrencyView';
 import {economicIndicators,loadEconomicIndicator} from '../utils/economicIndicatorsCache';
+import {workerAssignedToWork} from '../utils/workerCenters';
 import {projectName,migrateProjectStorage} from '../utils/projectProfile';
 import { plannedValueAt } from '../utils/plannedProgress';
 import useSignatureCanvas from '../utils/useSignatureCanvas';
@@ -1526,9 +1527,15 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     };
 
     // 1. Cargar personal
+    setPersonalList([]);setPersonalAsignadoList([]);setPersonalCount(0);
     try {
-      const { data: allPers } = await supabase.from('maestro_personal').select('*');
-      const rawListPers = (allPers || []).filter(p => isMatchObra(p.obra_nombre, obraNombre));
+      const company=selectedObra?.empresa||user.empresa;
+      const [{data:allPers,error:staffError},{data:centerLinks,error:centerError}]=await Promise.all([
+        supabase.from('maestro_personal').select('*').eq('empresa',company),
+        supabase.from('rrhh_personal_centros_detalle').select('*').eq('empresa',company)
+      ]);
+      if(staffError||centerError)throw staffError||centerError;
+      const rawListPers = (allPers || []).filter(p => workerAssignedToWork(p,{...selectedObra,nombre:obraNombre,empresa:company},centerLinks||[]));
       
       const uniqueWorkersMap = new window.Map();
       rawListPers.forEach(p => {
@@ -1625,6 +1632,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       } catch {}
     } catch (e) {
       console.warn('Aviso personal:', e);
+      setErrorMsg(`No fue posible cargar el personal y sus centros asignados: ${e.message}`);
     }
 
     // 2. Cargar maquinaria asignada (TOTALMENTE AISLADO DE OTRAS CONSULTAS)
