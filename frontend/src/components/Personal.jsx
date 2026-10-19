@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import {loadEconomicIndicator} from '../utils/economicIndicatorsCache';
 import ModuleHeader from './ModuleHeader';
 import { formatRut } from '../utils/rutUtils';
 import useUserPermissions from '../utils/useUserPermissions';
@@ -170,6 +171,19 @@ function Personal({ user, onBack }) {
   const [updatingIndicadores, setUpdatingIndicadores] = useState(false);
   const [showEditIndicadoresModal, setShowEditIndicadoresModal] = useState(false);
   const [editIndicadoresForm, setEditIndicadoresForm] = useState({ ...indicadores });
+  useEffect(()=>{
+    let active=true;
+    Promise.all(['UF','UTM'].map(currency=>loadEconomicIndicator(currency))).then(([uf,utm])=>{
+      if(!active)return;
+      setIndicadores(current=>{
+        const updated={...current,uf:uf.value,utm:utm.value,ufFecha:uf.date,utmFecha:utm.date,
+          ultimaActualizacion:`UF: ${uf.date} · UTM: ${utm.date.slice(0,7)} · respaldo central`};
+        try{localStorage.setItem('indicadores_previsionales_chile',JSON.stringify(updated));}catch{/* sesión en memoria */}
+        return updated;
+      });
+    }).catch(()=>{});
+    return ()=>{active=false;};
+  },[]);
 
   // MÓDULO DE CONTRATACIÓN Y FORMATOS / PLANTILLAS
   const [contratacionSubTab, setContratacionSubTab] = useState('emision'); // 'emision' | 'plantillas' | 'nueva_alta'
@@ -691,32 +705,23 @@ function Personal({ user, onBack }) {
   const handleUpdateIndicadoresAuto = async () => {
     setUpdatingIndicadores(true);
     try {
-      let ufVal = INDICADORES_OFICIALES_CHILE.uf;
-      let utmVal = INDICADORES_OFICIALES_CHILE.utm;
-
-      try {
-        const res = await fetch('https://mindicador.cl/api');
-        if (res.ok) {
-          const data = await res.json();
-          if (data?.uf?.valor) ufVal = data.uf.valor;
-          if (data?.utm?.valor) utmVal = data.utm.valor;
-        }
-      } catch (apiErr) {
-        console.warn("Aviso API mindicador:", apiErr);
-      }
+      const [uf,utm]=await Promise.all(['UF','UTM'].map(currency=>loadEconomicIndicator(currency)));
+      const ufVal=uf.value;const utmVal=utm.value;
 
       const updated = {
-        ...INDICADORES_OFICIALES_CHILE,
+        ...indicadores,
         uf: ufVal,
         utm: utmVal,
-        ultimaActualizacion: new Date().toLocaleDateString('es-CL') + ' (fuentes oficiales)'
+        ufFecha:uf.date,utmFecha:utm.date,
+        ultimaActualizacion: `UF: ${uf.date} · UTM: ${utm.date.slice(0,7)} · respaldo central`
       };
 
       setIndicadores(updated);
       localStorage.setItem('indicadores_previsionales_chile', JSON.stringify(updated));
-      alert(`¡Indicadores previsionales actualizados!\n\n• UF: $${ufVal.toLocaleString('es-CL')}\n• UTM (agosto): $${utmVal.toLocaleString('es-CL')}\n• Ingreso mínimo general: $${INDICADORES_OFICIALES_CHILE.salarioMinimo.toLocaleString('es-CL')}\n• Tope imponible AFP: ${INDICADORES_OFICIALES_CHILE.topeAfpUf.toLocaleString('es-CL')} UF\n• Tope seguro de cesantía: ${INDICADORES_OFICIALES_CHILE.topeCesantiaUf.toLocaleString('es-CL')} UF`);
+      alert(`Indicadores recuperados del respaldo central:\n\n• UF (${uf.date}): $${ufVal.toLocaleString('es-CL')}\n• UTM (${utm.date.slice(0,7)}): $${utmVal.toLocaleString('es-CL')}\nLos demás parámetros legales conservan su configuración.`);
     } catch (e) {
       console.warn("Error en actualización de indicadores:", e);
+      alert('No se pudieron recuperar UF y UTM. Se conservan los parámetros anteriores; no se presentan como actualizados.');
     } finally {
       setUpdatingIndicadores(false);
     }
@@ -1272,10 +1277,12 @@ function Personal({ user, onBack }) {
                 <div className="bg-slate-50 p-3 border border-slate-200 rounded-xl">
                   <span className="text-[10px] font-bold uppercase text-slate-400">Valor UF</span>
                   <p className="text-lg font-black text-slate-800 mt-0.5">${indicadores.uf.toLocaleString('es-CL')}</p>
+                  <p className="text-[10px] text-slate-500">{indicadores.ufFecha||'Valor anterior: pendiente de verificar'}</p>
                 </div>
                 <div className="bg-slate-50 p-3 border border-slate-200 rounded-xl">
                   <span className="text-[10px] font-bold uppercase text-slate-400">Valor UTM</span>
                   <p className="text-lg font-black text-slate-800 mt-0.5">${indicadores.utm.toLocaleString('es-CL')}</p>
+                  <p className="text-[10px] text-slate-500">{indicadores.utmFecha?.slice(0,7)||'Valor anterior: pendiente de verificar'}</p>
                 </div>
                 <div className="bg-slate-50 p-3 border border-slate-200 rounded-xl">
                   <span className="text-[10px] font-bold uppercase text-slate-400">Ingreso mínimo general</span>

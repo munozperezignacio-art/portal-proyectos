@@ -7,6 +7,7 @@ import {
 import { supabase } from './supabaseClient';
 import { getAuthenticatedProfile } from './utils/auth';
 import {renameWorkScope} from './utils/projectProfile';
+import {prefetchEconomicIndicators} from './utils/economicIndicatorsCache';
 import { recoverFromStaleChunk } from './utils/staleChunkRecovery';
 import useUserPermissions from './utils/useUserPermissions';
 import {moduleHasViewAccess} from './utils/companyPermissions';
@@ -183,6 +184,14 @@ function App() {
       authListener.subscription.unsubscribe();
     };
   }, []);
+
+  // Precargar los indicadores antes de abrir formularios; refresco sin bloquear la UI.
+  useEffect(()=>{
+    if(!user?.id)return;
+    void prefetchEconomicIndicators();
+    const timer=setInterval(()=>{void prefetchEconomicIndicators();},30*60*1000);
+    return ()=>clearInterval(timer);
+  },[user?.id]);
 
   // Cargar lista de empresas si el usuario es superusuario
   useEffect(() => {

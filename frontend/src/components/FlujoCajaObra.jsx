@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowDownRight, ArrowUpRight, Plus, Trash2, WalletCards } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+import {loadEconomicIndicator} from '../utils/economicIndicatorsCache';
 
 const money = value => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(Number(value || 0));
 const monthKey = value => String(value || '').slice(0, 7);
@@ -40,13 +41,8 @@ export default function FlujoCajaObra({ obra, user, partidas = [], costos = [], 
       if (currency === 'UF') {
         setUfRate(current => ({ ...current, value: 0, loading: true, error: '' }));
         try {
-          const response = await fetch('https://mindicador.cl/api/uf');
-          if (!response.ok) throw new Error('indicador no disponible');
-          const payload = await response.json();
-          const indicator = payload?.serie?.[0];
-          const value = Number(indicator?.valor || 0);
-          if (!value) throw new Error('sin valor UF publicado');
-          if (active) setUfRate({ value, date: String(indicator.fecha || '').slice(0, 10), source: 'mindicador.cl', loading: false, error: '' });
+          const quote=await loadEconomicIndicator('UF');
+          if (active) setUfRate({ ...quote, loading: false, error: '' });
         } catch (error) {
           if (active) setUfRate({ value: 0, date: '', source: 'mindicador.cl', loading: false, error: error.message });
         }

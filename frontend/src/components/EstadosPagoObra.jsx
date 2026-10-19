@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {loadEconomicIndicator} from '../utils/economicIndicatorsCache';
 import { BadgeDollarSign, Copy, FileText, Paperclip, ReceiptText, RefreshCw, Send, Trash2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { sendSystemEmail } from '../utils/emailService';
@@ -131,15 +132,10 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
     if (contractCurrency === 'CLP') { setExchangeRate({ value: 1, date: form.fecha_corte, source: 'Contrato en CLP', loading: false }); return; }
     let active = true;
     const loadRate = async () => {
-      setExchangeRate(current => ({ ...current, loading: true }));
+      setExchangeRate({value:0,date:form.fecha_corte,source:'Recuperando indicador guardado',loading:true});
       try {
-        const indicator = contractCurrency === 'UF' ? 'uf' : 'dolar';
-        const [year, month, day] = form.fecha_corte.split('-');
-        const response = await fetch(`https://mindicador.cl/api/${indicator}/${day}-${month}-${year}`);
-        if (!response.ok) throw new Error('Indicador no disponible');
-        const payload = await response.json(); const value = Number(payload?.serie?.[0]?.valor || 0);
-        if (!value) throw new Error('Sin valor publicado para la fecha');
-        if (active) setExchangeRate({ value, date: form.fecha_corte, source: 'mindicador.cl (indicador publicado)', loading: false });
+        const quote=await loadEconomicIndicator(contractCurrency,{date:form.fecha_corte});
+        if (active) setExchangeRate({...quote,loading:false});
       } catch (error) { if (active) setExchangeRate(current => ({ ...current, loading: false, source: `Valor pendiente de confirmar: ${error.message}` })); }
     };
     loadRate(); return () => { active = false; };
@@ -216,7 +212,7 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
         trazabilidad: [auditActor(user, 'Estado de Pago emitido', 'Borrador', `EP N° ${number} preparado.`)],
         revisor_nombre: contactos.revisor_nombre || null, revisor_email: contactos.revisor_email || null, aprobador_nombre: contactos.aprobador_nombre || null, aprobador_email: contactos.aprobador_email || null,
         token_revision: token(), token_aprobacion: token(),
-        moneda_contrato: contractCurrency, tipo_cambio_clp: Number(exchangeRate.value || 1), fecha_tipo_cambio: form.fecha_corte,
+        moneda_contrato: contractCurrency, tipo_cambio_clp: Number(exchangeRate.value || 1), fecha_tipo_cambio: exchangeRate.date || form.fecha_corte,
         fuente_tipo_cambio: exchangeRate.source, monto_bruto_moneda_origen: gross / Number(exchangeRate.value || 1), monto_neto_moneda_origen: net / Number(exchangeRate.value || 1),
       };
       const { error } = await supabase.from('estados_pago_obra').insert(payload);

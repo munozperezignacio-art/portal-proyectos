@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import {loadEconomicIndicator,economicIndicators} from '../utils/economicIndicatorsCache';
 import { 
   ArrowLeft, FileSpreadsheet, Calendar, Plus, Save, Trash2, 
   Upload, Check, AlertCircle, RefreshCw, ChevronRight, CalendarDays,
@@ -178,11 +179,12 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
   // Tipo de cambio del día (UF, USD, UTM, CLP)
   const [exchangeRates, setExchangeRates] = useState({
     CLP: 1,
-    USD: 945,  // default fallback
-    UF: 38480, // default fallback
-    UTM: 66250 // default fallback
+    USD: economicIndicators.peek('USD')?.value || 0,
+    UF: economicIndicators.peek('UF')?.value || 0,
+    UTM: economicIndicators.peek('UTM')?.value || 0
   });
   const [loadingRates, setLoadingRates] = useState(true);
+  const [rateDetails,setRateDetails]=useState('');
 
   // Lista de proyectos/presupuestos independientes
   const [proyectos, setProyectos] = useState([]);
@@ -346,22 +348,21 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  // Cargar indicadores de mindicador.cl al iniciar
+  // Reutilizar el respaldo central precargado, sin cotizaciones fijas de respaldo.
   useEffect(() => {
     const fetchRates = async () => {
       setLoadingRates(true);
       try {
-        const res = await fetch('https://mindicador.cl/api');
-        if (!res.ok) throw new Error('Dificultades de conexión con indicador API');
-        const data = await res.json();
+        const [uf,usd,utm]=await Promise.all(['UF','USD','UTM'].map(currency=>loadEconomicIndicator(currency)));
         setExchangeRates({
           CLP: 1,
-          USD: data.dolar?.valor || 945,
-          UF: data.uf?.valor || 38480,
-          UTM: data.utm?.valor || 66250
+          USD: usd.value,
+          UF: uf.value,
+          UTM: utm.value
         });
-      } catch (err) {
-        console.warn('CORS o red no disponible. Usando UF/Dólar referenciales del día.', err.message);
+        setRateDetails(`UF: ${uf.date} · USD: ${usd.date} · UTM: ${utm.date.slice(0,7)} · Respaldo central`);
+      } catch {
+        setRateDetails('No se pudo recuperar algún indicador. Las conversiones sin valor quedan N/D.');
       } finally {
         setLoadingRates(false);
       }
@@ -645,6 +646,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
   const convertCurrency = (amount, from, to) => {
     if (!amount) return 0;
     if (from === to) return amount;
+    if (!(exchangeRates[from]>0) || !(exchangeRates[to]>0)) return NaN;
     
     // Primero convertir a pesos (CLP)
     let inCLP = amount;
@@ -661,6 +663,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
   };
 
   const formatCurrencyValue = (val, currency) => {
+    if(!Number.isFinite(Number(val)))return 'N/D';
     if (currency === 'CLP') {
       return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(val || 0);
     } else if (currency === 'USD') {
@@ -2738,21 +2741,21 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
           <span className="text-[10px] font-black uppercase tracking-widest text-slate-350 flex items-center gap-1">
             <Globe className="w-3.5 h-3.5 text-slate-400" />
-            <span>Indicadores Financieros Oficiales</span>
+            <span title={rateDetails}>Indicadores financieros · respaldo central</span>
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-6 text-xs font-black">
           <div className="flex items-center gap-2">
             <span className="text-slate-450 text-[10px] font-bold">VALOR UF:</span>
-            <span className="text-amber-400 font-black">{loadingRates ? 'Cargando...' : formatCLP(exchangeRates.UF)}</span>
+            <span title={rateDetails} className="text-amber-400 font-black">{loadingRates ? 'Cargando...' : exchangeRates.UF>0?formatCLP(exchangeRates.UF):'N/D'}</span>
           </div>
           <div className="flex items-center gap-2 border-l border-slate-700 pl-6">
             <span className="text-slate-455 text-[10px] font-bold">DÓLAR (USD):</span>
-            <span className="text-emerald-400 font-black">{loadingRates ? 'Cargando...' : formatCLP(exchangeRates.USD)}</span>
+            <span title={rateDetails} className="text-emerald-400 font-black">{loadingRates ? 'Cargando...' : exchangeRates.USD>0?formatCLP(exchangeRates.USD):'N/D'}</span>
           </div>
           <div className="flex items-center gap-2 border-l border-slate-700 pl-6">
             <span className="text-slate-450 text-[10px] font-bold">UTM:</span>
-            <span className="text-blue-400 font-black">{loadingRates ? 'Cargando...' : formatCLP(exchangeRates.UTM)}</span>
+            <span title={rateDetails} className="text-blue-400 font-black">{loadingRates ? 'Cargando...' : exchangeRates.UTM>0?formatCLP(exchangeRates.UTM):'N/D'}</span>
           </div>
         </div>
       </div>
