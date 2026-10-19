@@ -183,7 +183,7 @@ export function productionMetrics(parts: Row[], reports: Row[], cutoff: string) 
   return x === y || !!(nx && ny && (nx.includes(ny) || ny.includes(nx)));
  };
  const advances = reports.filter(r => day(r.fecha || r.fecha_avance || r.created_at) <= cutoff);
- const detail = parts.filter(p => !p.es_titulo && p.unidad !== 'TITULO' && p.unidad !== 'GRUPO').map(p => {
+ const detail = parts.filter(p => !p.es_titulo && p.unidad !== 'TITULO' && p.unidad !== 'GRUPO').map((p): Row & {done:number;pct:number;duration:number;planned:number;scheduleDays:number;budget:number;earned:number;plannedValue:number} => {
   const quantity = Number(p.cantidad) || 0, price = Number(p.pu) || 0;
   const done = advances.filter(r => matches(r.partida, p.partida)).reduce((sum, r) => sum + (Number(r.cantidad) || 0), 0);
   const pct = quantity > 0 ? Math.min(100, done / quantity * 100) : 0;

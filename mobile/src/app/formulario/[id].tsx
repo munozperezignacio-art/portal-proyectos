@@ -1,3 +1,5 @@
+import { useTheme, useThemedStyles } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/lib/theme';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -8,7 +10,7 @@ import { useAuth } from '@/auth/AuthProvider';
 import { Badge, Card, ErrorBox, Header, Loading, Screen } from '@/components/ui';
 import { invokeResilient } from '@/lib/offlineQueue';
 import { supabase } from '@/lib/supabase';
-import { colors } from '@/lib/theme';
+
 
 type Row=Record<string,any>;
 type Field={id:string;type:string;label?:string;required?:boolean;options?:string[];maxRating?:number;subFields?:Field[];buttonText?:string};
@@ -16,6 +18,9 @@ const fieldsOf=(campos:any):Field[]=>Array.isArray(campos)?campos:Array.isArray(
 const emptyInstance=(field:Field)=>Object.fromEntries((field.subFields||[]).map(sub=>[sub.id,sub.type==='checkbox'?[]:'']));
 
 export default function FormFill(){
+  const {colors}=useTheme();
+  const s=useThemedStyles(createStyles);
+
   const{id,asignacionId}=useLocalSearchParams<{id:string;asignacionId?:string}>();
   const{profile}=useAuth();
   const[form,setForm]=useState<Row|null>(null);
@@ -64,13 +69,16 @@ export default function FormFill(){
     {centers.length?<Card><Text style={s.section}>Centro de gestión / obra</Text><View style={s.choices}>{centers.map(item=><Choice key={item.id} active={center?.id===item.id} label={`${item.codigo||''} ${item.obra_nombre||item.nombre}`.trim()} onPress={()=>setCenter(item)}/>)}</View></Card>:null}
     {fields.map((field,index)=><Card key={field.id}><Text style={s.label}>{index+1}. {field.label||'Campo'}{field.required?<Text style={s.required}> *</Text>:null}</Text><FieldInput field={field} value={answers[field.id]} onChange={value=>update(field.id,value)}/></Card>)}
     {!fields.length?<Card><Text style={s.help}>Este formulario todavía no tiene campos configurados.</Text></Card>:null}
-    <Pressable disabled={saving||!fields.length} onPress={submit} style={[s.submit,(saving||!fields.length)&&s.disabled]}><Ionicons name="send" size={18} color="white"/><Text style={s.submitText}>{saving?'Enviando…':'Enviar formulario'}</Text></Pressable>
+    <Pressable disabled={saving||!fields.length} onPress={submit} style={[s.submit,(saving||!fields.length)&&s.disabled]}><Ionicons name="send" size={18} color={colors.onPrimary}/><Text style={s.submitText}>{saving?'Enviando…':'Enviar formulario'}</Text></Pressable>
   </Screen>;
 }
 
 function FieldInput({field,value,onChange}:{field:Field;value:any;onChange:(value:any)=>void}){
-  if(field.type==='textarea')return <TextInput multiline value={value||''} onChangeText={onChange} placeholder="Escribe aquí…" style={[s.input,s.textarea]}/>;
-  if(['date','time','text','number'].includes(field.type))return <TextInput value={value||''} onChangeText={onChange} keyboardType={field.type==='number'?'decimal-pad':'default'} placeholder={field.type==='date'?'DD-MM-AAAA':field.type==='time'?'HH:MM':'Escribe aquí…'} style={s.input}/>;
+  const {colors}=useTheme();
+  const s=useThemedStyles(createStyles);
+
+  if(field.type==='textarea')return <TextInput placeholderTextColor={colors.muted} selectionColor={colors.blue} multiline value={value||''} onChangeText={onChange} placeholder="Escribe aquí…" style={[s.input,s.textarea]}/>;
+  if(['date','time','text','number'].includes(field.type))return <TextInput placeholderTextColor={colors.muted} selectionColor={colors.blue} value={value||''} onChangeText={onChange} keyboardType={field.type==='number'?'decimal-pad':'default'} placeholder={field.type==='date'?'DD-MM-AAAA':field.type==='time'?'HH:MM':'Escribe aquí…'} style={s.input}/>;
   if(['select','radio'].includes(field.type))return <View style={s.choices}>{(field.options||[]).map(option=><Choice key={option} active={value===option} label={option} onPress={()=>onChange(option)}/>)}</View>;
   if(field.type==='checkbox')return <View style={s.choices}>{(field.options?.length?field.options:['Sí']).map(option=>{const list=Array.isArray(value)?value:[];return <Choice key={option} active={list.includes(option)} label={option} square onPress={()=>onChange(list.includes(option)?list.filter(item=>item!==option):[...list,option])}/>})}</View>;
   if(field.type==='rating')return <View style={s.rating}>{Array.from({length:Number(field.maxRating)||5},(_,i)=>i+1).map(score=><Pressable key={score} onPress={()=>onChange(score)}><Ionicons name={Number(value)>=score?'star':'star-outline'} size={31} color={colors.orange}/></Pressable>)}</View>;
@@ -81,11 +89,17 @@ function FieldInput({field,value,onChange}:{field:Field;value:any;onChange:(valu
     const updateRow=(rowIndex:number,subId:string,next:any)=>onChange(rows.map((row,index)=>index===rowIndex?{...row,[subId]:next}:row));
     return <View style={s.group}>{rows.map((row,rowIndex)=><View key={rowIndex} style={s.groupRow}>{rowIndex>0?<View style={s.separator}/>:null}{(field.subFields||[]).map(sub=><View key={sub.id} style={s.subField}><Text style={s.subLabel}>{sub.label}</Text><FieldInput field={sub} value={row[sub.id]} onChange={next=>updateRow(rowIndex,sub.id,next)}/></View>)}<Pressable onPress={()=>onChange(rows.filter((_,index)=>index!==rowIndex))}><Text style={s.remove}>Quitar registro</Text></Pressable></View>)}<Pressable style={s.add} onPress={()=>onChange([...rows,emptyInstance(field)])}><Ionicons name="add" size={18} color={colors.blue}/><Text style={s.addText}>{String(field.buttonText||'Agregar registro').replace(/^\+\s*/,'')}</Text></Pressable></View>;
   }
-  return <TextInput value={value||''} onChangeText={onChange} placeholder="Escribe aquí…" style={s.input}/>;
+  return <TextInput placeholderTextColor={colors.muted} selectionColor={colors.blue} value={value||''} onChangeText={onChange} placeholder="Escribe aquí…" style={s.input}/>;
 }
 
-function Choice({active,label,onPress,square=false}:{active:boolean;label:string;onPress:()=>void;square?:boolean}){return <Pressable onPress={onPress} style={s.choice}><Ionicons name={active?(square?'checkbox':'radio-button-on'):(square?'square-outline':'radio-button-off')} size={22} color={active?colors.blue:colors.muted}/><Text style={s.choiceText}>{label}</Text></Pressable>}
-function PhotoInput({value,onChange}:{value?:string;onChange:(value:string)=>void}){const pick=async()=>{const permission=await ImagePicker.requestMediaLibraryPermissionsAsync();if(!permission.granted)return Alert.alert('Permiso necesario','Autoriza acceso a fotografías para adjuntar evidencia.');const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:['images'],base64:true,quality:.55});if(!result.canceled&&result.assets[0]?.base64)onChange(`data:${result.assets[0].mimeType||'image/jpeg'};base64,${result.assets[0].base64}`)};return <View>{value?<Image source={{uri:value}} style={s.photo}/>:null}<Pressable style={s.photoButton} onPress={pick}><Ionicons name="camera-outline" size={18} color={colors.blue}/><Text style={s.addText}>{value?'Cambiar imagen':'Seleccionar imagen'}</Text></Pressable></View>}
+function Choice({active,label,onPress,square=false}:{active:boolean;label:string;onPress:()=>void;square?:boolean}){
+  const {colors}=useTheme();
+  const s=useThemedStyles(createStyles);
+return <Pressable onPress={onPress} style={s.choice}><Ionicons name={active?(square?'checkbox':'radio-button-on'):(square?'square-outline':'radio-button-off')} size={22} color={active?colors.blue:colors.muted}/><Text style={s.choiceText}>{label}</Text></Pressable>}
+function PhotoInput({value,onChange}:{value?:string;onChange:(value:string)=>void}){
+  const {colors}=useTheme();
+  const s=useThemedStyles(createStyles);
+const pick=async()=>{const permission=await ImagePicker.requestMediaLibraryPermissionsAsync();if(!permission.granted)return Alert.alert('Permiso necesario','Autoriza acceso a fotografías para adjuntar evidencia.');const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:['images'],base64:true,quality:.55});if(!result.canceled&&result.assets[0]?.base64)onChange(`data:${result.assets[0].mimeType||'image/jpeg'};base64,${result.assets[0].base64}`)};return <View>{value?<Image source={{uri:value}} style={s.photo}/>:null}<Pressable style={s.photoButton} onPress={pick}><Ionicons name="camera-outline" size={18} color={colors.blue}/><Text style={s.addText}>{value?'Cambiar imagen':'Seleccionar imagen'}</Text></Pressable></View>}
 const isEmpty=(value:any)=>value===undefined||value===null||value===''||(Array.isArray(value)&&value.length===0);
 const signatureCss='.m-signature-pad{box-shadow:none;border:none}.m-signature-pad--body{border:1px solid #d8dfeb;border-radius:12px}.m-signature-pad--footer{margin:8px 0}.button{background:#1d4ed8;color:white;border-radius:8px}';
-const s=StyleSheet.create({back:{flexDirection:'row',alignItems:'center',gap:7},backText:{fontSize:12,fontWeight:'800',color:colors.ink},section:{fontSize:11,fontWeight:'900',textTransform:'uppercase',color:colors.muted},label:{fontSize:13,fontWeight:'900',color:colors.ink},required:{color:colors.red},input:{minHeight:50,borderWidth:1,borderColor:colors.line,borderRadius:13,paddingHorizontal:13,fontSize:14,color:colors.ink,backgroundColor:'white'},textarea:{height:105,paddingTop:13,textAlignVertical:'top'},choices:{gap:8,marginTop:4},choice:{minHeight:44,flexDirection:'row',alignItems:'center',gap:9,paddingHorizontal:6},choiceText:{flex:1,fontSize:13,color:colors.ink},rating:{flexDirection:'row',gap:10,paddingVertical:8},photo:{width:'100%',height:190,borderRadius:14,marginBottom:10},photoButton:{height:48,borderWidth:1,borderColor:colors.line,borderRadius:12,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8},signature:{height:260},saved:{fontSize:11,fontWeight:'800',color:colors.green,textAlign:'center'},group:{gap:10},groupRow:{gap:10},subField:{gap:6},subLabel:{fontSize:11,fontWeight:'800',color:colors.muted},separator:{height:1,backgroundColor:colors.line,marginVertical:5},remove:{fontSize:11,fontWeight:'800',color:colors.red,textAlign:'right'},add:{height:46,borderWidth:1,borderColor:colors.line,borderRadius:12,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7},addText:{fontSize:12,fontWeight:'900',color:colors.blue},submit:{height:56,borderRadius:15,backgroundColor:colors.green,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8},submitText:{fontSize:14,fontWeight:'900',color:'white'},disabled:{opacity:.45},help:{fontSize:13,color:colors.muted,textAlign:'center'}});
+const createStyles = (colors: ThemeColors) => StyleSheet.create({back:{flexDirection:'row',alignItems:'center',gap:7},backText:{fontSize:12,fontWeight:'600',color:colors.ink},section:{fontSize:12,fontWeight:'700',textTransform:'uppercase',color:colors.muted},label:{fontSize:13,fontWeight:'700',color:colors.ink},required:{color:colors.red},input:{minHeight:50,borderWidth:1,borderColor:colors.line,borderRadius:13,paddingHorizontal:13,fontSize:14,color:colors.ink,backgroundColor:colors.surface},textarea:{height:105,paddingTop:13,textAlignVertical:'top'},choices:{gap:8,marginTop:4},choice:{minHeight:44,flexDirection:'row',alignItems:'center',gap:9,paddingHorizontal:6},choiceText:{flex:1,fontSize:13,color:colors.ink},rating:{flexDirection:'row',gap:10,paddingVertical:8},photo:{width:'100%',height:190,borderRadius:14,marginBottom:10},photoButton:{height:48,borderWidth:1,borderColor:colors.line,borderRadius:12,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8},signature:{height:260},saved:{fontSize:12,fontWeight:'600',color:colors.green,textAlign:'center'},group:{gap:10},groupRow:{gap:10},subField:{gap:6},subLabel:{fontSize:12,fontWeight:'600',color:colors.muted},separator:{height:1,backgroundColor:colors.line,marginVertical:5},remove:{fontSize:12,fontWeight:'600',color:colors.red,textAlign:'right'},add:{height:46,borderWidth:1,borderColor:colors.line,borderRadius:12,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7},addText:{fontSize:12,fontWeight:'700',color:colors.blue},submit:{height:56,borderRadius:15,backgroundColor:colors.success,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8},submitText:{fontSize:14,fontWeight:'700',color:colors.onPrimary},disabled:{opacity:.45},help:{fontSize:13,color:colors.muted,textAlign:'center'}});

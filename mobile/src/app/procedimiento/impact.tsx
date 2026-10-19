@@ -1,3 +1,5 @@
+import { useThemedStyles } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/lib/theme';
 import { useRef, useState } from 'react';
 import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -5,11 +7,13 @@ import { router } from 'expo-router';
 import { useAuth } from '@/auth/AuthProvider';
 import { Badge, Card, Empty, Header, Screen } from '@/components/ui';
 import { can } from '@/lib/types';
-import { colors } from '@/lib/theme';
+
 import manual from '@/data/impactManual.json';
 import { impactImages } from '@/data/impactImages';
 
 export default function ImpactProcedure() {
+  const s=useThemedStyles(createStyles);
+
   const { profile } = useAuth();
   const viewport = useWindowDimensions();
   const [index, setIndex] = useState(0);
@@ -47,4 +51,4 @@ export default function ImpactProcedure() {
   </SafeAreaView>;
 }
 
-const s = StyleSheet.create({page:{flex:1,backgroundColor:colors.soft},bar:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingHorizontal:12,backgroundColor:'white',gap:8},barTitle:{fontSize:17,fontWeight:'800',color:colors.ink},button:{minHeight:48,justifyContent:'center',padding:8},link:{fontSize:14,fontWeight:'800',color:colors.blue},content:{padding:16,gap:16,paddingBottom:30},notice:{fontSize:12,lineHeight:18,color:'#78551A',backgroundColor:'#FFF4DB',padding:12,borderRadius:12},position:{fontSize:14,fontWeight:'800',color:colors.blue},title:{fontSize:27,lineHeight:33,fontWeight:'900',color:colors.ink},photo:{width:'100%',height:280},caption:{fontSize:14,fontWeight:'700',color:colors.ink,lineHeight:20},hint:{fontSize:12,color:colors.muted,lineHeight:18},control:{fontSize:18,lineHeight:26,fontWeight:'700',color:colors.ink},action:{fontSize:21,lineHeight:31,color:colors.ink},detail:{fontSize:15,lineHeight:24,color:colors.ink},footer:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',padding:12,gap:8,backgroundColor:'white'},nav:{padding:14,borderRadius:12,borderWidth:1,borderColor:colors.line,minHeight:48},primary:{backgroundColor:colors.navy},white:{color:'white',fontWeight:'800',fontSize:14},disabled:{opacity:0.35},choice:{padding:16,borderWidth:1,borderColor:colors.line,borderRadius:12,backgroundColor:'white'},selected:{borderColor:colors.blue,backgroundColor:'#EEF4FF'},zoomContent:{flexGrow:1,alignItems:'center',justifyContent:'center'}});
+const createStyles = (colors: ThemeColors) => StyleSheet.create({page:{flex:1,backgroundColor:colors.soft},bar:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingHorizontal:12,backgroundColor:colors.surface,gap:8},barTitle:{fontSize:17,fontWeight:'600',color:colors.ink},button:{minHeight:48,justifyContent:'center',padding:8},link:{fontSize:14,fontWeight:'600',color:colors.blue},content:{padding:16,gap:16,paddingBottom:30},notice:{fontSize:12,lineHeight:18,color:colors.amber,backgroundColor:colors.amberSoft,padding:12,borderRadius:12},position:{fontSize:14,fontWeight:'600',color:colors.blue},title:{fontSize:27,lineHeight:33,fontWeight:'700',color:colors.ink},photo:{width:'100%',height:280},caption:{fontSize:14,fontWeight:'700',color:colors.ink,lineHeight:20},hint:{fontSize:12,color:colors.muted,lineHeight:18},control:{fontSize:18,lineHeight:26,fontWeight:'700',color:colors.ink},action:{fontSize:21,lineHeight:31,color:colors.ink},detail:{fontSize:15,lineHeight:24,color:colors.ink},footer:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',padding:12,gap:8,backgroundColor:colors.surface},nav:{padding:14,borderRadius:12,borderWidth:1,borderColor:colors.line,minHeight:48},primary:{backgroundColor:colors.navy},white:{color:colors.onPrimary,fontWeight:'600',fontSize:14},disabled:{opacity:0.35},choice:{padding:16,borderWidth:1,borderColor:colors.line,borderRadius:12,backgroundColor:colors.surface},selected:{borderColor:colors.blue,backgroundColor:colors.blueSoft},zoomContent:{flexGrow:1,alignItems:'center',justifyContent:'center'}});

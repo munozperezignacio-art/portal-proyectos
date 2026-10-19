@@ -1,3 +1,5 @@
+import { useTheme, useThemedStyles } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/lib/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
@@ -5,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import { buildManualAttendanceBatch, attendanceWorkerKey } from '@/lib/attendanceBatch';
 import { calculateScheduledAttendance, scheduleForDate, scheduledDayHours } from '@/lib/weeklyWorkSchedule';
-import { colors } from '@/lib/theme';
+
 import type { Profile } from '@/lib/types';
 
 type Row = Record<string, any>;
@@ -14,6 +16,9 @@ const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !isNaN
 const states = [['PRESENTE', 'Presente'], ['AUSENTE', 'Ausente'], ['LICENCIA', 'Licencia médica'], ['VACACIONES', 'Vacaciones']];
 
 export function ManualAttendance({ profile, workId, workName, work, onSaved }: { profile: Profile; workId: number; workName: string; work: Row | null; onSaved: () => void }) {
+  const {colors}=useTheme();
+  const s=useThemedStyles(createStyles);
+
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false), [workers, setWorkers] = useState<Row[]>([]), [selected, setSelected] = useState<string[]>([]);
   const [date, setDate] = useState(today), [search, setSearch] = useState(''), [status, setStatus] = useState('PRESENTE');
@@ -82,21 +87,21 @@ export function ManualAttendance({ profile, workId, workName, work, onSaved }: {
   };
   const allVisible = visible.length > 0 && visible.every(w => selected.includes(attendanceWorkerKey(w)));
   return <>
-    <Pressable onPress={() => { setLoading(true); setError(''); setSelected([]); changeDate(today()); setOpen(true); }} style={s.open}><Ionicons name="people" size={20} color="white" /><Text style={s.white}>Registrar asistencia manual</Text></Pressable>
+    <Pressable onPress={() => { setLoading(true); setError(''); setSelected([]); changeDate(today()); setOpen(true); }} style={s.open}><Ionicons name="people" size={20} color={colors.onPrimary} /><Text style={s.white}>Registrar asistencia manual</Text></Pressable>
     <Modal visible={open} transparent animationType="slide" onRequestClose={() => { if (!saving) setOpen(false); }}>
       <View style={s.overlay}><View style={[s.sheet, { paddingBottom: Math.max(20, insets.bottom) }]}>
-        <View style={s.row}><Text style={s.title}>Asistencia manual</Text><Pressable disabled={saving} onPress={() => setOpen(false)} accessibilityLabel="Cerrar"><Ionicons name="close" size={26} /></Pressable></View>
+        <View style={s.row}><Text style={s.title}>Asistencia manual</Text><Pressable disabled={saving} onPress={() => setOpen(false)} accessibilityLabel="Cerrar"><Ionicons color={colors.ink} name="close" size={26} /></Pressable></View>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.content}>
           <Text style={s.help}>{workName} · El estado y horario se aplican a todos los seleccionados.</Text>
-          <Text style={s.label}>Fecha</Text><TextInput editable={!saving} value={date} onChangeText={changeDate} placeholder="AAAA-MM-DD" style={s.input} maxLength={10} />
+          <Text style={s.label}>Fecha</Text><TextInput placeholderTextColor={colors.muted} selectionColor={colors.blue} editable={!saving} value={date} onChangeText={changeDate} placeholder="AAAA-MM-DD" style={s.input} maxLength={10} />
           <Text style={s.label}>Trabajadores · {selected.length} seleccionados (máximo 200)</Text>
-          <TextInput editable={!saving} value={search} onChangeText={setSearch} placeholder="Buscar por nombre, RUT o cargo" style={s.input} />
+          <TextInput placeholderTextColor={colors.muted} selectionColor={colors.blue} editable={!saving} value={search} onChangeText={setSearch} placeholder="Buscar por nombre, RUT o cargo" style={s.input} />
           <Pressable disabled={saving || loading} onPress={() => setSelected(previous => allVisible ? previous.filter(k => !visible.some(w => attendanceWorkerKey(w) === k)) : [...new Set([...previous, ...visible.map(attendanceWorkerKey)])].slice(0, 200))}><Text style={s.link}>{allVisible ? 'Desmarcar visibles' : 'Seleccionar visibles'}</Text></Pressable>
-          {loading && <Text>Cargando personal…</Text>}
-          {visible.map(w => { const checked = selected.includes(attendanceWorkerKey(w)); return <Pressable key={attendanceWorkerKey(w)} disabled={saving} accessibilityRole="checkbox" accessibilityState={{ checked }} onPress={() => toggle(attendanceWorkerKey(w))} style={[s.worker, checked && s.active]}><Ionicons name={checked ? 'checkbox' : 'square-outline'} size={23} color={checked ? colors.blue : colors.muted} /><View style={s.flex}><Text style={s.workerName}>{w.nombre}</Text><Text style={s.help}>{w.rut || 'Sin RUT'} · {w.cargo || 'Personal'}</Text></View></Pressable>; })}
+          {loading && <Text style={{color:colors.ink}}>Cargando personal…</Text>}
+          {visible.map(w => { const checked = selected.includes(attendanceWorkerKey(w)); return <Pressable key={attendanceWorkerKey(w)} disabled={saving} accessibilityRole="checkbox" accessibilityState={{ checked }} aria-checked={checked} onPress={() => toggle(attendanceWorkerKey(w))} style={[s.worker, checked && s.active]}><Ionicons name={checked ? 'checkbox' : 'square-outline'} size={23} color={checked ? colors.blue : colors.muted} /><View style={s.flex}><Text style={s.workerName}>{w.nombre}</Text><Text style={s.help}>{w.rut || 'Sin RUT'} · {w.cargo || 'Personal'}</Text></View></Pressable>; })}
           {!loading && !visible.length && <Text style={s.help}>No hay trabajadores que coincidan con la búsqueda.</Text>}
-          <Text style={s.label}>Estado de asistencia</Text><View style={s.choices}>{states.map(([key, label]) => <Pressable key={key} disabled={saving} onPress={() => setStatus(key)} style={[s.choice, status === key && s.active]}><Text>{label}</Text></Pressable>)}</View>
-          {status === 'PRESENTE' && <><View style={s.row}><View style={s.flex}><Text style={s.label}>Hora de entrada</Text><TextInput editable={!saving} value={entry} onChangeText={setEntry} placeholder="08:00" keyboardType="numbers-and-punctuation" maxLength={5} style={s.input} /></View><View style={s.flex}><Text style={s.label}>Hora de salida</Text><TextInput editable={!saving} value={exit} onChangeText={setExit} placeholder="18:00" keyboardType="numbers-and-punctuation" maxLength={5} style={s.input} /></View></View>
+          <Text style={s.label}>Estado de asistencia</Text><View style={s.choices}>{states.map(([key, label]) => <Pressable key={key} disabled={saving} onPress={() => setStatus(key)} style={[s.choice, status === key && s.active]}><Text style={{color:status===key?colors.blue:colors.muted,fontWeight:status===key?'600':'400'}}>{label}</Text></Pressable>)}</View>
+          {status === 'PRESENTE' && <><View style={s.row}><View style={s.flex}><Text style={s.label}>Hora de entrada</Text><TextInput placeholderTextColor={colors.muted} selectionColor={colors.blue} editable={!saving} value={entry} onChangeText={setEntry} placeholder="08:00" keyboardType="numbers-and-punctuation" maxLength={5} style={s.input} /></View><View style={s.flex}><Text style={s.label}>Hora de salida</Text><TextInput placeholderTextColor={colors.muted} selectionColor={colors.blue} editable={!saving} value={exit} onChangeText={setExit} placeholder="18:00" keyboardType="numbers-and-punctuation" maxLength={5} style={s.input} /></View></View>
           <View style={s.row}><Text style={s.flex}>Descontar colación</Text><Switch disabled={saving} value={meal} onValueChange={setMeal} /></View>
           <Text style={s.help}>Jornada de la obra: {ordinaryHours} h ordinarias{day && !day.active ? ' · Día no laborable' : ''}.</Text>
           {hours && <Text style={s.hours}>{hours.worked} h trabajadas · {hours.ordinary} h ordinarias · {hours.extra} h extras</Text>}
@@ -109,4 +114,4 @@ export function ManualAttendance({ profile, workId, workName, work, onSaved }: {
     </Modal>
   </>;
 }
-const s = StyleSheet.create({ open: { minHeight: 48, borderRadius: 14, backgroundColor: colors.orange, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', padding: 10 }, white: { color: 'white', fontWeight: '900' }, overlay: { flex: 1, backgroundColor: 'rgba(10,18,36,.55)', justifyContent: 'flex-end' }, sheet: { maxHeight: '92%', backgroundColor: 'white', borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 20, gap: 12 }, content: { gap: 10, paddingBottom: 16 }, row: { flexDirection: 'row', alignItems: 'center', gap: 12, justifyContent: 'space-between' }, flex: { flex: 1 }, title: { fontSize: 21, fontWeight: '900', color: colors.ink }, label: { fontSize: 11, fontWeight: '900', textTransform: 'uppercase', color: colors.muted, marginTop: 5 }, input: { borderWidth: 1, borderColor: colors.line, borderRadius: 13, padding: 13, fontSize: 15, color: colors.ink }, worker: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderWidth: 1, borderColor: colors.line, borderRadius: 12 }, active: { backgroundColor: colors.soft, borderColor: colors.blue }, workerName: { fontSize: 13, fontWeight: '800', color: colors.ink }, help: { fontSize: 12, color: colors.muted }, link: { fontSize: 13, fontWeight: '800', color: colors.blue, paddingVertical: 8 }, choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, choice: { padding: 11, borderWidth: 1, borderColor: colors.line, borderRadius: 12 }, hours: { fontSize: 13, color: colors.blue, fontWeight: '800' }, error: { color: '#b91c1c', fontSize: 13 }, save: { height: 52, borderRadius: 14, backgroundColor: colors.green, alignItems: 'center', justifyContent: 'center' }, disabled: { opacity: .45 } });
+const createStyles = (colors: ThemeColors) => StyleSheet.create({ open: { minHeight: 48, borderRadius: 14, backgroundColor:colors.primary, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', padding: 10 }, white: { color:colors.onPrimary, fontWeight:'700' }, overlay: { flex: 1, backgroundColor: colors.overlay, justifyContent: 'flex-end' }, sheet: { maxHeight: '92%', backgroundColor:colors.surface, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 20, gap: 12 }, content: { gap: 10, paddingBottom: 16 }, row: { flexDirection: 'row', alignItems: 'center', gap: 12, justifyContent: 'space-between' }, flex: { flex: 1 }, title: { fontSize: 21, fontWeight:'700', color: colors.ink }, label: { fontSize:13, fontWeight:'600', color: colors.muted, marginTop: 5 }, input: { borderWidth: 1, borderColor: colors.line, borderRadius: 13, padding: 13, fontSize: 15, color: colors.ink }, worker: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderWidth: 1, borderColor: colors.line, borderRadius: 12 }, active: { backgroundColor: colors.blueSoft, borderColor: colors.blue }, workerName: { fontSize: 13, fontWeight:'600', color: colors.ink }, help: { fontSize: 12, color: colors.muted }, link: { fontSize: 13, fontWeight:'600', color: colors.blue, paddingVertical: 8 }, choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, choice: { padding: 11, borderWidth: 1, borderColor: colors.line, borderRadius: 12 }, hours: { fontSize: 13, color: colors.blue, fontWeight:'600' }, error: { color: colors.red, fontSize: 13 }, save: { height: 52, borderRadius: 14, backgroundColor:colors.primary, alignItems: 'center', justifyContent: 'center' }, disabled: { opacity: .45 } });

@@ -1,13 +1,15 @@
+import { useTheme, useThemedStyles } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/lib/theme';
 import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '@/auth/AuthProvider';
-import { Badge, Card, Empty, ErrorBox, Header, Loading, Progress, Screen, Segments } from '@/components/ui';
+import { Badge, Card, Empty, ErrorBox, Header, Loading, Progress, Screen, Segments, SearchField } from '@/components/ui';
 import { useSupabaseList } from '@/hooks/useSupabaseList';
 import { supabase } from '@/lib/supabase';
-import { colors } from '@/lib/theme';
+
 import { can } from '@/lib/types';
 
 type Row=Record<string,any>;
@@ -17,6 +19,9 @@ const inCurrentPeriod=(row:Row,date:string)=>{if(!date)return false;if(row.frecu
 const dueText=(row:Row)=>row.frecuencia==='Semanal'?`${['','Lunes','Martes','Miércoles','Jueves','Viernes'][Number(row.dia_semana)||4]} · ${String(row.hora_limite||'17:00').slice(0,5)}`:row.frecuencia==='Mensual'?`Día ${row.dia_mes||20} · ${String(row.hora_limite||'17:00').slice(0,5)}`:`Lun–Vie · ${String(row.hora_limite||'17:00').slice(0,5)}`;
 
 export default function Forms(){
+  const {colors}=useTheme();
+  const s=useThemedStyles(createStyles);
+
   const{profile}=useAuth();
   const canView=can(profile,'formularios.formularios.ver')||can(profile,'prevencion.registros.ver'),canCreate=can(profile,'formularios.formularios.crear')||can(profile,'prevencion.registros.crear');
   const[tab,setTab]=useState('asignados');const[q,setQ]=useState('');
@@ -44,7 +49,7 @@ export default function Forms(){
   return <Screen refreshing={state.loading} onRefresh={state.refresh}>
     <Header title="Prevención y formularios" subtitle="Cumplimiento, registros y procedimientos en terreno." icon="shield-checkmark-outline"/>
     <Segments value={tab} options={[{key:'asignados',label:'Mis asignados'},{key:'cumplimiento',label:'Cumplimiento'},{key:'procedimientos',label:'Procedimientos'},{key:'biblioteca',label:'Biblioteca'},{key:'registros',label:'Registros'}]} onChange={setTab}/>
-    {(tab==='biblioteca'||tab==='registros')&&<View style={s.search}><Ionicons name="search" size={18} color={colors.muted}/><TextInput value={q} onChangeText={setQ} placeholder="Buscar formulario" placeholderTextColor="#98A2B3" style={s.input}/></View>}
+    {(tab==='biblioteca'||tab==='registros')&&<SearchField value={q} onChangeText={setQ} placeholder="Buscar formulario"/>}
     <ErrorBox text={state.error}/>
     {tab==='procedimientos'&&<Card onPress={()=>router.push('/procedimiento/impact')}><Badge tone="amber">Borrador para revisión técnica</Badge><Text style={s.name}>PC-MN-06 · Armado de equipo Impact</Text><Text style={s.meta}>Manual visual · 20 pasos · Fotografías ampliables · Disponible sin conexión</Text><View style={s.action}><Ionicons name="book-outline" size={18} color={colors.blue}/><Text style={s.actionText}>Abrir paso a paso</Text></View></Card>}
     {state.loading&&!state.data.length?<Loading/>:tab==='asignados'?(
@@ -56,4 +61,4 @@ export default function Forms(){
   </Screen>;
 }
 
-const s=StyleSheet.create({search:{height:50,borderWidth:1,borderColor:colors.line,borderRadius:14,backgroundColor:'white',paddingHorizontal:14,flexDirection:'row',alignItems:'center',gap:9},input:{flex:1,fontSize:13,color:colors.ink},top:{flexDirection:'row',justifyContent:'space-between',alignItems:'center'},rev:{fontSize:10,fontWeight:'800',color:colors.muted},name:{fontSize:14,fontWeight:'900',color:colors.ink},meta:{fontSize:11,color:colors.muted,lineHeight:16},available:{fontSize:10,fontWeight:'800',color:colors.green},unavailable:{fontSize:10,fontWeight:'700',color:colors.muted},date:{fontSize:10,color:colors.blue,fontWeight:'700'},action:{flexDirection:'row',alignItems:'center',gap:6,marginTop:3},actionText:{fontSize:11,fontWeight:'900',color:colors.blue},metricTop:{flexDirection:'row',alignItems:'center',justifyContent:'space-between'},metric:{fontSize:34,fontWeight:'900',color:colors.ink},metrics:{flexDirection:'row',gap:9},smallMetric:{flex:1,backgroundColor:'white',borderWidth:1,borderColor:colors.line,borderRadius:16,padding:13,alignItems:'center'},smallNumber:{fontSize:25,fontWeight:'900'},smallLabel:{fontSize:9,fontWeight:'800',color:colors.muted,textAlign:'center'},row:{flexDirection:'row',alignItems:'center',gap:11},flex:{flex:1},docIcon:{width:43,height:43,borderRadius:13,backgroundColor:'#EEF4FF',alignItems:'center',justifyContent:'center'}});
+const createStyles = (colors: ThemeColors) => StyleSheet.create({search:{height:50,borderWidth:1,borderColor:colors.line,borderRadius:14,backgroundColor:colors.surface,paddingHorizontal:14,flexDirection:'row',alignItems:'center',gap:9},input:{flex:1,fontSize:13,color:colors.ink},top:{flexDirection:'row',justifyContent:'space-between',alignItems:'center'},rev:{fontSize:11,fontWeight:'600',color:colors.muted},name:{fontSize:14,fontWeight:'700',color:colors.ink},meta:{fontSize:12,color:colors.muted,lineHeight:18},available:{fontSize:11,fontWeight:'600',color:colors.green},unavailable:{fontSize:11,fontWeight:'700',color:colors.muted},date:{fontSize:11,color:colors.blue,fontWeight:'700'},action:{flexDirection:'row',alignItems:'center',gap:6,marginTop:3},actionText:{fontSize:12,fontWeight:'700',color:colors.blue},metricTop:{flexDirection:'row',alignItems:'center',justifyContent:'space-between'},metric:{fontSize:34,fontWeight:'700',color:colors.ink},metrics:{flexDirection:'row',gap:9},smallMetric:{flex:1,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.line,borderRadius:16,padding:13,alignItems:'center'},smallNumber:{fontSize:25,fontWeight:'700'},smallLabel:{fontSize:11,fontWeight:'600',color:colors.muted,textAlign:'center'},row:{flexDirection:'row',alignItems:'center',gap:11},flex:{flex:1},docIcon:{width:43,height:43,borderRadius:13,backgroundColor:colors.blueSoft,alignItems:'center',justifyContent:'center'}});

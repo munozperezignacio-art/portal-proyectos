@@ -15,10 +15,13 @@ import {
   Segments,
 } from "@/components/ui";
 import { supabase } from "@/lib/supabase";
-import { colors } from "@/lib/theme";
+import type { ThemeColors } from "@/lib/theme";
+import { useTheme, useThemedStyles } from "@/theme/ThemeProvider";
 type Row = Record<string, any>;
 
 export default function SubcontractDetail() {
+ const {colors}=useTheme();
+ const s=useThemedStyles(createStyles);
   const { id, obra, nombre } = useLocalSearchParams<{
     id: string;
     obra: string;
@@ -74,7 +77,7 @@ export default function SubcontractDetail() {
   return (
     <Screen refreshing={loading} onRefresh={load}>
       <Pressable onPress={() => router.back()} style={s.back}>
-        <Ionicons name="arrow-back" size={20} />
+        <Ionicons name="arrow-back" size={20} color={colors.ink} />
         <Text style={s.backText}>Volver a la obra</Text>
       </Pressable>
       <Header
@@ -168,7 +171,7 @@ export default function SubcontractDetail() {
     </Screen>
   );
 }
-const s = StyleSheet.create({
+const createStyles = (colors:ThemeColors) => StyleSheet.create({
   back: { flexDirection: "row", alignItems: "center", gap: 7 },
   backText: { fontSize: 12, fontWeight: "800", color: colors.ink },
   top: {
@@ -177,7 +180,7 @@ const s = StyleSheet.create({
     alignItems: "center",
   },
   name: { fontSize: 14, fontWeight: "900", color: colors.ink },
-  meta: { fontSize: 11, color: colors.muted, lineHeight: 16 },
-  date: { fontSize: 11, fontWeight: "800", color: colors.muted },
+  meta: { fontSize:12, color: colors.muted, lineHeight:18 },
+  date: { fontSize:12, fontWeight: "800", color: colors.muted },
   metric: { fontSize: 23, fontWeight: "900", color: colors.green },
 });

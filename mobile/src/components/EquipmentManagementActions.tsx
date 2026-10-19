@@ -1,15 +1,20 @@
+import { useTheme, useThemedStyles } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/lib/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
-import { colors } from '@/lib/theme';
+
 import type { Profile } from '@/lib/types';
 
 type Row = Record<string, any>;
 const today = () => new Date().toISOString().slice(0, 10);
 
 export function EquipmentManagementActions({ equipment, profile, onSaved, initialEquipment, maintenanceOnly = false, showAssign, showMaintenance = true }: { equipment: Row[]; profile: Profile; onSaved: () => void; initialEquipment?: Row; maintenanceOnly?: boolean; showAssign?: boolean; showMaintenance?: boolean }) {
+  const {colors}=useTheme();
+  const s=useThemedStyles(createStyles);
+
   const insets = useSafeAreaInsets(); const mayAssign = showAssign ?? !maintenanceOnly;
   const [mode, setMode] = useState<'assign' | 'maintenance' | null>(null); const [works, setWorks] = useState<Row[]>([]); const [selected, setSelected] = useState<Row | null>(initialEquipment || null); const [work, setWork] = useState('Bodega / Sin asignar'); const [form, setForm] = useState({ fecha: today(), tipo: 'Preventiva', horometro: '', descripcion: '', costo: '', proveedor: '' }); const [saving, setSaving] = useState(false);
   useEffect(() => { if (mode === 'assign') supabase.from('obras').select('id,nombre').eq('empresa', profile.empresa).order('nombre').then(({ data }) => setWorks(data || [])); }, [mode, profile.empresa]);
@@ -26,7 +31,7 @@ export function EquipmentManagementActions({ equipment, profile, onSaved, initia
   return <>
     <View style={s.actions}>{mayAssign && <Button icon="swap-horizontal-outline" label="Asignar equipo" onPress={() => open('assign')} />}{showMaintenance && <Button icon="build-outline" label="Registrar mantención" onPress={() => open('maintenance')} />}</View>
     <Modal visible={!!mode} transparent animationType="slide" onRequestClose={() => setMode(null)}><View style={s.overlay}><View style={[s.sheet, { paddingBottom: Math.max(20, insets.bottom) }]}>
-      <View style={s.top}><Text style={s.title}>{mode === 'assign' ? 'Asignar equipo' : 'Registrar mantención'}</Text><Pressable onPress={() => setMode(null)}><Ionicons name="close" size={26}/></Pressable></View>
+      <View style={s.top}><Text style={s.title}>{mode === 'assign' ? 'Asignar equipo' : 'Registrar mantención'}</Text><Pressable onPress={() => setMode(null)}><Ionicons color={colors.ink} name="close" size={26}/></Pressable></View>
       {!initialEquipment && <><Text style={s.label}>Equipo</Text><ScrollView horizontal contentContainerStyle={s.options}>{equipment.map(item => <Choice key={item.id} active={selected?.id === item.id} label={`${item.tipo} · ${item.patente || 'S/P'}`} onPress={() => setSelected(item)}/>)}</ScrollView></>}
       {initialEquipment && <View style={s.selectedEquipment}><Text style={s.choiceText}>{initialEquipment.tipo} · {initialEquipment.patente || 'S/P'}</Text></View>}
       {mode === 'assign' ? <><Text style={s.label}>Destino</Text><View style={s.list}><Choice active={work === 'Bodega / Sin asignar'} label="Bodega / Sin asignar" onPress={() => setWork('Bodega / Sin asignar')}/>{works.map(item => <Choice key={item.id} active={work === item.nombre} label={item.nombre} onPress={() => setWork(item.nombre)}/>)}</View></> : <><Field label="Fecha" value={form.fecha} onChangeText={value => setForm(current => ({ ...current, fecha: value }))}/><Text style={s.label}>Tipo</Text><View style={s.options}>{['Preventiva', 'Correctiva', 'Predictiva', 'Inspección'].map(value => <Choice key={value} active={form.tipo === value} label={value} onPress={() => setForm(current => ({ ...current, tipo: value }))}/>)}</View><Field label="Lectura" value={form.horometro} onChangeText={value => setForm(current => ({ ...current, horometro: value }))}/><Field label="Descripción" value={form.descripcion} onChangeText={value => setForm(current => ({ ...current, descripcion: value }))}/><Field label="Costo" value={form.costo} onChangeText={value => setForm(current => ({ ...current, costo: value }))}/><Field label="Proveedor" value={form.proveedor} onChangeText={value => setForm(current => ({ ...current, proveedor: value }))}/></>}
@@ -34,7 +39,15 @@ export function EquipmentManagementActions({ equipment, profile, onSaved, initia
     </View></View></Modal>
   </>;
 }
-function Button({ icon, label, onPress }: { icon:keyof typeof Ionicons.glyphMap;label:string;onPress:()=>void }) { return <Pressable onPress={onPress} style={s.button}><Ionicons name={icon} size={18} color="white"/><Text style={s.buttonText}>{label}</Text></Pressable>; }
-function Choice({ active, label, onPress }: { active:boolean;label:string;onPress:()=>void }) { return <Pressable onPress={onPress} style={[s.choice, active && s.choiceActive]}><Text style={[s.choiceText, active && s.choiceTextActive]}>{label}</Text></Pressable>; }
-function Field({ label, ...props }: { label:string;value:string;onChangeText:(value:string)=>void }) { return <View style={s.field}><Text style={s.label}>{label}</Text><TextInput {...props} style={s.input}/></View>; }
-const s = StyleSheet.create({actions:{flexDirection:'row',gap:8,flexWrap:'wrap'},button:{height:44,borderRadius:12,backgroundColor:colors.blue,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:6,paddingHorizontal:12},buttonText:{color:'white',fontSize:11,fontWeight:'900'},overlay:{flex:1,backgroundColor:'rgba(10,18,36,.55)',justifyContent:'flex-end'},sheet:{maxHeight:'92%',backgroundColor:'white',borderTopLeftRadius:26,borderTopRightRadius:26,padding:20,gap:10},top:{flexDirection:'row',alignItems:'center',justifyContent:'space-between'},title:{fontSize:21,fontWeight:'900',color:colors.ink},label:{fontSize:10,fontWeight:'900',textTransform:'uppercase',color:colors.muted},options:{gap:7},list:{gap:6,maxHeight:250},choice:{paddingHorizontal:12,paddingVertical:10,borderRadius:10,backgroundColor:colors.soft},choiceActive:{backgroundColor:colors.navy},choiceText:{fontSize:11,fontWeight:'800',color:colors.ink},choiceTextActive:{color:'white'},selectedEquipment:{padding:12,borderRadius:10,backgroundColor:colors.soft},field:{gap:5},input:{height:46,borderWidth:1,borderColor:colors.line,borderRadius:12,paddingHorizontal:12,color:colors.ink},save:{height:50,borderRadius:13,backgroundColor:colors.green,alignItems:'center',justifyContent:'center'},saveText:{color:'white',fontWeight:'900'},disabled:{opacity:.45}});
+function Button({ icon, label, onPress }: { icon:keyof typeof Ionicons.glyphMap;label:string;onPress:()=>void }) {
+  const {colors}=useTheme();
+  const s=useThemedStyles(createStyles);
+ return <Pressable onPress={onPress} style={s.button}><Ionicons name={icon} size={18} color={colors.onPrimary}/><Text style={s.buttonText}>{label}</Text></Pressable>; }
+function Choice({ active, label, onPress }: { active:boolean;label:string;onPress:()=>void }) {
+  const s=useThemedStyles(createStyles);
+ return <Pressable onPress={onPress} style={[s.choice, active && s.choiceActive]}><Text style={[s.choiceText, active && s.choiceTextActive]}>{label}</Text></Pressable>; }
+function Field({ label, ...props }: { label:string;value:string;onChangeText:(value:string)=>void }) {
+  const {colors}=useTheme();
+  const s=useThemedStyles(createStyles);
+ return <View style={s.field}><Text style={s.label}>{label}</Text><TextInput placeholderTextColor={colors.muted} selectionColor={colors.blue} {...props} style={s.input}/></View>; }
+const createStyles = (colors: ThemeColors) => StyleSheet.create({actions:{flexDirection:'row',gap:8,flexWrap:'wrap'},button:{height:44,borderRadius:12,backgroundColor:colors.primary,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:6,paddingHorizontal:12},buttonText:{color:colors.onPrimary,fontSize:12,fontWeight:'700'},overlay:{flex:1,backgroundColor:colors.overlay,justifyContent:'flex-end'},sheet:{maxHeight:'92%',backgroundColor:colors.surface,borderTopLeftRadius:26,borderTopRightRadius:26,padding:20,gap:10},top:{flexDirection:'row',alignItems:'center',justifyContent:'space-between'},title:{fontSize:21,fontWeight:'700',color:colors.ink},label:{fontSize:11,fontWeight:'700',textTransform:'uppercase',color:colors.muted},options:{gap:7},list:{gap:6,maxHeight:250},choice:{paddingHorizontal:12,paddingVertical:10,borderRadius:10,backgroundColor:colors.soft},choiceActive:{backgroundColor:colors.navy},choiceText:{fontSize:12,fontWeight:'600',color:colors.ink},choiceTextActive:{color:colors.onPrimary},selectedEquipment:{padding:12,borderRadius:10,backgroundColor:colors.soft},field:{gap:5},input:{height:46,borderWidth:1,borderColor:colors.line,borderRadius:12,paddingHorizontal:12,color:colors.ink},save:{height:50,borderRadius:13,backgroundColor:colors.primary,alignItems:'center',justifyContent:'center'},saveText:{color:colors.onPrimary,fontWeight:'700'},disabled:{opacity:.45}});

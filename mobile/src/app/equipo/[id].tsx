@@ -1,3 +1,5 @@
+import { useTheme, useThemedStyles } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/lib/theme';
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -8,12 +10,15 @@ import { EquipmentManagementActions } from '@/components/EquipmentManagementActi
 import { MachineryActions } from '@/components/MachineryActions';
 import { Badge, Card, Empty, ErrorBox, Header, Loading, Screen, Segments } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
-import { colors } from '@/lib/theme';
+
 import { can } from '@/lib/types';
 
 type Row = Record<string, any>;
 const tabs = [{ key: 'historial', label: 'Historial' }, { key: 'mantenciones', label: 'Mantenciones' }, { key: 'planes', label: 'Próximas' }];
 export default function EquipmentDetail() {
+  const {colors}=useTheme();
+  const s=useThemedStyles(createStyles);
+
   const { id, obra } = useLocalSearchParams<{ id: string; obra?: string }>(); const { profile } = useAuth();
   const [tab, setTab] = useState('historial'); const [loading, setLoading] = useState(true); const [error, setError] = useState('');
   const [data, setData] = useState<Row>({ equipment: null, usage: [], failures: [], maintenance: [], reservations: [] });
@@ -41,7 +46,7 @@ export default function EquipmentDetail() {
   const plans = useMemo(() => (Array.isArray(data.equipment?.planes_mantencion) ? data.equipment.planes_mantencion : []).map((plan: Row) => { const current = Number(data.equipment?.horometro_inicial || 0), last = Number(plan.ultima_lectura || 0), interval = Number(plan.intervalo || 0); return { ...plan, remaining: interval - (current - last), next: last + interval }; }).sort((a: Row, b: Row) => a.remaining - b.remaining), [data.equipment]);
   const hours = data.usage.reduce((sum: number, item: Row) => sum + Number(item.horas_trabajadas || 0), 0); const equipment = data.equipment;
   return <Screen refreshing={loading} onRefresh={load}>
-    <Pressable onPress={() => router.back()} style={s.back}><Ionicons name="arrow-back" size={20} /><Text style={s.backText}>Volver</Text></Pressable>
+    <Pressable onPress={() => router.back()} style={s.back}><Ionicons color={colors.ink} name="arrow-back" size={20} /><Text style={s.backText}>Volver</Text></Pressable>
     <Header title={equipment ? `${equipment.tipo || 'Equipo'} · ${equipment.patente || 'S/P'}` : 'Ficha del equipo'} subtitle={obra ? `Historial exclusivo de ${obra}` : 'Historial completo de la empresa'} icon="construct-outline" />
     <ErrorBox text={error} />{loading && !equipment ? <Loading /> : equipment ? <>
       <Card><View style={s.row}><View style={s.flex}><Text style={s.name}>{equipment.marca || 'Marca no informada'}</Text><Text style={s.meta}>{equipment.obra_nombre || 'Bodega / Sin asignar'} · Lectura actual {Number(equipment.horometro_inicial || 0).toLocaleString('es-CL')}</Text></View><Badge tone={String(equipment.estado_equipo).toLowerCase().includes('mant') ? 'amber' : 'green'}>{equipment.estado_equipo || 'Operativo'}</Badge></View></Card>
@@ -54,6 +59,10 @@ export default function EquipmentDetail() {
     </> : <Empty text="El equipo no existe o no está disponible para tu empresa." />}
   </Screen>;
 }
-function HistoryCard({ item }: { item: Row }) { const failure = item.kind === 'Falla', maintenance = item.kind === 'Mantención'; return <Card><Badge tone={failure ? 'red' : maintenance ? 'amber' : 'green'}>{item.kind}</Badge><Text style={s.name}>{item.fecha || String(item.created_at).slice(0, 10)}</Text><Text style={s.meta}>{failure ? `${item.descripcion || 'Sin descripción'} · ${item.horas_fuera_servicio || 0} h fuera de servicio` : maintenance ? `${item.tipo || ''} · ${item.descripcion || 'Sin descripción'}` : `${Number(item.horas_trabajadas || 0).toLocaleString('es-CL')} h · ${item.operador || 'Sin operador'}${item.observaciones ? ` · ${item.observaciones}` : ''}`}</Text></Card>; }
-function Metric({ value, label }: { value: string | number; label: string }) { return <Card><Text style={s.value}>{value}</Text><Text style={s.meta}>{label}</Text></Card>; }
-const s = StyleSheet.create({ back: { flexDirection: 'row', alignItems: 'center', gap: 7 }, backText: { fontSize: 12, fontWeight: '800', color: colors.ink }, section:{fontSize:11,fontWeight:'900',textTransform:'uppercase',color:colors.muted}, actions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' }, row: { flexDirection: 'row', alignItems: 'center', gap: 9 }, flex: { flex: 1 }, name: { fontSize: 14, fontWeight: '900', color: colors.ink }, meta: { fontSize: 11, color: colors.muted, lineHeight: 16 }, metrics: { flexDirection: 'row', gap: 8 }, value: { fontSize: 22, fontWeight: '900', color: colors.blue }, cost: { fontSize: 14, fontWeight: '900', color: colors.green } });
+function HistoryCard({ item }: { item: Row }) {
+  const s=useThemedStyles(createStyles);
+ const failure = item.kind === 'Falla', maintenance = item.kind === 'Mantención'; return <Card><Badge tone={failure ? 'red' : maintenance ? 'amber' : 'green'}>{item.kind}</Badge><Text style={s.name}>{item.fecha || String(item.created_at).slice(0, 10)}</Text><Text style={s.meta}>{failure ? `${item.descripcion || 'Sin descripción'} · ${item.horas_fuera_servicio || 0} h fuera de servicio` : maintenance ? `${item.tipo || ''} · ${item.descripcion || 'Sin descripción'}` : `${Number(item.horas_trabajadas || 0).toLocaleString('es-CL')} h · ${item.operador || 'Sin operador'}${item.observaciones ? ` · ${item.observaciones}` : ''}`}</Text></Card>; }
+function Metric({ value, label }: { value: string | number; label: string }) {
+  const s=useThemedStyles(createStyles);
+ return <Card><Text style={s.value}>{value}</Text><Text style={s.meta}>{label}</Text></Card>; }
+const createStyles = (colors: ThemeColors) => StyleSheet.create({ back: { flexDirection: 'row', alignItems: 'center', gap: 7 }, backText: { fontSize: 12, fontWeight:'600', color: colors.ink }, section:{fontSize:12,fontWeight:'700',textTransform:'uppercase',color:colors.muted}, actions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' }, row: { flexDirection: 'row', alignItems: 'center', gap: 9 }, flex: { flex: 1 }, name: { fontSize: 14, fontWeight:'700', color: colors.ink }, meta: { fontSize:12, color: colors.muted, lineHeight:18 }, metrics: { flexDirection: 'row', gap: 8 }, value: { fontSize: 22, fontWeight:'700', color: colors.blue }, cost: { fontSize: 14, fontWeight:'700', color: colors.green } });
