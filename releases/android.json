@@ -2,16 +2,16 @@
   "schema": 1,
   "platform": "android",
   "packageName": "cl.obraxis.terreno",
-  "version": "1.0.6",
-  "build": 11,
-  "apkUrl": "https://expo.dev/artifacts/eas/5q8Vw28cM_k8haTe0kP3HJMOncDjsn09P7vZZZX8U1Q.apk",
-  "sha256": "6988b79d0ad6222931c457dc78ef27246d6787887879f86b4725f314fbe8a3aa",
-  "commit": "675a05c0825eaa72548ee211dfa414ea0ce34d8b",
-  "sourceHash": "e09e78658865461dcb1f37e7f398ef8a78689b6d4354e3a68389381421b5ce96",
-  "publishedAt": "2026-10-19T17:10:50.424Z",
+  "version": "1.0.7",
+  "build": 12,
+  "apkUrl": "https://expo.dev/artifacts/eas/nngvsdQ7lK8wBzRTDMtyMlFfxGdrngTjxXsyYnJ1nwQ.apk",
+  "sha256": "dfbbafcaa5687b2e0ffbde0b4289f8a863208e9b342a724c2fc5cd89fc3f4287",
+  "commit": "890d950eb578ae41e20010f2d6a13a85d4e793c4",
+  "sourceHash": "d77c37d22a4a1fb29fd463633ac33e92acdae526897861f42e6bf129aaacd89c",
+  "publishedAt": "2026-10-19T18:22:36.441Z",
   "notes": [
-    "Nuevo diseño móvil y temas Claro, Oscuro y Automático.",
-    "Estadísticas de obra con evolución, partidas críticas y recursos.",
-    "Mejoras de marcaje de asistencia y manual Impact."
+    "Consulta los reportes de avance al tocar cada partida: fecha, cantidad, responsable y observaciones.",
+    "Chequeo automático de nuevas versiones y recomendación para actualizar desde la app.",
+    "Se mantienen los temas, las estadísticas renovadas y las mejoras de asistencia."
   ]
 }
