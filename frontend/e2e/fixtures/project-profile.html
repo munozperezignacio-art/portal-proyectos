@@ -25,6 +25,7 @@ const workStaff=[{id:1,empresa:'TEST',nombre:'Persona secundaria',rut:'1-9',obra
 const workLinks=workStaff.map(worker=>({id:worker.id,empresa:'TEST',trabajador_id:worker.id,centro_gestion_id:77,centro_activo:true,fecha_inicio:'2000-01-01',fecha_termino:null}));
 const user={id:1,empresa:'TEST',rol:'Administrador',rol_base:'Administrador',obras:'todas',permisos:{'obras.ficha.ver':true,'obras.ficha.editar':!readonly}};
 window.saves=[];window.failSave=false;
+window.costSaves=[];window.costRows=[];window.failCost=false;
 const attendanceFixture=new URLSearchParams(location.search).has('attendance');
 window.attendanceSaves=[];window.attendanceRows=attendanceFixture?[{id:91,empresa:'TEST',obra_id:123,obra_nombre:work.nombre,trabajador:'Persona principal',rut:'2-7',fecha_marcacion:'2026-10-01',asistencia:'PRESENTE',ingreso:'08:00',salida:'19:00',colacion:'SI',otras_horas:1.25,horas_extras_auto:1,verificado_qr:false}]:[];
 Object.defineProperty(supabase,'functions',{value:{invoke:async()=>({data:{ok:true},error:null})}});
@@ -32,9 +33,11 @@ supabase.from=table=>{
   let single=false;
   let mutation=null;
   const result=()=>{if(table==='asistencia_personal'&&mutation){window.attendanceSaves.push(mutation);const payload=Array.isArray(mutation.data)?mutation.data[0]:mutation.data;window.attendanceRows=[{...window.attendanceRows[0],...payload,id:91}];return {data:[{id:91}],error:null};}
+    if(table==='costos_reales_obra'&&mutation){window.costSaves.push(mutation);if(window.failCost)return {data:null,error:{message:'Fallo simulado'}};const row={...mutation.data,id:7};window.costRows=[row];return {data:row,error:null};}
+    if(table==='costos_reales_obra')return {data:window.costRows,error:null};
     return {data:table==='asistencia_personal'?window.attendanceRows:table==='obras'?[work]:table==='usuarios'?user:table==='partidas_obra'&&budget?budgetRows:table==='maestro_personal'&&multiCenterWork?workStaff:table==='rrhh_personal_centros_detalle'&&multiCenterWork?workLinks:single?null:[],error:null};};
   const chain=new Proxy({}, {get:(_target,key)=>key==='then'?(resolve=>Promise.resolve(result()).then(resolve)):
-    (...args)=>{if(key==='single'||key==='maybeSingle')single=true;if(key==='insert'||key==='update')mutation={action:key,data:args[0]};return chain;}});
+    (...args)=>{if(key==='single'||key==='maybeSingle')single=true;if(key==='insert'||key==='update'||key==='upsert')mutation={action:key,data:args[0]};return chain;}});
   return chain;
 };
 supabase.rpc=async(name,args)=>{

@@ -9,6 +9,7 @@ import {
 import { canConfigureEmails, canCreateObras, canModifyOrDeleteRecords } from '../utils/userLevel';
 import { sendSystemEmail } from '../utils/emailService';
 import { formatRut, formatNumberWithDots, parseNumberFromDots } from '../utils/rutUtils';
+import {costSupplierFields} from '../utils/costSupplier';
 import { calculateEarnedValue } from '../utils/earnedValue';
 import { registrarEventoBitacora } from '../utils/bitacoraService';
 import FormAnswerDisplay from './FormAnswerDisplay';
@@ -585,6 +586,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const [costoSaving, setCostoSaving] = useState(false);
   const [costoSaveError, setCostoSaveError] = useState('');
   const [costoFormData, setCostoFormData] = useState({
+    proveedor_rut: '',
+    proveedor_nombre: '',
     nombre: '',
     tipo_costo: 'Materiales',
     asociar_factura: 'SI',
@@ -1590,6 +1593,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
             obra_nombre: doc.obra_nombre,
             nombre: `${doc.nombre_emisor || doc.nombre_receptor || 'Proveedor'} · DTE ${doc.tipo_dte}-${doc.folio}`,
             tipo_costo: 'Factura de compra',
+            proveedor_nombre: doc.nombre_emisor || null,
+            proveedor_rut: doc.rut_emisor || null,
             asociar_factura: 'SI',
             num_factura: String(doc.folio),
             monto: parseFloat(doc.monto_neto) > 0 ? parseFloat(doc.monto_neto) : (parseFloat(doc.monto_total) || 0),
@@ -6844,6 +6849,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                           const validPartidas = partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo));
                           setEditingCosto(null);
                           setCostoFormData({
+                            proveedor_rut: '',
+                            proveedor_nombre: '',
                             nombre: '',
                             tipo_costo: 'Materiales',
                             asociar_factura: 'SI',
@@ -7135,6 +7142,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         onClick={() => {
                           setEditingCosto(null);
                           setCostoFormData({
+                            proveedor_rut: '',
+                            proveedor_nombre: '',
                             nombre: '',
                             tipo_costo: 'Materiales',
                             asociar_factura: 'SI',
@@ -7156,6 +7165,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                           <thead>
                             <tr className="bg-slate-100 border-b text-slate-700 font-bold uppercase text-[10px]">
                               <th className="p-2.5">Concepto / Nombre Costo</th>
+                              <th className="p-2.5">Proveedor / RUT</th>
                               <th className="p-2.5">Tipo de Costo</th>
                               <th className="p-2.5">N° Factura / Doc</th>
                               <th className="p-2.5">Monto Total Costo ($)</th>
@@ -7167,13 +7177,14 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                             {costosList.map((c, idx) => (
                               <tr key={idx} className="hover:bg-slate-50">
                                 <td className="p-2.5 font-bold text-slate-800">{c.nombre}</td>
+                                <td className="p-2.5"><span className="block font-semibold">{c.proveedor_nombre || 'Sin proveedor informado'}</span>{c.proveedor_rut && <span className="block font-mono text-slate-500">{c.proveedor_rut}</span>}</td>
                                 <td className="p-2.5">
                                   <span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-700 px-2 py-0.5 rounded border">
                                     {c.tipo_costo}
                                   </span>
                                 </td>
                                 <td className="p-2.5 font-mono text-slate-700">
-                                  {c.asociar_factura === 'SI' ? (c.num_factura || 'Factura N/A') : 'Sin Factura'}
+                                  {c.asociar_factura === true || c.asociar_factura === 'SI' ? (c.num_factura || 'Factura N/A') : 'Sin Factura'}
                                 </td>
                                 <td className="p-2.5 font-mono font-bold text-emerald-900">
                                   ${(parseFloat(c.monto) || 0).toLocaleString('es-CL')}
@@ -7213,9 +7224,10 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                       ▼
                                     </button>
                                     <button
+                                      aria-label={`Editar costo ${c.nombre}`}
                                       onClick={() => {
                                         setEditingCosto(c);
-                                        setCostoFormData({ ...c });
+                                        setCostoFormData({ ...c,asociar_factura:c.asociar_factura===true||c.asociar_factura==='SI'?'SI':'NO',num_factura:c.num_factura||'',proveedor_nombre:c.proveedor_nombre||'',proveedor_rut:c.proveedor_rut||'' });
                                         setShowCostoModal(true);
                                       }}
                                       className="p-1 text-slate-500 hover:text-blue-900 cursor-pointer"
@@ -11016,6 +11028,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   porcentaje: Number(item.porcentaje) || 0
                 }));
                 const totalImputado = imputaciones.reduce((sum, item) => sum + item.porcentaje, 0);
+                let supplier;
+                try { supplier=costSupplierFields(costoFormData); }
+                catch(error){setCostoSaveError(error.message);return;}
 
                 if (!costoFormData.nombre.trim()) {
                   setCostoSaveError('Ingresa el nombre o concepto del costo.');
@@ -11035,11 +11050,12 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 }
                 
                 const newCosto = {
+                  ...supplier,
                   ...(editingCosto?.id ? { id: editingCosto.id } : {}),
                   nombre: costoFormData.nombre.trim(),
                   tipo_costo: costoFormData.tipo_costo,
                   asociar_factura: costoFormData.asociar_factura === 'SI',
-                  num_factura: costoFormData.asociar_factura === 'SI' ? costoFormData.num_factura.trim() || null : null,
+                  num_factura: costoFormData.asociar_factura === 'SI' ? String(costoFormData.num_factura||'').trim() || null : null,
                   monto,
                   imputaciones
                 };
@@ -11146,6 +11162,18 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 )}
               </div>
 
+              <fieldset className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+                <legend className="px-1 text-[10px] font-bold uppercase text-slate-600">Proveedor</legend>
+                <div className="grid gap-3 sm:grid-cols-[150px_1fr]">
+                  <label className="block text-[10px] font-bold uppercase text-slate-500">RUT del proveedor
+                    <input aria-label="RUT del proveedor" type="text" maxLength={12} value={costoFormData.proveedor_rut || ''} onChange={e=>setCostoFormData(current=>({...current,proveedor_rut:e.target.value}))} onBlur={()=>setCostoFormData(current=>({...current,proveedor_rut:formatRut(current.proveedor_rut)}))} placeholder="12.345.678-5" className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2.5 font-mono text-xs text-slate-800"/>
+                  </label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500">Nombre / razón social del proveedor
+                    <input aria-label="Nombre del proveedor" type="text" maxLength={200} value={costoFormData.proveedor_nombre || ''} onChange={e=>setCostoFormData(current=>({...current,proveedor_nombre:e.target.value}))} placeholder="Nombre o razón social" className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-800"/>
+                  </label>
+                </div>
+                <p className="text-[10px] text-slate-500">Completa ambos datos cuando corresponda, con o sin factura. Para gastos internos sin proveedor puedes dejarlos vacíos.</p>
+              </fieldset>
               {/* Seccion de Imputación por Porcentaje a Partidas */}
               <div className="space-y-2 pt-2 border-t">
                 <div className="flex justify-between items-center">

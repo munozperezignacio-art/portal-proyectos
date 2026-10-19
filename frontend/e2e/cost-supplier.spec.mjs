@@ -1,0 +1,26 @@
+import{test,expect}from'@playwright/test';
+test('proveedor en costo real: valida, guarda y conserva factura al editar',async({page})=>{
+  page.on('dialog',dialog=>dialog.accept());
+  await page.goto('/e2e/fixtures/project-profile.html?budget');
+  await page.getByRole('button').filter({has:page.getByRole('heading',{name:'Plan y Control de Obra',exact:true})}).click();
+  await page.getByRole('button',{name:'Control de costos',exact:true}).click();
+  await page.getByRole('button',{name:'Registrar Factura / Compra'}).click();
+  await page.getByPlaceholder('Ej. Compra Hormigón H30 / Subcontrato Moldajes').fill('Arriendo departamento');
+  await page.getByPlaceholder('1.250.000',{exact:true}).fill('800000');
+  await page.getByPlaceholder('FACT-94820').fill('F-123');
+  await page.getByLabel('Nombre del proveedor',{exact:true}).fill('Proveedor de prueba');
+  await page.getByLabel('RUT del proveedor',{exact:true}).fill('123456789');
+  await page.getByRole('button',{name:'Guardar Costo e Imputaciones'}).click();
+  await expect(page.getByRole('alert')).toContainText('RUT del proveedor no es válido');
+  await page.getByLabel('RUT del proveedor',{exact:true}).fill('123456785');
+  await page.getByRole('button',{name:'Guardar Costo e Imputaciones'}).click();
+  await expect(page.getByRole('columnheader',{name:'Proveedor / RUT'})).toBeVisible();
+  expect(await page.evaluate(()=>window.costSaves[0].data)).toMatchObject({proveedor_rut:'12.345.678-5',proveedor_nombre:'Proveedor de prueba',asociar_factura:true,num_factura:'F-123',monto:800000});
+  await page.getByRole('button',{name:'Editar costo Arriendo departamento'}).click();
+  await expect(page.getByLabel('Nombre del proveedor',{exact:true})).toHaveValue('Proveedor de prueba');
+  await expect(page.getByLabel('RUT del proveedor',{exact:true})).toHaveValue('12.345.678-5');
+  await expect(page.getByPlaceholder('FACT-94820')).toHaveValue('F-123');
+  await page.getByLabel('Nombre del proveedor',{exact:true}).fill('Proveedor actualizado');
+  await page.getByRole('button',{name:'Guardar Costo e Imputaciones'}).click();
+  expect(await page.evaluate(()=>window.costSaves.at(-1).data)).toMatchObject({id:7,proveedor_nombre:'Proveedor actualizado',asociar_factura:true,num_factura:'F-123',monto:800000});
+});
