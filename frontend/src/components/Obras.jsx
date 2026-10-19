@@ -6074,16 +6074,17 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
               ) : (
                 <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4 shadow-xs">
                   <div className="overflow-x-auto">
-                    <table className="w-full text-xs text-left border-collapse">
+                    <table aria-label="Partidas del presupuesto de obra" className="w-full min-w-[1120px] table-fixed text-xs text-left border-collapse">
+                      <colgroup><col/><col className="w-[62px]"/><col className="w-[104px]"/><col className="w-[132px]"/><col className="w-[150px]"/><col className="w-[130px]"/><col className="w-[176px]"/></colgroup>
                       <thead>
                         <tr className="bg-slate-100 border-b text-slate-700 font-bold uppercase text-[10px]">
                           <th className="p-2.5">Partida / Actividad</th>
                           <th className="p-2.5">Unidad</th>
-                          <th className="p-2.5">Cantidad Presupuesto</th>
+                          <th className="p-2.5 text-right">Cantidad<br/>presupuestada</th>
                           <th className="p-2.5">Precio Unitario (P.U. {workBudgetFinancials.currency})</th>
                           <th className="p-2.5">Rendimiento Estimado</th>
-                          <th className="p-2.5">Monto Total Directo ({workBudgetFinancials.currency})</th>
-                          <th className="p-2.5 text-center">Acciones</th>
+                          <th className="p-2.5 text-right">Monto total directo ({workBudgetFinancials.currency})</th>
+                          <th className="p-2.5 text-right">Acciones</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-150 text-[11px]">
@@ -6134,28 +6135,16 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     onDrop={(e) => { e.preventDefault(); const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10); if (!isNaN(fromIdx)) handleReorderPartidaObra(fromIdx, idx); }}
     className="bg-slate-100 hover:bg-slate-200 border-y border-slate-200 text-slate-800 transition cursor-grab active:cursor-grabbing"
   >
-                                <td colSpan="5" className="p-3">
-                                  <div className="grid w-full grid-cols-[112px_minmax(220px,1fr)_110px_minmax(180px,auto)] items-center gap-3">
-                                    <div className="contents">
-                                      <span className="hidden bg-indigo-600 text-white font-black text-[10px] px-2 py-0.5 rounded uppercase tracking-wider border border-indigo-400">
-                                        📁 GRUPO
-                                      </span>
-                                      <span className="text-slate-900 font-extrabold text-xs uppercase tracking-wide">
-                                        {p.partida}
-                                      </span>
-                                      <span className="text-[10px] font-semibold text-slate-500">({countBelow} partida{countBelow === 1 ? '' : 's'})</span>
-                                    </div>
-
-                                    <div className="flex items-center justify-end gap-4">
-                                      <div className="hidden flex items-center gap-1.5 bg-white px-3 py-1 rounded-lg border border-slate-300 shadow-2xs">
-                                        <span className="text-[10px] font-bold text-slate-500 uppercase">Subtotal Grupo:</span>
-                                        <span className="font-mono font-black text-emerald-800 text-xs">
-                                          ${groupSum.toLocaleString('es-CL')}
-                                        </span>
-                                      </div>
-
-                                      <div className="flex items-center gap-1">
-                                        <button
+                                <td colSpan="5" className="px-3 py-3">
+                                  <div className="flex items-center gap-3">
+                                    <span className="min-w-0 font-extrabold text-xs leading-snug text-slate-900 break-words">{p.partida}</span>
+                                    <span className="shrink-0 whitespace-nowrap text-[10px] font-semibold text-slate-500">({countBelow} partida{countBelow === 1 ? '' : 's'})</span>
+                                  </div>
+                                </td>
+                                <td className="p-3 text-right whitespace-nowrap font-mono font-black text-emerald-800">{formatBudgetMoney(groupSum, workBudgetFinancials.currency)}</td>
+                                <td className="p-2.5 text-right">
+                                  <div className="flex items-center justify-end gap-1 whitespace-nowrap">
+                                    <button
                                           type="button"
                                           disabled={idx === 0}
                                           onClick={() => handleReorderPartidaObra(idx, idx - 1)}
@@ -6205,12 +6194,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                         >
                                           <Trash2 className="w-3.5 h-3.5" />
                                         </button>
-                                      </div>
-                                    </div>
                                   </div>
                                 </td>
-                                <td className="p-3 text-right font-mono font-black text-emerald-800">{formatBudgetMoney(groupSum, workBudgetFinancials.currency)}</td>
-                                <td className="p-3"></td>
                               </tr>
                             );
                           }
@@ -6219,13 +6204,15 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                             <React.Fragment key={idx}>
                               {isGeneralChild && idx === 0 && <tr className="bg-slate-100 text-slate-800 border-y border-slate-200"><td colSpan="7" className="p-3"><div className="flex items-center gap-3"><span className="text-xs font-black uppercase tracking-wide">Partidas generales de obra</span><span className="text-[10px] text-slate-500">({partidasList.findIndex(item => item.unidad === 'TITULO' || item.unidad === 'GRUPO' || item.es_titulo) > 0 ? partidasList.findIndex(item => item.unidad === 'TITULO' || item.unidad === 'GRUPO' || item.es_titulo) : partidasList.length} partidas)</span></div></td></tr>}
                             <tr className="hover:bg-slate-50">
-                              <td className="p-2.5 font-bold text-slate-800 pl-6 flex items-center gap-2">
+                              <td className="p-2.5 pl-5 align-middle font-bold leading-snug text-slate-800">
+                                <div className="flex items-start gap-2">
                                 <span className="hidden rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-900">Partida</span>
-                                <span className="text-slate-400 text-xs">└─</span>
-                                <span>{p.partida}</span>
+                                <span className="shrink-0 text-slate-400 text-xs">└─</span>
+                                <span className="min-w-0 break-words">{p.partida}</span>
+                                </div>
                               </td>
-                              <td className="p-2.5 font-mono text-slate-600">{p.unidad || 'UND'}</td>
-                              <td className="p-2.5 font-mono font-bold text-slate-800">{p.cantidad || 0}</td>
+                              <td className="p-2.5 whitespace-nowrap font-mono text-slate-600">{p.unidad || 'UND'}</td>
+                              <td className="p-2.5 text-right whitespace-nowrap font-mono font-bold text-slate-800">{p.cantidad || 0}</td>
                               <td className="p-2.5">
                                 <input
                                   type="number"
@@ -6235,16 +6222,16 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                   className="w-28 border border-slate-300 rounded-lg p-1.5 text-xs font-mono font-bold text-slate-800 bg-white"
                                 />
                               </td>
-                              <td className="p-2.5 font-mono text-slate-700 font-bold">
+                              <td className="p-2.5 whitespace-nowrap font-mono text-slate-700 font-bold">
                                 {['GL', 'GLB'].includes(p.unidad)
                                   ? `${Math.max(1, Math.ceil((Number(p.cantidad || p.cantidad_presupuestada) || 1) / (Number(p.rendimiento_meta || p.rendimiento) || 10)))} días`
                                   : `${p.rendimiento || '20'} ${p.unidad || 'UND'} / ${p.unidad_tiempo || 'Día'}`}
                               </td>
-                              <td className="p-2.5 font-mono font-bold text-emerald-800">
+                              <td className="p-2.5 text-right whitespace-nowrap font-mono font-bold text-emerald-800">
                                 {formatBudgetMoney(totalItem, workBudgetFinancials.currency)}
                               </td>
-                              <td className="p-2.5 text-center">
-                                <div className="flex items-center justify-center gap-1">
+                              <td className="p-2.5 text-right">
+                                <div className="flex items-center justify-end gap-1 whitespace-nowrap">
                                     <button
                                       type="button"
                                       disabled={idx === 0}
