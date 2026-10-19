@@ -1,10 +1,11 @@
 import { supabase } from '../supabaseClient';
+import { emailBranding } from './emailBranding.js';
 
 /**
  * Servicio para el envío de correos electrónicos transaccionales desde el dominio obraxis.cl.
  * La clave de Resend permanece exclusivamente en Supabase Secrets.
  */
-export async function sendSystemEmail({ to, cc, subject, htmlContent, attachments, customSender, permissionKey }) {
+export async function sendSystemEmail({ to, cc, subject, htmlContent, attachments, customSender, permissionKey, companyBranding, companyName }) {
   try {
     // Limpiar y validar correos de destino
     const recipients = typeof to === 'string' 
@@ -16,13 +17,14 @@ export async function sendSystemEmail({ to, cc, subject, htmlContent, attachment
     }
     if (!permissionKey) return { success: false, error: 'El flujo no declaró un permiso de envío' };
 
+    const branding = emailBranding({ companyBranding, companyName, attachments });
     const { data, error } = await supabase.functions.invoke('enviar-correo-sistema', {
       body: {
         to: recipients,
         ...(cc?.length ? {cc} : {}),
         subject,
-        htmlContent: `<div style="margin:0;padding:24px 12px;background:#f1f5f9;font-family:Arial,sans-serif;"><div style="max-width:720px;margin:0 auto 12px;text-align:center;"><img src="https://www.obraxis.cl/brand/obraxis-primary.png" alt="Obraxis" style="width:150px;height:64px;object-fit:contain;display:inline-block;" /></div>${htmlContent}<p style="max-width:650px;margin:16px auto 0;text-align:center;font-size:10px;line-height:1.5;color:#64748b;">Enviado desde <a href="https://www.obraxis.cl" style="color:#073b76;font-weight:bold;text-decoration:none;">Obraxis</a> · Gestión inteligente para construir mejor.</p></div>`,
-        attachments: attachments || [],
+        htmlContent: `<div style="margin:0;padding:24px 12px;background:#f1f5f9;font-family:Arial,sans-serif;"><div style="max-width:720px;margin:0 auto 12px;text-align:center;">${branding.header}</div>${htmlContent}<p style="max-width:650px;margin:16px auto 0;text-align:center;font-size:10px;line-height:1.5;color:#64748b;">Enviado desde <a href="https://www.obraxis.cl" style="color:#073b76;font-weight:bold;text-decoration:none;">Obraxis</a> · Gestión inteligente para construir mejor.</p></div>`,
+        attachments: branding.attachments,
         customSender,
         permissionKey
       }

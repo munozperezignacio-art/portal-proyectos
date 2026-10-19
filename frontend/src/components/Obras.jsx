@@ -2103,13 +2103,13 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           const htmlEmail = `
             <div style="font-family: Arial, sans-serif; max-width: 650px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
               <div style="border-bottom: 2px solid #1e3a8a; padding-bottom: 16px; margin-bottom: 20px;">
-                <span style="font-size: 11px; font-weight: bold; color: #1e3a8a; text-transform: uppercase; letter-spacing: 0.1em;">Obraxis • Control de Faena</span>
+                <span style="font-size: 11px; font-weight: bold; color: #1e3a8a; text-transform: uppercase; letter-spacing: 0.1em;">${escapeEmailText(user.empresa)} • Control de Obra</span>
                 <h2 style="color: #0f172a; margin: 6px 0 0 0; font-size: 20px;">📊 ${editingRecordId ? 'Actualización de' : 'Nuevo'} Reporte de Avance de Producción</h2>
                 <p style="color: #64748b; font-size: 13px; margin: 4px 0 0 0;">Obra: <strong>${escapeEmailText(obraNombre)}</strong> | Fecha: <strong>${fechaStr}</strong></p>
               </div>
 
               <div style="background-color: #f8fafc; padding: 14px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #cbd5e1; font-size: 13px;">
-                <p style="margin: 0; color: #334155;">👤 <strong>Supervisor Responsable:</strong> ${escapeEmailText(supervisorName)}</p>
+                <p style="margin: 0; color: #334155;">👤 <strong>Responsable de reporte:</strong> ${escapeEmailText(supervisorName)}</p>
                 <p style="margin: 4px 0 0 0; color: #334155;">📋 <strong>Partidas Reportadas:</strong> ${avanceItems.length} partida(s)</p>
               </div>
 
@@ -2141,6 +2141,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
             subject: `📊 Reporte de Avance (${obraNombre}) - ${fechaStr}`,
             htmlContent: htmlEmail,
             attachments: curveImage ? [curveImage] : [],
+            companyBranding,
+            companyName: user.empresa,
             customSender: 'notificaciones@obraxis.cl',
             permissionKey: 'obras.avances.enviar'
           });
