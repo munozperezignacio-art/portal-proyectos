@@ -13,6 +13,8 @@ import WorkforceProjection from './WorkforceProjection';
 import PayrollAutomation from './PayrollAutomation';
 import PersonnelAllocations from './PersonnelAllocations';
 import WorkerBulkImport from './WorkerBulkImport';
+import WorkerBulkAssignment from './WorkerBulkAssignment';
+import {toggleVisibleWorkers,workerMatchesSearch} from '../utils/workerAssignment.js';
 import { workerContractSummary } from '../utils/workerImport.js';
 import WorkerDocumentsPanel from './WorkerDocumentsPanel';
 
@@ -69,6 +71,12 @@ function Personal({ user, onBack }) {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedObraFilter, setSelectedObraFilter] = useState('');
+  const [selectedWorkerIds, setSelectedWorkerIds] = useState([]);
+  const [assignmentNotice, setAssignmentNotice] = useState('');
+  useEffect(() => { setAssignmentNotice(''); }, [user?.empresa]);
+  useEffect(() => {
+    setSelectedWorkerIds(current => current.filter(id => personal.some(worker => String(worker.id) === id && worker.empresa === user?.empresa)));
+  }, [personal, user?.empresa]);
 
   // Sub-pestañas para Remuneraciones
   const [remunSubTab, setRemunSubTab] = useState('liquidaciones'); // 'liquidaciones' | 'previred' | 'indicadores' | 'lrd'
@@ -357,8 +365,10 @@ function Personal({ user, onBack }) {
       if (errCentros) throw errCentros;
       setObras(dataObras || []);
       setCentrosGestion(dataCentros || []);
+      return true;
     } catch (err) {
       console.error('Error cargando personal/obras:', err.message);
+      return false;
     } finally {
       setLoading(false);
     }
@@ -713,16 +723,13 @@ function Personal({ user, onBack }) {
   };
 
   const filteredPersonal = personal.filter(p => {
-    const matchesSearch = 
-      (p.nombre && p.nombre.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (p.rut && p.rut.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (p.cargo && p.cargo.toLowerCase().includes(searchQuery.toLowerCase()));
+    const matchesSearch = workerMatchesSearch(p, searchQuery);
       
     const matchesObra = 
       selectedObraFilter === '' || 
-      (p.obra_nombre && p.obra_nombre.toLowerCase() === selectedObraFilter.toLowerCase());
+      (selectedObraFilter === '__sin_obra__' ? !p.obra_nombre : p.obra_nombre && p.obra_nombre.toLowerCase() === selectedObraFilter.toLowerCase());
 
-    return matchesSearch && matchesObra;
+    return p.empresa === user?.empresa && matchesSearch && matchesObra;
   });
 
   if (permissionsLoading) return <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">Cargando permisos…</div>;
@@ -855,6 +862,7 @@ function Personal({ user, onBack }) {
               <input
                 type="text"
                 placeholder="Buscar por nombre, RUT, cargo o banco..."
+                aria-label="Buscar personal por nombre o RUT"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9 text-slate-800 font-medium w-full px-3 py-2 border rounded-xl border-slate-200 focus:outline-none focus:border-blue-600 transition text-xs"
@@ -863,16 +871,25 @@ function Personal({ user, onBack }) {
 
             <div>
               <select
+                aria-label="Filtrar personal por obra"
                 value={selectedObraFilter}
                 onChange={(e) => setSelectedObraFilter(e.target.value)}
                 className="text-slate-800 font-medium w-full px-3 py-2 border rounded-xl border-slate-200 focus:outline-none focus:border-blue-600 transition text-xs bg-white"
               >
                 <option value="">Filtrar por obra asignada (Todas)</option>
+                <option value="__sin_obra__">Sin obra asignada</option>
                 {obras.map(o => <option key={o.nombre} value={o.nombre}>{o.nombre}</option>)}
               </select>
             </div>
           </div>
 
+          {assignmentNotice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">{assignmentNotice}</p>}
+          {canEdit && selectedWorkerIds.length > 0 && <WorkerBulkAssignment
+            company={user.empresa} workers={personal.filter(worker => worker.empresa === user.empresa && selectedWorkerIds.includes(String(worker.id)))} obras={obras}
+            hiddenCount={selectedWorkerIds.filter(id => !filteredPersonal.some(worker => String(worker.id) === id)).length}
+            busy={loading} onClear={() => setSelectedWorkerIds([])} onRemove={id => setSelectedWorkerIds(current => current.filter(value => value !== id))}
+            onAssigned={async result => { const refreshed = await fetchData(); setSelectedWorkerIds([]); setAssignmentNotice(`${result.asignados} trabajadores asignados · ${result.omitidos} ya estaban en la obra y se conservaron sin cambios.${refreshed ? '' : ' No se pudo refrescar el listado; vuelve a cargar la pantalla.'}`); }}
+          />}
           {/* Listado de Fichas de Trabajadores */}
           {loading ? (
             <p className="text-sm text-slate-500 p-2">⏳ Cargando personal empresa...</p>
@@ -900,6 +917,7 @@ function Personal({ user, onBack }) {
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="bg-slate-100 border-b border-slate-200 text-[10px] font-bold text-slate-700 uppercase tracking-wider">
+                      {canEdit && <th className="p-3"><input type="checkbox" aria-label="Seleccionar trabajadores visibles" checked={filteredPersonal.length > 0 && filteredPersonal.every(worker => selectedWorkerIds.includes(String(worker.id)))} onChange={() => setSelectedWorkerIds(current => toggleVisibleWorkers(current, filteredPersonal))}/></th>}
                       <th className="p-3">Trabajador (RUT / Contacto)</th>
                       <th className="p-3">Cargo / Centro Trabajo</th>
                       <th className="p-3">Contrato & Vencimiento</th>
@@ -912,13 +930,14 @@ function Personal({ user, onBack }) {
                   <tbody className="divide-y divide-slate-150 text-[11px]">
                     {filteredPersonal.map((p) => (
                       <tr key={p.id} className="hover:bg-slate-50 transition">
+                        {canEdit && <td className="p-3"><input type="checkbox" aria-label={`Seleccionar ${p.nombre}`} checked={selectedWorkerIds.includes(String(p.id))} onChange={() => setSelectedWorkerIds(current => current.includes(String(p.id)) ? current.filter(id => id !== String(p.id)) : [...current, String(p.id)])}/></td>}
                         <td className="p-3 font-bold text-slate-800">
                           <div>{p.nombre}</div>
                           <span className="text-[10px] text-slate-500 font-mono font-medium">{formatRut(p.rut) || 'Sin RUT'} {p.fono ? `• ${p.fono}` : ''}</span>
                         </td>
                         <td className="p-3">
                           <span className="font-semibold text-blue-950">{p.cargo}</span>
-                          <span className="block text-[10px] text-slate-500 font-medium">{p.centro_trabajo || p.obra_nombre || 'Oficina Central'}</span>
+                          <span className="block text-[10px] text-slate-500 font-medium">{p.obra_nombre || p.centro_trabajo || 'Sin obra asignada'}</span>
                         </td>
                         <td className="p-3">
                           <span className={`text-[10px] px-2 py-0.5 rounded font-bold border ${p.tipo_contrato === 'Indefinido' ? 'bg-emerald-50 text-emerald-900 border-emerald-200' : 'bg-amber-50 text-amber-900 border-amber-200'}`}>

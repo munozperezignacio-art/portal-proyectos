@@ -1,0 +1,18 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="fixture"></div><script type="module">
+import React from 'react';import {createRoot} from 'react-dom/client';import '../../src/index.css';
+import Personal from '../../src/components/Personal.jsx';import {supabase} from '../../src/supabaseClient.js';
+const readonly=new URLSearchParams(location.search).has('readonly');
+const user={id:5,empresa:'Prueba',rol:readonly?'Supervisor':'Administrador',permisos:readonly?{'rrhh.personal.editar':false}:{}};
+window.assignmentCalls=[];window.failAssignment=false;
+window.workers=[{id:1,empresa:'Prueba',nombre:'José Álvarez',rut:'12.345.678-5',cargo:'Operador',fecha_inicio_contrato:'2000-01-01'},
+ {id:2,empresa:'Prueba',nombre:'Pedro Soto',rut:'11111111-1',cargo:'Ayudante',fecha_inicio_contrato:'2000-01-01'},
+ {id:3,empresa:'Prueba',nombre:'Ana Rojas',rut:'22222222-2',obra_nombre:'Obra A',centro_gestion_id:10,fecha_asig:'2000-01-01',cargo:'Supervisor'},
+ {id:4,empresa:'Prueba',nombre:'Ingreso futuro',rut:'33333333-3',fecha_inicio_contrato:'2099-01-01'}];
+const works=[{id:10,empresa:'Prueba',nombre:'Obra A',centro_gestion_id:10},{id:20,empresa:'Prueba',nombre:'Obra B',centro_gestion_id:20}];
+supabase.from=table=>{const filters={};const result=()=>{let rows=table==='maestro_personal'?window.workers:table==='obras'?works:table==='usuarios'?[user]:[];return {data:rows.filter(row=>Object.entries(filters).every(([key,value])=>row[key]===value)),error:null};};
+ return {select(){return this;},eq(key,value){filters[key]=value;return this;},order(){return this;},range(){return Promise.resolve(result());},maybeSingle(){const r=result();return Promise.resolve({...r,data:r.data[0]||null});},then(resolve,reject){return Promise.resolve(result()).then(resolve,reject);}};};
+supabase.rpc=async(name,args)=>{window.assignmentCalls.push({name,args});if(window.failAssignment)return {error:{message:'Error simulado de asignación'}};
+ const work=works.find(item=>item.id===args.p_obra);window.workers=window.workers.map(worker=>args.p_trabajadores.includes(worker.id)?{...worker,obra_nombre:work.nombre,centro_gestion_id:work.centro_gestion_id,fecha_asig:args.p_fecha}:worker);
+ return {data:{asignados:args.p_trabajadores.length,omitidos:0},error:null};};
+createRoot(document.getElementById('fixture')).render(React.createElement(Personal,{user,onBack:()=>{}}));
+</script></body></html>
