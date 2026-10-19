@@ -71,3 +71,17 @@ como `obraxis-web-capacitor-debug-apk`. No debe entregarse como actualización d
 app nativa ni usarse para validar sus mejoras de asistencia o estadísticas.
 
 Las variables públicas de Supabase deben configurarse también en el entorno EAS antes de la primera compilación remota.
+
+## Actualizaciones desde la aplicación
+
+Inicio recomienda actualizar cuando existe una APK posterior. Mi cuenta → Actualizaciones permite consultar novedades, buscar manualmente y abrir la descarga. La comprobación se ejecuta al entrar a Inicio y al volver a la app, con un intervalo de seis horas durante esa sesión. Una falla de conexión se informa en Mi cuenta y no se interpreta como versión actualizada. No se interrumpe un formulario ni se descarga sin pulsar el botón. Android solicita confirmar la instalación.
+
+La identificación usa expo-application (versión y contador nativos). El catálogo HTTPS público está en `releases/android.json`, consultado desde main de este repositorio; no requiere credenciales. Solo admite enlaces permanentes de artefactos APK de Expo y nunca recomienda un contador igual o inferior al instalado ni una versión semántica anterior.
+
+Para anunciar una APK, primero espera FINISHED, descarga y verifica el registro embebido de assets/app.config contra commit, sourceHash, createdAt y versión del recibo; calcula SHA-256. El recibo debe guardar status FINISHED, verifiedEmbeddedRelease true, apkSha256, artifactUrl, appBuildVersion y el build ANDROID FINISHED. Después ejecuta desde la raíz:
+
+```text
+npm run mobile:apk:publish -- entregables/apk/registros/registro.json entregables/apk/archivo.apk "Novedad para las personas usuarias"
+```
+
+Revisa el catálogo generado y publica releases/android.json en main. El comando comprueba la huella del APK, el recibo verificado y el avance del contador; no publica una compilación pendiente. La APK 1.0.6 no contiene este chequeo: requiere instalar una versión posterior con este código una vez. Este mecanismo recomienda y descarga APK; no ejecuta actualizaciones de código en segundo plano.

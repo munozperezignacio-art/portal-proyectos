@@ -11,6 +11,7 @@
     "mobile:check": "npm run typecheck --prefix mobile",
     "mobile:apk": "npm run apk --prefix mobile",
     "mobile:apk:check": "npm run apk:check --prefix mobile",
-    "mobile:apk:inspect": "npm run apk:inspect --prefix mobile"
+    "mobile:apk:inspect": "npm run apk:inspect --prefix mobile",
+    "mobile:apk:publish": "node mobile/scripts/publish-apk.cjs"
   }
 }

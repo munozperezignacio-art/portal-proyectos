@@ -19,3 +19,6 @@ Para generar APK usa únicamente `npm run mobile:apk` desde la raíz del reposit
   build. Un build enviado o pendiente no es un instalador final.
 - Las próximas APK muestran versión y revisión en Inicio. No hace falta generar
   un nuevo instalador solo para modificar el proceso, salvo que el usuario lo pida.
+
+- Después de verificar un APK terminado, prepara el catálogo con `npm run mobile:apk:publish -- <registro.json> <archivo.apk> "Novedad"`. Solo acepta el APK cuya huella coincide con un registro FINISHED y verificado.
+- Publica `releases/android.json` en main solo después de esa verificación. Nunca anuncies builds pendientes ni retrocedas el contador: las apps consultan ese archivo para recomendar la actualización.

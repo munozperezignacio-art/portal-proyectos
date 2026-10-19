@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "platform": "android",
+  "packageName": "cl.obraxis.terreno",
+  "version": "1.0.6",
+  "build": 11,
+  "apkUrl": "https://expo.dev/artifacts/eas/5q8Vw28cM_k8haTe0kP3HJMOncDjsn09P7vZZZX8U1Q.apk",
+  "sha256": "6988b79d0ad6222931c457dc78ef27246d6787887879f86b4725f314fbe8a3aa",
+  "commit": "675a05c0825eaa72548ee211dfa414ea0ce34d8b",
+  "sourceHash": "e09e78658865461dcb1f37e7f398ef8a78689b6d4354e3a68389381421b5ce96",
+  "publishedAt": "2026-10-19T17:10:50.424Z",
+  "notes": [
+    "Nuevo diseño móvil y temas Claro, Oscuro y Automático.",
+    "Estadísticas de obra con evolución, partidas críticas y recursos.",
+    "Mejoras de marcaje de asistencia y manual Impact."
+  ]
+}
