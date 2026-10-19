@@ -22,6 +22,8 @@ import { calendarTimeline } from '../utils/sCurveTimeline';
 import DailySCurve from './DailySCurve';
 import ProjectProfileModal from './ProjectProfileModal';
 import PartidaCurrencyField from './PartidaCurrencyField';
+import {budgetPriceView,budgetViewTotals,formatBudgetViewAmount} from '../utils/workBudgetCurrencyView';
+import {economicIndicators,loadEconomicIndicator} from '../utils/economicIndicatorsCache';
 import {projectName,migrateProjectStorage} from '../utils/projectProfile';
 import { plannedValueAt } from '../utils/plannedProgress';
 import useSignatureCanvas from '../utils/useSignatureCanvas';
@@ -405,6 +407,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
   // Costos unitarios ingresados para presupuesto de obra
   const [partidasCostos, setPartidasCostos] = useState({});
+  const [budgetCurrencyView,setBudgetCurrencyView]=useState('clp');
+  const [budgetDisplayQuotes,setBudgetDisplayQuotes]=useState({});
 
   // Presupuestos generales del modulo Presupuestos
   const [availableBudgets, setAvailableBudgets] = useState([]);
@@ -1095,6 +1099,16 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const [maquinariaList, setMaquinariaList] = useState([]);
   const [maquinariaUsoObra, setMaquinariaUsoObra] = useState([]);
   const [partidasList, setPartidasList] = useState([]);
+  const budgetDisplayOptions={mode:budgetCurrencyView,overrides:partidasCostos,projectCurrency:workBudgetFinancials.currency,quotes:budgetDisplayQuotes};
+  const budgetDisplayTotals=budgetViewTotals(partidasList,budgetDisplayOptions);
+  useEffect(()=>{
+    if(obraActiveSubmodule!=='gestion_obra'||gestionObraTab!=='presupuesto'||workBudgetFinancials.currency==='CLP'||!partidasList.some(p=>p.presupuesto_item_id!=null&&p.pu_original==null))return;
+    const currency=workBudgetFinancials.currency;let active=true;
+    const saved=economicIndicators.peek(currency);
+    if(saved)setBudgetDisplayQuotes(current=>({...current,[currency]:saved}));
+    loadEconomicIndicator(currency).then(quote=>{if(active)setBudgetDisplayQuotes(current=>({...current,[currency]:quote}));}).catch(()=>{});
+    return ()=>{active=false;};
+  },[obraActiveSubmodule,gestionObraTab,workBudgetFinancials.currency,partidasList]);
   const [workResourceSheet, setWorkResourceSheet] = useState(null);
   const [workResourceSheetLoading, setWorkResourceSheetLoading] = useState(false);
 
@@ -6073,6 +6087,12 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 </div>
               ) : (
                 <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4 shadow-xs">
+                  <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
+                    <div><p className="text-xs font-bold text-slate-800">Ver importes en</p><p className="mt-1 text-[10px] text-slate-500">Solo cambia la vista. P.U. con 2 decimales; los cálculos conservan la precisión original. Para modificar un precio, usa «Editar partida».</p></div>
+                    <div role="group" aria-label="Moneda de visualización" className="inline-flex shrink-0 self-start rounded-xl border border-slate-200 bg-slate-100 p-1">
+                      {[['clp','Pesos (CLP)'],['original','Moneda original']].map(([mode,label])=><button key={mode} type="button" aria-pressed={budgetCurrencyView===mode} onClick={()=>setBudgetCurrencyView(mode)} className={`rounded-lg px-3 py-2 text-xs font-bold transition ${budgetCurrencyView===mode?'bg-blue-900 text-white shadow-sm':'text-slate-600 hover:bg-white'}`}>{label}</button>)}
+                    </div>
+                  </div>
                   <div className="overflow-x-auto">
                     <table aria-label="Partidas del presupuesto de obra" className="w-full min-w-[1120px] table-fixed text-xs text-left border-collapse">
                       <colgroup><col/><col className="w-[62px]"/><col className="w-[104px]"/><col className="w-[132px]"/><col className="w-[150px]"/><col className="w-[130px]"/><col className="w-[176px]"/></colgroup>
@@ -6081,9 +6101,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                           <th className="p-2.5">Partida / Actividad</th>
                           <th className="p-2.5">Unidad</th>
                           <th className="p-2.5 text-right">Cantidad<br/>presupuestada</th>
-                          <th className="p-2.5">Precio Unitario (P.U. {workBudgetFinancials.currency})</th>
+                          <th className="p-2.5">Precio Unitario (P.U. {budgetCurrencyView==='clp'?'CLP':'original'})</th>
                           <th className="p-2.5">Rendimiento Estimado</th>
-                          <th className="p-2.5 text-right">Monto total directo ({workBudgetFinancials.currency})</th>
+                          <th className="p-2.5 text-right">Monto total directo ({budgetCurrencyView==='clp'?'CLP':'original'})</th>
                           <th className="p-2.5 text-right">Acciones</th>
                         </tr>
                       </thead>
@@ -6092,7 +6112,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                           const isTitleRow = p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo;
                           const isGeneralChild = !isTitleRow && !partidasList.slice(0, idx).some(item => item.unidad === 'TITULO' || item.unidad === 'GRUPO' || item.es_titulo);
                           const puVal = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (p.pu !== undefined ? p.pu : 0);
-                          const totalItem = (p.cantidad || 0) * puVal;
+                          const displayPrice=budgetPriceView(p,budgetDisplayOptions);
+                          const displayTotal=displayPrice.unitPrice===null?null:(p.cantidad||0)*displayPrice.unitPrice;
 
                           if (isTitleRow) {
                             // La jerarquía importada usa parent_codigo: un capítulo debe acumular
@@ -6121,10 +6142,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                               }
                             }
                             const countBelow = groupChildren.length;
-                            const groupSum = groupChildren.reduce((sum, child) => {
-                              const childPu = partidasCostos[child.partida] !== undefined ? partidasCostos[child.partida] : (child.pu || 0);
-                              return sum + ((parseFloat(child.cantidad) || 0) * childPu);
-                            }, 0);
+                            const groupTotals=budgetViewTotals(groupChildren,budgetDisplayOptions);
 
                             return (
                               <tr 
@@ -6141,7 +6159,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                     <span className="shrink-0 whitespace-nowrap text-[10px] font-semibold text-slate-500">({countBelow} partida{countBelow === 1 ? '' : 's'})</span>
                                   </div>
                                 </td>
-                                <td className="p-3 text-right whitespace-nowrap font-mono font-black text-emerald-800">{formatBudgetMoney(groupSum, workBudgetFinancials.currency)}</td>
+                                <td className="p-3 text-right whitespace-nowrap font-mono font-black text-emerald-800">{groupTotals.length?groupTotals.map(total=><div key={total.currency}>{formatBudgetViewAmount(total.amount,total.currency)}</div>):'$0'}</td>
                                 <td className="p-2.5 text-right">
                                   <div className="flex items-center justify-end gap-1 whitespace-nowrap">
                                     <button
@@ -6214,13 +6232,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                               <td className="p-2.5 whitespace-nowrap font-mono text-slate-600">{p.unidad || 'UND'}</td>
                               <td className="p-2.5 text-right whitespace-nowrap font-mono font-bold text-slate-800">{p.cantidad || 0}</td>
                               <td className="p-2.5">
-                                <input
-                                  type="number"
-                                  value={puVal}
-                                  onChange={(e) => setPartidasCostos({ ...partidasCostos, [p.partida]: parseFloat(e.target.value) || 0 })}
-                                  placeholder="0"
-                                  className="w-28 border border-slate-300 rounded-lg p-1.5 text-xs font-mono font-bold text-slate-800 bg-white"
-                                />
+                                <span className="whitespace-nowrap font-mono font-bold text-slate-800">{formatBudgetViewAmount(displayPrice.unitPrice,displayPrice.currency,{unit:true})}</span>
                               </td>
                               <td className="p-2.5 whitespace-nowrap font-mono text-slate-700 font-bold">
                                 {['GL', 'GLB'].includes(p.unidad)
@@ -6228,7 +6240,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                   : `${p.rendimiento || '20'} ${p.unidad || 'UND'} / ${p.unidad_tiempo || 'Día'}`}
                               </td>
                               <td className="p-2.5 text-right whitespace-nowrap font-mono font-bold text-emerald-800">
-                                {formatBudgetMoney(totalItem, workBudgetFinancials.currency)}
+                                {formatBudgetViewAmount(displayTotal,displayPrice.currency)}
                               </td>
                               <td className="p-2.5 text-right">
                                 <div className="flex items-center justify-end gap-1 whitespace-nowrap">
@@ -6308,9 +6320,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   <div className="flex justify-end pt-2 border-t">
                     <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-right">
                       <span className="text-[10px] font-bold text-slate-400 uppercase">Presupuesto Directo Total Obra</span>
-                      <p className="text-xl font-black text-emerald-800">
-                        ${partidasList.reduce((acc, p) => acc + ((p.cantidad || 0) * (partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (p.pu || 0))), 0).toLocaleString('es-CL')}
-                      </p>
+                      <div className="text-xl font-black text-emerald-800" aria-label="Total presupuesto mostrado">{budgetDisplayTotals.map(total=><p key={total.currency}>{formatBudgetViewAmount(total.amount,total.currency)}</p>)}</div>
                     </div>
                   </div>
                 </div>

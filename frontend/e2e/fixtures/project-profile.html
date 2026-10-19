@@ -12,6 +12,12 @@ const budgetRows=[
   {id:3,obra_id:123,obra_nombre:'Proyecto inicial',empresa:'TEST',orden:2,partida:'Servicio camión aljibe',unidad:'GL',cantidad_presupuestada:1,costo_por_dia:177.48,rendimiento_meta:1},
   {id:4,obra_id:123,obra_nombre:'Proyecto inicial',empresa:'TEST',orden:3,partida:'MANTA CONTROL DE EROSIÓN TEMPORAL FIBRA DE COCO',unidad:'TITULO',es_titulo:true,cantidad_presupuestada:0}
 ];
+if(new URLSearchParams(location.search).has('currencies')){
+  Object.assign(budgetRows[1],{moneda_pu:'UF',pu_original:0.041,cambio_pu_clp:41183.94,costo_por_dia:1688.54154});
+  Object.assign(budgetRows[2],{moneda_pu:'UF',pu_original:177.48,cambio_pu_clp:41183.94,costo_por_dia:7309325.6712});
+  budgetRows.push({id:5,obra_id:123,obra_nombre:'Proyecto inicial',empresa:'TEST',orden:4,partida:'Equipo importado USD',unidad:'UND',cantidad_presupuestada:2,costo_por_dia:1000,moneda_pu:'USD',pu_original:1,cambio_pu_clp:1000},
+    {id:6,obra_id:123,obra_nombre:'Proyecto inicial',empresa:'TEST',orden:5,partida:'Servicio local CLP',unidad:'GL',cantidad_presupuestada:1,costo_por_dia:500,moneda_pu:'CLP',pu_original:500,cambio_pu_clp:1});
+}
 let work={id:123,nombre:'Proyecto inicial',empresa:'TEST',tipo:'Cimentaciones',estado:'Activa',cliente:'Mandante prueba'};
 const user={id:1,empresa:'TEST',rol:'Administrador',rol_base:'Administrador',obras:'todas',permisos:{'obras.ficha.ver':true,'obras.ficha.editar':!readonly}};
 window.saves=[];window.failSave=false;
