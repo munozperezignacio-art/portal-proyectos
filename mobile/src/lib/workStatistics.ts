@@ -176,16 +176,10 @@ export function normalizeParts(listPart: Row[], linkedBudgetItems: Row[], linked
  return normalizedListPart.map(p => ({...p, baselineStart: day(p.fecha_inicio), fecha_inicio: itemsMap.get(String(p.partida || p.id).trim())?.fechaInicio || p.fecha_inicio}));
 }
 export function productionMetrics(parts: Row[], reports: Row[], cutoff: string) {
- const matches = (a: any, b: any) => {
-  if (!a || !b) return false;
-  const x = String(a).trim().toLowerCase(), y = String(b).trim().toLowerCase();
-  const nx = x.replace(/[^a-z0-9]/g, ''), ny = y.replace(/[^a-z0-9]/g, '');
-  return x === y || !!(nx && ny && (nx.includes(ny) || ny.includes(nx)));
- };
  const advances = reports.filter(r => day(r.fecha || r.fecha_avance || r.created_at) <= cutoff);
  const detail = parts.filter(p => !p.es_titulo && p.unidad !== 'TITULO' && p.unidad !== 'GRUPO').map((p): Row & {done:number;pct:number;duration:number;planned:number;scheduleDays:number;budget:number;earned:number;plannedValue:number} => {
   const quantity = Number(p.cantidad) || 0, price = Number(p.pu) || 0;
-  const done = advances.filter(r => matches(r.partida, p.partida)).reduce((sum, r) => sum + (Number(r.cantidad) || 0), 0);
+  const done = advances.filter(r => reportBelongsToPart(r, p, parts)).reduce((sum, r) => sum + (Number(r.cantidad) || 0), 0);
   const pct = quantity > 0 ? Math.min(100, done / quantity * 100) : 0;
   const duration = Math.max(1, parseInt(p.duracion_programada, 10) || Math.ceil(quantity / (Number(p.rendimiento_meta || p.rendimiento) || 10)));
   const fraction = p.fecha_inicio && day(p.fecha_inicio) <= cutoff ? Math.min(1, countChileanBusinessDays(day(p.fecha_inicio), cutoff) / duration) : 0;
@@ -195,4 +189,26 @@ export function productionMetrics(parts: Row[], reports: Row[], cutoff: string) 
  const progress = budget > 0 ? Number((detail.reduce((sum, p) => sum + p.earned, 0) / budget * 100).toFixed(1)) : 0;
  const planned = budget > 0 ? detail.reduce((sum, p) => sum + p.plannedValue, 0) / budget * 100 : 0;
  return {detail, progress, planned};
+}
+
+// Exact names/IDs take precedence so similarly named parts never share reports.
+const normalizedPartName=(value:unknown)=>String(value||'').trim().toLocaleLowerCase('es-CL').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ');
+export function reportBelongsToPart(report:Row,part:Row,parts:Row[]) {
+ const reportId=report.partida_id;
+ if(reportId!==null&&reportId!==undefined&&String(reportId)!=='')return part.id!==null&&part.id!==undefined&&String(reportId)===String(part.id);
+ const name=normalizedPartName(report.partida),target=normalizedPartName(part.partida);
+ if(!name||!target)return false;
+ if(name===target)return true;
+ if(parts.some(p=>normalizedPartName(p.partida)===name))return false;
+ const compact=(value:string)=>value.replace(/[^a-z0-9]/g,'');
+ const key=compact(name);
+ if(!key)return false;
+ const candidates=parts.filter(p=>!p.es_titulo&&p.unidad!=='GRUPO'&&p.unidad!=='TITULO').filter(p=>{const other=compact(normalizedPartName(p.partida));return !!other&&(other.includes(key)||key.includes(other));});
+ return candidates.length===1&&(part.id!=null&&candidates[0].id!=null?String(candidates[0].id)===String(part.id):normalizedPartName(candidates[0].partida)===target);
+}
+export function partReportHistory(part:Row,parts:Row[],reports:Row[]) {
+ return reports.filter(r=>reportBelongsToPart(r,part,parts)).slice().sort((a,b)=>{
+  const date=(r:Row)=>day(r.fecha||r.fecha_avance||r.created_at);
+  return date(b).localeCompare(date(a))||String(b.created_at||'').localeCompare(String(a.created_at||''));
+ });
 }
