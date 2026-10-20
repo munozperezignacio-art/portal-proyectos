@@ -1,0 +1,8 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head><body><div id="root"></div><script type="module">
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import ProductionAdvice from '../../src/components/ProductionAdvice.jsx';
+import '../../src/index.css';
+createRoot(document.getElementById('root')).render(React.createElement(ProductionAdvice,{
+cutoff:'2026-10-09',baselineFinish:'2026-11-20',parts:[{id:1,partida:'Pilas de Grava IMPACT',quantity:100,unidad:'UND',start:'2026-10-01'},{id:2,partida:'Terminación y retiro',quantity:20,unidad:'UND',start:'2026-10-12',rendimiento:10,predecesora:'Pilas de Grava IMPACT'}],reports:[{partida_id:1,fecha:'2026-10-05',cantidad:10},{partida_id:1,fecha:'2026-10-09',cantidad:10}]}));
+</script></body></html>

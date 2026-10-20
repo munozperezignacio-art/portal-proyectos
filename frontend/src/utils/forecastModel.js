@@ -1,6 +1,8 @@
 import { calendarTimeline } from './sCurveTimeline.js';
+import { recentProductionForecast } from './recentProductionForecast.js';
 
-export function forecastModel({ cutoff, baselineFinish, actualProgress, plannedProgress, actualCost, costBudget, holidays = [], costError = '' }) {
+export function forecastModel({ cutoff, baselineFinish, actualProgress, plannedProgress, actualCost, costBudget, holidays = [], costError = '', productionParts, reports=[] }) {
+  const production=productionParts ? recentProductionForecast({parts:productionParts,reports,cutoff,holidays}) : null;
   const holidaySet = new Set(holidays);
   const workday = date => ![0,6].includes(new Date(`${date}T12:00:00Z`).getUTCDay()) && !holidaySet.has(date);
   const daysBetween = (a,b) => calendarTimeline(a,b).slice(1).filter(d => workday(d.dateStr)).length;
@@ -9,7 +11,7 @@ export function forecastModel({ cutoff, baselineFinish, actualProgress, plannedP
   const pendingPlan = daysBetween(cutoff,baselineFinish);
   const plannedFraction=Math.max(0,Math.min(1,Number(plannedProgress)/100));
   // El plazo restante debe cubrir la fracción REAL pendiente, no solo la programada.
-  const duration = progress>=1 ? 0 : spi>0 && pendingPlan>0 && plannedFraction<1
+  const duration = production ? production.duration : progress>=1 ? 0 : spi>0 && pendingPlan>0 && plannedFraction<1
     ? Math.ceil(pendingPlan*(1-progress)/(1-plannedFraction)/spi) : null;
   let finish = duration === 0 ? cutoff : null;
   if (duration>0 && duration<=5200) {
@@ -17,6 +19,7 @@ export function forecastModel({ cutoff, baselineFinish, actualProgress, plannedP
     while(pending>0) { date.setUTCDate(date.getUTCDate()+1); const key=date.toISOString().slice(0,10); if(workday(key))pending--; }
     finish=date.toISOString().slice(0,10);
   }
+  if(production)finish=production.finish;
   const cpi = !costError && costBudget>0 && actualCost>0 && progress>0 ? costBudget*progress/actualCost : null;
   // EAC at current cost/physical-progress rate does not require a comparison budget.
   const baseCost = !costError && actualCost>0 && progress>0 ? Math.round(actualCost/progress) : null;
@@ -29,9 +32,9 @@ export function forecastModel({ cutoff, baselineFinish, actualProgress, plannedP
   const coveredYears = new Set(holidays.map(d=>d.slice(0,4)));
   const missingCalendarYears = finish ? [...new Set(calendarTimeline(cutoff,finish).map(d=>d.dateStr.slice(0,4)))].filter(y=>!coveredYears.has(y)) : [];
   const calendarWarning = missingCalendarYears.length ? `Fecha referencial: se excluyen fines de semana y los feriados cargados. Falta validar los feriados de ${missingCalendarYears.join(', ')}; la fecha y el reparto mensual pueden variar.` : '';
-  const scheduleWarning = finish ? '' : !baselineFinish ? 'Falta la fecha de término programada de la obra.' : !(spi>0) ? 'Falta avance real o avance programado al corte para extrapolar el plazo.' : pendingPlan<=0 || plannedFraction>=1 ? 'La programación ya no tiene plazo o producción pendiente. Usa el simulador por cantidades y rendimientos para estimar el término real.' : 'El horizonte calculado excede el límite de la proyección.';
+  const scheduleWarning = production ? !production.rows.length ? 'No hay partidas ejecutables para proyectar.' : production.unresolved.length ? `No se publica un término global: ${production.unresolved.length} partidas pendientes no tienen una proyección válida. Revise el detalle por partida.` : production.planned.length ? `${production.planned.length} partidas futuras usan rendimiento planificado, todavía sin evidencia de ejecución.` : '' : finish ? '' : !baselineFinish ? 'Falta la fecha de término programada de la obra.' : !(spi>0) ? 'Falta avance real o avance programado al corte para extrapolar el plazo.' : pendingPlan<=0 || plannedFraction>=1 ? 'La programación ya no tiene plazo o producción pendiente. Usa el simulador por cantidades y rendimientos para estimar el término real.' : 'El horizonte calculado excede el límite de la proyección.';
   const costWarning = costError ? 'No se pudieron cargar los costos reales. Reintente la carga antes de calcular costos.' : !(actualCost>0) ? 'Aún no hay costos reales aprobados al corte. La proyección de plazo sí está disponible; el costo al término y el flujo se habilitarán al registrar costos.' : !(progress>0) ? 'Falta avance real para estimar el costo al término.' : '';
-  return { spi,cpi,baseCost,finish,duration,cashflow,calendarWarning,scheduleWarning,costWarning,
+  return { spi,cpi,baseCost,finish,duration,cashflow,calendarWarning,scheduleWarning,costWarning,production,
     delay: finish ? daysBetween(baselineFinish,finish) : null,
     overrun:baseCost==null || !(costBudget>0)?null:Math.max(0,baseCost-costBudget),
     milestoneRisk:spi==null?'Sin base':spi<.9?'Alto':spi<1?'Medio':'Bajo',

@@ -1,7 +1,9 @@
 import { calendarTimeline } from './sCurveTimeline.js';
 import { matchesWorkReport } from './workReportCalculations.js';
+import { recentProductionForecast } from './recentProductionForecast.js';
 const dayOf = row => String(row.fecha || row.fecha_avance || row.created_at || '').slice(0,10);
 export function productionAdvice({ parts=[], reports=[], costs=[], cutoff, baselineFinish, holidays=[], costError='' }) {
+  const production=recentProductionForecast({parts,reports,cutoff,holidays});
   const holidaySet=new Set(holidays);
   const workday=date=>![0,6].includes(new Date(`${date}T12:00:00Z`).getUTCDay()) && !holidaySet.has(date);
   const scoped=reports.filter(r=>dayOf(r) && dayOf(r)<=cutoff);
@@ -12,15 +14,17 @@ export function productionAdvice({ parts=[], reports=[], costs=[], cutoff, basel
   const recentSet=new Set(recentDates);
   const availableDays=calendarTimeline(cutoff,baselineFinish).slice(1).filter(d=>workday(d.dateStr)).length;
   const rows=parts.filter(p=>!p.es_titulo && !['TITULO','GRUPO'].includes(p.unidad)).map(p=>{
-    const quantity=Number(p.quantity)||0;
+    const projection=production.rows.find(r=>r.id===p.id&&r.name===p.partida);
+    const quantity=projection.quantity;
     const own=scoped.filter(r=>matchesWorkReport(r,p));
     const completed=Math.max(0,Math.min(quantity,own.reduce((sum,r)=>sum+(Number(r.cantidad)||0),0)));
     const remaining=Math.max(0,quantity-completed);
     const recentQuantity=own.filter(r=>recentSet.has(dayOf(r))).reduce((sum,r)=>sum+(Number(r.cantidad)||0),0);
     const activeRecent=recentDates.filter(d=>!p.start || d>=p.start);
-    const pace=activeRecent.length ? Math.max(0,recentQuantity)/activeRecent.length : null;
-    const deadline=p.finish && p.finish<baselineFinish ? p.finish : baselineFinish;
-    const days=calendarTimeline(cutoff,deadline).slice(1).filter(d=>workday(d.dateStr) && (!p.start || d.dateStr>=p.start)).length;
+    const pace=projection?.rate ?? (activeRecent.length ? Math.max(0,recentQuantity)/activeRecent.length : null);
+    const deadline=[p.finish,baselineFinish].filter(Boolean).sort()[0];
+    const availableStart=projection.forecastStart||p.start;
+    const days=calendarTimeline(cutoff,deadline).slice(1).filter(d=>workday(d.dateStr) && (!availableStart || d.dateStr>=availableStart)).length;
     const required=remaining>0 && days>0 ? remaining/days : null;
     const increase=required!=null && pace>0 ? Math.max(0,(required/pace-1)*100) : null;
     const daysAtPace=remaining>0 && pace>0 ? Math.ceil(remaining/pace) : remaining===0 ? 0 : null;
@@ -31,7 +35,7 @@ export function productionAdvice({ parts=[], reports=[], costs=[], cutoff, basel
       finishAtPace=date.toISOString().slice(0,10);
     }
     const cost=costError ? null : Number(p.actualCost)||0;
-    return {id:p.id,name:p.partida,unit:p.unidad,remaining,completed,pace,required,increase,deadline,days,finishAtPace,cost,unitCost:cost>0 && completed>0 ? cost/completed : null,
+    return {id:p.id,name:p.partida,unit:p.unidad,remaining,completed,pace,required,increase,deadline,days,finishAtPace:projection?projection.finish:finishAtPace,recentDates:projection?.recentDates,basis:projection?.basis,issue:projection?.issue,cost,unitCost:cost>0 && completed>0 ? cost/completed : null,
       status:remaining===0?'complete':!days?'deadline':p.start>cutoff?'not-started':!(pace>0)?'no-production':required>pace?'accelerate':'on-track'};
   }).filter(p=>p.remaining>0 || p.cost>0);
   const categories=new Map();
