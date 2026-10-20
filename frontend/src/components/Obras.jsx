@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import {useMachineryCharge} from '../utils/useMachineryCharge';
 import { 
@@ -55,6 +55,8 @@ const EstadosPagoObra = React.lazy(() => import('./EstadosPagoObra'));
 const SubcontratosObra = React.lazy(() => import('./SubcontratosObra'));
 const FlujoCajaObra = React.lazy(() => import('./FlujoCajaObra'));
 const SpecializedAssistanceInbox = React.lazy(() => import('./SpecializedAssistanceInbox'));
+import {machineryCostControl,costDate,costState,costStateLabel} from '../utils/costControl';
+import MachineryCostControl from './MachineryCostControl';
 const PredictiveScenarioPanel = React.lazy(() => import('./PredictiveScenarioPanel'));
 const BudgetExcelImporter = React.lazy(() => import('./BudgetExcelImporter'));
 
@@ -200,10 +202,26 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const machineryCharge=useMachineryCharge();
   const [machineryCharges,setMachineryCharges]=useState([]);
   const [machineryChargeError,setMachineryChargeError]=useState('');
+  const [machineryPeriods,setMachineryPeriods]=useState([]);
+  const [machineryDecisions,setMachineryDecisions]=useState([]);
+  const machineryLoadId=useRef(0);
   const loadMachineryCharges=async obra=>{
-    const result=await supabase.from('maquinaria_cargos_diarios').select('*').eq('empresa',user.empresa).eq('obra_nombre',obra);
-    setMachineryCharges(result.data||[]);
-    setMachineryChargeError(result.error?'No se pudieron cargar los cargos diarios de maquinaria. El costo real está incompleto.':'');
+    const request=++machineryLoadId.current;
+    const all=async factory=>{let data=[];for(let from=0;from<100000;from+=1000){const page=await factory().range(from,from+999);if(page.error)return page;data.push(...page.data);if(page.data.length<1000)return {data};}return {error:new Error('Demasiados registros para consolidar sin paginación adicional')};};
+    const [reports,periods,decisions,work]=await Promise.all([
+      all(()=>supabase.from('maquinaria_uso_diario').select('id,empresa,equipo_id,fecha,obra_nombre,obra_cargo_diario,cargo_obra_id,tarifa_diaria_aplicada,cargo_decidido_at,equipo_tipo,equipo_patente,created_at').eq('empresa',user.empresa).order('id')),
+      all(()=>supabase.from('maquinaria_periodos_costo').select('*').eq('empresa',user.empresa).order('id')),
+      all(()=>supabase.from('maquinaria_decisiones_costo').select('*').eq('empresa',user.empresa).order('fecha').order('equipo_id')),
+      supabase.from('obras').select('id').eq('empresa',user.empresa).eq('nombre',obra).single()
+    ]);
+    if(request!==machineryLoadId.current)return;
+    if(reports.error||periods.error||decisions.error||work.error){setMachineryCharges([]);setMachineryPeriods([]);setMachineryDecisions([]);setMachineryChargeError('No se pudieron cargar todos los cargos de maquinaria. El costo de control está incompleto.');return;}
+    const today=new Date().toLocaleDateString('en-CA',{timeZone:'America/Santiago'});
+    const end=`${Number(today.slice(0,4))+3}-12-31`;
+    setMachineryPeriods(periods.data||[]);
+    setMachineryDecisions(decisions.data||[]);
+    setMachineryCharges(machineryCostControl({periods:periods.data,reports:reports.data,decisions:decisions.data,holidays:CHILEAN_HOLIDAYS,end,cutoff:today,obraId:work.data.id,obraName:obra}));
+    setMachineryChargeError('');
   };
   const { permissions: userPermissions, loading: permissionsLoading } = useUserPermissions(user);
   const recordPermission = (menu, action) => !permissionsLoading && can(user, userPermissions, `obras.${menu}.${action}`);
@@ -1537,6 +1555,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   };
 
   const fetchObraDetails = async (obraNombre) => {
+    machineryLoadId.current++;
+    setMachineryPeriods([]);setMachineryDecisions([]);
     setLaborCostError('Cargando costos de personal');
     setLiquidacionesList([]);
     setMachineryCharges([]);
@@ -2828,7 +2848,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       {machineryCharge.dialog}
       {selectedObra&&machineryChargeError&&<p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{machineryChargeError}</p>}
       {selectedObra&&machineryCharges.some(c=>c.monto==null)&&<p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Hay reportes de maquinaria sin tarifa diaria válida: no se han sumado al costo real. Revisa la tarifa del equipo.</p>}
-      {selectedObra&&machineryCharges.length>0&&<details className="rounded-xl border bg-white p-3 text-xs"><summary className="cursor-pointer font-bold">Cargos diarios de maquinaria ({machineryCharges.length})</summary><p className="my-2 text-slate-500">Un cargo por equipo y día, en la obra elegida. El costo real considera solo fechas hasta el corte. No ingreses nuevamente esta tarifa como gasto manual.</p><div className="max-h-56 overflow-auto">{[...machineryCharges].sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(c=><div key={c.reporte_id} className="flex justify-between gap-2 border-t py-2"><span>{c.fecha} · {c.equipo_tipo} {c.equipo_patente}</span><b>{c.monto==null?'Tarifa pendiente':`$${Number(c.monto).toLocaleString('es-CL')}`}</b></div>)}</div></details>}
+      {selectedObra&&canObraGestionView&&<MachineryCostControl rows={machineryCharges} periods={machineryPeriods} decisions={machineryDecisions} obra={selectedObra} company={user.empresa} canEdit={canEquipmentEdit||can(user,userPermissions,'obras.gestion.configurar')} onSaved={()=>loadMachineryCharges(selectedObra.nombre)}/>}
       
       {!selectedObra ? (
         // ================= VISTA DE LISTADO DE OBRAS =================
@@ -4944,7 +4964,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 // AC (Actual Cost): solo costos disponibles al corte y atribuibles al alcance seleccionado.
                 // Los gastos generales se conservan en la vista global, pero no se cargan artificialmente a una partida.
                 const isGlobalStats = filtroPartidaEstadisticas === 'GLOBAL';
-                const getCostDate = (cost) => cost.fecha || (cost.created_at ? String(cost.created_at).substring(0, 10) : '');
+                const getCostDate = costDate;
                 const getCostoDirectoImputadoPartida = (partidaName) => (costosList || []).reduce((sum, cost) => {
                   if (getCostDate(cost) > fCorteStr || !Array.isArray(cost.imputaciones)) return sum;
                   const imputacion = cost.imputaciones.find(i => isMatchPartidaName(i.partida, partidaName));
@@ -4985,7 +5005,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   ...(costosList || []).filter(c => getCostDate(c) <= fCorteStr).map(c => ({ ...c,fecha:getCostDate(c),monto:isGlobalStats ? Number(c.monto)||0 : (c.imputaciones || []).filter(i => targetPartidas.some(p => isMatchPartidaName(i.partida,p.partida))).reduce((sum,i)=>sum+Math.round((Number(c.monto)||0)*(Number(i.porcentaje)||0)/100),0) })),
                   ...(liquidacionesList || []).filter(c => (c.fecha || String(c.created_at || '').slice(0,10)) <= fCorteStr).map(c => ({ ...c,categoria_proyeccion:'Mano de obra',fecha:c.fecha || String(c.created_at || '').slice(0,10),monto:isGlobalStats ? Number(c.monto_real)||0 : (c.obra_liquidaciones_partidas || []).filter(i => targetPartidas.some(p => isMatchPartidaName(i.partida,p.partida))).reduce((sum,i)=>sum+(Number(i.monto_imputado)||0),0) })),
                   ...(isGlobalStats ? filteredMantenciones : []).map(c => ({ ...c,categoria_proyeccion:'Mantenciones de equipos',monto:Number(c.costo)||0 })),
-                  ...(isGlobalStats?dailyMachineryCharges:[]).map(c=>({...c,id:`maquinaria-dia-${c.reporte_id}`,nombre:`${c.equipo_tipo} ${c.equipo_patente}`,categoria_proyeccion:'Uso diario de maquinaria',monto:Number(c.monto)||0}))
+                  ...(isGlobalStats?dailyMachineryCharges:[]).map(c=>({...c,id:`maquinaria-dia-${c.equipo_id}-${c.fecha}`,nombre:`${c.equipo_tipo} ${c.equipo_patente}`,categoria_proyeccion:'Uso diario de maquinaria',monto:Number(c.monto)||0}))
                 ];
 
                 // PARTIDAS CON ALERTA Y DESVIACIÓN CRÍTICA DE COSTO
@@ -5199,6 +5219,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         plannedProgress={plannedGlobalPct}
                         advances={filteredAvances}
                         costs={actualCostRecords}
+                        futureCosts={isGlobalStats?[...costosList.filter(c=>costDate(c)>fCorteStr).map(c=>({...c,fecha:costDate(c)})),...machineryCharges.filter(c=>c.fecha>fCorteStr).map(c=>({...c,categoria_proyeccion:'Uso diario de maquinaria'}))]:[]}
+                        machineryActual={isGlobalStats?dailyMachineryCharges.reduce((s,c)=>s+(Number(c.monto)||0),0):0}
+                        futureCostThrough={`${new Date().getFullYear()+3}-12-31`}
                         productionParts={targetPartidas.map(p => ({ ...p,quantity:Number(p.cantidad ?? p.cantidad_presupuestada)||0,start:getPartidaScheduledStart(p),finish:partidaExecutiveStats.find(item=>item.partida===p.partida)?.scheduledFinish || '',actualCost:getCostoImputadoPartida(p.partida) }))}
                         criticalItems={criticalPartidas}
                         incidents={filteredAccidentes}
@@ -5818,7 +5841,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                           </div>
 
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">AC - Costo Real Incurrido</span>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">AC - Costo incurrido de control</span>
                             <p className="text-2xl font-black text-slate-800">${AC.toLocaleString('es-CL')}</p>
                             <p className="text-[10px] text-slate-500 font-semibold">Facturas + Personal + Maquinaria</p>
                           </div>
@@ -6829,7 +6852,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
             </div>
           )}
 
-          {obraActiveSubmodule === 'gestion_obra' && canObraGestionView && gestionObraTab === 'flujo_caja' && <FlujoCajaObra obra={selectedObra} user={user} partidas={partidasList} costos={costosList} liquidaciones={liquidacionesList} avances={reportesAvanceList} />}
+          {obraActiveSubmodule === 'gestion_obra' && canObraGestionView && gestionObraTab === 'flujo_caja' && <FlujoCajaObra obra={selectedObra} user={user} partidas={partidasList} costos={[...costosList,...machineryCharges]} liquidaciones={liquidacionesList} avances={reportesAvanceList} />}
 
           {/* VISTA DEDICADA 13: CONTROL DE COSTOS DE OBRA */}
           {obraActiveSubmodule === 'gestion_obra' && canObraGestionView && gestionObraTab === 'costos' && (
@@ -6841,7 +6864,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                       <FileSpreadsheet className="w-4 h-4 text-emerald-950" />
                       <span>Gestión Financiera de Obra: Reales vs Proyecciones</span>
                     </h3>
-                    <p className="text-[11px] text-slate-500">Separación clara entre Costos Reales (Facturas/Guías) y Proyecciones Teóricas por Tiempos y Rendimientos</p>
+                    <p className="text-[11px] text-slate-500">Confirmados, incurridos pendientes y futuros proyectados. Edita el mismo registro para confirmar; no crees otro gasto.</p>
                   </div>
 
                   {costosSubTab === 'reales' ? (
@@ -6900,7 +6923,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     onClick={() => setCostosSubTab('reales')}
                     className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-extrabold transition flex items-center justify-center gap-2 ${costosSubTab === 'reales' ? 'bg-white text-emerald-950 shadow-xs border border-slate-200' : 'text-slate-500 hover:text-slate-800'}`}
                   >
-                    <span>🧾 Costos Reales Incurridos (Facturas, Guías & Boletas)</span>
+                    <span>🧾 Costos registrados · confirmados, pendientes y futuros</span>
                   </button>
                   <button
                     onClick={() => setCostosSubTab('proyectados')}
@@ -7096,7 +7119,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                       </div>
                       <div className="bg-white p-4 border border-slate-200 rounded-2xl space-y-1 shadow-2xs">
                         <div className="flex justify-between items-center">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase">Costos Reales Incurridos (Facturas + Personal)</span>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase">Costos registrados (incluye futuros) + Personal</span>
                           <span className="text-[9px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">Reales</span>
                         </div>
                         <p className="text-lg font-black text-emerald-900">${totalCostosReales.toLocaleString('es-CL')}</p>
@@ -7178,7 +7201,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                           <tbody className="divide-y divide-slate-150 text-[11px]">
                             {costosList.map((c, idx) => (
                               <tr key={idx} className="hover:bg-slate-50">
-                                <td className="p-2.5 font-bold text-slate-800">{c.nombre}</td>
+                                <td className="p-2.5 font-bold text-slate-800">{c.nombre}<span className="mt-1 block text-[10px] font-normal text-indigo-800">{costDate(c)} · {costStateLabel[costState(c,new Date().toLocaleDateString('en-CA',{timeZone:'America/Santiago'}))]}</span></td>
                                 <td className="p-2.5"><span className="block font-semibold">{c.proveedor_nombre || 'Sin proveedor informado'}</span>{c.proveedor_rut && <span className="block font-mono text-slate-500">{c.proveedor_rut}</span>}</td>
                                 <td className="p-2.5">
                                   <span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-700 px-2 py-0.5 rounded border">
@@ -11062,6 +11085,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   ...supplier,
                   ...(editingCosto?.id ? { id: editingCosto.id } : {}),
                   nombre: costoFormData.nombre.trim(),
+                  estado_costo: costoFormData.estado_costo || 'confirmado',
+                  fecha_costo: costoFormData.fecha_costo || costDate(editingCosto||{}) || new Date().toLocaleDateString('en-CA',{timeZone:'America/Santiago'}),
                   tipo_costo: costoFormData.tipo_costo,
                   asociar_factura: costoFormData.asociar_factura === 'SI',
                   num_factura: costoFormData.asociar_factura === 'SI' ? String(costoFormData.num_factura||'').trim() || null : null,
@@ -11105,6 +11130,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nombre / Concepto del Costo <span className="text-red-500">*</span></label>
+                <div className="mb-3 grid gap-3 sm:grid-cols-2"><label className="text-xs">Estado del costo<select aria-label="Estado del costo" value={costoFormData.estado_costo||'confirmado'} onChange={e=>setCostoFormData({...costoFormData,estado_costo:e.target.value})} className="block w-full rounded border p-2"><option value="confirmado">Confirmado</option><option value="pendiente">Incurrido pendiente de confirmar</option><option value="proyectado">Futuro proyectado</option></select></label><label className="text-xs">Fecha del costo<input aria-label="Fecha del costo" required type="date" value={costoFormData.fecha_costo||costDate(editingCosto||{})||new Date().toLocaleDateString('en-CA',{timeZone:'America/Santiago'})} onChange={e=>setCostoFormData({...costoFormData,fecha_costo:e.target.value})} className="block w-full rounded border p-2"/></label><p className="text-xs text-slate-500 sm:col-span-2">Al llegar su fecha, un proyectado entra al control como pendiente. Para confirmarlo, edita este mismo costo; no lo registres nuevamente.</p></div>
                 <input
                   type="text"
                   required

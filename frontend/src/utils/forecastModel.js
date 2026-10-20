@@ -1,7 +1,7 @@
 import { calendarTimeline } from './sCurveTimeline.js';
 import { recentProductionForecast } from './recentProductionForecast.js';
 
-export function forecastModel({ cutoff, baselineFinish, actualProgress, plannedProgress, actualCost, costBudget, holidays = [], costError = '', productionParts, reports=[] }) {
+export function forecastModel({ cutoff, baselineFinish, actualProgress, plannedProgress, actualCost, costBudget, holidays = [], costError = '', productionParts, reports=[], futureCosts, machineryActual=0,futureCostThrough }) {
   const production=productionParts ? recentProductionForecast({parts:productionParts,reports,cutoff,holidays}) : null;
   const holidaySet = new Set(holidays);
   const workday = date => ![0,6].includes(new Date(`${date}T12:00:00Z`).getUTCDay()) && !holidaySet.has(date);
@@ -22,12 +22,24 @@ export function forecastModel({ cutoff, baselineFinish, actualProgress, plannedP
   if(production)finish=production.finish;
   const cpi = !costError && costBudget>0 && actualCost>0 && progress>0 ? costBudget*progress/actualCost : null;
   // EAC at current cost/physical-progress rate does not require a comparison budget.
-  const baseCost = !costError && actualCost>0 && progress>0 ? Math.round(actualCost/progress) : null;
+  let baseCost = !costError && actualCost>0 && progress>0 ? Math.round(actualCost/progress) : null;
+  if(futureCosts&&finish&&!costError){
+    const future=futureCosts.filter(c=>c.fecha>cutoff&&c.fecha<=finish);
+    const machines=future.filter(c=>c.categoria_proyeccion==='Uso diario de maquinaria');
+    const other=future.filter(c=>c.categoria_proyeccion!=='Uso diario de maquinaria');
+    const otherActual=Math.max(0,actualCost-machineryActual);
+    const remainingOther=other.length?other.reduce((s,c)=>s+(Number(c.monto)||0),0):progress>0?otherActual*(1-progress)/progress:null;
+    baseCost=remainingOther!=null&&!machines.some(c=>c.monto==null)?Math.round(actualCost+remainingOther+machines.reduce((s,c)=>s+(Number(c.monto)||0),0)):null;
+  }
+  if(futureCostThrough&&finish>futureCostThrough)baseCost=null;
   const remainingCost = baseCost == null ? null : Math.max(0,baseCost-actualCost);
   const monthDays = new Map();
   if (finish && remainingCost != null) calendarTimeline(cutoff,finish).slice(1).filter(d=>workday(d.dateStr)).forEach(d=>monthDays.set(d.dateStr.slice(0,7),(monthDays.get(d.dateStr.slice(0,7))||0)+1));
   const totalDays=[...monthDays.values()].reduce((s,n)=>s+n,0);
-  const cashflow=[...monthDays].map(([month,days])=>({month,amount:Math.floor(remainingCost*days/totalDays),days}));
+  const dated=new Map();
+  if(remainingCost!=null)for(const c of futureCosts||[])if(c.fecha>cutoff&&c.fecha<=finish){const month=c.fecha.slice(0,7);dated.set(month,(dated.get(month)||0)+(Number(c.monto)||0));if(!monthDays.has(month))monthDays.set(month,0);}
+  const residual=Math.max(0,(remainingCost||0)-[...dated.values()].reduce((s,n)=>s+n,0));
+  const cashflow=[...monthDays].sort(([a],[b])=>a.localeCompare(b)).map(([month,days])=>({month,amount:(dated.get(month)||0)+(totalDays?Math.floor(residual*days/totalDays):0),days}));
   if(cashflow.length)cashflow.at(-1).amount+=remainingCost-cashflow.reduce((s,m)=>s+m.amount,0);
   const coveredYears = new Set(holidays.map(d=>d.slice(0,4)));
   const missingCalendarYears = finish ? [...new Set(calendarTimeline(cutoff,finish).map(d=>d.dateStr.slice(0,4)))].filter(y=>!coveredYears.has(y)) : [];

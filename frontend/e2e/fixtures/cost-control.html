@@ -1,0 +1,9 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module">
+import React,{useState} from 'react';import{createRoot}from'react-dom/client';import '../../src/index.css';
+import MachineryCostControl from '../../src/components/MachineryCostControl.jsx';import{machineryCostControl}from'../../src/utils/costControl.js';import{supabase}from'../../src/supabaseClient.js';
+window.decisions=[];
+supabase.from=()=>({upsert:async d=>{window.decisions=[...window.decisions.filter(p=>p.equipo_id!==d.equipo_id||p.fecha!==d.fecha),d];return {error:null};}});
+const periods=[{id:1,equipo_id:1,obra_id:10,desde:'2026-10-09',tarifa:100,equipo_patente:'EXC-01',equipo_tipo:'Excavadora'}];
+function App(){const [decisions,setDecisions]=useState([]);const rows=machineryCostControl({periods,decisions,reports:[{id:1,equipo_id:1,obra_nombre:'A',fecha:'2026-10-10',monto:100,equipo_patente:'EXC-01',equipo_tipo:'Excavadora'}],obraId:10,obraName:'A',holidays:['2026-10-12'],cutoff:'2026-10-20',end:'2026-10-20'});return React.createElement(MachineryCostControl,{rows,periods,decisions,obra:{id:10,nombre:'A'},company:'TEST',canEdit:true,onSaved:()=>setDecisions([...window.decisions])});}
+createRoot(document.getElementById('root')).render(React.createElement(App));
+</script></body></html>

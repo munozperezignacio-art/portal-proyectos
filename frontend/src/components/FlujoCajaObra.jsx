@@ -86,11 +86,13 @@ export default function FlujoCajaObra({ obra, user, partidas = [], costos = [], 
     const actualIncome = Object.fromEntries(keys.map(key => [key, 0]));
     estadosPago.filter(item => ['Aprobado', 'Pagado'].includes(item.estado)).forEach(item => { const key = monthKey(item.fecha_corte); if (actualIncome[key] !== undefined) actualIncome[key] += Number(item.monto_neto || 0); });
     const actualExpense = Object.fromEntries(keys.map(key => [key, 0]));
-    [...costos, ...liquidaciones].forEach(item => { const key = monthKey(item.fecha || item.fecha_emision || item.periodo || item.created_at); if (actualExpense[key] !== undefined) actualExpense[key] += Number(item.monto || item.monto_real || 0); });
+    const registeredFuture=Object.fromEntries(keys.map(key=>[key,0]));
+    const today=new Date().toLocaleDateString('en-CA',{timeZone:'America/Santiago'});
+    [...costos, ...liquidaciones].forEach(item => { const date=String(item.fecha_costo || item.fecha || item.fecha_emision || item.periodo || item.created_at || '').slice(0,10);const key=monthKey(date);const bucket=date>today?registeredFuture:actualExpense;if(bucket[key]!==undefined)bucket[key]+=Number(item.monto??item.monto_real??0); });
     const manual = Object.fromEntries(keys.map(key => [key, 0]));
     ajustes.forEach(item => { if (manual[item.periodo] !== undefined) manual[item.periodo] += (item.tipo === 'ingreso' ? 1 : -1) * Number(item.monto || 0); });
     let accumulated = 0;
-    return keys.map(key => { const ingreso = actualIncome[key] || plannedIncome[key]; const egreso = actualExpense[key] || plannedExpense[key]; const flujo = ingreso - egreso + manual[key]; accumulated += flujo; return { key, ingreso, egreso, ajuste: manual[key], flujo, accumulated, realIngreso: actualIncome[key], realEgreso: actualExpense[key] }; });
+    return keys.map(key => { const ingreso = actualIncome[key] || plannedIncome[key]; const egreso = (actualExpense[key]+registeredFuture[key]) || plannedExpense[key]; const flujo = ingreso - egreso + manual[key]; accumulated += flujo; return { key, ingreso, egreso, ajuste: manual[key], flujo, accumulated, realIngreso: actualIncome[key], realEgreso: actualExpense[key] }; });
   }, [ajustes, budgetCurrency, costos, estadosPago, liquidaciones, obra?.fecha_inicio, partidas, ufRate.value]);
 
   const totals = rows.reduce((acc, row) => ({ ingreso: acc.ingreso + row.ingreso, egreso: acc.egreso + row.egreso, flujo: acc.flujo + row.flujo }), { ingreso: 0, egreso: 0, flujo: 0 });

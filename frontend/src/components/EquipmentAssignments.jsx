@@ -20,21 +20,21 @@ export default function EquipmentAssignments({ equipment, works, reservations, r
   const toggle = id => setSelected(previous=>previous.includes(id) ? previous.filter(i=>i!==id) : [...previous,id]);
   const open = items => {
     setTargets(items); setDestination(items.length===1 && hasAssignedWork(items[0].obra_nombre) ? items[0].obra_nombre : '');
-    setStart(items.length===1 ? items[0].fecha_asig || today() : today()); setEnd(items.length===1 ? items[0].fecha_hasta_estimada || '' : ''); setMessage('');
+    setStart(today()); setEnd(items.length===1 ? items[0].fecha_hasta_estimada || '' : ''); setMessage('');
   };
   const conflicts = destination ? assignmentConflicts(targets.map(e=>e.id), reservations, start, end) : [];
   const rentalConflicts = destination ? assignmentConflicts(targets.map(e=>e.id), rentals.filter(r=>r.estado==='Activo'), start, end) : [];
   const save = async event => {
     event.preventDefault(); if (!canEdit || busy || !targets.length || !company) return;
     setMessage('');
-    if (destination && (!start || (end && end < start))) { setMessage('Indica una fecha desde válida y un término igual o posterior.'); return; }
+    if (!start || start>today() || (destination && end && end < start)) { setMessage('Indica una fecha efectiva hasta hoy y un término estimado igual o posterior.'); return; }
     if (destination && !works.some(w=>w.nombre===destination)) { setMessage('La obra de destino ya no está disponible.'); return; }
     if (rentalConflicts.length) { setMessage('Hay equipos con arriendo activo en ese período. Resuelve el arriendo antes de asignarlos.'); return; }
     if (conflicts.length && !window.confirm('La asignación coincide con reservas de los equipos seleccionados. ¿Continuar de todas formas?')) return;
     setBusy(true);
     try {
       const { data, error } = await supabase.from('inventario_maquinaria')
-        .update({ obra_nombre: destination || null, fecha_asig: destination ? start : null, fecha_hasta_estimada: destination ? end || null : null })
+        .update({ fecha_cambio_asignacion:start, obra_nombre: destination || null, fecha_asig: destination ? start : null, fecha_hasta_estimada: destination ? end || null : null })
         .eq('empresa',company).in('id',targets.map(e=>e.id)).select('id');
       if (error) throw error;
       if (data.length !== targets.length) throw new Error(`Se guardaron ${data.length} de ${targets.length} equipos. Revisa tus permisos y actualiza la vista.`);
@@ -64,7 +64,7 @@ export default function EquipmentAssignments({ equipment, works, reservations, r
     {!!targets.length && <div className="fixed inset-0 z-[100] bg-slate-950/60 p-4 flex items-center justify-center"><form onSubmit={save} role="dialog" aria-modal="true" aria-label="Asignar equipos" className="bg-white p-6 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-auto space-y-4">
       <h3 className="text-lg font-black">Asignar {targets.length} equipo{targets.length!==1?'s':''}</h3><p className="text-xs text-slate-500">{targets.map(e=>e.patente).join(', ')}</p>
       <label className="block text-xs font-bold">Destino<select className={`${fieldClass} block w-full mt-1`} value={destination} onChange={e=>setDestination(e.target.value)}><option value="">Bodega central / Sin asignar</option>{works.map(w=><option key={w.nombre}>{w.nombre}</option>)}</select></label>
-      {destination && <div className="grid grid-cols-2 gap-3"><label className="text-xs font-bold">Desde *<input required type="date" className={`${fieldClass} block w-full mt-1`} value={start} onChange={e=>setStart(e.target.value)}/></label><label className="text-xs font-bold">Hasta estimada<input type="date" min={start} className={`${fieldClass} block w-full mt-1`} value={end} onChange={e=>setEnd(e.target.value)}/></label></div>}
+      {<div className="grid grid-cols-2 gap-3"><label className="text-xs font-bold">Fecha efectiva del cambio / retiro *<input required max={today()} type="date" className={`${fieldClass} block w-full mt-1`} value={start} onChange={e=>setStart(e.target.value)}/></label><label className="text-xs font-bold">Hasta estimada<input type="date" min={start} className={`${fieldClass} block w-full mt-1`} value={end} onChange={e=>setEnd(e.target.value)}/></label></div>}
       <p className="text-xs text-slate-500">Cambia la asignación actual. Para planificar una asignación futura, utiliza Reservas.</p>
       {conflicts.length>0 && <p role="alert" className="rounded-lg bg-amber-50 text-amber-900 p-3 text-xs">Reservas coincidentes: {conflicts.map(r=>`${equipment.find(e=>String(e.id)===String(r.equipo_id))?.patente} (${dateLabel(r.fecha_inicio)} a ${dateLabel(r.fecha_fin)})`).join(', ')}.</p>}
       {rentalConflicts.length>0 && <p role="alert" className="text-xs text-red-700">Hay arriendos activos que coinciden con este período.</p>}

@@ -1,0 +1,25 @@
+import React,{useState} from 'react';
+import {supabase} from '../supabaseClient';
+import {costStateLabel,costTotals} from '../utils/costControl';
+const money=n=>n==null?'Tarifa pendiente':Number(n).toLocaleString('es-CL',{style:'currency',currency:'CLP',maximumFractionDigits:0});
+export default function MachineryCostControl({rows,periods,decisions=[],obra,company,canEdit,onSaved}){
+ const today=new Date().toLocaleDateString('en-CA',{timeZone:'America/Santiago'});
+ const [month,setMonth]=useState(today.slice(0,7)),[edit,setEdit]=useState(null),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
+ const visible=rows.filter(r=>r.fecha.startsWith(month)),totals=costTotals(visible,today);
+ const save=async e=>{e.preventDefault();if(!canEdit||busy)return;setBusy(true);setMessage('');try{
+   const payload={empresa:company,equipo_id:Number(edit.equipo_id),obra_id:obra.id,fecha:edit.fecha,tipo:edit.tipo,periodo_id:edit.periodo_id||null,motivo:edit.motivo,monto:edit.tipo==='confirmar'?Number(edit.monto):null};
+   const {error}=await supabase.from('maquinaria_decisiones_costo').upsert(payload,{onConflict:'empresa,equipo_id,fecha'});if(error)throw error;
+   await onSaved();setEdit(null);setMessage('Decisión guardada. El cargo se recalculó sin duplicarse.');
+ }catch(error){setMessage(error.message);}finally{setBusy(false);}};
+ const choose=(r,tipo)=>setEdit({...r,tipo,motivo:'',monto:r.monto??'',periodo_id:r.periodo_id||periods.find(p=>String(p.equipo_id)===String(r.equipo_id)&&String(p.obra_id)===String(obra.id)&&p.desde<=r.fecha&&(!p.hasta||r.fecha<p.hasta))?.id});
+ return <details className="rounded-xl border bg-white p-4 text-xs"><summary className="cursor-pointer font-bold">Control de costos de maquinaria · confirmar, no uso y retiro</summary>
+ <p className="my-3 text-slate-600">Laborales: cargo automático por asignación. Sábado, domingo o feriado: solo con reporte. Un cargo por equipo y día. El retiro detiene el cargo automático desde la fecha indicada; un reporte de uso conserva su cargo. Los períodos anteriores no se borran.</p>
+ <label>Mes <input aria-label="Mes de costos de maquinaria" type="month" value={month} onChange={e=>setMonth(e.target.value)} className="rounded border p-2"/></label>
+ <p className="mt-2 text-slate-500">Calendario laboral: lunes a viernes, excluidos los feriados cargados de la obra. Revisa el calendario si proyectas a un año sin feriados cargados.</p>
+ {decisions.filter(d=>String(d.obra_id)===String(obra.id)&&['no_uso','retiro'].includes(d.tipo)).map(d=><div key={`${d.equipo_id}:${d.fecha}`} className="my-2 rounded bg-amber-50 p-2">{d.fecha} · Equipo {d.equipo_id} · {d.tipo==='retiro'?'Retiro':'No uso'} · {d.motivo}{canEdit&&<button className="ml-3 underline" onClick={()=>setEdit({...d,tipo:'restablecer',motivo:'Reactivar cargo automático',equipo_patente:d.equipo_id})}>Reactivar cargo</button>}</div>)}
+ <div className="my-3 flex flex-wrap gap-4">{Object.keys(costStateLabel).map(k=><p key={k}>{costStateLabel[k]}: <b>{money(totals[k])}</b></p>)}</div>
+ {message&&<p role="status" className="my-2 rounded bg-blue-50 p-3">{message}</p>}
+ {edit&&<form onSubmit={save} className="my-3 grid gap-3 rounded border bg-slate-50 p-3 sm:grid-cols-2"><b>{edit.tipo==='confirmar'?'Confirmar costo':edit.tipo==='retiro'?'Detener cargo por retiro':'Registrar no uso sin cargo'} · {edit.equipo_patente}</b><label>Fecha<input required type="date" value={edit.fecha} disabled={edit.tipo==='confirmar'} onChange={e=>setEdit({...edit,fecha:e.target.value})} className="block rounded border p-2"/></label>{edit.tipo==='confirmar'&&<label>Monto confirmado<input required min="0" step="1" type="number" value={edit.monto} onChange={e=>setEdit({...edit,monto:e.target.value})} className="block rounded border p-2"/></label>}<label>Motivo / respaldo<input required value={edit.motivo} onChange={e=>setEdit({...edit,motivo:e.target.value})} className="block w-full rounded border p-2"/></label><div className="flex gap-3"><button disabled={busy} className="rounded bg-indigo-900 px-3 py-2 text-white">Guardar decisión</button><button type="button" onClick={()=>setEdit(null)}>Cancelar</button></div></form>}
+ <div className="max-h-80 overflow-auto"><table className="w-full min-w-[650px] text-left"><thead><tr>{['Fecha','Equipo','Origen','Estado','Costo','Acciones'].map(s=><th key={s} className="p-2">{s}</th>)}</tr></thead><tbody>{visible.map(r=><tr key={`${r.equipo_id}:${r.fecha}`} className="border-t"><td className="p-2">{r.fecha}</td><td className="p-2">{r.equipo_tipo} {r.equipo_patente}</td><td className="p-2">{r.origen_costo}</td><td className="p-2">{costStateLabel[r.estado_costo]}</td><td className="p-2">{money(r.monto)}</td><td className="p-2">{canEdit&&<div className="flex gap-3">{r.fecha<=today&&<button onClick={()=>choose(r,'confirmar')}>Confirmar</button>}<button onClick={()=>choose(r,'no_uso')}>No uso</button>{r.periodo_id&&<button onClick={()=>choose(r,'retiro')}>Retiro</button>}</div>}</td></tr>)}</tbody></table>{!visible.length&&<p className="p-3">No hay cargos en este mes.</p>}</div>
+ </details>;
+}
