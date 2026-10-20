@@ -1,4 +1,10 @@
 import {assignmentToday} from './workerAssignment.js';
+export function workerAssignmentDestinations(worker,centers,links,date=assignmentToday()){
+  const center=centers.find(c=>c.empresa===worker.empresa&&worker.centro_gestion_id!=null&&String(c.id)===String(worker.centro_gestion_id));
+  const name=center?.nombre||worker.obra_nombre||worker.centro_trabajo;
+  const destinations=name?[{key:'principal',name:center?.codigo?`${center.codigo} · ${name}`:name,primary:true,start:worker.fecha_asig?.slice(0,10)}]:[];
+  return [...destinations,...workerAdditionalCenters(worker,links,date).map(link=>({key:String(link.id),name:[link.centro_codigo,link.centro_nombre].filter(Boolean).join(' · '),primary:false,start:link.fecha_inicio,end:link.fecha_termino}))];
+}
 export function activeWorkerCenter(link,date=assignmentToday()){
   return link.centro_activo!==false&&link.fecha_inicio<=date&&(!link.fecha_termino||link.fecha_termino>=date);
 }
