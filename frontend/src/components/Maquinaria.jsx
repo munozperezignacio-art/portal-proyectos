@@ -15,6 +15,7 @@ import MachineryEquipmentDetailModal from './MachineryEquipmentDetailModal';
 import EquipmentBulkImport from './EquipmentBulkImport';
 import EquipmentAssignments from './EquipmentAssignments';
 import EquipmentInventory from './EquipmentInventory';
+import EquipmentGroups from './EquipmentGroups';
 import EquipmentCategories from './EquipmentCategories';
 import { hasAssignedWork } from '../utils/equipmentAssignments';
 
@@ -84,6 +85,7 @@ export default function Maquinaria({ user, onBack }) {
   const canConfigure = can(user, permissions, 'maquinaria.inventario.configurar');
   const [categories,setCategories]=useState([]);
   const [categoriesOpen,setCategoriesOpen]=useState(false);
+  const [inventoryView,setInventoryView]=useState('list');
   const [activeSection, setActiveSection] = useState(''); // '', 'inventario', 'asignaciones', 'uso', 'reservas', 'arriendos'
   const [maquinaria, setMaquinaria] = useState([]);
   const [obras, setObras] = useState([]);
@@ -1080,7 +1082,9 @@ export default function Maquinaria({ user, onBack }) {
       {/* 3. SUBMÓDULO 1: INVENTARIO DE MAQUINARIAS Y EQUIPOS */}
       {bulkImportOpen && canCreate && <EquipmentBulkImport company={user.empresa} categories={categories} onClose={() => setBulkImportOpen(false)} onImported={fetchData} />}
       {categoriesOpen && canConfigure && <EquipmentCategories company={user.empresa} categories={categories} equipment={maquinaria} onClose={()=>setCategoriesOpen(false)} onChanged={async()=>{if(!await fetchData())throw new Error('El cambio se guardó, pero no se pudo recargar el inventario. Actualiza la pantalla.');}}/>}
-      {activeSection === 'inventario' && <EquipmentInventory equipment={maquinaria} categories={categories} works={obras} bookings={reservasList} rentals={arriendosList} loading={loading}
+      {activeSection === 'inventario'&&<div className="flex flex-wrap gap-2" aria-label="Vistas del inventario"><button type="button" aria-pressed={inventoryView==='list'} onClick={()=>setInventoryView('list')} className={`rounded-xl border px-4 py-3 text-xs font-bold ${inventoryView==='list'?'bg-primary text-white':'bg-white'}`}>Listado de equipos</button><button type="button" aria-pressed={inventoryView==='groups'} onClick={()=>setInventoryView('groups')} className={`rounded-xl border px-4 py-3 text-xs font-bold ${inventoryView==='groups'?'bg-primary text-white':'bg-white'}`}>Grupos de equipos</button></div>}
+      {activeSection === 'inventario'&&inventoryView==='groups'&&<EquipmentGroups key={user.empresa} company={user.empresa} equipment={maquinaria} works={obras} reservations={reservasList} rentals={arriendosList} canEdit={canEdit} onSaved={fetchData} onView={setViewingEquip}/>}
+      {activeSection === 'inventario'&&inventoryView==='list' && <EquipmentInventory equipment={maquinaria} categories={categories} works={obras} bookings={reservasList} rentals={arriendosList} loading={loading}
         canCreate={canCreate} canEdit={canEdit} canDelete={canDelete} canConfigure={canConfigure}
         onCreate={handleOpenAddModal} onImport={()=>setBulkImportOpen(true)} onCategories={()=>setCategoriesOpen(true)}
         onView={setViewingEquip} onEdit={handleOpenEditModal} onDelete={handleDeleteEquip}/>}

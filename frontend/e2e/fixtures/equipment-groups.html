@@ -1,0 +1,18 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="fixture"></div><script type="module">
+import React,{useState}from'react';import{createRoot}from'react-dom/client';import '../../src/index.css';import EquipmentGroups from '../../src/components/EquipmentGroups.jsx';import{supabase}from'../../src/supabaseClient.js';
+const params=new URLSearchParams(location.search),company='TEST';
+window.equipment=[{id:1,empresa:company,patente:'EXC-01',tipo:'Excavadora',estado_equipo:'Operativo',obra_nombre:'Obra B'},{id:2,empresa:company,patente:'COM-01',tipo:'Compresor',estado_equipo:'Operativo'},{id:3,empresa:company,patente:'PIL-01',tipo:'Perforadora',estado_equipo:'En Mantención'}];
+window.groups=[{id:1,empresa:company,nombre:'Grupo perforación',descripcion:'Conjunto base',actualizado_en:'2026-10-19T12:00:00.000000+00:00'}];window.links=[{grupo_id:1,empresa:company,equipo_id:1},{grupo_id:1,empresa:company,equipo_id:2}];window.groupCalls=[];window.failGroups=false;window.readFail=false;
+supabase.from=table=>{const filters={},bounds={};const chain={select(){return chain;},eq(k,v){filters[k]=v;return chain;},order(){return chain;},range:async(a,b)=>{if(window.readFail)return {error:{message:'Error de carga simulado'}};const rows=table==='maquinaria_grupos'?window.groups:window.links;return {data:rows.filter(r=>Object.entries(filters).every(([k,v])=>r[k]===v)).slice(a,b+1),error:null};}};return chain;};
+let version=0;
+supabase.rpc=async(name,args)=>{window.groupCalls.push({name,args});if(window.failGroups)return {error:{message:'Conflicto simulado: no se modificó ningún equipo'}};
+ const updated=()=>`2026-10-19T13:00:${String(++version).padStart(2,'0')}.000000+00:00`;
+ if(name==='gestionar_grupo_equipos'){
+  if(args.p_accion==='eliminar'){window.groups=window.groups.filter(g=>g.id!==args.p_id);window.links=window.links.filter(l=>l.grupo_id!==args.p_id);return {data:{eliminado:true}};}
+  const id=args.p_id||Math.max(0,...window.groups.map(g=>g.id))+1,g={id,empresa:company,nombre:args.p_nombre,descripcion:args.p_descripcion,actualizado_en:updated()};window.groups=[...window.groups.filter(item=>item.id!==id),g];window.links=[...window.links.filter(l=>l.grupo_id!==id),...args.p_equipo_ids.map(equipo_id=>({grupo_id:id,empresa:company,equipo_id}))];return {data:{id,equipos:args.p_equipo_ids.length}};
+ }
+ window.equipment=window.equipment.map(e=>args.p_equipo_ids.includes(e.id)?{...e,obra_nombre:args.p_destino,fecha_asig:args.p_desde,fecha_hasta_estimada:args.p_hasta}:e);window.groups=window.groups.map(g=>g.id===args.p_grupo_id?{...g,actualizado_en:updated()}:g);return {data:{asignados:args.p_equipo_ids.length}};
+};
+function Fixture(){const[rev,setRev]=useState(0);return React.createElement('main',{style:{padding:12,maxWidth:1200,margin:'auto'},'data-revision':rev},React.createElement(EquipmentGroups,{company,equipment:window.equipment,works:[{nombre:'Obra A'},{nombre:'Obra B'}],reservations:params.has('conflict')?[{empresa:company,equipo_id:'2',fecha_inicio:'2000-01-01',fecha_fin:'2999-01-01',estado:'Pendiente'}]:[],canEdit:!params.has('readonly'),onSaved:async()=>{setRev(v=>v+1);return true;},onView:()=>{}}));}
+createRoot(document.getElementById('fixture')).render(React.createElement(Fixture));
+</script></body></html>
