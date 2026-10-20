@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { responsibleRecipients } from "./recipients.js";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const EVENTS = ['avance_reporte_pendiente', 'maquinaria_reporte_pendiente', 'reportes_diarios_pendientes', 'prevencion_cumplimiento_pendiente'];
@@ -53,10 +54,7 @@ Deno.serve(async (req) => {
       const selected = asArray(conditions.obras_seleccionadas);
       let names = (works || []).filter((work: any) => activeWork(work.estado)).map((work: any) => work.nombre);
       if (scope === 'seleccionadas') names = names.filter((name: string) => selected.includes(name) || name === rule.obra_nombre);
-      if (scope === 'asignadas') {
-        const assigned = new Set((users || []).flatMap((person: any) => String(person.obras || '').split(',').map((name: string) => name.trim()).filter(Boolean)));
-        if (assigned.size) names = names.filter((name: string) => assigned.has(name));
-      }
+      // El alcance "asignadas" se resuelve por destinatario, nunca uniendo las obras de todos.
 
       const workNameById = new Map((works || []).map((work: any) => [String(work.id), work.nombre]));
       const advanceReported = new Set((advances || []).filter((item: any) => localParts(new Date(item.created_at)).date === local.date).map((item: any) => item.obra_id ? workNameById.get(String(item.obra_id)) : item.obra_nombre).filter(Boolean));
@@ -73,31 +71,33 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const roleSet = new Set(asArray(rule.destinatarios_roles));
-      const idSet = new Set(asArray(rule.destinatarios_usuarios).map(String));
-      const recipients = [...new Set([
-        ...(users || []).filter((person: any) => roleSet.has(person.rol) || idSet.has(String(person.id))).map((person: any) => person.correo),
-        ...asArray(rule.correos_adicionales)
-      ].filter(Boolean))];
-      const title = rule.evento_codigo === 'avance_reporte_pendiente' ? 'Reportes de avance pendientes' : rule.evento_codigo === 'maquinaria_reporte_pendiente' ? 'Reportes de maquinaria pendientes' : 'Informes diarios pendientes';
-      const list = (items: string[]) => items.length ? `<ul style="margin:8px 0 0;padding-left:20px">${items.map(name => `<li>${name}</li>`).join('')}</ul>` : '<p style="color:#047857">Sin pendientes.</p>';
-      const html = `<div style="font-family:Arial,sans-serif;max-width:680px;margin:auto;color:#17233b"><div style="background:#102b5c;color:white;padding:22px;border-radius:16px 16px 0 0"><h2 style="margin:0">${title}</h2><p style="margin:6px 0 0;color:#cbd5e1">${rule.empresa} · ${local.date}</p></div><div style="padding:22px;border:1px solid #dbe3ef;border-top:0;border-radius:0 0 16px 16px"><p>Al cierre configurado aún faltan los siguientes informes:</p>${rule.evento_codigo !== 'maquinaria_reporte_pendiente' ? `<h3 style="font-size:14px;margin-top:18px">Avance de obra (${pendingAdvance.length})</h3>${list(pendingAdvance)}` : ''}${rule.evento_codigo !== 'avance_reporte_pendiente' ? `<h3 style="font-size:14px;margin-top:18px">Uso de maquinaria (${pendingMachinery.length})</h3>${list(pendingMachinery)}` : ''}<div style="margin-top:20px;padding:12px;background:#f8fafc;border-radius:10px;font-size:12px;color:#475569"><b>Importante:</b> informar avance 0 o equipo sin uso también cumple el reporte diario. La alerta solo identifica la ausencia total del registro.</div></div></div>`;
-      let emailState = 'Omitido';
-      let errorDetail: string | null = null;
-      if (rule.canal_email && recipients.length) {
-        const resendApiKey = Deno.env.get('RESEND_API_KEY');
-        if (!resendApiKey) throw new Error('Resend no está configurado');
-        const response = await fetch('https://api.resend.com/emails', { method: 'POST', headers: { Authorization: `Bearer ${resendApiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ from: `Obraxis <${mailConfig?.email_sender || 'notificaciones@obraxis.cl'}>`, to: recipients, subject: `${title} · ${rule.empresa}`, html }) });
-        emailState = response.ok ? 'Enviada' : 'Error';
-        if (!response.ok) errorDetail = await response.text();
+      let deliveryCount = 0;
+      for (const work of [...new Set([...pendingAdvance,...pendingMachinery])]) {
+        const relevantAdvance = rule.evento_codigo !== 'maquinaria_reporte_pendiente' && pendingAdvance.includes(work);
+        const relevantMachinery = rule.evento_codigo !== 'avance_reporte_pendiente' && pendingMachinery.includes(work);
+        if (!relevantAdvance && !relevantMachinery) continue;
+        const targets = responsibleRecipients(rule, users || [], work);
+        const title = 'Informes pendientes · ' + work;
+        const html = '<div style="font-family:Arial,sans-serif"><h2>' + escapeHtml(title) + '</h2><p>' + escapeHtml(local.date) + '</p><ul>' + (relevantAdvance ? '<li>Reporte de avance diario pendiente</li>' : '') + (relevantMachinery ? '<li>Reporte diario de maquinaria pendiente</li>' : '') + '</ul><p>Un reporte con avance cero o equipo sin uso también cumple el registro diario.</p></div>';
+        const payload = { fecha_control:local.date,avance_pendiente:relevantAdvance?[work]:[],maquinaria_pendiente:relevantMachinery?[work]:[] };
+        const deliveries:any[] = [];
+        if(rule.canal_email) for(const recipient of targets.emails) {
+          let state='Error', detail=null;
+          try {
+            const key=Deno.env.get('RESEND_API_KEY');
+            if(!key)throw new Error('Resend no está configurado');
+            const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify({from:`Obraxis <${mailConfig?.email_sender || 'notificaciones@obraxis.cl'}>`,to:[recipient],subject:title,html})});
+            if(response.ok)state='Enviada';else detail=await response.text();
+          } catch(error){detail=String(error);}
+          deliveries.push({regla_id:rule.id,empresa:rule.empresa,evento_codigo:rule.evento_codigo,obra_nombre:work,canal:'Email',destinatario:recipient,asunto:title,estado:state,error_detalle:detail,payload,programada_para:now.toISOString(),enviada_at:state==='Enviada'?now.toISOString():null});
+        }
+        if(rule.canal_plataforma && targets.users.length) {
+          deliveries.push({regla_id:rule.id,empresa:rule.empresa,evento_codigo:rule.evento_codigo,obra_nombre:work,canal:'Plataforma',destinatario:'Roles y usuarios configurados',asunto:title,estado:'Pendiente',payload,programada_para:now.toISOString()});
+        }
+        if(deliveries.length){const {error}=await db.from('notificaciones_entregas').insert(deliveries);if(error)throw error;}
+        deliveryCount+=deliveries.length;
       }
-      const payload = { fecha_control: local.date, avance_pendiente: pendingAdvance, maquinaria_pendiente: pendingMachinery };
-      const deliveries = [
-        ...(rule.canal_email ? recipients.map((recipient: string) => ({ regla_id: rule.id, empresa: rule.empresa, evento_codigo: rule.evento_codigo, canal: 'Email', destinatario: recipient, asunto: title, estado: emailState, error_detalle: errorDetail, payload, programada_para: now.toISOString(), enviada_at: emailState === 'Enviada' ? now.toISOString() : null })) : []),
-        ...(rule.canal_plataforma ? [{ regla_id: rule.id, empresa: rule.empresa, evento_codigo: rule.evento_codigo, canal: 'Plataforma', destinatario: 'Roles y usuarios configurados', asunto: title, estado: 'Pendiente', payload, programada_para: now.toISOString() }] : [])
-      ];
-      if (deliveries.length) await db.from('notificaciones_entregas').insert(deliveries);
-      results.push({ rule: rule.id, pendingAdvance: pendingAdvance.length, pendingMachinery: pendingMachinery.length, deliveries: deliveries.length });
+      results.push({rule:rule.id,pendingAdvance:pendingAdvance.length,pendingMachinery:pendingMachinery.length,deliveries:deliveryCount});
     } catch (error) {
       results.push({ rule: rule.id, error: String(error) });
     }
