@@ -1,7 +1,17 @@
 -- Obra actual + historial en una transacción; no crea asistencias ni costos.
-create function private.rrhh_asignar_obra_lote(p_empresa text,p_trabajadores integer[],p_obra integer,p_fecha date)
+-- Respaldo inmutable de períodos vacíos cubiertos; no se expone a la API.
+create table if not exists private.rrhh_asignaciones_sin_destino_auditoria (
+  id bigint generated always as identity primary key,
+  empresa text not null, trabajador_id integer not null,
+  registro_original jsonb not null, nueva_obra_id integer not null,
+  nueva_fecha_inicio date not null, registrado_por uuid not null,
+  registrado_en timestamptz not null default now()
+);
+alter table private.rrhh_asignaciones_sin_destino_auditoria enable row level security;
+revoke all on private.rrhh_asignaciones_sin_destino_auditoria from public,anon,authenticated;
+create or replace function private.rrhh_asignar_obra_lote(p_empresa text,p_trabajadores integer[],p_obra integer,p_fecha date)
 returns jsonb language plpgsql security definer set search_path='' as $$
-declare p public.maestro_personal; h public.rrhh_asignaciones_personal; o public.obras; autor text;
+declare p public.maestro_personal; h public.rrhh_asignaciones_personal; vacio public.rrhh_asignaciones_personal; o public.obras; autor text;
   asignados integer:=0; omitidos integer:=0; hoy date:=(now() at time zone 'America/Santiago')::date;
 begin
   select coalesce(u.nombre,u.usuario,u.correo) into autor
@@ -27,10 +37,29 @@ begin
     if p_fecha<coalesce(p.fecha_inicio_contrato,p_fecha) or p_fecha>coalesce(p.fecha_vencimiento_contrato,p_fecha) then raise exception '%: fecha fuera de vigencia contractual',p.nombre; end if;
     if exists(select 1 from public.rrhh_nominas_mensuales n join public.rrhh_nomina_items i on i.nomina_id=n.id
       where n.empresa=p_empresa and i.trabajador_id=p.id and n.estado in ('Cerrada','Pagada') and n.periodo>=to_char(p_fecha,'YYYY-MM')) then raise exception '%: hay una nómina cerrada que requiere revisión explícita antes de cambiar su asignación histórica',p.nombre; end if;
-    select * into h from public.rrhh_asignaciones_personal where empresa=p_empresa and trabajador_id=p.id and fecha_termino is null for update;
-    if exists(select 1 from public.rrhh_asignaciones_personal a where a.empresa=p_empresa and a.trabajador_id=p.id and (a.fecha_inicio>=p_fecha or (a.fecha_termino is not null and a.fecha_termino>=p_fecha))) then
+    perform 1 from public.rrhh_asignaciones_personal where empresa=p_empresa and trabajador_id=p.id order by id for update;
+    -- Un destino desconocido también se protege: solo "Sin asignar" o vacío son reemplazables.
+    if exists(select 1 from public.rrhh_asignaciones_personal a where a.empresa=p_empresa and a.trabajador_id=p.id
+      and not (nullif(btrim(a.obra_nombre),'') is null and a.centro_gestion_id is null and lower(btrim(coalesce(a.destino_nombre,''))) in ('','sin asignar'))
+      and (a.fecha_inicio>=p_fecha or (a.fecha_termino is not null and a.fecha_termino>=p_fecha))) then
       raise exception '%: la fecha se cruza con una asignación registrada. Elige una fecha posterior o revisa su historial',p.nombre;
     end if;
+    for vacio in select * from public.rrhh_asignaciones_personal a
+      where a.empresa=p_empresa and a.trabajador_id=p.id
+        and nullif(btrim(a.obra_nombre),'') is null and a.centro_gestion_id is null
+        and lower(btrim(coalesce(a.destino_nombre,''))) in ('','sin asignar')
+        and (a.fecha_termino is null or a.fecha_termino>=p_fecha) order by a.id
+    loop
+      insert into private.rrhh_asignaciones_sin_destino_auditoria(empresa,trabajador_id,registro_original,nueva_obra_id,nueva_fecha_inicio,registrado_por)
+        values(p_empresa,p.id,to_jsonb(vacio),p_obra,p_fecha,auth.uid());
+      if vacio.fecha_inicio<p_fecha then
+        update public.rrhh_asignaciones_personal set fecha_termino=p_fecha-1,updated_at=now() where id=vacio.id and empresa=p_empresa;
+      else
+        -- El registro completo permanece en el respaldo; no dejamos períodos invertidos ni solapados.
+        delete from public.rrhh_asignaciones_personal where id=vacio.id and empresa=p_empresa;
+      end if;
+    end loop;
+    select * into h from public.rrhh_asignaciones_personal where empresa=p_empresa and trabajador_id=p.id and fecha_termino is null for update;
     if h.id is not null then
       update public.rrhh_asignaciones_personal set fecha_termino=p_fecha-1,updated_at=now() where id=h.id and empresa=p_empresa;
     elsif coalesce(p.obra_nombre,'')<>'' then
@@ -48,7 +77,7 @@ begin
 end; $$;
 revoke all on function private.rrhh_asignar_obra_lote(text,integer[],integer,date) from public,anon;
 grant execute on function private.rrhh_asignar_obra_lote(text,integer[],integer,date) to authenticated;
-create function public.asignar_personal_obra_lote(p_empresa text,p_trabajadores integer[],p_obra integer,p_fecha date)
+create or replace function public.asignar_personal_obra_lote(p_empresa text,p_trabajadores integer[],p_obra integer,p_fecha date)
 returns jsonb language sql security invoker set search_path='' as $$select private.rrhh_asignar_obra_lote(p_empresa,p_trabajadores,p_obra,p_fecha);$$;
 revoke all on function public.asignar_personal_obra_lote(text,integer[],integer,date) from public,anon;
 grant execute on function public.asignar_personal_obra_lote(text,integer[],integer,date) to authenticated;
