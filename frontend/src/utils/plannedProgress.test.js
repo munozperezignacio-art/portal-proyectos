@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { plannedValueAt, physicalProgressAt } from './plannedProgress.js';
+import { plannedValueAt, physicalProgressAt, dailyBudgetRate } from './plannedProgress.js';
 import { calendarTimeline } from './sCurveTimeline.js';
 
 test('weighted plan uses resolved schedule and preserves one decimal', () => {
@@ -43,4 +43,17 @@ test('physical progress handles missing/future schedules and actual overproducti
   assert.equal(physicalProgressAt(item, '2026-10-01', () => 0).planCompliance, null);
   assert.equal(physicalProgressAt({ ...item, start: null }, '2026-10-30', () => 20).difference, null);
   assert.equal(physicalProgressAt({ ...item, quantity: 0 }, '2026-10-30', () => 20).actualPct, null);
+});
+
+test('budgeted 20 units per day produces 260 at day 13 and caps the final partial day', () => {
+  const item = {quantity:463,executed:168,start:'2026-10-01',duration:24,dailyRate:20,unitPrice:100};
+  const result = physicalProgressAt(item,'2026-10-20',()=>13);
+  assert.equal(result.planned,260);
+  assert.equal(result.difference,-92);
+  assert.equal(plannedValueAt([item],'2026-10-20',()=>13),26000);
+  assert.equal(physicalProgressAt(item,'2026-11-01',()=>23).planned,460);
+  assert.equal(physicalProgressAt(item,'2026-11-02',()=>24).planned,463);
+  assert.equal(physicalProgressAt(item,'2026-10-01',()=>0).planned,0);
+  assert.equal(dailyBudgetRate({rendimiento:20,unidad_tiempo:'Día'}),20);
+  assert.equal(dailyBudgetRate({rendimiento:20,unidad_tiempo:'Hora'}),null);
 });

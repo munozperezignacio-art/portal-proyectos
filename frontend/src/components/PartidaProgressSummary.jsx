@@ -47,7 +47,7 @@ export default function PartidaProgressSummary({ rows, cutoff }) {
               </div>)}
             </dl>
             {m.excess > 0 && <p className="text-xs text-amber-900 mt-3">Ejecutado sobre la cantidad presupuestada: {number(m.excess)} {p.unidad}.</p>}
-            <p className="text-xs text-slate-500 mt-3">El programa usa el inicio y la duración del cronograma, distribuidos en días hábiles del calendario de obra. Cumplimiento = ejecutado ÷ programado. La diferencia porcentual compara ambos avances respecto del presupuesto. El promedio considera {p.uniqueDays} día(s) con reporte.</p>
+            <p className="text-xs text-slate-500 mt-3">Programado = rendimiento diario presupuestado × días hábiles desde el inicio, hasta completar la cantidad presupuestada. Sin rendimiento diario se distribuye la cantidad según la duración del cronograma. Cumplimiento = ejecutado ÷ programado. La diferencia porcentual compara ambos avances respecto del presupuesto. El promedio considera {p.uniqueDays} día(s) con reporte.</p>
           </div>
         </details>;
       })}

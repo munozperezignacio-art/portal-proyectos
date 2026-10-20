@@ -27,7 +27,7 @@ import {budgetPriceView,budgetViewTotals,formatBudgetViewAmount} from '../utils/
 import {economicIndicators,loadEconomicIndicator} from '../utils/economicIndicatorsCache';
 import {workerAssignedToWork} from '../utils/workerCenters';
 import {projectName,migrateProjectStorage} from '../utils/projectProfile';
-import { plannedValueAt, physicalProgressAt } from '../utils/plannedProgress';
+import { plannedValueAt, physicalProgressAt, dailyBudgetRate } from '../utils/plannedProgress';
 import PartidaProgressSummary from './PartidaProgressSummary';
 import useSignatureCanvas from '../utils/useSignatureCanvas';
 import AttendanceDateField from './AttendanceDateField';
@@ -2127,7 +2127,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
             if(result.data.length<1000)break;
           }
           const summary=buildAdvanceEmailSummary({
-            parts:partidasList.map(p=>({ ...p,quantity:Number(p.cantidad ?? p.cantidad_presupuestada)||0,unitPrice:partidasCostos[p.partida] !== undefined ? Number(partidasCostos[p.partida]) : Number(p.pu)||0,
+            parts:partidasList.map(p=>({ ...p,dailyRate:dailyBudgetRate(p),quantity:Number(p.cantidad ?? p.cantidad_presupuestada)||0,unitPrice:partidasCostos[p.partida] !== undefined ? Number(partidasCostos[p.partida]) : Number(p.pu)||0,
               start:getPartidaScheduledStart(p),duration:Math.max(1,parseInt(p.duracion_programada,10)||Math.ceil((Number(p.cantidad ?? p.cantidad_presupuestada)||0)/(Number(p.rendimiento_meta || p.rendimiento)||10))) })),
             reports:snapshotReports,cutoff:fechaStr,start:selectedObra.fecha_inicio?.slice(0,10)||fechaInicioReal,businessDays:countChileanBusinessDays,
             isBusinessDay:date => ![0,6].includes(new Date(`${date}T12:00:00Z`).getUTCDay()) && !CHILEAN_HOLIDAYS.includes(date)
@@ -4793,7 +4793,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
                   const scheduledStart = getPartidaScheduledStart(p);
                   const duration = Math.max(1, parseInt(p.duracion_programada, 10) || Math.ceil(cantTotal / (parseFloat(p.rendimiento_meta || p.rendimiento) || 10)));
-                  const comparison = physicalProgressAt({ quantity: cantTotal, executed: cantAv, start: scheduledStart, duration }, fCorteStr, countChileanBusinessDays);
+                  const comparison = physicalProgressAt({ quantity: cantTotal, executed: cantAv, start: scheduledStart, duration, dailyRate: dailyBudgetRate(p) }, fCorteStr, countChileanBusinessDays);
                   return { id: p.id, partida: p.partida, pct, cantAv, cantTotal, unidad: p.unidad, pctPerDay, uniqueDays, scheduledStart, comparison };
                 });
 
@@ -4814,6 +4814,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 const totalPresupuestoObra = totalVentaPresupuestada > 0 ? totalVentaPresupuestada : 1;
                 // Shared schedule: resolved dependencies, configured duration and budget prices.
                 const plannedItems = targetPartidas.map(p => ({
+                  dailyRate: dailyBudgetRate(p),
                   start: getPartidaScheduledStart(p),
                   duration: Math.max(1, parseInt(p.duracion_programada, 10) || Math.ceil((parseFloat(p.cantidad) || 0) / (parseFloat(p.rendimiento_meta || p.rendimiento) || 10))),
                   quantity: parseFloat(p.cantidad) || 0,
@@ -4999,9 +5000,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   const startP = getPartidaScheduledStart(p);
                   const rendimiento = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
                   const duracion = Math.max(1, parseInt(p.duracion_programada, 10) || Math.ceil(cantTotal / rendimiento));
-                  const plannedPct = startP && startP <= fCorteStr
-                    ? Math.min(100, (countChileanBusinessDays(startP, fCorteStr) / duracion) * 100)
-                    : 0;
+                  const plannedPct = physicalProgressAt({ quantity: cantTotal, start: startP, duration: duracion, dailyRate: dailyBudgetRate(p) }, fCorteStr, countChileanBusinessDays).plannedPct ?? 0;
                   const scheduleGap = actualPct - plannedPct;
                   const scheduleDays = Math.round((scheduleGap / 100) * duracion);
                   const scheduledFinish = p.fecha_termino || (startP ? addChileanBusinessDays(startP, duracion) : '');
