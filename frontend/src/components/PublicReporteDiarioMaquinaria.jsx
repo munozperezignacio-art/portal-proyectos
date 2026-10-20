@@ -1,14 +1,29 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
+import {useMachineryCharge} from '../utils/useMachineryCharge';
 import { Calendar, Gauge, Fuel, User, CheckCircle2, AlertCircle } from 'lucide-react';
 
 export default function PublicReporteDiarioMaquinaria({ token }) {
+  const machineryCharge=useMachineryCharge();
   const [equipo,setEquipo]=useState(null),[loading,setLoading]=useState(true),[submitting,setSubmitting]=useState(false),[submitted,setSubmitted]=useState(false),[error,setError]=useState('');
   const [form,setForm]=useState({fecha:new Date().toISOString().slice(0,10),horometro_inicial:'',horometro_final:'',combustible_cargado:'0',operador:'',observaciones:''});
   useEffect(()=>{(async()=>{try{const{data,error:invokeError}=await supabase.functions.invoke('maquinaria-publica',{body:{action:'cargar',token}});if(invokeError)throw invokeError;if(data?.error)throw new Error(data.error);setEquipo(data.equipo);setForm(v=>({...v,horometro_inicial:String(data.equipo.horometro_inicial??0)}));}catch(e){setError(e.message||'Enlace no disponible.');}finally{setLoading(false);}})();},[token]);
   const hours=Math.max(0,(Number(form.horometro_final)||0)-(Number(form.horometro_inicial)||0));
-  const submit=async e=>{e.preventDefault();setSubmitting(true);setError('');try{const{data,error:invokeError}=await supabase.functions.invoke('maquinaria-publica',{body:{action:'registrar',token,...form}});if(invokeError)throw invokeError;if(data?.error)throw new Error(data.error);setSubmitted(true);}catch(err){setError(err.message||'No fue posible guardar el registro.');}finally{setSubmitting(false);}};
+  const submit=async e=>{
+    e.preventDefault();if(submitting)return;setSubmitting(true);setError('');
+    const snapshot={...form};
+    try{
+      const result=await machineryCharge.save(async choice=>{
+        const {data,error:invokeError}=await supabase.functions.invoke('maquinaria-publica',{body:{action:'registrar',token,...snapshot,obra_cargo_diario:choice}});
+        return {data,error:invokeError||(data?.error?{message:data.error,details:data.details}:null)};
+      });
+      if(!result)return;
+      if(result.error)throw result.error;
+      setSubmitted(true);
+    }catch(err){setError(err.message||'No fue posible guardar el registro.');}finally{setSubmitting(false);}
+  };
   return <div className="min-h-screen bg-slate-900 text-slate-100 p-4 sm:p-6"><div className="max-w-md mx-auto space-y-6 py-4">
+    {machineryCharge.dialog}
     <header className="text-center space-y-3 bg-slate-800/90 p-6 rounded-3xl border border-slate-700 shadow-xl"><a href="https://www.obraxis.cl"><img src="/brand/obraxis-primary.png" alt="Obraxis" className="h-16 w-40 mx-auto object-contain"/></a><span className="inline-block text-[9px] font-black tracking-widest uppercase bg-amber-500/20 text-amber-400 px-3 py-1 rounded-full">Reporte diario de maquinaria</span>{loading?<p className="text-xs text-slate-400">Cargando equipo...</p>:equipo?<div className="p-3 bg-slate-900 rounded-2xl text-left"><b className="text-amber-400">{equipo.tipo}</b><p className="text-xs">{equipo.patente||'Sin patente'} · {equipo.obra_nombre||'Sin asignar'}</p></div>:null}</header>
     {submitted?<section className="bg-slate-800 border border-emerald-500/40 p-6 rounded-3xl text-center space-y-3"><CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto"/><h2 className="font-black">Registro guardado</h2><p className="text-xs text-slate-300">{hours} horas registradas con trazabilidad en Obraxis.</p></section>:
     <form onSubmit={submit} className="bg-slate-800 border border-slate-700 p-6 rounded-3xl space-y-4 text-xs">{error&&<div className="p-3 bg-red-500/20 text-red-300 rounded-2xl flex gap-2"><AlertCircle className="w-4 h-4"/>{error}</div>}

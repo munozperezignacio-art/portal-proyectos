@@ -1,0 +1,14 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module">
+import React from 'react';import{createRoot}from'react-dom/client';import '../../src/index.css';import{useMachineryCharge}from'../../src/utils/useMachineryCharge.js';
+window.requests=[];window.saved=[];
+function App(){
+ const charge=useMachineryCharge();
+ const save=()=>charge.save(async choice=>{
+  window.requests.push(choice);
+  if(!choice)return {error:{message:'MAQUINARIA_DESTINO_REQUERIDO',details:JSON.stringify({obras:['Obra A','Obra B'],fecha:'2026-10-20',equipo:'EXC-01'})}};
+  window.saved.push(choice);return {data:{id:1},error:null};
+ });
+ return React.createElement('main',null,charge.dialog,React.createElement('button',{onClick:save},'Registrar segundo reporte'));
+}
+createRoot(document.getElementById('root')).render(React.createElement(App));
+</script></body></html>

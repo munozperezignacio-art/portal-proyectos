@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import {useMachineryCharge} from '../utils/useMachineryCharge';
 import { 
   Building2, ArrowLeft, Users, Truck, Wrench, FileSpreadsheet, 
   ExternalLink, Calendar, Plus, UserCheck, ArrowRightLeft, FileText, AlertCircle, AlertTriangle, Camera,
@@ -196,6 +197,14 @@ function ObraGpsMapPicker({ lat, lng, radius, onChange, canEdit }) {
 }
 
 function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChange, oxDestination, onOXDestinationHandled, onProjectRenamed }) {
+  const machineryCharge=useMachineryCharge();
+  const [machineryCharges,setMachineryCharges]=useState([]);
+  const [machineryChargeError,setMachineryChargeError]=useState('');
+  const loadMachineryCharges=async obra=>{
+    const result=await supabase.from('maquinaria_cargos_diarios').select('*').eq('empresa',user.empresa).eq('obra_nombre',obra);
+    setMachineryCharges(result.data||[]);
+    setMachineryChargeError(result.error?'No se pudieron cargar los cargos diarios de maquinaria. El costo real está incompleto.':'');
+  };
   const { permissions: userPermissions, loading: permissionsLoading } = useUserPermissions(user);
   const recordPermission = (menu, action) => !permissionsLoading && can(user, userPermissions, `obras.${menu}.${action}`);
   const canAdvanceCreate = recordPermission('avances', 'crear');
@@ -873,8 +882,11 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     const final = Number(usoEquipoFormData.lectura_final);
     if (!final || final < inicial) { setErrorMsg(`La lectura final debe ser igual o mayor que ${inicial.toLocaleString('es-CL')}.`); return; }
     const payload = { equipo_id: equipo.id, equipo_patente: equipo.patente || '', equipo_tipo: equipo.tipo || 'Equipo', obra_nombre: selectedObra?.nombre || '', fecha: usoEquipoFormData.fecha, horometro_inicial: inicial, horometro_final: final, horas_trabajadas: final - inicial, combustible_cargado: Number(usoEquipoFormData.combustible) || 0, operador: usoEquipoFormData.operador || user?.nombre || user?.usuario || '', observaciones: usoEquipoFormData.observaciones.trim(), empresa: user?.empresa || 'OBRAXIS' };
-    const { data, error } = await supabase.from('maquinaria_uso_diario').insert([payload]).select().single();
+    const result=await machineryCharge.save(choice=>supabase.from('maquinaria_uso_diario').insert([{...payload,obra_cargo_diario:choice}]).select().single());
+    if(!result)return;
+    const { data, error }=result;
     if (error) { setErrorMsg(`No fue posible registrar el uso: ${error.message}`); return; }
+    await loadMachineryCharges(selectedObra.nombre);
     const { error: updateError } = await supabase.from('inventario_maquinaria').update({ horometro_inicial: final }).eq('id', equipo.id).eq('empresa', user?.empresa || 'OBRAXIS');
     if (updateError) {
       const warning=await notifyWorkRecord('maquinaria_registrada',`Uso del ${payload.fecha}. Equipo: ${payload.equipo_tipo} ${payload.equipo_patente}. Horas registradas: ${payload.horas_trabajadas}. La lectura corporativa requiere revisión.`);
@@ -1527,6 +1539,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const fetchObraDetails = async (obraNombre) => {
     setLaborCostError('Cargando costos de personal');
     setLiquidacionesList([]);
+    setMachineryCharges([]);
+    setMachineryChargeError('');
     setCostosList([]);
     if (!obraNombre) return;
     const isMatchObra = (itemObra, targetObra) => {
@@ -1698,6 +1712,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       console.warn('No fue posible cargar el uso de maquinaria:', error);
       setMaquinariaUsoObra([]);
     }
+    await loadMachineryCharges(obraNombre);
 
     // 3. Cargar partidas de obra
     try {
@@ -2740,22 +2755,19 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     setSuccessMsg('');
 
     try {
-      const { error } = await supabase.from('reporte_maquinaria').insert([
-        {
-          empresa: user.empresa,
-          obra_nombre: selectedObra.nombre,
-          supervisor: user.usuario,
-          operador: maqData.operador,
-          maquinaria: maqData.maquinaria,
-          horometro_entrada: parseFloat(maqData.horometroEntrada) || 0,
-          horometro_salida: parseFloat(maqData.horometroSalida) || 0,
-          litros_combustible: parseFloat(maqData.litrosCombustible) || 0,
-          horometro_combustible: parseFloat(maqData.horometroCombustible) || 0,
-          paralizacion: maqData.paralizacion,
-          observaciones: maqData.observaciones
-        }
-      ]);
-
+      if(!canObraMaquinariaCreate)throw new Error('No tienes permiso para registrar maquinaria.');
+      const equipo=maquinariaList.find(m=>String(m.id)===String(maqData.maquinaria));
+      if(!equipo)throw new Error('Selecciona un equipo del inventario.');
+      const inicial=Number(maqData.horometroEntrada),final=Number(maqData.horometroSalida);
+      if(!Number.isFinite(inicial)||!Number.isFinite(final)||inicial<0||final<inicial)throw new Error('Revisa las lecturas del horómetro.');
+      const payload={empresa:user.empresa,equipo_id:String(equipo.id),equipo_tipo:equipo.tipo,equipo_patente:equipo.patente,
+        obra_nombre:selectedObra.nombre,fecha:new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago'}).format(new Date()),
+        operador:maqData.operador,horometro_inicial:inicial,horometro_final:final,horas_trabajadas:final-inicial,
+        combustible_cargado:Number(maqData.litrosCombustible)||0,
+        observaciones:[maqData.observaciones,`Supervisor: ${user.usuario||user.nombre||''}`,`Paralización: ${maqData.paralizacion}`,`Horómetro combustible: ${maqData.horometroCombustible||0}`].join('\n')};
+      const result=await machineryCharge.save(choice=>supabase.from('maquinaria_uso_diario').insert([{...payload,obra_cargo_diario:choice}]));
+      if(!result)return;
+      const {error}=result;
       if (error) throw error;
 
       const warning=await notifyWorkRecord('maquinaria_registrada',`Parte de maquinaria: ${maqData.maquinaria}. Horómetro: ${maqData.horometroEntrada||0} a ${maqData.horometroSalida||0}.`);
@@ -2813,6 +2825,10 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
   return (
     <div className="space-y-4">
+      {machineryCharge.dialog}
+      {selectedObra&&machineryChargeError&&<p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{machineryChargeError}</p>}
+      {selectedObra&&machineryCharges.some(c=>c.monto==null)&&<p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Hay reportes de maquinaria sin tarifa diaria válida: no se han sumado al costo real. Revisa la tarifa del equipo.</p>}
+      {selectedObra&&machineryCharges.length>0&&<details className="rounded-xl border bg-white p-3 text-xs"><summary className="cursor-pointer font-bold">Cargos diarios de maquinaria ({machineryCharges.length})</summary><p className="my-2 text-slate-500">Un cargo por equipo y día, en la obra elegida. El costo real considera solo fechas hasta el corte. No ingreses nuevamente esta tarifa como gasto manual.</p><div className="max-h-56 overflow-auto">{[...machineryCharges].sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(c=><div key={c.reporte_id} className="flex justify-between gap-2 border-t py-2"><span>{c.fecha} · {c.equipo_tipo} {c.equipo_patente}</span><b>{c.monto==null?'Tarifa pendiente':`$${Number(c.monto).toLocaleString('es-CL')}`}</b></div>)}</div></details>}
       
       {!selectedObra ? (
         // ================= VISTA DE LISTADO DE OBRAS =================
@@ -4952,7 +4968,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 const AC_personal = isGlobalStats
                   ? (liquidacionesList || []).filter(l => (l.fecha || (l.created_at ? String(l.created_at).substring(0, 10) : '')) <= fCorteStr).reduce((acc, l) => acc + (parseFloat(l.monto_real) || 0), 0)
                   : 0;
-                const AC_maquinaria = isGlobalStats ? totalCostoMantencion : 0;
+                const dailyMachineryCharges=machineryCharges.filter(c=>c.fecha<=fCorteStr);
+                const AC_maquinaria = isGlobalStats ? totalCostoMantencion+dailyMachineryCharges.reduce((sum,c)=>sum+(Number(c.monto)||0),0) : 0;
                 const AC = AC_facturas + AC_personal + AC_maquinaria; // Costo Real Actual Total
 
                 const BAC = totalVentaPresupuestada; // Presupuesto Total Venta
@@ -4960,14 +4977,15 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 // La interfaz conserva valores neutros cuando aún no existe base suficiente para un índice.
                 const costBudget = isGlobalStats ? Number(selectedObra?.presupuesto_costo_control) || 0 : 0;
                 const earnedCost = costBudget * Number(pctAvanceGlobal) / 100;
-                const CPI = costBudget > 0 && AC > 0 && !laborCostError ? earnedCost / AC : null;
+                const CPI = costBudget > 0 && AC > 0 && !laborCostError && !machineryChargeError && !dailyMachineryCharges.some(c=>c.monto==null) ? earnedCost / AC : null;
                 const SPI = evm.spi;
                 const EAC = CPI > 0 ? Math.round(costBudget / CPI) : null;
                 const CV = CPI !== null ? earnedCost - AC : null;
                 const actualCostRecords = [
                   ...(costosList || []).filter(c => getCostDate(c) <= fCorteStr).map(c => ({ ...c,fecha:getCostDate(c),monto:isGlobalStats ? Number(c.monto)||0 : (c.imputaciones || []).filter(i => targetPartidas.some(p => isMatchPartidaName(i.partida,p.partida))).reduce((sum,i)=>sum+Math.round((Number(c.monto)||0)*(Number(i.porcentaje)||0)/100),0) })),
                   ...(liquidacionesList || []).filter(c => (c.fecha || String(c.created_at || '').slice(0,10)) <= fCorteStr).map(c => ({ ...c,categoria_proyeccion:'Mano de obra',fecha:c.fecha || String(c.created_at || '').slice(0,10),monto:isGlobalStats ? Number(c.monto_real)||0 : (c.obra_liquidaciones_partidas || []).filter(i => targetPartidas.some(p => isMatchPartidaName(i.partida,p.partida))).reduce((sum,i)=>sum+(Number(i.monto_imputado)||0),0) })),
-                  ...(isGlobalStats ? filteredMantenciones : []).map(c => ({ ...c,categoria_proyeccion:'Mantenciones de equipos',monto:Number(c.costo)||0 }))
+                  ...(isGlobalStats ? filteredMantenciones : []).map(c => ({ ...c,categoria_proyeccion:'Mantenciones de equipos',monto:Number(c.costo)||0 })),
+                  ...(isGlobalStats?dailyMachineryCharges:[]).map(c=>({...c,id:`maquinaria-dia-${c.reporte_id}`,nombre:`${c.equipo_tipo} ${c.equipo_patente}`,categoria_proyeccion:'Uso diario de maquinaria',monto:Number(c.monto)||0}))
                 ];
 
                 // PARTIDAS CON ALERTA Y DESVIACIÓN CRÍTICA DE COSTO
@@ -5170,7 +5188,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         bac={BAC}
                         costBudget={costBudget}
                         actualCost={AC}
-                        costError={laborCostError}
+                        costError={laborCostError||machineryChargeError||(dailyMachineryCharges.some(c=>c.monto==null)?'Faltan tarifas diarias de maquinaria':'')}
                         holidays={CHILEAN_HOLIDAYS}
                         canConfigure={can(user,userPermissions,'obras.gestion.configurar')}
                         onBudgetSaved={value => setSelectedObra(prev => ({ ...prev,presupuesto_costo_control:value }))}
@@ -8748,7 +8766,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none"
                 >
                   <option value="">-- Selecciona Equipo --</option>
-                  {maquinariaList.map(m => <option key={m.patente} value={`${m.tipo} - ${m.marca}`}>{m.tipo} ({m.patente})</option>)}
+                  {maquinariaList.map(m => <option key={m.id} value={String(m.id)}>{m.tipo} ({m.patente})</option>)}
                 </select>
               </div>
 

@@ -48,7 +48,11 @@ Deno.serve(async (req: Request) => {
       obra_nombre: equipment.obra_nombre || "Sin asignar", fecha: date, horometro_inicial: initial,
       horometro_final: final, horas_trabajadas: Math.max(0, final - initial), combustible_cargado: fuel,
       operador: operator, observaciones: notes, empresa: equipment.empresa,
+      obra_cargo_diario: clean(body?.obra_cargo_diario,300) || null,
     });
+    if(insertError?.message==="MAQUINARIA_DESTINO_REQUERIDO"){
+      return reply({error:insertError.message,details:insertError.details},200,origin);
+    }
     if (insertError) throw insertError;
     await db.from("inventario_maquinaria").update({ horometro_inicial: final }).eq("id", equipment.id).eq("empresa", equipment.empresa);
     await log(true); return reply({ ok: true, horas_trabajadas: Math.max(0, final - initial) }, 200, origin);
