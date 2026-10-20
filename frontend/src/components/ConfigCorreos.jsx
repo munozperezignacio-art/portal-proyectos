@@ -1348,7 +1348,7 @@ function ConfigCorreos({ user, onBack }) {
           }`}
         >
           <Bell className="h-4 w-4" />
-          Control de Notificaciones
+          Responsables y notificaciones
         </button>
         <button
           onClick={() => setActiveTab('branding')}

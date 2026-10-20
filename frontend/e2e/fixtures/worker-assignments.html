@@ -1,0 +1,11 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module">
+import React from 'react';import{createRoot}from'react-dom/client';import '../../src/index.css';import WorkerCenterAssignments from '../../src/components/WorkerCenterAssignments.jsx';import{supabase}from'../../src/supabaseClient.js';
+window.calls=[];window.assignmentClosed=false;
+supabase.rpc=async(name,payload)=>{window.calls.push({name,payload});return {data:name==='gestionar_personal_centros'?{agregados:1,omitidos:0,finalizados:0}:{asignados:1,omitidos:0},error:null};};
+createRoot(document.getElementById('root')).render(React.createElement(WorkerCenterAssignments,{
+company:'TEST',workers:[{id:1,empresa:'TEST',nombre:'Trabajador de prueba'}],
+centers:[{id:10,empresa:'TEST',codigo:'10',nombre:'Lonco'},{id:20,empresa:'TEST',codigo:'20',nombre:'Oficina'}],
+assignments:[{id:1,trabajador_id:1,empresa:'TEST',centro_gestion_id:10,centro_nombre:'Lonco',centro_codigo:'10',fecha_inicio:'2026-01-01'}],
+obras:[{id:5,empresa:'TEST',nombre:'Lonco'}],onClose:()=>window.assignmentClosed=true,onSaved:async()=>{},onPrimaryAssigned:async()=>{}
+}));
+</script></body></html>

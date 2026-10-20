@@ -61,3 +61,17 @@ test('equipos no convierten tarifa mensual a diaria ni inventan horas; entradas 
   const h=equipmentSimulationTemplate({costo:500,unidad_costo:'$/hora'});assert.equal(h.quantity,'');assert.equal(h.mode,'hour');
   const snapshot=JSON.stringify(base);simulateProject(base);assert.equal(JSON.stringify(base),snapshot);
 });
+test('dependencias fin-inicio respetan calendario y orden inverso; recursos esperan inicio efectivo',()=>{
+ const r=simulateProject({...base,parts:[{...part,id:'2',name:'Sucesora',remaining:10,predecessors:['1']},{...part,remaining:20}],resources:[resource('Equipo','workday',100,{partId:'2'})]});
+ assert.equal(r.parts.find(p=>p.id==='1').finish,'2026-10-21');
+ assert.equal(r.parts.find(p=>p.id==='2').actualStart,'2026-10-22');
+ assert.equal(r.finish,'2026-10-22');
+ assert.equal(r.futureCost,100);
+ assert.equal(r.parts[0].availableDays,7);
+});
+test('ciclos y referencias inexistentes se rechazan, predecesora detenida bloquea sucesora',()=>{
+ assert.throws(()=>simulateProject({...base,parts:[{...part,predecessors:['1']}]}),/ciclo/);
+ assert.throws(()=>simulateProject({...base,parts:[{...part,predecessors:['missing']}]}),/alcance/);
+ const r=simulateProject({...base,parts:[{...part,pace:0},{...part,id:'2',predecessors:['1']}],resources:[resource('Equipo','calendar',100,{partId:'2'})]});
+ assert.equal(r.finish,null);assert.equal(r.parts[1].actualStart,null);assert.equal(r.parts[1].availableDays,0);assert.equal(r.futureCost,0);
+});

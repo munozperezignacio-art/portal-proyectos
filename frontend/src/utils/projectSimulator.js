@@ -31,9 +31,21 @@ export function simulateProject({cutoff,start,end,deadline,weekdays=[1,2,3,4,5],
   const states=parts.map(p=>{
     if(!validSimulationDate(p.start))throw new Error(`Revisa el inicio de ${p.name}.`);
     const remaining=nonnegative(p.remaining,`cantidad pendiente de ${p.name}`),pace=nonnegative(p.pace,`rendimiento de ${p.name}`);
-    return {...p,remaining,initialRemaining:remaining,pace,finish:remaining===0?cutoff:null,produced:0};
+    return {...p,remaining,initialRemaining:remaining,pace,finish:remaining===0?cutoff:null,produced:0,actualStart:null};
   });
   if(new Set(states.map(p=>p.id)).size!==states.length)throw new Error('Hay partidas repetidas en el escenario.');
+  const byId=new Map(states.map(p=>[p.id,p])),visited=new Set(),visiting=new Set();
+  const visit=p=>{
+    if(visiting.has(p.id))throw new Error('Las dependencias forman un ciclo. Una partida no puede depender de sí misma ni de una sucesora.');
+    if(visited.has(p.id))return;
+    visiting.add(p.id);
+    for(const id of p.predecessors||[]){
+      if(!byId.has(id))throw new Error(`La predecesora de ${p.name} no está en este alcance.`);
+      visit(byId.get(id));
+    }
+    visiting.delete(p.id);visited.add(p.id);
+  };
+  states.forEach(visit);
   const modes=['fixed','workday','calendar','hour','month22','month30','units'];
   const resourceStates=resources.map(r=>{
     if(!modes.includes(r.mode))throw new Error(`Selecciona cómo cobrar ${r.name}.`);
@@ -48,7 +60,10 @@ export function simulateProject({cutoff,start,end,deadline,weekdays=[1,2,3,4,5],
     for(const p of states){
       const override=p.overrides?.[date];
       const pace=override==null||override===''?p.pace:nonnegative(override,`rendimiento de ${p.name} el ${date}`);
-      const produced=working&&date>=p.start?Math.min(p.remaining,pace):0;
+      // Fin-inicio: la sucesora comienza en una jornada posterior, independientemente del orden del listado.
+      const ready=(p.predecessors||[]).every(id=>byId.get(id).finish&&byId.get(id).finish<date);
+      if(working&&date>=p.start&&ready&&!p.actualStart&&p.initialRemaining>0)p.actualStart=date;
+      const produced=working&&date>=p.start&&ready?Math.min(p.remaining,pace):0;
       p.remaining=Math.max(0,p.remaining-produced);p.produced+=produced;production[p.id]=produced;
       if(!p.finish&&p.remaining<1e-9){p.remaining=0;p.finish=date;}
     }
@@ -56,7 +71,9 @@ export function simulateProject({cutoff,start,end,deadline,weekdays=[1,2,3,4,5],
     let cost=0;
     for(const r of resourceStates){
       const part=states.find(p=>p.id===r.partId);
-      const chargeStart=part&&part.start>r.start?part.start:r.start;
+      if(part&&!part.actualStart&&part.initialRemaining>0)continue;
+      const partStart=part?.actualStart||part?.start;
+      const chargeStart=partStart&&partStart>r.start?partStart:r.start;
       const chargeEnd=r.untilFinish===false?end:part?.finish||finish||end;
       if(date<chargeStart||date>chargeEnd||r.end&&date>r.end||part?.initialRemaining===0)continue;
       let units=0;
@@ -81,6 +98,8 @@ export function simulateProject({cutoff,start,end,deadline,weekdays=[1,2,3,4,5],
   const knownCost=!costError&&actualCost!=null&&Number.isFinite(Number(actualCost))&&Number(actualCost)>=0;
   const warnings=[];
   if(!resources.length)warnings.push('No seleccionaste costos futuros: el costo simulado no representa el costo completo de terminar la obra.');
+  if(states.some(p=>p.initialRemaining>0&&p.pace===0))warnings.push('Hay partidas pendientes sin rendimiento base. Solo avanzarán si defines producción manual en el calendario.');
+  if(states.some(p=>p.initialRemaining>0&&!p.predecessors?.length)&&states.length>1)warnings.push('Las partidas sin predecesoras pueden avanzar en paralelo. Verifica que no compartan una misma cuadrilla o equipo limitado.');
   if(resourceStates.some(r=>r.rate===0||r.quantity===0))warnings.push('Hay recursos con tarifa o cantidad cero. Revisa que no falten costos.');
   if(start>addSimulationDays(cutoff,1))warnings.push('Existe un intervalo entre el corte y el inicio seleccionado: no se ha supuesto producción ni costo en esos días.');
   if(!finish)warnings.push('Queda producción pendiente al final del horizonte; el costo calculado cubre solo el período simulado, no el término.');
@@ -90,7 +109,11 @@ export function simulateProject({cutoff,start,end,deadline,weekdays=[1,2,3,4,5],
   if(years.length)warnings.push(`Calendario manual: revisa los feriados de ${years.join(', ')}. Solo se excluyen los feriados cargados y las excepciones que indiques.`);
   return {finish,complete:Boolean(finish),futureCost,totalAtFinish:finish&&knownCost?Math.round(Number(actualCost))+futureCost:null,actualCost:knownCost?Math.round(Number(actualCost)):null,
     resources:resourceTotals.sort((a,b)=>b.total-a.total),days,months,warnings,delayDays:finish&&deadline?Math.round((Date.parse(finish)-Date.parse(deadline))/DAY):null,
-    parts:states.map(p=>{const available=dates.filter(d=>isWorkday(d)&&d>=p.start&&(!deadline||d<=deadline)).length;return {...p,requiredPace:deadline&&available>0?p.initialRemaining/available:null,availableDays:available};})};
+    parts:states.map(p=>{
+      const predecessors=(p.predecessors||[]).map(id=>byId.get(id));
+      const available=dates.filter(d=>isWorkday(d)&&d>=p.start&&predecessors.every(prev=>prev.finish&&prev.finish<d)&&(!deadline||d<=deadline)).length;
+      return {...p,requiredPace:deadline&&available>0?p.initialRemaining/available:null,availableDays:available};
+    })};
 }
 
 export function equipmentSimulationTemplate(item,index=0){

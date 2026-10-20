@@ -2,6 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { forecastModel } from './forecastModel.js';
 const input={cutoff:'2026-10-15',baselineFinish:'2026-11-10',actualProgress:25,plannedProgress:40,actualCost:200000,costBudget:1000000,holidays:['2026-11-02']};
+test('plazo cubre producción real pendiente y no solamente la programada',()=>{
+ const r=forecastModel({...input,cutoff:'2026-10-19',baselineFinish:'2026-10-30',holidays:[],actualProgress:25,plannedProgress:50});
+ assert.equal(r.duration,27); // 9 jornadas * 75% / 50% / SPI 0,5
+ assert.equal(forecastModel({...input,plannedProgress:100}).finish,null);
+});
 test('no actual costs or loading error means unknown cost, not zero overrun',()=>{
   for(const changes of [{actualCost:0},{costError:'Falló carga'}]) {
     const m=forecastModel({...input,...changes});assert.equal(m.baseCost,null);assert.equal(m.overrun,null);assert.equal(m.cpi,null);assert.deepEqual(m.cashflow,[]);

@@ -1,0 +1,13 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module">
+import React from 'react';import{createRoot}from'react-dom/client';import '../../src/index.css';import NotificationMaster from '../../src/components/NotificationMaster.jsx';import{supabase}from'../../src/supabaseClient.js';
+const user={id:1,empresa:'TEST',rol:'Administrador',rol_base:'Administrador',permisos:{}};
+const people=[user,{id:2,empresa:'TEST',nombre:'Ana Técnica',correo:'ana@example.test',rol:'Oficina Técnica'},{id:3,empresa:'TEST',nombre:'Pedro Terreno',correo:'pedro@example.test',rol:'Supervisor'}];
+window.rules=[];window.saved=[];
+supabase.from=table=>{let filters={},payload=null,action='read',single=false;const chain={
+select(){return chain;},eq(k,v){filters[k]=v;return chain;},order(){return chain;},limit(){return chain;},maybeSingle(){single=true;return chain;},insert(value){payload=value;action='insert';return chain;},update(value){payload=value;action='update';return chain;},
+then(resolve){let rows=table==='usuarios'?people:table==='roles'?[{nombre:'Administrador',empresa:'TEST',permisos:{}},{nombre:'Oficina Técnica',empresa:'TEST',permisos:{}}]:table==='notificaciones_reglas'?window.rules:[];
+if(payload){window.saved.push(payload);const row={...payload,id:10};window.rules=[row];rows=[row];}else rows=rows.filter(r=>Object.entries(filters).every(([k,v])=>r[k]===v));
+return Promise.resolve({data:single?rows[0]||null:rows,error:null}).then(resolve);}
+};return chain;};
+createRoot(document.getElementById('root')).render(React.createElement('main',{className:'p-3'},React.createElement(NotificationMaster,{user,obras:[{id:1,nombre:'Obra A'}],work:{id:1,nombre:'Obra A'}})));
+</script></body></html>

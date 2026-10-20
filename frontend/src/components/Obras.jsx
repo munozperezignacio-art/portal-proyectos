@@ -6,7 +6,7 @@ import {
   QrCode, MapPin, Printer, Navigation, RotateCcw, CheckCircle2, ShieldAlert, Settings, Edit, Trash2, Download,
   History, BarChart3, ShieldCheck, ClipboardCheck, DollarSign, CalendarRange, CalendarDays, Loader2, FolderPlus, Send, Filter, TrendingUp, BookOpenCheck, ReceiptText, Search
 } from 'lucide-react';
-import { canConfigureEmails, canCreateObras, canModifyOrDeleteRecords } from '../utils/userLevel';
+import { canCreateObras } from '../utils/userLevel';
 import { sendSystemEmail } from '../utils/emailService';
 import { formatRut, formatNumberWithDots, parseNumberFromDots } from '../utils/rutUtils';
 import {costSupplierFields} from '../utils/costSupplier';
@@ -14,6 +14,7 @@ import { calculateEarnedValue } from '../utils/earnedValue';
 import { registrarEventoBitacora } from '../utils/bitacoraService';
 import FormAnswerDisplay from './FormAnswerDisplay';
 import useUserPermissions from '../utils/useUserPermissions';
+import NotificationMaster from './NotificationMaster';
 import { can } from '../utils/permissionsCatalog';
 import MachineryEquipmentDetailModal from './MachineryEquipmentDetailModal';
 import { matchesWorkReport, reportedProgress, dailyTimeRate } from '../utils/workReportCalculations';
@@ -27,7 +28,8 @@ import {budgetPriceView,budgetViewTotals,formatBudgetViewAmount} from '../utils/
 import {economicIndicators,loadEconomicIndicator} from '../utils/economicIndicatorsCache';
 import {workerAssignedToWork} from '../utils/workerCenters';
 import {projectName,migrateProjectStorage} from '../utils/projectProfile';
-import { plannedValueAt } from '../utils/plannedProgress';
+import { plannedValueAt, physicalProgressAt, dailyBudgetRate } from '../utils/plannedProgress';
+import PartidaProgressSummary from './PartidaProgressSummary';
 import useSignatureCanvas from '../utils/useSignatureCanvas';
 import AttendanceDateField from './AttendanceDateField';
 import { chileanAttendanceToday, resolveAttendanceDate, attendanceDay, attendanceDateLabel, sortAttendanceRecords } from '../utils/attendanceDates';
@@ -194,7 +196,20 @@ function ObraGpsMapPicker({ lat, lng, radius, onChange, canEdit }) {
 }
 
 function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChange, oxDestination, onOXDestinationHandled, onProjectRenamed }) {
-  const { permissions: userPermissions } = useUserPermissions(user);
+  const { permissions: userPermissions, loading: permissionsLoading } = useUserPermissions(user);
+  const recordPermission = (menu, action) => !permissionsLoading && can(user, userPermissions, `obras.${menu}.${action}`);
+  const canAdvanceCreate = recordPermission('avances', 'crear');
+  const canAdvanceEdit = recordPermission('avances', 'editar');
+  const canAdvanceDelete = recordPermission('avances', 'eliminar');
+  const canAdvanceActions = canAdvanceEdit || canAdvanceDelete;
+  const canPersonnelEdit = recordPermission('personal', 'editar');
+  const canPersonnelDelete = recordPermission('personal', 'eliminar');
+  const canPersonnelActions = canPersonnelEdit || canPersonnelDelete;
+  const canEquipmentEdit = recordPermission('maquinaria', 'editar');
+  const canEquipmentDelete = recordPermission('maquinaria', 'eliminar');
+  const canEquipmentActions = canEquipmentEdit || canEquipmentDelete;
+  const canResponsibilities = recordPermission('ficha', 'configurar');
+  const [showResponsibilities, setShowResponsibilities] = useState(false);
   const canPrevView = can(user, userPermissions, 'obras.prevencion.ver');
   const canPrevCreate = can(user, userPermissions, 'obras.prevencion.crear');
   const canPrevEdit = can(user, userPermissions, 'obras.prevencion.editar');
@@ -1912,7 +1927,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         verificado_qr: asistenciaMode === 'qr'
       };
 
-      if (editingAttendanceRecord && !canManageRecordsAccess) throw new Error('No tienes permisos para editar este marcaje.');
+      if (editingAttendanceRecord && !canPersonnelEdit) throw new Error('No tienes permisos para editar este marcaje.');
       if (editingAttendanceRecord && !hasSignature) delete payload.firma_base64;
       let batch=[payload];
       if (isBulkAttendance) {
@@ -2036,6 +2051,10 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   // Enviar Reporte de Avance Multi-Partida
   const submitAvance = async (e) => {
     e.preventDefault();
+    if (!(editingRecordId ? canAdvanceEdit : canAdvanceCreate)) {
+      setErrorMsg('Tu rol no tiene permiso para esta acción en Avances.');
+      return;
+    }
     setModalLoading(true);
     setErrorMsg('');
     setSuccessMsg('');
@@ -2126,7 +2145,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
             if(result.data.length<1000)break;
           }
           const summary=buildAdvanceEmailSummary({
-            parts:partidasList.map(p=>({ ...p,quantity:Number(p.cantidad ?? p.cantidad_presupuestada)||0,unitPrice:partidasCostos[p.partida] !== undefined ? Number(partidasCostos[p.partida]) : Number(p.pu)||0,
+            parts:partidasList.map(p=>({ ...p,dailyRate:dailyBudgetRate(p),quantity:Number(p.cantidad ?? p.cantidad_presupuestada)||0,unitPrice:partidasCostos[p.partida] !== undefined ? Number(partidasCostos[p.partida]) : Number(p.pu)||0,
               start:getPartidaScheduledStart(p),duration:Math.max(1,parseInt(p.duracion_programada,10)||Math.ceil((Number(p.cantidad ?? p.cantidad_presupuestada)||0)/(Number(p.rendimiento_meta || p.rendimiento)||10))) })),
             reports:snapshotReports,cutoff:fechaStr,start:selectedObra.fecha_inicio?.slice(0,10)||fechaInicioReal,businessDays:countChileanBusinessDays,
             isBusinessDay:date => ![0,6].includes(new Date(`${date}T12:00:00Z`).getUTCDay()) && !CHILEAN_HOLIDAYS.includes(date)
@@ -2247,15 +2266,16 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     }
   };
 
-  const canManageRecordsAccess = canModifyOrDeleteRecords(user);
+
 
   // 1. Eliminar Reporte de Avance
   const handleDeleteAvanceReport = async (reportId) => {
-    if (!canManageRecordsAccess) return alert('No tienes permisos de Nivel 0, 1 o 2 para eliminar este registro.');
+    if (!canAdvanceDelete) return alert('No tienes permisos para eliminar este registro.');
     if (!window.confirm('¿Estás seguro de que deseas eliminar este reporte de avance de faena?')) return;
     try {
-      const { error } = await supabase.from('avances_produccion_partidas').delete().eq('id', reportId);
+      const { data, error } = await supabase.from('avances_produccion_partidas').delete().eq('id', reportId).eq('empresa', user.empresa).eq('obra_id', selectedObra.id).select('id');
       if (error) throw error;
+      if (!data?.length) throw new Error('El reporte no se eliminó. Revisa tus permisos y actualiza la obra.');
       setReportesAvanceList(prev => prev.filter(r => r.id !== reportId));
       alert('Reporte de avance eliminado con éxito.');
     } catch(err) {
@@ -2265,7 +2285,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
   // 2. Eliminar Registro de Asistencia
   const handleDeleteAsistenciaRecord = async (asistId) => {
-    if (!canManageRecordsAccess) return alert('No tienes permisos de Nivel 0, 1 o 2 para eliminar este registro.');
+    if (!canPersonnelDelete) return alert('No tienes permisos para eliminar este registro.');
     if (!window.confirm('¿Estás seguro de que deseas eliminar este registro de asistencia?')) return;
     try {
       const { error } = await supabase.from('asistencia_personal').delete().eq('id', asistId);
@@ -2279,7 +2299,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
   // 3. Eliminar Trabajador de la Obra (RRHH)
   const handleDeleteWorkerFromObra = async (workerNombre) => {
-    if (!canManageRecordsAccess) return alert('No tienes permisos de Nivel 0, 1 o 2 para eliminar trabajadores.');
+    if (!canPersonnelDelete) return alert('No tienes permiso para eliminar trabajadores.');
     if (!window.confirm(`¿Estás seguro de desasignar/eliminar a ${workerNombre} de la obra?`)) return;
     try {
       const { error } = await supabase.from('maestro_personal').delete().eq('obra_nombre', selectedObra.nombre).eq('nombre', workerNombre);
@@ -2293,7 +2313,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
   // 4. Eliminar Cuadrilla de Trabajo
   const handleDeleteCuadrilla = async (cuadrillaId) => {
-    if (!canManageRecordsAccess) return alert('No tienes permisos de Nivel 0, 1 o 2 para eliminar cuadrillas.');
+    if (!canPersonnelDelete) return alert('No tienes permiso para eliminar cuadrillas.');
     if (!window.confirm('¿Estás seguro de eliminar esta cuadrilla de trabajo?')) return;
     const { error } = await supabase.from('obra_cuadrillas').delete().eq('id', cuadrillaId);
     if (error) return setErrorMsg(`No fue posible eliminar la cuadrilla: ${error.message}`);
@@ -2302,7 +2322,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
   // --- HANDLERS DE EDICIÓN ---
   const handleEditAvanceReport = (r) => {
-    if (!canManageRecordsAccess) return alert('No tienes permisos de Nivel 0, 1 o 2 para editar este registro.');
+    if (!canAdvanceEdit) return alert('No tienes permisos para editar este registro.');
     setEditingRecordId(r.id);
     setAvanceFecha(r.created_at ? r.created_at.substring(0, 10) : new Date().toISOString().substring(0, 10));
     setAvanceItems([{ frente: r.frente || 'Frente Principal', partida_id: r.partida_id || null, partida: r.partida, unidad: r.unidad || 'UND', cantidad: r.cantidad, cuadrilla_id: r.cuadrilla_id || '', observaciones: r.observaciones || '' }]);
@@ -2312,7 +2332,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   };
 
   const handleEditAsistenciaRecord = (a) => {
-    if (!canManageRecordsAccess) return alert('No tienes permisos de Nivel 0, 1 o 2 para editar este registro.');
+    if (!canPersonnelEdit) return alert('No tienes permisos para editar este registro.');
     if (a._sourceTable === 'asistencia') return alert('Este marcaje pertenece al registro antiguo. Debe revisarse desde su módulo de origen.');
     setEditingAttendanceRecord({id:a.id,fecha:attendanceDay(a),applied:a.jornada_aplicada,hours:a.jornada_ordinaria_horas ?? 9});
     setEditingRecordId(a.id);
@@ -2333,7 +2353,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   };
 
   const handleEditWorkerFromObra = (p) => {
-    if (!canManageRecordsAccess) return alert('No tienes permisos de Nivel 0, 1 o 2 para editar trabajadores.');
+    if (!canPersonnelEdit) return alert('No tienes permiso para editar trabajadores.');
     setEditingRecordId(p.id || p.nombre);
     setNewWorkerData({
       id: p.id,
@@ -2347,7 +2367,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   };
 
   const handleEditCuadrilla = (c) => {
-    if (!canManageRecordsAccess) return alert('No tienes permisos de Nivel 0, 1 o 2 para editar cuadrillas.');
+    if (!canPersonnelEdit) return alert('No tienes permiso para editar cuadrillas.');
     setEditingRecordId(c.id);
     setCuadrillaData({
       id: c.id,
@@ -2360,7 +2380,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   };
 
   const handleEditArriendo = (a) => {
-    if (!canManageRecordsAccess) return alert('No tienes permisos para editar arriendos.');
+    if (!canEquipmentEdit) return alert('No tienes permiso para editar arriendos.');
     setEditingRecordId(a.id);
     setArriendoData({
       id: a.id,
@@ -2380,7 +2400,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   };
 
   const handleDeleteArriendo = async (arriendoId) => {
-    if (!canManageRecordsAccess) return alert('No tienes permisos para eliminar registros.');
+    if (!canEquipmentDelete) return alert('No tienes permiso para eliminar arriendos.');
     if (!window.confirm('¿Estás seguro de eliminar este registro de arriendo?')) return;
 
     try {
@@ -2908,18 +2928,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
             <div className="flex flex-wrap gap-2">
               <button onClick={() => setShowObraTools(value => !value)} className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-[11px] text-slate-700 font-bold px-3 py-2 border border-slate-300 rounded-lg transition"><Settings className="w-3.5 h-3.5" /><span>{showObraTools ? 'Ocultar herramientas' : 'Herramientas'}</span></button>
               {canObraFichaView && <button onClick={openObraDetails} className="flex items-center gap-1.5 bg-blue-900 hover:bg-blue-800 text-xs text-white font-bold px-3 py-2 border border-blue-900 rounded-lg transition"><Edit className="w-4 h-4" /><span>Ficha del proyecto</span></button>}
+              {canResponsibilities && <button onClick={() => setShowResponsibilities(true)} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-900">Responsables y avisos</button>}
               {showObraTools && <>
-              {/* Configuración de Correos de la Obra (Engranaje ⚙️) */}
-              {canConfigureEmails(user) && (
-                <button
-                  onClick={() => setShowContextualEmailModal(true)}
-                  className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-bold px-3 py-2 rounded-lg border border-slate-300 transition cursor-pointer shadow-xs"
-                  title="Configurar destinatarios de notificaciones por correo para esta obra"
-                >
-                  <Settings className="w-3.5 h-3.5 text-blue-900" />
-                  <span>Correos ⚙️</span>
-                </button>
-              )}
 
               {/* Botón QR de Faena */}
               <button
@@ -3333,6 +3343,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   </div>
 
                   <button
+                    disabled={!canAdvanceCreate}
                     onClick={() => { setEditingRecordId(null); setAvanceItems([{ frente: 'Frente Principal', partida_id: null, partida: '', unidad: 'UND', cantidad: '', cuadrilla_id: '', observaciones: '' }]); setActiveModal('avance'); setSuccessMsg(''); setErrorMsg(''); }}
                     className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition shadow-xs"
                   >
@@ -3502,6 +3513,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                       <FileSpreadsheet className="w-8 h-8 text-slate-300 mx-auto" />
                       <p className="text-xs text-slate-500">No hay reportes de avance registrados en esta obra aún.</p>
                       <button
+                        disabled={!canAdvanceCreate}
                         onClick={() => { setEditingRecordId(null); setAvanceItems([{ frente: 'Frente Principal', partida_id: null, partida: '', unidad: 'UND', cantidad: '', cuadrilla_id: '', observaciones: '' }]); setActiveModal('avance'); setSuccessMsg(''); setErrorMsg(''); }}
                         className="text-xs text-blue-900 font-bold hover:underline cursor-pointer"
                       >
@@ -3519,11 +3531,11 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                             <th className="p-2.5">Partida</th>
                             <th className="p-2.5">Cantidad</th>
                             <th className="p-2.5">Comentarios / Observaciones</th>
-                            {canManageRecordsAccess && <th className="p-2.5 text-center">Acciones</th>}
+                            {canAdvanceActions && <th className="p-2.5 text-center">Acciones</th>}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-150 text-[11px]">
-                          {!visibleAdvanceReports.length && <tr><td colSpan={canManageRecordsAccess?7:6} className="p-6 text-center text-slate-500">No hay reportes de avance para la fecha seleccionada. Puedes limpiar la fecha para ver todos.</td></tr>}
+                          {!visibleAdvanceReports.length && <tr><td colSpan={canAdvanceActions?7:6} className="p-6 text-center text-slate-500">No hay reportes de avance para la fecha seleccionada. Puedes limpiar la fecha para ver todos.</td></tr>}
                           {visibleAdvanceReports.map((r) => {
                             const fechaStr = advanceReportDateLabel(r);
                             return (
@@ -3534,23 +3546,23 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                 <td className="p-2.5 font-bold text-blue-950">{r.partida}</td>
                                 <td className="p-2.5 font-mono font-bold text-emerald-700">{r.cantidad} {r.unidad || 'UND'}</td>
                                 <td className="p-2.5 text-slate-700 italic">{r.observaciones || 'Sin comentarios'}</td>
-                                {canManageRecordsAccess && (
+                                {canAdvanceActions && (
                                   <td className="p-2.5 text-center">
                                     <div className="flex items-center justify-center gap-1">
-                                      <button
+                                      {canAdvanceEdit && <button
                                         onClick={() => handleEditAvanceReport(r)}
                                         className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition cursor-pointer"
                                         title="Editar reporte de avance"
                                       >
                                         <Edit className="w-4 h-4" />
-                                      </button>
-                                      <button
+                                      </button>}
+                                      {canAdvanceDelete && <button
                                         onClick={() => handleDeleteAvanceReport(r.id)}
                                         className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition cursor-pointer"
                                         title="Eliminar reporte de avance"
                                       >
                                         <Trash2 className="w-4 h-4" />
-                                      </button>
+                                      </button>}
                                     </div>
                                   </td>
                                 )}
@@ -3781,11 +3793,11 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                               <th className="p-2.5">Horas Extra</th>
                               <th className="p-2.5">Otras horas</th>
                               <th className="p-2.5">Validación QR/GPS</th>
-                              {canManageRecordsAccess && <th className="p-2.5 text-center">Acciones</th>}
+                              {canPersonnelActions && <th className="p-2.5 text-center">Acciones</th>}
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-150 text-[11px]">
-                            {!visibleAttendanceRecords.length && <tr><td colSpan={canManageRecordsAccess?11:10} className="p-6 text-center text-slate-500">No hay marcajes con los filtros seleccionados. Puedes limpiar los filtros para ver todos.</td></tr>}
+                            {!visibleAttendanceRecords.length && <tr><td colSpan={canPersonnelActions?11:10} className="p-6 text-center text-slate-500">No hay marcajes con los filtros seleccionados. Puedes limpiar los filtros para ver todos.</td></tr>}
                             {visibleAttendanceRecords.map((a, idx) => {
                               const fechaStr = attendanceDateLabel(a);
                               return (
@@ -3801,7 +3813,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                   <td className="p-2.5 font-mono font-semibold text-blue-900">{a.ingreso || '-'}</td>
                                   <td className="p-2.5 font-mono font-semibold text-slate-700">{a.salida || '-'}</td>
                                   <td className="p-2.5 font-semibold text-slate-600">{a.colacion || 'SI'}</td>
-                                  <td className="p-2.5 font-bold text-emerald-700"><AttendanceExtraHours record={a} onReview={canManageRecordsAccess ? ()=>handleEditAsistenciaRecord(a) : undefined}/></td>
+                                  <td className="p-2.5 font-bold text-emerald-700"><AttendanceExtraHours record={a} onReview={canPersonnelEdit ? ()=>handleEditAsistenciaRecord(a) : undefined}/></td>
                                   <td className="p-2.5 font-semibold">{Number(a.otras_horas ?? 0).toLocaleString('es-CL')} h</td>
                                   <td className="p-2.5">
                                     {a.verificado_qr ? (
@@ -3810,23 +3822,23 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                       <span className="text-[10px] bg-slate-100 text-slate-600 font-medium px-2 py-0.5 rounded">Manual</span>
                                     )}
                                   </td>
-                                  {canManageRecordsAccess && (
+                                  {canPersonnelActions && (
                                     <td className="p-2.5 text-center">
                                       <div className="flex items-center justify-center gap-1">
-                                        <button
+                                        {canPersonnelEdit && <button
                                           onClick={() => handleEditAsistenciaRecord(a)}
                                           className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition cursor-pointer"
                                           title="Editar marcaje de asistencia"
                                         >
                                           <Edit className="w-4 h-4" />
-                                        </button>
-                                        <button
+                                        </button>}
+                                        {canPersonnelDelete && <button
                                           onClick={() => handleDeleteAsistenciaRecord(a.id)}
                                           className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition cursor-pointer"
                                           title="Eliminar marcaje de asistencia"
                                         >
                                           <Trash2 className="w-4 h-4" />
-                                        </button>
+                                        </button>}
                                       </div>
                                     </td>
                                   )}
@@ -3944,7 +3956,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                           <th className="p-2.5">RUT</th>
                           <th className="p-2.5">Cargo / Especialidad</th>
                           <th className="p-2.5">Estado</th>
-                          {canManageRecordsAccess && <th className="p-2.5 text-center">Acciones</th>}
+                          {canPersonnelActions && <th className="p-2.5 text-center">Acciones</th>}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-150">
@@ -3954,7 +3966,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                             <td className="p-2.5 font-mono text-slate-600">{p.rut}</td>
                             <td className="p-2.5 font-semibold text-blue-950">{p.cargo}</td>
                             <td className="p-2.5"><span className="text-[10px] bg-emerald-50 text-emerald-800 font-bold px-2 py-0.5 rounded border border-emerald-200">Activo en Faena</span></td>
-                            {canManageRecordsAccess && (
+                            {canPersonnelActions && (
                               <td className="p-2.5 text-center">
                                 <div className="flex items-center justify-center gap-1">
                                     <button
@@ -3975,20 +3987,20 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                     >
                                       ▼
                                     </button>
-                                  <button
+                                  {canPersonnelEdit && <button
                                     onClick={() => handleEditWorkerFromObra(p)}
                                     className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition cursor-pointer"
                                     title="Editar trabajador"
                                   >
                                     <Edit className="w-4 h-4" />
-                                  </button>
-                                  <button
+                                  </button>}
+                                  {canPersonnelDelete && <button
                                     onClick={() => handleDeleteWorkerFromObra(p.nombre)}
                                     className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition cursor-pointer"
                                     title="Eliminar/Desasignar trabajador de la obra"
                                   >
                                     <Trash2 className="w-4 h-4" />
-                                  </button>
+                                  </button>}
                                 </div>
                               </td>
                             )}
@@ -4038,22 +4050,22 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         </div>
                         <div className="flex items-center gap-1.5">
                           <span className="text-xs font-black text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">{c.miembros?.length || 0} integrantes</span>
-                          {canManageRecordsAccess && (
+                          {canPersonnelActions && (
                             <div className="flex items-center gap-1">
-                              <button
+                              {canPersonnelEdit && <button
                                 onClick={() => handleEditCuadrilla(c)}
                                 className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition cursor-pointer"
                                 title="Editar cuadrilla de trabajo"
                               >
                                 <Edit className="w-4 h-4" />
-                              </button>
-                              <button
+                              </button>}
+                              {canPersonnelDelete && <button
                                 onClick={() => handleDeleteCuadrilla(c.id)}
                                 className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition cursor-pointer"
                                 title="Eliminar cuadrilla de trabajo"
                               >
                                 <Trash2 className="w-4 h-4" />
-                              </button>
+                              </button>}
                             </div>
                           )}
                         </div>
@@ -4236,7 +4248,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                             <th className="p-2">Costo / Tarifa</th>
                             <th className="p-2">Condición Mínima</th>
                             <th className="p-2">Periodo</th>
-                            {canManageRecordsAccess && <th className="p-2 text-center">Acciones</th>}
+                            {canEquipmentActions && <th className="p-2 text-center">Acciones</th>}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-150">
@@ -4260,23 +4272,23 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                   <span className="bg-amber-50 px-2 py-0.5 rounded border border-amber-200">{minStr}</span>
                                 </td>
                                 <td className="p-2 text-slate-500 text-[11px]">{a.fechaInicio || 'N/A'} al {a.fechaTermino || 'N/A'}</td>
-                                {canManageRecordsAccess && (
+                                {canEquipmentActions && (
                                   <td className="p-2 text-center">
                                     <div className="flex items-center justify-center gap-1">
-                                      <button
+                                      {canEquipmentEdit && <button
                                         onClick={() => handleEditArriendo(a)}
                                         className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition cursor-pointer"
                                         title="Editar arriendo de maquinaria"
                                       >
                                         <Edit className="w-4 h-4" />
-                                      </button>
-                                      <button
+                                      </button>}
+                                      {canEquipmentDelete && <button
                                         onClick={() => handleDeleteArriendo(a.id)}
                                         className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition cursor-pointer"
                                         title="Eliminar arriendo"
                                       >
                                         <Trash2 className="w-4 h-4" />
-                                      </button>
+                                      </button>}
                                     </div>
                                   </td>
                                 )}
@@ -4790,7 +4802,10 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   const uniqueDays = new Set(pReps.map(r => r.fecha || r.fecha_avance || (r.created_at ? String(r.created_at).substring(0, 10) : ''))).size;
                   const pctPerDay = uniqueDays > 0 ? (pct / uniqueDays) : 0;
 
-                  return { partida: p.partida, pct, cantAv, cantTotal, unidad: p.unidad, pctPerDay, uniqueDays };
+                  const scheduledStart = getPartidaScheduledStart(p);
+                  const duration = Math.max(1, parseInt(p.duracion_programada, 10) || Math.ceil(cantTotal / (parseFloat(p.rendimiento_meta || p.rendimiento) || 10)));
+                  const comparison = physicalProgressAt({ quantity: cantTotal, executed: cantAv, start: scheduledStart, duration, dailyRate: dailyBudgetRate(p) }, fCorteStr, countChileanBusinessDays);
+                  return { id: p.id, partida: p.partida, pct, cantAv, cantTotal, unidad: p.unidad, pctPerDay, uniqueDays, scheduledStart, comparison };
                 });
 
                 const maxPartida = pAvanceRates.length > 0 ? [...pAvanceRates].sort((a, b) => b.pct - a.pct)[0] : null;
@@ -4810,6 +4825,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 const totalPresupuestoObra = totalVentaPresupuestada > 0 ? totalVentaPresupuestada : 1;
                 // Shared schedule: resolved dependencies, configured duration and budget prices.
                 const plannedItems = targetPartidas.map(p => ({
+                  dailyRate: dailyBudgetRate(p),
                   start: getPartidaScheduledStart(p),
                   duration: Math.max(1, parseInt(p.duracion_programada, 10) || Math.ceil((parseFloat(p.cantidad) || 0) / (parseFloat(p.rendimiento_meta || p.rendimiento) || 10))),
                   quantity: parseFloat(p.cantidad) || 0,
@@ -4995,9 +5011,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   const startP = getPartidaScheduledStart(p);
                   const rendimiento = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
                   const duracion = Math.max(1, parseInt(p.duracion_programada, 10) || Math.ceil(cantTotal / rendimiento));
-                  const plannedPct = startP && startP <= fCorteStr
-                    ? Math.min(100, (countChileanBusinessDays(startP, fCorteStr) / duracion) * 100)
-                    : 0;
+                  const plannedPct = physicalProgressAt({ quantity: cantTotal, start: startP, duration: duracion, dailyRate: dailyBudgetRate(p) }, fCorteStr, countChileanBusinessDays).plannedPct ?? 0;
                   const scheduleGap = actualPct - plannedPct;
                   const scheduleDays = Math.round((scheduleGap / 100) * duracion);
                   const scheduledFinish = p.fecha_termino || (startP ? addChileanBusinessDays(startP, duracion) : '');
@@ -5280,39 +5294,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         </div>
 
                         {/* TABLA DETALLADA DE AVANCE POR PARTIDAS */}
-                        <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-3">
-                          <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">📦 Resumen de Avance Físico por Partida</h4>
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-xs text-left border-collapse">
-                              <thead>
-                                <tr className="bg-slate-100 border-b text-slate-700 font-bold uppercase text-[10px]">
-                                  <th className="p-2.5">Partida</th>
-                                  <th className="p-2.5">Cant. Presupuestada</th>
-                                  <th className="p-2.5">Avance Acumulado</th>
-                                  <th className="p-2.5 text-center">% Cumplimiento</th>
-                                  <th className="p-2.5 text-center">Promedio % / Día</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-150 text-[11px]">
-                                {pAvanceRates.map((p, idx) => (
-                                  <tr key={idx} className="hover:bg-slate-50">
-                                    <td className="p-2.5 font-bold text-slate-800">{p.partida}</td>
-                                    <td className="p-2.5 font-mono text-slate-700">{p.cantTotal.toLocaleString('es-CL')} {p.unidad}</td>
-                                    <td className="p-2.5 font-mono font-bold text-blue-900">{p.cantAv.toLocaleString('es-CL')} {p.unidad}</td>
-                                    <td className="p-2.5 text-center font-mono font-black text-slate-800">
-                                      <span className={`px-2 py-0.5 rounded text-[10.5px] ${p.pct >= 100 ? 'bg-emerald-100 text-emerald-900' : (p.pct > 0 ? 'bg-blue-100 text-blue-900' : 'bg-slate-100 text-slate-600')}`}>
-                                        {p.pct.toFixed(1)}%
-                                      </span>
-                                    </td>
-                                    <td className="p-2.5 text-center font-mono font-bold text-slate-600">
-                                      {p.pctPerDay.toFixed(2)}% / día
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
+                        <PartidaProgressSummary rows={pAvanceRates} cutoff={fCorteStr} />
                       </div>
                     )}
 
@@ -9490,6 +9472,13 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         </div>
       )}
 
+      {showResponsibilities && selectedObra && <div role="dialog" aria-modal="true" aria-label="Responsables y avisos" className="fixed inset-0 z-[100] bg-slate-950/50 p-3 flex items-center justify-center">
+        <div className="w-full max-w-6xl max-h-[94dvh] overflow-y-auto rounded-2xl bg-white p-4">
+          <div className="flex justify-between items-center mb-3"><h3 className="font-bold">Responsables y avisos · {selectedObra.nombre}</h3><button onClick={() => setShowResponsibilities(false)} aria-label="Cerrar responsables" className="p-2">✕</button></div>
+          <button onClick={() => {setShowResponsibilities(false);setShowContextualEmailModal(true);}} className="mb-3 text-xs text-blue-800 underline">Destinatarios de correos al guardar registros de esta obra</button>
+          <NotificationMaster user={user} obras={obras} work={selectedObra} />
+        </div>
+      </div>}
       {showObraDetails && selectedObra && <ProjectProfileModal form={obraDetailsForm} onChange={setObraDetailsForm} onSave={saveObraDetails} onClose={() => setShowObraDetails(false)} canEdit={canObraFichaEdit} busy={modalLoading} error={errorMsg} />}
 
       {/* MODAL ENRIQUECIDO: CREAR NUEVA OBRA */}

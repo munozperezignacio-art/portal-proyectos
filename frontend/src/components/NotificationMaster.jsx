@@ -5,6 +5,8 @@ import {
   Plus, Search, Send, Settings2, Trash2, X, Zap
 } from 'lucide-react';
 import ExecutiveReportScheduler from './ExecutiveReportScheduler';
+import useUserPermissions from '../utils/useUserPermissions';
+import { can } from '../utils/permissionsCatalog';
 
 const CATALOG = [
   { code: 'avance_registrado', module: 'Obras', name: 'Avance registrado', description: 'Informa cada nuevo reporte de avance físico.', frequency: 'Inmediata' },
@@ -67,7 +69,14 @@ const scopeLabel = rule => {
   return 'Todas las obras';
 };
 
-export default function NotificationMaster({ user, obras = [], roles = [] }) {
+export default function NotificationMaster({ user, obras = [], roles = [], work = null }) {
+  const { permissions, loading: permissionsLoading } = useUserPermissions(user);
+  const canGlobal = !permissionsLoading && can(user, permissions, 'admin.permisos.configurar');
+  const canWork = !permissionsLoading && can(user, permissions, 'obras.ficha.configurar');
+  const [loadedRoles, setLoadedRoles] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [personSearch, setPersonSearch] = useState('');
+  const editable = rule => canGlobal || (canWork && rule.condiciones?.alcance_tipo === 'seleccionadas' && normalizeArray(rule.condiciones?.obras_seleccionadas).length > 0);
   const [section, setSection] = useState('alertas');
   const [rules, setRules] = useState([]);
   const [deliveries, setDeliveries] = useState([]);
@@ -81,17 +90,18 @@ export default function NotificationMaster({ user, obras = [], roles = [] }) {
   const [message, setMessage] = useState('');
 
   const companyRoles = useMemo(() => {
-    const configured = roles.filter(r => !r.archivado && (!r.empresa || r.empresa === user.empresa)).map(r => r.nombre);
+    const configured = [...roles,...loadedRoles].filter(r => !r.archivado && (!r.empresa || r.empresa === user.empresa)).map(r => r.nombre);
     const assigned = users.map(u => u.rol).filter(Boolean);
     return [...new Set([...configured, ...assigned])].sort();
-  }, [roles, users, user.empresa]);
+  }, [roles, loadedRoles, users, user.empresa]);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [ruleResult, deliveryResult, userResult] = await Promise.all([
+    const [ruleResult, deliveryResult, userResult, roleResult] = await Promise.all([
       supabase.from('notificaciones_reglas').select('*').eq('empresa', user.empresa).order('created_at', { ascending: false }),
       supabase.from('notificaciones_entregas').select('*').eq('empresa', user.empresa).order('created_at', { ascending: false }).limit(60),
-      supabase.from('usuarios').select('id,nombre,correo,rol,empresa').eq('empresa', user.empresa).order('nombre')
+      supabase.from('usuarios').select('id,nombre,correo,rol,empresa').eq('empresa', user.empresa).order('nombre'),
+      supabase.from('roles').select('nombre,empresa,archivado').eq('empresa', user.empresa)
     ]);
     const missing = ruleResult.error && /notificaciones_reglas|schema cache|does not exist/i.test(ruleResult.error.message || '');
     setSchemaMissing(Boolean(missing));
@@ -103,6 +113,7 @@ export default function NotificationMaster({ user, obras = [], roles = [] }) {
     if (!ruleResult.error) setRules(ruleResult.data || []);
     if (!deliveryResult.error) setDeliveries(deliveryResult.data || []);
     if (!userResult.error) setUsers(userResult.data || []);
+    if (!roleResult.error) setLoadedRoles(roleResult.data || []);
     setLoading(false);
   }, [user.empresa]);
 
@@ -114,14 +125,16 @@ export default function NotificationMaster({ user, obras = [], roles = [] }) {
   };
 
   const openNew = () => {
-    const first = CATALOG[0];
+    if (!canGlobal && !canWork) return;
+    const first = CATALOG.find(item=>item.code==='avance_reporte_pendiente');
     setEditingId(null);
-    setForm({ ...emptyForm, descripcion: first.description });
+    setForm({ ...emptyForm, template_code:first.code,nombre:first.name,modulo:first.module,frecuencia:first.frequency,descripcion: first.description, ...(work ? {alcance_tipo:'seleccionadas',obras_seleccionadas:[work.nombre]} : !canGlobal ? {alcance_tipo:'seleccionadas'} : {}) });
     setMessage('');
     setModal(true);
   };
 
   const openEdit = (rule) => {
+    if (!editable(rule)) {setMessage('Tu rol no puede configurar esta regla.');return;}
     const scope = rule.condiciones?.alcance_tipo || (rule.obra_nombre ? 'seleccionadas' : 'todas');
     const selectedWorks = normalizeArray(rule.condiciones?.obras_seleccionadas).length ? rule.condiciones.obras_seleccionadas : (rule.obra_nombre ? [rule.obra_nombre] : []);
     setEditingId(rule.id);
@@ -138,6 +151,9 @@ export default function NotificationMaster({ user, obras = [], roles = [] }) {
 
   const save = async (event) => {
     event.preventDefault();
+    if(saving)return;
+    if(!canGlobal && (!canWork || form.alcance_tipo!=='seleccionadas')){setMessage('Tu rol solo puede configurar responsabilidades de obras seleccionadas.');return;}
+    if(form.alcance_tipo==='asignadas' && form.correos.some(value=>value.trim())){setMessage('Para incluir correos externos, elige obras seleccionadas. El alcance por asignación requiere usuarios con obras asignadas.');return;}
     if (form.alcance_tipo === 'seleccionadas' && !form.obras_seleccionadas.length) {
       setMessage('Selecciona al menos una obra para este alcance.'); return;
     }
@@ -153,25 +169,32 @@ export default function NotificationMaster({ user, obras = [], roles = [] }) {
       condiciones: { alcance_tipo: form.alcance_tipo, obras_seleccionadas: form.alcance_tipo === 'seleccionadas' ? form.obras_seleccionadas : [] },
       activa: form.activa, creado_por: user.correo || user.usuario || null, updated_at: new Date().toISOString()
     };
-    const result = editingId
-      ? await supabase.from('notificaciones_reglas').update(payload).eq('id', editingId)
-      : await supabase.from('notificaciones_reglas').insert(payload);
-    if (result.error) { setMessage(result.error.message); return; }
-    setModal(false); await load();
+    setSaving(true);
+    try {
+      const result = editingId
+        ? await supabase.from('notificaciones_reglas').update(payload).eq('id', editingId).eq('empresa',user.empresa).select('id')
+        : await supabase.from('notificaciones_reglas').insert(payload).select('id');
+      if (result.error) throw result.error;
+      if(!result.data?.length)throw new Error('No se guardó la responsabilidad. Revisa tus permisos.');
+      setModal(false); await load();
+    } catch(error){setMessage(error.message);} finally{setSaving(false);}
   };
 
   const remove = async (id) => {
+    if(!editable(rules.find(rule=>rule.id===id)||{}))return;
     if (!window.confirm('¿Eliminar esta regla de notificación? El historial de entregas se conservará.')) return;
     const { error } = await supabase.from('notificaciones_reglas').delete().eq('id', id);
     if (error) setMessage(error.message); else load();
   };
 
   const toggle = async (rule) => {
+    if(!editable(rule))return;
     const { error } = await supabase.from('notificaciones_reglas').update({ activa: !rule.activa, updated_at: new Date().toISOString() }).eq('id', rule.id);
     if (!error) load();
   };
 
   const addRecommended = async () => {
+    if(!canGlobal)return;
     if (!window.confirm('Se crearán reglas recomendadas desactivadas para que puedas asignar sus destinatarios.')) return;
     const existing = new Set(rules.map(r => `${r.evento_codigo}|${r.obra_nombre || ''}`));
     const rows = CATALOG.filter(t => !existing.has(`${t.code}|`)).map(t => ({
@@ -187,6 +210,7 @@ export default function NotificationMaster({ user, obras = [], roles = [] }) {
   };
 
   const filtered = rules.filter(rule => {
+    if(work && rule.obra_nombre!==work.nombre && !normalizeArray(rule.condiciones?.obras_seleccionadas).includes(work.nombre) && (rule.condiciones?.alcance_tipo || (rule.obra_nombre?'seleccionadas':'todas'))!=='todas')return false;
     const q = filter.text.toLowerCase();
     return (!q || `${rule.nombre} ${rule.modulo} ${rule.descripcion}`.toLowerCase().includes(q))
       && (filter.module === 'Todos' || rule.modulo === filter.module)
@@ -199,19 +223,19 @@ export default function NotificationMaster({ user, obras = [], roles = [] }) {
   return (
     <div className="space-y-4">
       <div className="flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2">
-        <button onClick={() => setSection('alertas')} className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black ${section === 'alertas' ? 'bg-slate-950 text-white' : 'text-slate-600'}`}><Bell className="h-4 w-4"/>Alertas y notificaciones</button>
-        <button onClick={() => setSection('informes')} className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black ${section === 'informes' ? 'bg-slate-950 text-white' : 'text-slate-600'}`}><BarChart3 className="h-4 w-4"/>Informes</button>
+        <button onClick={() => setSection('alertas')} className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black ${section === 'alertas' ? 'bg-slate-950 text-white' : 'text-slate-600'}`}><Bell className="h-4 w-4"/>Responsables y avisos</button>
+        {!work && <button onClick={() => setSection('informes')} className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black ${section === 'informes' ? 'bg-slate-950 text-white' : 'text-slate-600'}`}><BarChart3 className="h-4 w-4"/>Informes</button>}
       </div>
       {section === 'informes' ? <ExecutiveReportScheduler user={user} obras={obras} roles={roles}/> : <>
       <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-950 to-blue-950 p-5 text-white shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex gap-3"><div className="rounded-xl bg-white/10 p-3"><Bell className="h-6 w-6" /></div><div>
-            <h3 className="text-lg font-black">Control de notificaciones</h3>
-            <p className="mt-1 max-w-3xl text-xs text-slate-300">Reglas centralizadas por evento, obra y rol. Los accesos rápidos de cada módulo utilizarán esta misma configuración.</p>
+            <h3 className="text-lg font-black">Responsables y notificaciones</h3>
+            <p className="mt-1 max-w-3xl text-xs text-slate-300">Asigna personas o roles a cada aviso y define las obras a su cargo. Para exigir el reporte diario, selecciona «Reporte de avance diario pendiente» y su hora de control. Los permisos para registrar o editar se administran en Roles.</p>
           </div></div>
           <div className="flex flex-wrap gap-2">
-            <button onClick={addRecommended} className="rounded-xl border border-white/20 px-3 py-2 text-xs font-bold hover:bg-white/10">Cargar recomendadas</button>
-            <button onClick={openNew} className="flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2 text-xs font-black hover:bg-orange-400"><Plus className="h-4 w-4" /> Nueva regla</button>
+            <button disabled={!canGlobal || saving} onClick={addRecommended} className="rounded-xl border border-white/20 px-3 py-2 text-xs font-bold hover:bg-white/10">Cargar recomendadas</button>
+            <button disabled={(!canGlobal && !canWork) || saving} onClick={openNew} className="flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2 text-xs font-black hover:bg-orange-400"><Plus className="h-4 w-4" /> Asignar responsabilidad</button>
           </div>
         </div>
       </div>
@@ -239,29 +263,35 @@ export default function NotificationMaster({ user, obras = [], roles = [] }) {
         {loading ? <div className="p-8 text-center text-xs text-slate-500">Cargando reglas...</div> : !filtered.length ? <div className="p-10 text-center"><Bell className="mx-auto h-8 w-8 text-slate-300" /><p className="mt-2 text-sm font-bold text-slate-600">No hay reglas configuradas</p><p className="text-xs text-slate-400">Crea una regla o carga las recomendaciones base.</p></div> :
           <div className="divide-y divide-slate-100">{filtered.map(rule => <div key={rule.id} className="grid gap-3 p-4 lg:grid-cols-[1.5fr_1fr_1fr_auto] lg:items-center">
             <div><div className="flex flex-wrap items-center gap-2"><span className="rounded-md bg-slate-100 px-2 py-1 text-[9px] font-black uppercase text-slate-600">{rule.modulo}</span><h4 className="text-sm font-black text-slate-900">{rule.nombre}</h4></div><p className="mt-1 text-[11px] text-slate-500">{rule.descripcion}</p></div>
-            <div className="text-xs"><div className="flex items-center gap-1 font-bold text-slate-700"><Settings2 className="h-3.5 w-3.5" /> {scopeLabel(rule)}</div><div className="mt-1 text-[10px] text-slate-500">{normalizeArray(rule.destinatarios_roles).length ? normalizeArray(rule.destinatarios_roles).join(', ') : 'Sin roles asignados'}</div></div>
+            <div className="text-xs"><div className="flex items-center gap-1 font-bold text-slate-700"><Settings2 className="h-3.5 w-3.5" /> {scopeLabel(rule)}</div><div className="mt-1 text-[10px] text-slate-500">{normalizeArray(rule.destinatarios_roles).length ? normalizeArray(rule.destinatarios_roles).join(', ') : 'Sin roles asignados'}</div><div className="mt-1 text-xs text-slate-700">{normalizeArray(rule.destinatarios_usuarios).map(id=>users.find(u=>String(u.id)===String(id))?.nombre || 'Usuario no disponible').join(', ') || 'Sin personas específicas'}</div></div>
             <div className="text-xs"><div className="flex items-center gap-1 font-bold text-slate-700">{rule.frecuencia === 'Inmediata' ? <Zap className="h-3.5 w-3.5" /> : <Clock3 className="h-3.5 w-3.5" />}{rule.frecuencia}</div><div className="mt-1 flex gap-2 text-[10px] text-slate-500">{rule.canal_email && <span>Correo</span>}{rule.canal_plataforma && <span>Plataforma</span>}{rule.canal_push && <span>Push móvil</span>}</div></div>
-            <div className="flex items-center justify-end gap-1"><button onClick={() => toggle(rule)} className={`rounded-full px-3 py-1.5 text-[10px] font-black ${rule.activa ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{rule.activa ? 'Activa' : 'Inactiva'}</button><button onClick={() => openEdit(rule)} className="rounded-lg p-2 text-blue-700 hover:bg-blue-50"><Edit3 className="h-4 w-4" /></button><button onClick={() => remove(rule.id)} className="rounded-lg p-2 text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button></div>
+            <div className="flex items-center justify-end gap-1"><button disabled={!editable(rule)} onClick={() => toggle(rule)} className={`rounded-full px-3 py-1.5 text-[10px] font-black ${rule.activa ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{rule.activa ? 'Activa' : 'Inactiva'}</button><button aria-label={`Editar responsabilidad ${rule.nombre}`} disabled={!editable(rule)} onClick={() => openEdit(rule)} className="rounded-lg p-2 text-blue-700 hover:bg-blue-50"><Edit3 className="h-4 w-4" /></button><button aria-label={`Eliminar responsabilidad ${rule.nombre}`} disabled={!editable(rule)} onClick={() => remove(rule.id)} className="rounded-lg p-2 text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button></div>
           </div>)}</div>}
       </div>
 
       {modal && <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto bg-slate-950/65 p-3 backdrop-blur-sm"><form onSubmit={save} className="my-auto max-h-[94vh] w-full max-w-4xl overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl sm:p-7">
-        <div className="flex items-start justify-between"><div><h3 className="text-lg font-black text-slate-900">{editingId ? 'Editar regla' : 'Nueva regla de notificación'}</h3><p className="text-xs text-slate-500">Define el evento, alcance y destinatarios.</p></div><button type="button" onClick={() => setModal(false)} className="rounded-lg p-2 hover:bg-slate-100"><X className="h-5 w-5" /></button></div>
+        <div className="flex items-start justify-between"><div><h3 className="text-lg font-black text-slate-900">{editingId ? 'Editar responsabilidad y avisos' : 'Asignar responsabilidad y avisos'}</h3><p className="text-xs text-slate-500">Elige qué debe controlar cada persona o rol, en qué obras y cuándo avisar.</p></div><button type="button" onClick={() => setModal(false)} className="rounded-lg p-2 hover:bg-slate-100"><X className="h-5 w-5" /></button></div>
         {message && <div className="mt-4 rounded-lg bg-red-50 p-3 text-xs font-semibold text-red-700">{message}</div>}
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           <label className="md:col-span-2"><span className="text-[10px] font-black uppercase text-slate-500">Evento o plantilla</span><select value={form.template_code} onChange={e => selectTemplate(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 p-3 text-xs">{CATALOG.map(t => <option key={t.code} value={t.code}>{t.module} · {t.name}</option>)}</select></label>
           <label><span className="text-[10px] font-black uppercase text-slate-500">Nombre de la regla</span><input required value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 p-3 text-xs" /></label>
-          <label><span className="text-[10px] font-black uppercase text-slate-500">Alcance de obras</span><select value={form.alcance_tipo} onChange={e => setForm({ ...form, alcance_tipo: e.target.value, obras_seleccionadas: e.target.value === 'seleccionadas' ? form.obras_seleccionadas : [] })} className="mt-1 w-full rounded-xl border border-slate-200 p-3 text-xs"><option value="todas">Todas las obras, incluidas las futuras</option><option value="asignadas">Solo obras asignadas a cada destinatario</option><option value="seleccionadas">Una o varias obras seleccionadas</option></select></label>
+          <label><span className="text-[10px] font-black uppercase text-slate-500">Alcance de obras</span><select disabled={Boolean(work) || !canGlobal} value={form.alcance_tipo} onChange={e => setForm({ ...form, alcance_tipo: e.target.value, obras_seleccionadas: e.target.value === 'seleccionadas' ? form.obras_seleccionadas : [] })} className="mt-1 w-full rounded-xl border border-slate-200 p-3 text-xs"><option value="todas">Todas las obras, incluidas las futuras</option><option value="asignadas">Solo obras asignadas a cada destinatario</option><option value="seleccionadas">Una o varias obras seleccionadas</option></select></label>
           {form.alcance_tipo === 'seleccionadas' && <div className="md:col-span-2"><span className="text-[10px] font-black uppercase text-slate-500">Obras incluidas</span><div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{obras.map(obra => { const checked = form.obras_seleccionadas.includes(obra.nombre); return <label key={obra.nombre} className={`flex cursor-pointer items-center gap-2 rounded-xl border p-3 text-xs font-bold ${checked ? 'border-blue-600 bg-blue-50 text-blue-900' : 'border-slate-200 text-slate-600'}`}><input type="checkbox" checked={checked} onChange={() => setForm({ ...form, obras_seleccionadas: checked ? form.obras_seleccionadas.filter(name => name !== obra.nombre) : [...form.obras_seleccionadas, obra.nombre] })}/>{obra.nombre}</label>; })}</div></div>}
-          <div className="md:col-span-2"><span className="text-[10px] font-black uppercase text-slate-500">Destinatarios por rol</span><div className="mt-2 flex flex-wrap gap-2">{companyRoles.length ? companyRoles.map(role => <button type="button" key={role} onClick={() => setForm({ ...form, roles: form.roles.includes(role) ? form.roles.filter(x => x !== role) : [...form.roles, role] })} className={`rounded-full border px-3 py-2 text-[11px] font-bold ${form.roles.includes(role) ? 'border-blue-700 bg-blue-700 text-white' : 'border-slate-200 text-slate-600'}`}>{role}</button>) : <span className="text-xs text-slate-400">Crea roles en la pestaña Roles.</span>}</div></div>
-          <label className="md:col-span-2"><span className="text-[10px] font-black uppercase text-slate-500">Usuarios específicos (opcional)</span><select multiple value={form.usuarios} onChange={e => setForm({ ...form, usuarios: [...e.target.selectedOptions].map(o => o.value) })} className="mt-1 h-28 w-full rounded-xl border border-slate-200 p-3 text-xs">{users.map(u => <option key={u.id} value={u.id}>{u.nombre || u.correo} · {u.rol}</option>)}</select><span className="text-[10px] text-slate-400">Ctrl/Cmd + clic para seleccionar más de uno.</span></label>
+          <div className="md:col-span-2"><span className="text-[10px] font-black uppercase text-slate-500">Responsables por rol</span><div className="mt-2 flex flex-wrap gap-2">{companyRoles.length ? companyRoles.map(role => <button type="button" key={role} onClick={() => setForm({ ...form, roles: form.roles.includes(role) ? form.roles.filter(x => x !== role) : [...form.roles, role] })} className={`rounded-full border px-3 py-2 text-[11px] font-bold ${form.roles.includes(role) ? 'border-blue-700 bg-blue-700 text-white' : 'border-slate-200 text-slate-600'}`}>{role}</button>) : <span className="text-xs text-slate-400">Crea roles en la pestaña Roles.</span>}</div></div>
+          <div className="md:col-span-2"><span className="text-[10px] font-black uppercase text-slate-500">Personas responsables · {form.usuarios.length} seleccionadas</span>
+            <input aria-label="Buscar responsable" value={personSearch} onChange={e=>setPersonSearch(e.target.value)} placeholder="Buscar por nombre, correo o rol" className="mt-2 w-full rounded-xl border border-slate-200 p-3 text-sm" />
+            <div className="mt-2 max-h-48 overflow-y-auto space-y-1">{users.filter(u=>`${u.nombre} ${u.correo} ${u.rol}`.toLocaleLowerCase('es').includes(personSearch.toLocaleLowerCase('es'))).map(u=>{
+              const selected=form.usuarios.map(String).includes(String(u.id));
+              return <label key={u.id} className="flex items-center gap-2 rounded-lg bg-slate-50 p-3 text-xs"><input type="checkbox" checked={selected} onChange={()=>setForm({...form,usuarios:selected?form.usuarios.filter(id=>String(id)!==String(u.id)):[...form.usuarios,String(u.id)]})}/><span>{u.nombre || u.correo} · {u.rol}<span className="block text-slate-500">{u.correo || 'Sin correo: recibirá avisos en plataforma si está habilitada'}</span></span></label>;
+            })}</div>
+          </div>
           <div className="md:col-span-2"><div className="flex items-center justify-between"><span className="text-[10px] font-black uppercase text-slate-500">Correos adicionales</span><button type="button" onClick={() => setForm({ ...form, correos: [...form.correos, ''] })} className="text-[10px] font-black text-blue-700">+ Agregar correo</button></div><div className="mt-2 space-y-2">{form.correos.map((email, i) => <div key={i} className="flex gap-2"><input type="email" value={email} onChange={e => { const next = [...form.correos]; next[i] = e.target.value; setForm({ ...form, correos: next }); }} placeholder={`Correo ${i + 1}`} className="w-full rounded-xl border border-slate-200 p-3 text-xs" />{form.correos.length > 1 && <button type="button" onClick={() => setForm({ ...form, correos: form.correos.filter((_, x) => x !== i) })} className="p-2 text-red-600"><Trash2 className="h-4 w-4" /></button>}</div>)}</div></div>
           <div className="md:col-span-2"><span className="text-[10px] font-black uppercase text-slate-500">Canales</span><div className="mt-2 flex flex-wrap gap-4"><label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={form.canal_email} onChange={e => setForm({ ...form, canal_email: e.target.checked })} /> Correo</label><label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={form.canal_plataforma} onChange={e => setForm({ ...form, canal_plataforma: e.target.checked })} /> Plataforma</label><label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={form.canal_push} onChange={e => setForm({ ...form, canal_push: e.target.checked, canal_plataforma: e.target.checked ? true : form.canal_plataforma })} /> Push móvil</label></div><p className="mt-2 text-[10px] text-slate-400">El push también conserva el aviso en la bandeja de la app.</p></div>
           <label><span className="text-[10px] font-black uppercase text-slate-500">Frecuencia</span><select value={form.frecuencia} onChange={e => setForm({ ...form, frecuencia: e.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 p-3 text-xs"><option>Inmediata</option><option>Diaria</option><option>Semanal</option><option>Anticipada</option></select></label>
           {form.frecuencia !== 'Inmediata' && <label><span className="text-[10px] font-black uppercase text-slate-500">Hora de envío</span><input type="time" value={form.hora_envio} onChange={e => setForm({ ...form, hora_envio: e.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 p-3 text-xs" /></label>}
           {form.frecuencia === 'Anticipada' && <label><span className="text-[10px] font-black uppercase text-slate-500">Días de anticipación</span><input type="number" min="1" value={form.dias_anticipacion} onChange={e => setForm({ ...form, dias_anticipacion: e.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 p-3 text-xs" /></label>}
         </div>
-        <div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setModal(false)} className="rounded-xl bg-slate-100 px-4 py-3 text-xs font-bold text-slate-700">Cancelar</button><button type="submit" className="flex items-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-xs font-black text-white"><Send className="h-4 w-4" /> Guardar regla</button></div>
+        <div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setModal(false)} className="rounded-xl bg-slate-100 px-4 py-3 text-xs font-bold text-slate-700">Cancelar</button><button disabled={saving} type="submit" className="flex items-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-xs font-black text-white"><Send className="h-4 w-4" /> {saving ? 'Guardando…' : 'Guardar responsabilidad'}</button></div>
       </form></div>}
       </>}
     </div>

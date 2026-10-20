@@ -14,10 +14,10 @@ import WorkforceProjection from './WorkforceProjection';
 import PayrollAutomation from './PayrollAutomation';
 import PersonnelAllocations from './PersonnelAllocations';
 import WorkerBulkImport from './WorkerBulkImport';
-import WorkerBulkAssignment from './WorkerBulkAssignment';
+import WorkerAssignmentSummary from './WorkerAssignmentSummary';
 import WorkerCenterAssignments from './WorkerCenterAssignments';
 import MonthlyWorkerAssignments from './MonthlyWorkerAssignments';
-import {workerAdditionalCenters,workerAssignedToWork} from '../utils/workerCenters';
+import {workerAssignedToWork} from '../utils/workerCenters';
 import {toggleVisibleWorkers,workerMatchesSearch} from '../utils/workerAssignment.js';
 import { workerContractSummary } from '../utils/workerImport.js';
 import WorkerDocumentsPanel from './WorkerDocumentsPanel';
@@ -752,7 +752,7 @@ function Personal({ user, onBack }) {
   return (
     <div className="space-y-6">
       {canDownloadStatistics&&showMonthlyReport&&<MonthlyWorkerAssignments key={user.empresa} company={user.empresa} workers={personal} initialSelected={selectedWorkerIds} onClose={()=>setShowMonthlyReport(false)}/>}
-      {canEdit&&centerWorkerIds.length>0&&<WorkerCenterAssignments company={user.empresa} workers={personal.filter(worker=>centerWorkerIds.includes(String(worker.id)))} centers={centrosGestion} assignments={workerCenterLinks} onClose={()=>setCenterWorkerIds([])} onSaved={async result=>{const refreshed=await fetchData();setAssignmentNotice(`${result.agregados} vínculos agregados · ${result.omitidos} ya existían · ${result.finalizados} finalizados. El centro principal y los costos se conservaron.${refreshed?'':' No se pudo refrescar el listado; recarga la pantalla.'}`);}}/>}
+      {canEdit&&centerWorkerIds.length>0&&<WorkerCenterAssignments company={user.empresa} workers={personal.filter(worker=>worker.empresa===user.empresa&&centerWorkerIds.includes(String(worker.id)))} centers={centrosGestion} assignments={workerCenterLinks} obras={obras} onClose={()=>setCenterWorkerIds([])} onPrimaryAssigned={async result=>{const refreshed=await fetchData();setAssignmentNotice(`${result.asignados} obras principales actualizadas · ${result.omitidos} sin cambios. Historial y centros adicionales conservados.${refreshed?'':' Recarga el listado para ver los cambios.'}`);}} onSaved={async result=>{const refreshed=await fetchData();setAssignmentNotice(`${result.agregados} vínculos agregados · ${result.omitidos} ya existían · ${result.finalizados} finalizados. El centro principal y los costos se conservaron.${refreshed?'':' No se pudo refrescar el listado; recarga la pantalla.'}`);}}/>}
       
       {/* Encabezado */}
       <ModuleHeader title="Recursos Humanos (RRHH)" subtitle="Gestión de personal, asignaciones a obra y planillas de remuneraciones." Icon={Users} onBack={activeSubmodule !== null ? () => setActiveSubmodule(null) : onBack} actions={activeSubmodule === 'personal_empresa' && (
@@ -902,13 +902,10 @@ function Personal({ user, onBack }) {
           </div>
 
           {assignmentNotice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">{assignmentNotice}</p>}
-          {canEdit&&selectedWorkerIds.length>0&&<div><button type="button" onClick={()=>setCenterWorkerIds([...selectedWorkerIds])} className="rounded-xl bg-emerald-800 px-4 py-3 text-xs font-bold text-white">Asignar centros de gestión ({selectedWorkerIds.length})</button><p className="mt-1 text-xs text-slate-500">Agrega centros sin reemplazar los actuales. «Asignar obra» sigue siendo un cambio de obra principal.</p></div>}
-          {canEdit && selectedWorkerIds.length > 0 && <WorkerBulkAssignment
-            company={user.empresa} workers={personal.filter(worker => worker.empresa === user.empresa && selectedWorkerIds.includes(String(worker.id)))} obras={obras}
-            hiddenCount={selectedWorkerIds.filter(id => !filteredPersonal.some(worker => String(worker.id) === id)).length}
-            busy={loading} onClear={() => setSelectedWorkerIds([])} onRemove={id => setSelectedWorkerIds(current => current.filter(value => value !== id))}
-            onAssigned={async result => { const refreshed = await fetchData(); setSelectedWorkerIds([]); setAssignmentNotice(`${result.asignados} trabajadores asignados · ${result.omitidos} ya estaban en la obra y se conservaron sin cambios.${refreshed ? '' : ' No se pudo refrescar el listado; vuelve a cargar la pantalla.'}`); }}
-          />}
+          {canEdit&&selectedWorkerIds.length>0&&<div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+            <div><p className="text-sm font-bold">{selectedWorkerIds.length} trabajadores seleccionados</p><p className="text-xs text-slate-600">La selección se conserva al buscar. {selectedWorkerIds.filter(id=>!filteredPersonal.some(worker=>String(worker.id)===id)).length} fuera del filtro actual.</p></div>
+            <div className="flex flex-wrap gap-2"><button type="button" disabled={loading} onClick={()=>setSelectedWorkerIds([])} className="rounded-xl border bg-white px-3 py-2 text-xs font-bold">Limpiar selección</button><button type="button" disabled={loading} onClick={()=>setCenterWorkerIds([...selectedWorkerIds])} className="rounded-xl bg-blue-900 px-4 py-2 text-xs font-bold text-white">Asignaciones ({selectedWorkerIds.length})</button></div>
+          </div>}
           {/* Listado de Fichas de Trabajadores */}
           {loading ? (
             <p className="text-sm text-slate-500 p-2">⏳ Cargando personal empresa...</p>
@@ -956,9 +953,8 @@ function Personal({ user, onBack }) {
                         </td>
                         <td className="p-3">
                           <span className="font-semibold text-blue-950">{p.cargo}</span>
-                          <span className="block text-[10px] text-slate-500 font-medium">{p.obra_nombre || p.centro_trabajo || 'Sin obra asignada'}</span>
-                          <div className="mt-1 flex flex-wrap gap-1">{workerAdditionalCenters(p,workerCenterLinks).map(link=><span key={link.id} className="rounded-lg border border-blue-100 bg-blue-50 px-2 py-1 text-[10px] text-blue-900">{link.centro_codigo} · {link.centro_nombre}</span>)}</div>
-                          {canEdit&&<button type="button" onClick={()=>setCenterWorkerIds([String(p.id)])} className="mt-2 text-[10px] font-bold text-blue-900 underline">Centros de gestión</button>}
+                          <WorkerAssignmentSummary worker={p} centers={centrosGestion} assignments={workerCenterLinks}/>
+                          {canEdit&&<button type="button" onClick={()=>setCenterWorkerIds([String(p.id)])} className="mt-2 text-[10px] font-bold text-blue-900 underline">Asignaciones</button>}
                         </td>
                         <td className="p-3">
                           <span className={`text-[10px] px-2 py-0.5 rounded font-bold border ${p.tipo_contrato === 'Indefinido' ? 'bg-emerald-50 text-emerald-900 border-emerald-200' : 'bg-amber-50 text-amber-900 border-amber-200'}`}>
