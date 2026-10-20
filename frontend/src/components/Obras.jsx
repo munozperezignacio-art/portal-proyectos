@@ -7167,7 +7167,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                           <thead>
                             <tr className="bg-slate-100 border-b text-slate-700 font-bold uppercase text-[10px]">
                               <th className="p-2.5">Concepto / Nombre Costo</th>
-                              <th className="p-2.5">Proveedor / RUT</th>
+                              <th className="p-2.5">Emisor · razón social / RUT</th>
                               <th className="p-2.5">Tipo de Costo</th>
                               <th className="p-2.5">N° Factura / Doc</th>
                               <th className="p-2.5">Monto Total Costo ($)</th>
@@ -11165,16 +11165,16 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
               </div>
 
               <fieldset className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
-                <legend className="px-1 text-[10px] font-bold uppercase text-slate-600">Proveedor</legend>
+                <legend className="px-1 text-[10px] font-bold uppercase text-slate-600">Emisor de la factura / documento</legend>
                 <div className="grid gap-3 sm:grid-cols-[150px_1fr]">
-                  <label className="block text-[10px] font-bold uppercase text-slate-500">RUT del proveedor
-                    <input aria-label="RUT del proveedor" type="text" maxLength={12} value={costoFormData.proveedor_rut || ''} onChange={e=>setCostoFormData(current=>({...current,proveedor_rut:e.target.value}))} onBlur={()=>setCostoFormData(current=>({...current,proveedor_rut:formatRut(current.proveedor_rut)}))} placeholder="12.345.678-5" className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2.5 font-mono text-xs text-slate-800"/>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500">RUT del emisor {costoFormData.asociar_factura==='SI'&&<span className="text-red-500">*</span>}
+                    <input aria-label="RUT del emisor" required={costoFormData.asociar_factura==='SI'} type="text" maxLength={12} value={costoFormData.proveedor_rut || ''} onChange={e=>setCostoFormData(current=>({...current,proveedor_rut:e.target.value}))} onBlur={()=>setCostoFormData(current=>({...current,proveedor_rut:formatRut(current.proveedor_rut)}))} placeholder="12.345.678-5" className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2.5 font-mono text-xs text-slate-800"/>
                   </label>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500">Nombre / razón social del proveedor
-                    <input aria-label="Nombre del proveedor" type="text" maxLength={200} value={costoFormData.proveedor_nombre || ''} onChange={e=>setCostoFormData(current=>({...current,proveedor_nombre:e.target.value}))} placeholder="Nombre o razón social" className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-800"/>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500">Razón social del emisor {costoFormData.asociar_factura==='SI'&&<span className="text-red-500">*</span>}
+                    <input aria-label="Razón social del emisor" required={costoFormData.asociar_factura==='SI'} type="text" maxLength={200} value={costoFormData.proveedor_nombre || ''} onChange={e=>setCostoFormData(current=>({...current,proveedor_nombre:e.target.value}))} placeholder="Razón social de quien emite la factura" className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-800"/>
                   </label>
                 </div>
-                <p className="text-[10px] text-slate-500">Completa ambos datos cuando corresponda, con o sin factura. Para gastos internos sin proveedor puedes dejarlos vacíos.</p>
+                <p className="text-[10px] text-slate-500">Ingresa los datos de quien emite la factura, no los de la empresa que la recibe. Son obligatorios al asociar un documento; para un gasto interno sin factura son opcionales.</p>
               </fieldset>
               {/* Seccion de Imputación por Porcentaje a Partidas */}
               <div className="space-y-2 pt-2 border-t">
