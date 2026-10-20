@@ -7,7 +7,10 @@ export function forecastModel({ cutoff, baselineFinish, actualProgress, plannedP
   const progress = Math.max(0,Math.min(1,Number(actualProgress)/100));
   const spi = Number(plannedProgress)>0 ? Number(actualProgress)/Number(plannedProgress) : null;
   const pendingPlan = daysBetween(cutoff,baselineFinish);
-  const duration = progress>=1 ? 0 : spi>0 && pendingPlan>0 ? Math.ceil(pendingPlan/spi) : null;
+  const plannedFraction=Math.max(0,Math.min(1,Number(plannedProgress)/100));
+  // El plazo restante debe cubrir la fracción REAL pendiente, no solo la programada.
+  const duration = progress>=1 ? 0 : spi>0 && pendingPlan>0 && plannedFraction<1
+    ? Math.ceil(pendingPlan*(1-progress)/(1-plannedFraction)/spi) : null;
   let finish = duration === 0 ? cutoff : null;
   if (duration>0 && duration<=5200) {
     const date = new Date(`${cutoff}T12:00:00Z`); let pending=duration;
@@ -26,7 +29,7 @@ export function forecastModel({ cutoff, baselineFinish, actualProgress, plannedP
   const coveredYears = new Set(holidays.map(d=>d.slice(0,4)));
   const missingCalendarYears = finish ? [...new Set(calendarTimeline(cutoff,finish).map(d=>d.dateStr.slice(0,4)))].filter(y=>!coveredYears.has(y)) : [];
   const calendarWarning = missingCalendarYears.length ? `Fecha referencial: se excluyen fines de semana y los feriados cargados. Falta validar los feriados de ${missingCalendarYears.join(', ')}; la fecha y el reparto mensual pueden variar.` : '';
-  const scheduleWarning = finish ? '' : !baselineFinish ? 'Falta la fecha de término programada de la obra.' : !(spi>0) ? 'Falta avance real o avance programado al corte para extrapolar el plazo.' : pendingPlan<=0 ? 'La fecha programada ya venció; revise el cronograma para calcular el plazo restante.' : 'El horizonte calculado excede el límite de la proyección.';
+  const scheduleWarning = finish ? '' : !baselineFinish ? 'Falta la fecha de término programada de la obra.' : !(spi>0) ? 'Falta avance real o avance programado al corte para extrapolar el plazo.' : pendingPlan<=0 || plannedFraction>=1 ? 'La programación ya no tiene plazo o producción pendiente. Usa el simulador por cantidades y rendimientos para estimar el término real.' : 'El horizonte calculado excede el límite de la proyección.';
   const costWarning = costError ? 'No se pudieron cargar los costos reales. Reintente la carga antes de calcular costos.' : !(actualCost>0) ? 'Aún no hay costos reales aprobados al corte. La proyección de plazo sí está disponible; el costo al término y el flujo se habilitarán al registrar costos.' : !(progress>0) ? 'Falta avance real para estimar el costo al término.' : '';
   return { spi,cpi,baseCost,finish,duration,cashflow,calendarWarning,scheduleWarning,costWarning,
     delay: finish ? daysBetween(baselineFinish,finish) : null,
