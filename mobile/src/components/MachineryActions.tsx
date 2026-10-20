@@ -1,3 +1,4 @@
+import { operationalDate } from '@/lib/operationalDate';
 import { useTheme, useThemedStyles } from '@/theme/ThemeProvider';
 import type { ThemeColors } from '@/lib/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,7 +11,7 @@ import type { Profile } from '@/lib/types';
 
 type Row = Record<string, any>;
 type Mode = 'usage' | 'failure' | 'reservation';
-const today = () => new Date().toISOString().slice(0, 10);
+const today = operationalDate;
 
 export function MachineryActions({ mode, equipment, profile, onSaved, initialEquipment }: { mode: Mode; equipment: Row[]; profile: Profile; onSaved: () => void; initialEquipment?: Row }) {
   const {colors}=useTheme();

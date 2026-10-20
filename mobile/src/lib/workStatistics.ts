@@ -52,12 +52,11 @@ export const addChileanBusinessDays = (startStr: string, workingDays: number) =>
 
 export const shiftChileanBusinessDays = (startStr: string, workingDays: number) => {
     if (!startStr || !Number.isFinite(Number(workingDays)) || Number(workingDays) === 0) return startStr || '';
-    if (workingDays > 0) return addChileanBusinessDays(startStr, workingDays);
     const cur = new Date(`${startStr}T00:00:00`);
     if (isNaN(cur.getTime())) return startStr;
     let shifted = 0;
     while (shifted < Math.abs(Math.round(workingDays))) {
-      cur.setDate(cur.getDate() - 1);
+      cur.setDate(cur.getDate() + (workingDays > 0 ? 1 : -1));
       const dateStr = cur.getFullYear() + '-' + String(cur.getMonth() + 1).padStart(2, '0') + '-' + String(cur.getDate()).padStart(2, '0');
       if (cur.getDay() !== 0 && cur.getDay() !== 6 && !CHILEAN_HOLIDAYS.includes(dateStr)) shifted++;
     }

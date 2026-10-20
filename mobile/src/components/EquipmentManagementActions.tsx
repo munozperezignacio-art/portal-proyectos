@@ -1,3 +1,4 @@
+import { operationalDate } from '@/lib/operationalDate';
 import { useTheme, useThemedStyles } from '@/theme/ThemeProvider';
 import type { ThemeColors } from '@/lib/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,7 +10,7 @@ import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/lib/types';
 
 type Row = Record<string, any>;
-const today = () => new Date().toISOString().slice(0, 10);
+const today = operationalDate;
 
 export function EquipmentManagementActions({ equipment, profile, onSaved, initialEquipment, maintenanceOnly = false, showAssign, showMaintenance = true }: { equipment: Row[]; profile: Profile; onSaved: () => void; initialEquipment?: Row; maintenanceOnly?: boolean; showAssign?: boolean; showMaintenance?: boolean }) {
   const {colors}=useTheme();
