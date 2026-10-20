@@ -96,5 +96,5 @@ export function simulateProject({cutoff,start,end,deadline,weekdays=[1,2,3,4,5],
 export function equipmentSimulationTemplate(item,index=0){
   const raw=item.costo_interno??item.tarifa_diaria??item.costo;
   const unit=String(item.unidad_costo_interno||item.unidad_tarifa||item.unidad_costo||'$/día').toLowerCase();
-  return {sourceId:`equipment-${index}`,name:`${item.tipo||item.equipo||item.nombre||'Equipo'}${item.patente?` · ${item.patente}`:''}`,rate:raw==null?'':raw,mode:unit.includes('mes')?'month30':unit.includes('hora')||unit.includes('/h')?'hour':'workday',quantity:unit.includes('hora')||unit.includes('/h')?'':1,source:`Equipo · tarifa original ${unit}`,untilFinish:true};
+  return {sourceId:`equipment-${JSON.stringify([item.empresa||'',item.simulationSource||'equipo',item.id??item.patente??index])}`,name:`${item.tipo||item.equipo||item.nombre||'Equipo'}${item.patente?` · ${item.patente}`:''}`,rate:raw==null?'':raw,mode:unit.includes('mes')?'month30':unit.includes('hora')||unit.includes('/h')?'hour':'workday',quantity:unit.includes('hora')||unit.includes('/h')?'':1,source:`Equipo · tarifa original ${unit}`,untilFinish:true};
 }

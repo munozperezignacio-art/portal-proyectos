@@ -5171,7 +5171,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         criticalItems={criticalPartidas}
                         incidents={filteredAccidentes}
                         equipment={equipmentAvailability}
-                        simulationEquipment={[...maquinariaList,...arriendosList]}
+                        simulationEquipment={[...maquinariaList.map(item=>({...item,simulationSource:'inventario'})),...arriendosList.map(item=>({...item,simulationSource:'arriendo'}))]}
                         scopeLabel={isGlobalStats?'Obra completa':'Partidas del filtro seleccionado (no toda la obra)'}
                       />
                     )}

@@ -21,3 +21,19 @@ test('escenario de término: producción, equipo, costo manual y calendario diar
   await page.getByRole('spinbutton',{name:'Rendimiento Pilas',exact:true}).fill('0');
   await expect(page.getByText('No termina en este horizonte',{exact:true})).toBeVisible();
 });
+test('trabajador único con promedio diario editable, historial desplegable y selección estable',async({page})=>{
+  await page.goto('/e2e/fixtures/project-simulator.html?labor');
+  await page.getByRole('button',{name:'2. Costos y equipos'}).click();
+  const name='FRANCO REINALDO ERICES ORELLANA';
+  const worker=page.getByRole('checkbox',{name:`Seleccionar ${name} · Ficha 123`,exact:true});
+  await expect(worker).toHaveCount(1);
+  await page.getByText('Ver detalle histórico (6 cargos)',{exact:true}).click();
+  await expect(page.getByRole('cell',{name:'2026-10-09',exact:true})).toBeVisible();
+  await expect(worker).not.toBeChecked();
+  await worker.check();await expect(page.getByRole('spinbutton',{name:`Tarifa ${name}`,exact:true})).toHaveValue('60066');
+  await expect(page.getByRole('combobox',{name:`Cobro ${name}`,exact:true})).toHaveValue('workday');
+  await page.getByRole('spinbutton',{name:`Tarifa ${name}`,exact:true}).fill('55000');
+  await page.evaluate(()=>window.reorderSimulationCatalog());await expect(worker).toBeChecked();
+  await expect(page.getByRole('spinbutton',{name:`Tarifa ${name}`,exact:true})).toHaveValue('55000');
+  await worker.uncheck();await expect(page.getByRole('spinbutton',{name:`Tarifa ${name}`,exact:true})).toHaveCount(0);
+});
