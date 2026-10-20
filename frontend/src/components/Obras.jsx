@@ -27,7 +27,8 @@ import {budgetPriceView,budgetViewTotals,formatBudgetViewAmount} from '../utils/
 import {economicIndicators,loadEconomicIndicator} from '../utils/economicIndicatorsCache';
 import {workerAssignedToWork} from '../utils/workerCenters';
 import {projectName,migrateProjectStorage} from '../utils/projectProfile';
-import { plannedValueAt } from '../utils/plannedProgress';
+import { plannedValueAt, physicalProgressAt } from '../utils/plannedProgress';
+import PartidaProgressSummary from './PartidaProgressSummary';
 import useSignatureCanvas from '../utils/useSignatureCanvas';
 import AttendanceDateField from './AttendanceDateField';
 import { chileanAttendanceToday, resolveAttendanceDate, attendanceDay, attendanceDateLabel, sortAttendanceRecords } from '../utils/attendanceDates';
@@ -4790,7 +4791,10 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   const uniqueDays = new Set(pReps.map(r => r.fecha || r.fecha_avance || (r.created_at ? String(r.created_at).substring(0, 10) : ''))).size;
                   const pctPerDay = uniqueDays > 0 ? (pct / uniqueDays) : 0;
 
-                  return { partida: p.partida, pct, cantAv, cantTotal, unidad: p.unidad, pctPerDay, uniqueDays };
+                  const scheduledStart = getPartidaScheduledStart(p);
+                  const duration = Math.max(1, parseInt(p.duracion_programada, 10) || Math.ceil(cantTotal / (parseFloat(p.rendimiento_meta || p.rendimiento) || 10)));
+                  const comparison = physicalProgressAt({ quantity: cantTotal, executed: cantAv, start: scheduledStart, duration }, fCorteStr, countChileanBusinessDays);
+                  return { id: p.id, partida: p.partida, pct, cantAv, cantTotal, unidad: p.unidad, pctPerDay, uniqueDays, scheduledStart, comparison };
                 });
 
                 const maxPartida = pAvanceRates.length > 0 ? [...pAvanceRates].sort((a, b) => b.pct - a.pct)[0] : null;
@@ -5280,39 +5284,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         </div>
 
                         {/* TABLA DETALLADA DE AVANCE POR PARTIDAS */}
-                        <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-3">
-                          <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">📦 Resumen de Avance Físico por Partida</h4>
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-xs text-left border-collapse">
-                              <thead>
-                                <tr className="bg-slate-100 border-b text-slate-700 font-bold uppercase text-[10px]">
-                                  <th className="p-2.5">Partida</th>
-                                  <th className="p-2.5">Cant. Presupuestada</th>
-                                  <th className="p-2.5">Avance Acumulado</th>
-                                  <th className="p-2.5 text-center">% Cumplimiento</th>
-                                  <th className="p-2.5 text-center">Promedio % / Día</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-150 text-[11px]">
-                                {pAvanceRates.map((p, idx) => (
-                                  <tr key={idx} className="hover:bg-slate-50">
-                                    <td className="p-2.5 font-bold text-slate-800">{p.partida}</td>
-                                    <td className="p-2.5 font-mono text-slate-700">{p.cantTotal.toLocaleString('es-CL')} {p.unidad}</td>
-                                    <td className="p-2.5 font-mono font-bold text-blue-900">{p.cantAv.toLocaleString('es-CL')} {p.unidad}</td>
-                                    <td className="p-2.5 text-center font-mono font-black text-slate-800">
-                                      <span className={`px-2 py-0.5 rounded text-[10.5px] ${p.pct >= 100 ? 'bg-emerald-100 text-emerald-900' : (p.pct > 0 ? 'bg-blue-100 text-blue-900' : 'bg-slate-100 text-slate-600')}`}>
-                                        {p.pct.toFixed(1)}%
-                                      </span>
-                                    </td>
-                                    <td className="p-2.5 text-center font-mono font-bold text-slate-600">
-                                      {p.pctPerDay.toFixed(2)}% / día
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
+                        <PartidaProgressSummary rows={pAvanceRates} cutoff={fCorteStr} />
                       </div>
                     )}
 

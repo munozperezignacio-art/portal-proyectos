@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body><div id="root"></div><script type="module">
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import '../../src/index.css';
+import PartidaProgressSummary from '../../src/components/PartidaProgressSummary.jsx';
+import {physicalProgressAt} from '../../src/utils/plannedProgress.js';
+const rows = [
+  {id:1,partida:'Pilas de Grava IMPACT',cantTotal:463,cantAv:168,unidad:'UND',uniqueDays:14,scheduledStart:'2026-10-01'},
+  {id:2,partida:'Movilización y puesta en marcha',cantTotal:1,cantAv:1,unidad:'GL',uniqueDays:3,scheduledStart:'2026-10-01'},
+  {id:3,partida:'Pilas adicionales',cantTotal:20,cantAv:0,unidad:'UND',uniqueDays:0,scheduledStart:null},
+].map(p=>({...p,comparison:physicalProgressAt({quantity:p.cantTotal,executed:p.cantAv,start:p.scheduledStart,duration:p.id===2?3:20},'2026-10-20',()=>14)}));
+createRoot(document.getElementById('root')).render(React.createElement('main',{className:'p-4 bg-slate-50 min-h-screen'},React.createElement(PartidaProgressSummary,{rows,cutoff:'2026-10-20'})));
+</script></body></html>
