@@ -30,7 +30,7 @@ import {budgetPriceView,budgetViewTotals,formatBudgetViewAmount} from '../utils/
 import {economicIndicators,loadEconomicIndicator} from '../utils/economicIndicatorsCache';
 import {workerAssignedToWork} from '../utils/workerCenters';
 import {projectName,migrateProjectStorage} from '../utils/projectProfile';
-import { plannedValueAt, physicalProgressAt, dailyBudgetRate } from '../utils/plannedProgress';
+import { plannedValueAt, physicalProgressAt, dailyBudgetRate, plannedCurveFinish } from '../utils/plannedProgress';
 import PartidaProgressSummary from './PartidaProgressSummary';
 import useSignatureCanvas from '../utils/useSignatureCanvas';
 import AttendanceDateField from './AttendanceDateField';
@@ -4863,7 +4863,6 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 }, null);
 
                 const fInicioObraDefault = minPartidaStart || fechaInicioReal || getObraDateRange(selectedObra).start;
-                const timelineMilestones = calendarTimeline(fInicioObraDefault, fCorteStr);
 
                 const totalPresupuestoObra = totalVentaPresupuestada > 0 ? totalVentaPresupuestada : 1;
                 // Shared schedule: resolved dependencies, configured duration and budget prices.
@@ -4875,6 +4874,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   unitPrice: partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (parseFloat(p.pu) || 0)
                 }));
                 const getPlannedValueAt = date => plannedValueAt(plannedItems, date, countChileanBusinessDays);
+                const plannedFinish = plannedCurveFinish(plannedItems, fCorteStr, addChileanBusinessDays);
+                const timelineMilestones = calendarTimeline(fInicioObraDefault, plannedFinish);
                 
                 const curvaSPoints = timelineMilestones.map((m) => {
                   const mStr = m.dateStr;
@@ -4899,7 +4900,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
                   const pvPct = Math.min(100, Math.round((valProgAtM / totalPresupuestoObra) * 1000) / 10);
 
-                  return { evPct, pvPct, label: m.label, dateStr: mStr };
+                  return { evPct: mStr <= fCorteStr ? evPct : null, pvPct, label: m.label, dateStr: mStr };
                 });
 
 
@@ -5297,7 +5298,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                 </span>
                                 <span className="flex items-center gap-1 text-emerald-950 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                                   <span className="w-2.5 h-2.5 bg-emerald-600 rounded-full inline-block"></span>
-                                  <span>Prog. ({curvaSPoints.length > 0 ? curvaSPoints[curvaSPoints.length - 1].pvPct : "100"}%)</span>
+                                  <span>Prog. al corte ({curvaSPoints.find(p => p.dateStr === fCorteStr)?.pvPct ?? 0}%)</span>
                                 </span>
                               </div>
                             </div>

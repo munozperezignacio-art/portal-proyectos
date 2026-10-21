@@ -1,4 +1,13 @@
 // Receives dates already resolved by the schedule (including dependencies).
+export function plannedCurveFinish(items, cutoff, addBusinessDays) {
+  return items.reduce((latest, item) => {
+    if (!item.start || item.quantity <= 0) return latest;
+    const days = item.dailyRate > 0 ? Math.ceil(item.quantity / item.dailyRate) : item.duration;
+    const finish = addBusinessDays(item.start, days);
+    return finish > latest ? finish : latest;
+  }, cutoff);
+}
+
 export function dailyBudgetRate(part) {
   const unit = String(part.unidad_tiempo || 'Día').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const rate = Number(part.rendimiento_meta || part.rendimiento);

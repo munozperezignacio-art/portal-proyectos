@@ -1,7 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { plannedValueAt, physicalProgressAt, dailyBudgetRate } from './plannedProgress.js';
+import { plannedValueAt, physicalProgressAt, dailyBudgetRate, plannedCurveFinish } from './plannedProgress.js';
 import { calendarTimeline } from './sCurveTimeline.js';
+
+test('curve extends until 100 percent using the same working-day production rate', () => {
+  const working = d => ![0,6].includes(new Date(d+'T12:00:00Z').getUTCDay()) && d !== '2026-10-12';
+  const add = (start, days) => calendarTimeline(start,'2026-12-31').filter(d=>working(d.dateStr))[days-1].dateStr;
+  const count = (start,end) => calendarTimeline(start,end).filter(d=>working(d.dateStr)).length;
+  const items=[{start:'2026-10-09',quantity:100,dailyRate:20,duration:20,unitPrice:10}];
+  const finish=plannedCurveFinish(items,'2026-10-09',add);
+  assert.equal(finish,'2026-10-16');
+  assert.equal(plannedValueAt(items,finish,count),1000);
+  assert.equal(plannedValueAt(items,'2026-10-09',count),200);
+  assert.equal(plannedCurveFinish(items,'2026-10-20',add),'2026-10-20');
+});
+
+test('curve includes later dependent starts and uses duration without daily rate',()=>{
+ const add=(start,days)=>calendarTimeline(start,'2026-12-31')[days-1].dateStr;
+ assert.equal(plannedCurveFinish([{start:'2026-11-01',quantity:10,duration:5}], '2026-10-21',add),'2026-11-05');
+ assert.equal(plannedCurveFinish([{quantity:10}], '2026-10-21',add),'2026-10-21');
+});
 
 test('weighted plan uses resolved schedule and preserves one decimal', () => {
   const items = [
