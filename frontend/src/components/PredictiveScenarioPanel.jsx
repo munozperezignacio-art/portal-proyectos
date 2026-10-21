@@ -5,6 +5,7 @@ import { forecastModel } from '../utils/forecastModel';
 import ProductionAdvice from './ProductionAdvice';
 import {costTotals,costStateLabel} from '../utils/costControl';
 import ProjectCompletionSimulator from './ProjectCompletionSimulator';
+import TargetDateProjection from './TargetDateProjection';
 
 const DAY = 86400000;
 const number = value => Number(value || 0);
@@ -79,6 +80,7 @@ export default function PredictiveScenarioPanel({ obra, user, cutoff, baselineFi
     return { safety, quality: qualityTrend, lowAvailability, failures, equipmentCount: equipment.length };
   }, [equipment, incidents, quality]);
   return <div className="space-y-5">
+    <TargetDateProjection key={`${obra?.id}:${cutoff}:${scopeLabel}`} parts={productionParts} reports={advances} cutoff={cutoff} baselineFinish={dateKey(baselineFinish)} holidays={holidays} actualCost={actualCost} costError={costError} futureCosts={futureCosts} costBudget={costBudget} futureCostThrough={futureCostThrough}/>
     <div className="grid gap-3 sm:grid-cols-3">{Object.keys(costStateLabel).map(state=><Metric key={state} icon={CircleDollarSign} label={costStateLabel[state]} value={costError?'Carga incompleta':money(totals[state])}/>)}</div>
     <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-black text-indigo-950">Prueba tu propio escenario de término</h3><p className="mt-1 text-xs text-slate-600">Fechas, calendario, rendimientos, equipos y costos futuros editables.</p></div><button type="button" onClick={()=>setShowSimulator(current=>!current)} className="rounded-xl bg-indigo-900 px-4 py-3 text-xs font-bold text-white">{showSimulator?'Cerrar simulador (descartar escenario)':'Abrir simulador de término'}</button></div>
     {showSimulator&&<ProjectCompletionSimulator key={JSON.stringify([obra?.id,user?.empresa,cutoff,actualCost,productionParts.map(p=>[p.id,p.partida,p.quantity]),advances.map(r=>[r.id,r.cantidad,r.fecha||r.fecha_avance||r.created_at])])} cutoff={cutoff} baselineFinish={baselineFinish} actualCost={actualCost} costError={costError} costBudget={costBudget} holidays={holidays} productionParts={productionParts} advances={advances} costs={costs} equipment={simulationEquipment} scopeLabel={scopeLabel}/>}
