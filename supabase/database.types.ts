@@ -3665,6 +3665,7 @@ export type Database = {
       }
       inventario_materiales: {
         Row: {
+          unidad: string | null
           cantidad: number | null
           created_at: string | null
           empresa: string
@@ -3675,6 +3676,7 @@ export type Database = {
           tipo_movimiento: string | null
         }
         Insert: {
+          unidad?: string | null
           cantidad?: number | null
           created_at?: string | null
           empresa: string
@@ -3685,6 +3687,7 @@ export type Database = {
           tipo_movimiento?: string | null
         }
         Update: {
+          unidad?: string | null
           cantidad?: number | null
           created_at?: string | null
           empresa?: string

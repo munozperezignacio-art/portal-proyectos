@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
+import { MATERIAL_UNITS, materialMovement } from '../utils/materialMovement';
 import {useMachineryCharge} from '../utils/useMachineryCharge';
 import { 
   Building2, ArrowLeft, Users, Truck, Wrench, FileSpreadsheet, 
@@ -695,7 +696,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   ]);
   const [avanceFecha, setAvanceFecha] = useState(new Date().toISOString().substring(0, 10));
   const [maqData, setMaqData] = useState({ operador: '', maquinaria: '', horometroEntrada: '', horometroSalida: '', litrosCombustible: '0', horometroCombustible: '0', paralizacion: 'Ninguna', observaciones: '', costoHora: '' });
-  const [materialData, setMaterialData] = useState({ guia: '', tipoMovimiento: 'INGRESO', material: '', cantidad: '' });
+  const [materialData, setMaterialData] = useState({ guia: '', tipoMovimiento: 'INGRESO', material: '', cantidad: '', unidad: '' });
 
   // Estados para Cuadrillas y Arriendos
   const [cuadrillasList, setCuadrillasList] = useState([]);
@@ -2815,14 +2816,13 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           obra_nombre: selectedObra.nombre,
           guia: materialData.guia || 'N/A',
           tipo_movimiento: materialData.tipoMovimiento,
-          material: materialData.material,
-          cantidad: parseFloat(materialData.cantidad) || 0
+          ...materialMovement(materialData)
         }
       ]);
 
       if (error) throw error;
 
-      const warning=await notifyWorkRecord('material_registrado',`${materialData.tipoMovimiento}: ${materialData.material}. Cantidad: ${materialData.cantidad}. Guía: ${materialData.guia||'N/A'}.`);
+      const warning=await notifyWorkRecord('material_registrado',`${materialData.tipoMovimiento}: ${materialData.material}. Cantidad: ${materialData.cantidad} ${materialData.unidad}. Guía: ${materialData.guia||'N/A'}.`);
       setSuccessMsg(`Movimiento de material registrado con éxito.`+warning);
       fetchObraDetails(selectedObra.nombre);
       setTimeout(() => setActiveModal(null), 1500);
@@ -8917,16 +8917,28 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Cantidad</label>
+                <label htmlFor="material-cantidad" className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Cantidad</label>
                 <input
+                  id="material-cantidad"
                   type="number"
+                  min="0"
+                  step="any"
                   required
                   value={materialData.cantidad}
                   onChange={(e) => setMaterialData({ ...materialData, cantidad: e.target.value })}
                   placeholder="0"
                   className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none"
                 />
+              </div>
+              <div>
+                <label htmlFor="material-unidad" className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Unidad de medida</label>
+                <select id="material-unidad" required value={materialData.unidad} onChange={e=>setMaterialData({...materialData,unidad:e.target.value})} className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none">
+                  <option value="">Selecciona unidad</option>
+                  {MATERIAL_UNITS.map(unit=><option key={unit} value={unit}>{unit}</option>)}
+                </select>
+              </div>
               </div>
 
               <button
