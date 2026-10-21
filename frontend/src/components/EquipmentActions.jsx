@@ -6,7 +6,14 @@ export default function EquipmentActions({equipment,canEdit,canDelete,onView,onE
     if(!position)return;
     const close=event=>{if(!button.current?.contains(event.target)&&!menu.current?.contains(event.target))setPosition(null);};
     const escape=event=>{if(event.key==='Escape'){setPosition(null);button.current?.focus();}};
-    const scroll=event=>{if(!menu.current?.contains(event.target))setPosition(null);};
+    const scroll=event=>{
+      if(menu.current?.contains(event.target))return;
+      const rect=button.current?.getBoundingClientRect();
+      if(!rect||rect.bottom<0||rect.top>window.innerHeight){setPosition(null);return;}
+      const height=menu.current?.offsetHeight||128;
+      const next={left:Math.max(8,Math.min(window.innerWidth-192,rect.right-184)),top:rect.bottom+height+8<window.innerHeight?rect.bottom+4:Math.max(8,rect.top-height-4)};
+      setPosition(current=>current&&current.left===next.left&&current.top===next.top?current:next);
+    };
     document.addEventListener('pointerdown',close);document.addEventListener('keydown',escape);window.addEventListener('resize',scroll);window.addEventListener('scroll',scroll,true);
     return()=>{document.removeEventListener('pointerdown',close);document.removeEventListener('keydown',escape);window.removeEventListener('resize',scroll);window.removeEventListener('scroll',scroll,true);};
   },[position]);

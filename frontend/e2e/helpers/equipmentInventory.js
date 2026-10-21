@@ -13,6 +13,9 @@ export async function checkEquipmentInventory(page){
  await page.getByLabel('Filtrar categoría').selectOption('1');
  await expect(page.getByRole('status')).toHaveText('2 de 4 equipos');
  await page.getByRole('button',{name:'Acciones EXC-01',exact:true}).filter({visible:true}).click();
+ await expect(page.getByRole('button',{name:'Editar equipo',exact:true})).toBeVisible();
+ await page.evaluate(()=>window.dispatchEvent(new Event('scroll')));
+ await expect(page.getByRole('button',{name:'Editar equipo',exact:true})).toBeVisible();
  await page.getByRole('button',{name:'Editar equipo',exact:true}).click();
  await expect(page.getByLabel('Categoría del equipo')).toHaveValue('1');
  await page.getByLabel('Categoría del equipo').selectOption('2');
