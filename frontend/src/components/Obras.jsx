@@ -2848,7 +2848,6 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       {machineryCharge.dialog}
       {selectedObra&&machineryChargeError&&<p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{machineryChargeError}</p>}
       {selectedObra&&machineryCharges.some(c=>c.monto==null)&&<p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Hay reportes de maquinaria sin tarifa diaria válida: no se han sumado al costo real. Revisa la tarifa del equipo.</p>}
-      {selectedObra&&canObraGestionView&&<MachineryCostControl rows={machineryCharges} periods={machineryPeriods} decisions={machineryDecisions} obra={selectedObra} company={user.empresa} canEdit={canEquipmentEdit||can(user,userPermissions,'obras.gestion.configurar')} onSaved={()=>loadMachineryCharges(selectedObra.nombre)}/>}
       
       {!selectedObra ? (
         // ================= VISTA DE LISTADO DE OBRAS =================
@@ -4134,7 +4133,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
               
               {/* BARRA DE PESTAÑAS (ARRIBA DE TODO A ANCHO COMPLETO) */}
               <div className="flex flex-wrap justify-between items-center gap-3 bg-white p-3 border border-slate-200 rounded-2xl shadow-2xs">
-                <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                <div className="flex flex-wrap bg-slate-100 p-1 rounded-xl text-xs font-bold">
                   <button
                     onClick={() => setMaqSubTab('asignaciones')}
                     className={`px-4 py-2 rounded-xl transition cursor-pointer ${maqSubTab === 'asignaciones' ? 'bg-white text-blue-950 shadow-xs font-extrabold' : 'text-slate-500 hover:text-slate-700'}`}
@@ -4159,6 +4158,12 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   >
                     Fallas y mantenciones ({paralizacionesMaquinariaList.length + mantencionesMaquinariaList.length})
                   </button>
+                  {canObraGestionView && <button
+                    onClick={() => setMaqSubTab('costos')}
+                    className={`px-4 py-2 rounded-xl transition cursor-pointer ${maqSubTab === 'costos' ? 'bg-white text-blue-950 shadow-xs font-extrabold' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    Control de costos
+                  </button>}
                 </div>
 
                 {maqSubTab === 'arriendos' && (
@@ -4171,6 +4176,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   </button>
                 )}
               </div>
+
+              {maqSubTab === 'costos' && canObraGestionView && <MachineryCostControl rows={machineryCharges} periods={machineryPeriods} decisions={machineryDecisions} obra={selectedObra} company={user.empresa} canEdit={canEquipmentEdit||can(user,userPermissions,'obras.gestion.configurar')} onSaved={()=>loadMachineryCharges(selectedObra.nombre)}/>}
 
               {/* CONTENIDO PESTAÑA 1: ASIGNACIONES DE EMPRESA */}
               {maqSubTab === 'asignaciones' && (
