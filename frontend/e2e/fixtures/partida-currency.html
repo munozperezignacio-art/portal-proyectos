@@ -3,9 +3,9 @@ import React,{useState} from 'react';import{createRoot}from'react-dom/client';
 import '../../src/index.css';import PartidaCurrencyField from '../../src/components/PartidaCurrencyField.jsx';
 import {supabase} from '../../src/supabaseClient.js';
 import {economicIndicators} from '../../src/utils/economicIndicatorsCache.js';
-supabase.from=()=>{const chain=new Proxy({}, {get:(_target,key)=>key==='then'?resolve=>fetch('https://currency-cache.example.invalid/read').then(r=>r.json()).then(data=>resolve({data,error:null})):(..._args)=>chain});return chain;};
+supabase.from=()=>{const chain=new Proxy({}, {get:(_target,key)=>key==='then'?(resolve,reject)=>fetch('https://currency-cache.example.invalid/read').then(r=>r.json()).then(data=>resolve({data,error:null}),reject):(..._args)=>chain});return chain;};
 Object.defineProperty(supabase,'functions',{value:{invoke:async()=>{const res=await fetch('https://currency-cache.example.invalid/refresh');if(!res.ok)return {data:null,error:Error('offline')};return {data:{data:await res.json()},error:null};}}});
-if(new URLSearchParams(location.search).has('prefetch'))await economicIndicators.prefetch('2026-10-19');
+if(new URLSearchParams(location.search).has('prefetch'))await economicIndicators.prefetch('2026-10-19').catch(()=>{});
 function Fixture(){const params=new URLSearchParams(location.search);const[currency,setCurrency]=useState(params.get('currency')||'UF');const[value,setValue]=useState(params.get('saved')||'');return React.createElement('main',{className:'mx-auto max-w-lg space-y-5 p-5'},React.createElement('h1',{className:'text-lg font-bold'},'Editar partida de obra'),React.createElement(PartidaCurrencyField,{currency,value,onRateChange:setValue,onCurrencyChange:c=>{setCurrency(c);setValue('');}}),React.createElement('p',null,`Precio: 0,041 ${currency} · Equivalente en CLP: ${Number(value)*0.041}`));}
 createRoot(document.getElementById('fixture')).render(React.createElement(Fixture));
 </script></body></html>

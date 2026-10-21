@@ -2,7 +2,7 @@ import{test,expect}from'@playwright/test';
 test('multiple centers selected across searches; error is visible; existing centers are not silently replaced',async({page})=>{
   await page.goto('/e2e/fixtures/worker-centers.html');
   const dialog=page.getByRole('dialog');
-  await expect(dialog.getByText('Principal: Principal')).toHaveCount(2);
+  await expect(dialog.getByText('· Principal',{exact:true})).toHaveCount(2);
   await dialog.getByRole('searchbox').fill('Segunda');await dialog.getByRole('checkbox',{name:'SEG · Segunda obra',exact:true}).check();
   await dialog.getByRole('searchbox').fill('Oficina');await dialog.getByRole('checkbox',{name:'ADM · Oficina central',exact:true}).check();
   await expect(dialog.getByText(/2 centros seleccionados/)).toBeVisible();
@@ -18,16 +18,16 @@ test('personnel filters include secondary centers without replacing principal; r
   await page.getByLabel('Filtrar personal por obra').selectOption('Obra B');
   await expect(page.getByLabel('Seleccionar Ana Rojas',{exact:true})).toBeVisible();
   await expect(page.getByLabel('Seleccionar José Álvarez',{exact:true})).toHaveCount(0);
-  await page.getByRole('button',{name:'Centros de gestión',exact:true}).click();
-  await expect(page.getByRole('dialog')).toContainText('Principal: Obra A');
+  await page.getByRole('button',{name:'Asignaciones',exact:true}).click();
+  await expect(page.getByRole('dialog')).toContainText('Obra A· Principal');
   await page.getByRole('checkbox',{name:'OF · Oficina',exact:true}).check();
   await page.getByRole('button',{name:'Agregar 1 centros',exact:true}).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.getByText('OF · Oficina',{exact:true})).toBeVisible();
+  await expect(page.getByRole('cell',{name:/OF · Oficina/})).toBeVisible();
   expect(await page.evaluate(()=>window.workers.find(w=>w.id===3).obra_nombre)).toBe('Obra A');
   await page.goto('/e2e/fixtures/worker-bulk-assignment.html?multi&readonly');
   await page.getByRole('button',{name:/Máster Personal Personal Empresa/}).click();
-  await expect(page.getByRole('button',{name:'Centros de gestión',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Asignaciones',exact:true})).toHaveCount(0);
 });
 test('a secondary work member and a principal member appear once in manual attendance',async({page})=>{
   await page.goto('/e2e/fixtures/project-profile.html?centers');

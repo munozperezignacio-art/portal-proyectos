@@ -1,19 +1,19 @@
 import { test, expect } from '@playwright/test';
-test.beforeEach(async({page})=>{ await page.goto('/e2e/fixtures/equipment-assignments.html'); });
+test.beforeEach(async({page})=>{ await page.clock.setFixedTime(new Date('2026-10-21T15:00:00Z')); await page.goto('/e2e/fixtures/equipment-assignments.html'); });
 test('search, filters and selection work on desktop and mobile',async({page})=>{
  await expect(page.getByRole('heading',{name:'Asignación de equipos'})).toBeVisible();
- await expect(page.getByText('Disponible',{exact:true}).last()).toBeVisible();
+ await expect(page.getByText('Disponible',{exact:true}).filter({visible:true}).first()).toBeVisible();
  await page.getByLabel('Buscar equipos').fill('210X2');
  await expect(page.getByText('1 de 3 equipos')).toBeVisible();
  await page.getByLabel('Seleccionar equipos visibles').check();
  await page.getByRole('button',{name:'Asignar seleccionados (1)'}).click();
  const dialog=page.getByRole('dialog'); await expect(dialog).toBeVisible();
  await dialog.getByLabel('Destino').selectOption('Edificio Lonco');
- await dialog.getByLabel('Desde').fill('2026-10-15');
+ await dialog.getByLabel('Fecha efectiva del cambio / retiro *').fill('2026-10-15');
  await dialog.getByLabel('Hasta estimada').fill('2026-10-19');
  await dialog.getByRole('button',{name:'Confirmar asignación'}).click();
  await expect(dialog).not.toBeVisible();
- expect(await page.evaluate(()=>window.saved)).toEqual([{table:'inventario_maquinaria',payload:{obra_nombre:'Edificio Lonco',fecha_asig:'2026-10-15',fecha_hasta_estimada:'2026-10-19'},company:'TEST_ONLY',ids:[1]}]);
+ expect(await page.evaluate(()=>window.saved)).toEqual([{table:'inventario_maquinaria',payload:{fecha_cambio_asignacion:'2026-10-15',obra_nombre:'Edificio Lonco',fecha_asig:'2026-10-15',fecha_hasta_estimada:'2026-10-19'},company:'TEST_ONLY',ids:[1]}]);
  await page.getByLabel('Buscar equipos').fill('');
  await page.getByLabel('Filtrar estado operacional').selectOption('Mantención');
  await expect(page.getByText('1 de 3 equipos')).toBeVisible();
@@ -24,7 +24,7 @@ test('multiple assignment warns on reservation overlap and cancel preserves data
  await page.getByRole('button',{name:'Asignar seleccionados (3)'}).click();
  const dialog=page.getByRole('dialog');
  await dialog.getByLabel('Destino').selectOption('Edificio Lonco');
- await dialog.getByLabel('Desde').fill('2026-10-15');
+ await dialog.getByLabel('Fecha efectiva del cambio / retiro *').fill('2026-10-15');
  await dialog.getByLabel('Hasta estimada').fill('2026-10-20');
  await expect(dialog.getByRole('alert')).toContainText('EXC-01');
  page.once('dialog',async confirmation=>confirmation.dismiss());

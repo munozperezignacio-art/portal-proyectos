@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 test('la portada comunica la propuesta y permite llegar al acceso', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/landing');
   await expect(page.getByRole('heading', { level: 1 })).toContainText('La obra avanza');
   await expect(page.getByRole('img', { name: 'Obraxis', exact: true }).first()).toBeVisible();
   const desktopAccess = page.getByRole('button', { name: 'Iniciar sesión' });
@@ -13,7 +13,7 @@ test('la portada comunica la propuesta y permite llegar al acceso', async ({ pag
 });
 
 test('el formulario comercial conserva sus campos y validación nativa', async ({ page }) => {
-  await page.goto('/#contacto');
+  await page.goto('/landing#contacto');
   const submit = page.getByRole('button', { name: 'Solicitar cotización' });
   await expect(submit).toBeVisible();
   await submit.click();
@@ -26,7 +26,7 @@ test('el formulario comercial conserva sus campos y validación nativa', async (
 
 test('la portada móvil no genera desborde horizontal', async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.startsWith('mobile'), 'Control específico para viewport móvil');
-  await page.goto('/');
+  await page.goto('/landing');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
   await expect(page.getByRole('link', { name: 'Contáctanos' })).toBeVisible();
