@@ -1,3 +1,4 @@
+import { DateField } from '@/components/DateField';
 import { useTheme, useThemedStyles } from '@/theme/ThemeProvider';
 import type { ThemeColors } from '@/lib/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -78,7 +79,8 @@ function FieldInput({field,value,onChange}:{field:Field;value:any;onChange:(valu
   const s=useThemedStyles(createStyles);
 
   if(field.type==='textarea')return <TextInput placeholderTextColor={colors.muted} selectionColor={colors.blue} multiline value={value||''} onChangeText={onChange} placeholder="Escribe aquí…" style={[s.input,s.textarea]}/>;
-  if(['date','time','text','number'].includes(field.type))return <TextInput placeholderTextColor={colors.muted} selectionColor={colors.blue} value={value||''} onChangeText={onChange} keyboardType={field.type==='number'?'decimal-pad':'default'} placeholder={field.type==='date'?'DD-MM-AAAA':field.type==='time'?'HH:MM':'Escribe aquí…'} style={s.input}/>;
+  if(field.type==='date')return <DateField value={value||''} onChange={onChange} label={field.label||'Fecha'} displayFormat="dmy"/>;
+  if(['time','text','number'].includes(field.type))return <TextInput placeholderTextColor={colors.muted} selectionColor={colors.blue} value={value||''} onChangeText={onChange} keyboardType={field.type==='number'?'decimal-pad':'default'} placeholder={field.type==='date'?'DD-MM-AAAA':field.type==='time'?'HH:MM':'Escribe aquí…'} style={s.input}/>;
   if(['select','radio'].includes(field.type))return <View style={s.choices}>{(field.options||[]).map(option=><Choice key={option} active={value===option} label={option} onPress={()=>onChange(option)}/>)}</View>;
   if(field.type==='checkbox')return <View style={s.choices}>{(field.options?.length?field.options:['Sí']).map(option=>{const list=Array.isArray(value)?value:[];return <Choice key={option} active={list.includes(option)} label={option} square onPress={()=>onChange(list.includes(option)?list.filter(item=>item!==option):[...list,option])}/>})}</View>;
   if(field.type==='rating')return <View style={s.rating}>{Array.from({length:Number(field.maxRating)||5},(_,i)=>i+1).map(score=><Pressable key={score} onPress={()=>onChange(score)}><Ionicons name={Number(value)>=score?'star':'star-outline'} size={31} color={colors.orange}/></Pressable>)}</View>;

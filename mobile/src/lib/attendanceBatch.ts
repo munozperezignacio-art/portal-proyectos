@@ -11,6 +11,12 @@ export function buildManualAttendanceBatch(base: Row,workers: Row[],existing: Ro
     if(!rut || !worker.nombre?.trim())throw new Error('Todos los trabajadores del lote deben tener nombre y RUT.');
     if(seen.has(rut))throw new Error(`RUT repetido en la selección: ${worker.nombre}.`);seen.add(rut);
     if(existing.some(row=>normalizedAttendanceRut(row.rut_normalizado || row.rut)===rut || (!row.rut && !row.rut_normalizado && name(row.trabajador)===name(worker.nombre))))throw new Error(`${worker.nombre} ya tiene marcaje en esa obra y fecha. Desmárcalo o edita su registro existente.`);
-    return {...base,trabajador:worker.nombre.trim(),rut:worker.rut.trim(),rut_normalizado:rut,verificado_qr:false,firma_base64:null,latitud:null,longitud:null,distancia_obra_m:null};
+    return {...base,...('otras_horas' in base?{otras_horas:parseOtherAttendanceHours(base.otras_horas)}:{}),trabajador:worker.nombre.trim(),rut:worker.rut.trim(),rut_normalizado:rut,verificado_qr:false,firma_base64:null,latitud:null,longitud:null,distancia_obra_m:null};
   });
+}
+
+export function parseOtherAttendanceHours(value:unknown) {
+ const hours=value===''||value==null?0:Number(typeof value==='string'?value.trim().replace(',','.'):value);
+ if(!Number.isFinite(hours)||hours<0||hours>99999999.99||Math.abs(hours*100-Math.round(hours*100))>.000001)throw new Error('Otras horas debe ser un número positivo o cero, con hasta 2 decimales.');
+ return hours;
 }

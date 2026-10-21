@@ -1,0 +1,20 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { calendarCells,calendarMonth,validInputDate } from '@/lib/dateInput';
+import { localToday } from '@/lib/statisticsDashboard';
+import type { ThemeColors } from '@/lib/theme';
+import { useTheme,useThemedStyles } from '@/theme/ThemeProvider';
+
+export function DateField({value,onChange,disabled=false,label='Fecha',displayFormat='iso'}:{value:string;onChange:(date:string)=>void;disabled?:boolean;label?:string;displayFormat?:'iso'|'dmy'}) {
+  const {colors}=useTheme();const s=useThemedStyles(styles);
+  const [open,setOpen]=useState(false),[month,setMonth]=useState(()=>calendarMonth(value));
+  const iso=validInputDate(value)?value:/^\d{2}-\d{2}-\d{4}$/.test(value)?value.split('-').reverse().join('-'):'';
+  const choose=(date:string)=>{onChange(displayFormat==='dmy'?date.split('-').reverse().join('-'):date);setOpen(false);};
+  return <View style={s.root}><Pressable disabled={disabled} accessibilityRole="button" accessibilityLabel={`Seleccionar ${label.toLocaleLowerCase('es-CL')}`} accessibilityState={{expanded:open,disabled}} aria-expanded={open} onPress={()=>{setMonth(calendarMonth(iso));setOpen(v=>!v);}} style={s.field}><Ionicons name="calendar-outline" size={21} color={colors.blue}/><Text style={s.value}>{iso?iso.split('-').reverse().join('/'):'Seleccionar fecha'}</Text><Ionicons name={open?'chevron-up':'chevron-down'} size={17} color={colors.muted}/></Pressable>
+    {open&&<View style={s.calendar}><View style={s.top}><Pressable disabled={disabled} accessibilityRole="button" accessibilityLabel="Mes anterior" style={s.arrow} onPress={()=>setMonth(d=>new Date(d.getFullYear(),d.getMonth()-1,1,12))}><Ionicons name="chevron-back" size={20} color={colors.blue}/></Pressable><Text accessibilityLiveRegion="polite" style={s.heading}>{month.toLocaleDateString('es-CL',{month:'long',year:'numeric'})}</Text><Pressable disabled={disabled} accessibilityRole="button" accessibilityLabel="Mes siguiente" style={s.arrow} onPress={()=>setMonth(d=>new Date(d.getFullYear(),d.getMonth()+1,1,12))}><Ionicons name="chevron-forward" size={20} color={colors.blue}/></Pressable></View>
+      <View style={s.grid}>{['L','M','M','J','V','S','D'].map((day,i)=><Text key={`weekday-${i}`} style={s.weekday}>{day}</Text>)}{calendarCells(month).map((date,i)=>date?<Pressable disabled={disabled} key={date} accessibilityRole="button" accessibilityLabel={`Elegir ${date}`} accessibilityState={{selected:date===iso}} style={[s.day,date===iso&&s.selected]} onPress={()=>choose(date)}><Text style={[s.dayText,date===iso&&s.selectedText]}>{Number(date.slice(8))}</Text></Pressable>:<View key={`empty-${i}`} style={s.day}/>)}</View><Pressable disabled={disabled} accessibilityRole="button" style={s.today} onPress={()=>choose(localToday())}><Text style={s.todayText}>Hoy</Text></Pressable>
+    </View>}
+  </View>;
+}
+const styles=(c:ThemeColors)=>StyleSheet.create({root:{gap:8},field:{minHeight:48,borderWidth:1,borderColor:c.line,borderRadius:12,paddingHorizontal:13,paddingVertical:12,flexDirection:'row',alignItems:'center',gap:9,backgroundColor:c.surface},value:{flex:1,color:c.ink,fontSize:14},calendar:{borderWidth:1,borderColor:c.line,borderRadius:14,padding:10,backgroundColor:c.surface},top:{flexDirection:'row',alignItems:'center',gap:4},arrow:{width:38,height:40,alignItems:'center',justifyContent:'center'},heading:{flex:1,textAlign:'center',color:c.ink,fontSize:13,fontWeight:'600',textTransform:'capitalize'},grid:{flexDirection:'row',flexWrap:'wrap'},weekday:{width:'14.2857%',textAlign:'center',paddingVertical:8,fontSize:11,color:c.muted},day:{width:'14.2857%',height:38,alignItems:'center',justifyContent:'center',borderRadius:9},dayText:{fontSize:13,color:c.ink},selected:{backgroundColor:c.primary},selectedText:{color:c.onPrimary,fontWeight:'700'},today:{minHeight:40,alignItems:'center',justifyContent:'center'},todayText:{color:c.blue,fontWeight:'600',fontSize:13}});
