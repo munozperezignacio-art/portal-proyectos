@@ -1,12 +1,10 @@
+import { operationalDate } from './operationalDate';
 import { countChileanBusinessDays, productionMetrics } from './workStatistics';
 
 type Row = Record<string, any>;
 export type StatisticsPeriod = '7' | '30' | 'all';
 export const dateOnly = (value:unknown) => String(value || '').slice(0,10);
-export function localToday() {
-  const d=new Date();
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-}
+export const localToday = operationalDate;
 function moveDate(value:string,days:number) {
   const d=new Date(`${value}T12:00:00`);d.setDate(d.getDate()+days);
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;

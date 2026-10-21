@@ -1,3 +1,4 @@
+import { operationalDate } from '@/lib/operationalDate';
 import { useTheme, useThemedStyles } from '@/theme/ThemeProvider';
 import type { ThemeColors } from '@/lib/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,7 +12,7 @@ import { calculateScheduledAttendance, scheduleForDate, scheduledDayHours } from
 import type { Profile } from '@/lib/types';
 
 type Row = Record<string, any>;
-const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+const today = operationalDate;
 const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !isNaN(Date.parse(`${value}T12:00:00Z`)) && new Date(`${value}T12:00:00Z`).toISOString().slice(0, 10) === value;
 const states = [['PRESENTE', 'Presente'], ['AUSENTE', 'Ausente'], ['LICENCIA', 'Licencia médica'], ['VACACIONES', 'Vacaciones']];
 

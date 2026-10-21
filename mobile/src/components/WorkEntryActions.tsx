@@ -1,3 +1,4 @@
+import { operationalDate } from '@/lib/operationalDate';
 import { useTheme, useThemedStyles } from '@/theme/ThemeProvider';
 import type { ThemeColors } from '@/lib/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,7 +10,7 @@ import { insertResilient } from '@/lib/offlineQueue';
 
 import type { Profile } from '@/lib/types';
 type Row=Record<string,any>;
-const today=()=>new Date().toISOString().slice(0,10);
+const today = operationalDate;
 
 export function WorkEntryActions({mode,profile,workId,workName,parts=[],onSaved}:{mode:'progress'|'attendance';profile:Profile;workId:number;workName:string;parts?:Row[];onSaved:()=>void}){
   const {colors}=useTheme();

@@ -1,12 +1,13 @@
 import type { Session } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as LocalAuthentication from 'expo-local-authentication';
-import { createContext, PropsWithChildren, useContext, useEffect, useState } from 'react';
+import { createContext, PropsWithChildren, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/lib/types';
 import { unregisterMobileNotifications } from '@/lib/notifications';
+import { setPendingWriteOwner } from '@/lib/offlineQueue';
 
-type AuthValue = { session: Session | null; profile: Profile | null; loading: boolean; locked:boolean; biometricAvailable:boolean; biometricEnabled:boolean; biometricOfferPending:boolean; unlock:()=>Promise<boolean>; setBiometricEnabled:(enabled:boolean)=>Promise<boolean>; dismissBiometricOffer:()=>Promise<void>; signIn: (u:string,e:string,p:string)=>Promise<void>; signOut:()=>Promise<void> };
+type AuthValue = { session: Session | null; profile: Profile | null; loading: boolean; profileError: string | null; retryProfile: () => void; locked:boolean; biometricAvailable:boolean; biometricEnabled:boolean; biometricOfferPending:boolean; unlock:()=>Promise<boolean>; setBiometricEnabled:(enabled:boolean)=>Promise<boolean>; dismissBiometricOffer:()=>Promise<void>; signIn: (u:string,e:string,p:string)=>Promise<void>; signOut:()=>Promise<void> };
 const AuthContext = createContext<AuthValue | null>(null);
 const fields = 'id,usuario,empresa,rol,rol_base,obras,modulos,correo,submenus,nombre,cargo,auth_user_id,permisos';
 const BIOMETRIC_KEY = 'obraxis_biometric_enabled';
@@ -18,7 +19,8 @@ async function loadProfile(session: Session, company?: string) {
   const { data, error } = await query.maybeSingle();
   if (error) throw error;
   if (!data) throw new Error('Tu cuenta no tiene un perfil activo para esta empresa.');
-  const { data: role } = await supabase.from('roles').select('permisos').eq('empresa', data.empresa).eq('nombre', data.rol || data.rol_base || '').maybeSingle();
+  const { data: role, error: roleError } = await supabase.from('roles').select('permisos').eq('empresa', data.empresa).eq('nombre', data.rol || data.rol_base || '').maybeSingle();
+  if (roleError) throw roleError;
   return { ...data, permisos: { ...(role?.permisos || {}), ...(data.permisos || {}) } } as Profile;
 }
 
@@ -30,22 +32,106 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricEnabled, setBiometricEnabledState] = useState(false);
   const [biometricOfferPending, setBiometricOfferPending] = useState(false);
+  const [biometricReady, setBiometricReady] = useState(false);
+  const [biometricError, setBiometricError] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const generation = useRef(0);
+  const currentUser = useRef<string | null>(null);
+  const biometricPreference = useRef(false);
+  const company = useRef<string | undefined>(undefined);
+  const userId = session?.user.id;
+  const retryProfile = () => {
+    generation.current++;
+    setPendingWriteOwner(null);
+    setProfile(null);
+    setProfileError(null);
+    setLoading(true);
+    setBiometricReady(false);
+    setBiometricError(null);
+    setAttempt(value => value + 1);
+  };
   useEffect(() => {
     let active = true;
-    Promise.all([supabase.auth.getSession(), AsyncStorage.getItem(BIOMETRIC_KEY), AsyncStorage.getItem(BIOMETRIC_ASKED_KEY), LocalAuthentication.hasHardwareAsync(), LocalAuthentication.isEnrolledAsync()]).then(async ([{ data }, preference, asked, hardware, enrolled]) => {
+    let receivedAuthEvent = false;
+    const acceptSession = (next: Session | null) => {
+      if (!active) return;
+      if (currentUser.current !== (next?.user.id ?? null)) {
+        generation.current++;
+        setPendingWriteOwner(null);
+        setProfile(null);
+        setProfileError(null);
+        setLoading(Boolean(next));
+        if (next && biometricPreference.current) setLocked(true);
+      }
+      currentUser.current = next?.user.id ?? null;
+      setSession(next);
+      if (!next) setLoading(false);
+    };
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => {
+      receivedAuthEvent = true;
+      acceptSession(next);
+    });
+    void supabase.auth.getSession().then(({ data, error }) => {
+      if (!active || receivedAuthEvent) return;
+      if (error) throw error;
+      acceptSession(data.session);
+    }).catch(() => {
+      if (!active || receivedAuthEvent) return;
+      setProfileError('No se pudo recuperar tu sesión. Comprueba la conexión y reintenta.');
+      setLoading(false);
+    });
+    return () => {
+      active = false;
+      setPendingWriteOwner(null);
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+  useEffect(() => {
+    let active = true;
+    void Promise.all([AsyncStorage.getItem(BIOMETRIC_KEY), AsyncStorage.getItem(BIOMETRIC_ASKED_KEY), LocalAuthentication.hasHardwareAsync(), LocalAuthentication.isEnrolledAsync()]).then(([preference, asked, hardware, enrolled]) => {
       if (!active) return;
       const available = hardware && enrolled;
       const enabled = preference === 'true' && available;
+      biometricPreference.current = enabled;
       setBiometricAvailable(available); setBiometricEnabledState(enabled);
-      setSession(data.session);
-      if (data.session) try { setProfile(await loadProfile(data.session)); } catch { await supabase.auth.signOut(); }
-      if (data.session && enabled) setLocked(true);
-      setBiometricOfferPending(Boolean(data.session && available && asked !== 'true' && preference === null));
-      setLoading(false);
+      if (currentUser.current && enabled) setLocked(true);
+      setBiometricOfferPending(Boolean(currentUser.current && available && asked !== 'true' && preference === null));
+      setBiometricReady(true);
+    }).catch(() => {
+      if (active) { setBiometricError('No se pudo verificar la protección del dispositivo. Reintenta.'); setBiometricReady(true); }
     });
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => { setSession(next); if (!next) setProfile(null); });
-    return () => { active = false; listener.subscription.unsubscribe(); };
-  }, []);
+    return () => { active = false; };
+  }, [attempt]);
+  useEffect(() => {
+    let active = true;
+    const request = ++generation.current;
+    const valid = () => active && generation.current === request;
+    if (!userId && !attempt) return;
+    setPendingWriteOwner(null);
+    // Kept outside onAuthStateChange: profile queries can await the auth lock.
+    void (async () => {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      if (!valid()) return;
+      const next = data.session;
+      if (!next) { setSession(null); return; }
+      if (currentUser.current !== next.user.id) {
+        currentUser.current = next.user.id;
+        if (biometricPreference.current) setLocked(true);
+        setSession(next);
+        return;
+      }
+      const nextProfile = await loadProfile(next, company.current);
+      if (!valid()) return;
+      setProfile(nextProfile);
+      setPendingWriteOwner({ userId: next.user.id, company: nextProfile.empresa });
+    })().catch(() => {
+      if (valid()) setProfileError('No se pudo verificar tu perfil y permisos. Tu sesión se conserva; comprueba la conexión y reintenta.');
+    }).finally(() => { if (valid()) setLoading(false); });
+    return () => { active = false; };
+    // Token refreshes for the same user do not discard a verified profile.
+  }, [userId, attempt]);
   const unlock = async () => {
     if (!biometricEnabled) { setLocked(false); return true; }
     const result = await LocalAuthentication.authenticateAsync({ promptMessage: 'Acceder a Obraxis', cancelLabel: 'Cancelar', fallbackLabel: 'Usar clave del dispositivo', disableDeviceFallback: false });
@@ -61,6 +147,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     await AsyncStorage.setItem(BIOMETRIC_KEY, String(enabled));
     await AsyncStorage.setItem(BIOMETRIC_ASKED_KEY, 'true');
     setBiometricOfferPending(false);
+    biometricPreference.current = enabled;
     setBiometricEnabledState(enabled); setLocked(false);
     return true;
   };
@@ -71,15 +158,19 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const signIn = async (usuario:string, empresa:string, password:string) => {
     const { data, error } = await supabase.functions.invoke('login-usuario', { body: { usuario: usuario.trim(), empresa: empresa.trim(), password } });
     if (error || data?.error || !data?.access_token) throw new Error(data?.error || 'Usuario, empresa o contraseña incorrectos.');
+    company.current = empresa.trim();
+    generation.current++;
+    setPendingWriteOwner(null);
+    setProfile(null);
     const result = await supabase.auth.setSession({ access_token: data.access_token, refresh_token: data.refresh_token });
     if (result.error || !result.data.session) throw new Error('No fue posible iniciar la sesión segura.');
-    const nextProfile = await loadProfile(result.data.session, empresa);
-    setSession(result.data.session); setProfile(nextProfile);
+    setSession(result.data.session);
+    retryProfile();
     const [asked, preference, hardware, enrolled] = await Promise.all([AsyncStorage.getItem(BIOMETRIC_ASKED_KEY), AsyncStorage.getItem(BIOMETRIC_KEY), LocalAuthentication.hasHardwareAsync(), LocalAuthentication.isEnrolledAsync()]);
     setBiometricOfferPending(Boolean(hardware && enrolled && asked !== 'true' && preference === null));
   };
-  const signOut = async () => { if (profile) await unregisterMobileNotifications(profile.id).catch(() => undefined); await supabase.auth.signOut(); setSession(null); setProfile(null); setLocked(false); };
-  const value = { session, profile, loading, locked, biometricAvailable, biometricEnabled, biometricOfferPending, unlock, setBiometricEnabled, dismissBiometricOffer, signIn, signOut };
+  const signOut = async () => { generation.current++; setPendingWriteOwner(null); company.current = undefined; if (profile) await unregisterMobileNotifications(profile.id).catch(() => undefined); await supabase.auth.signOut(); setSession(null); setProfile(null); setProfileError(null); setLocked(false); };
+  const value = { session, profile, loading: loading || !biometricReady, profileError: biometricError || profileError, retryProfile, locked, biometricAvailable, biometricEnabled, biometricOfferPending, unlock, setBiometricEnabled, dismissBiometricOffer, signIn, signOut };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 export const useAuth = () => { const value = useContext(AuthContext); if (!value) throw new Error('AuthProvider no disponible'); return value; };

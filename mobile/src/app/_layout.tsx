@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { OfflineSync } from '@/components/OfflineSync';
 import { NotificationSetup } from '@/components/NotificationSetup';
 import { AuthProvider, useAuth } from '@/auth/AuthProvider';
+import { SessionGate } from '@/components/SessionGate';
 import { BiometricGate } from '@/components/BiometricGate';
 import { ThemeProvider, useTheme } from '@/theme/ThemeProvider';
 
@@ -25,5 +26,5 @@ function AppShell() {
     const base=mode==='dark'?DarkTheme:DefaultTheme;
     return {...base,colors:{...base.colors,background:colors.soft,card:colors.surface,text:colors.ink,border:colors.line,primary:colors.blue,notification:colors.red}};
   },[mode,colors]);
-  return <NavigationThemeProvider value={navigationTheme}><BiometricGate><OfflineSync/><NotificationSetup/><StatusBar style={mode==='dark'?'light':'dark'}/><Stack screenOptions={{headerShown:false,contentStyle:{backgroundColor:colors.soft}}}/></BiometricGate>{!ready&&<View style={[StyleSheet.absoluteFill,{backgroundColor:colors.soft,alignItems:"center",justifyContent:"center"}]}><ActivityIndicator color={colors.blue}/></View>}</NavigationThemeProvider>;
+  return <NavigationThemeProvider value={navigationTheme}><SessionGate><BiometricGate><OfflineSync/><NotificationSetup/><StatusBar style={mode==='dark'?'light':'dark'}/><Stack screenOptions={{headerShown:false,contentStyle:{backgroundColor:colors.soft}}}/></BiometricGate></SessionGate>{!ready&&<View style={[StyleSheet.absoluteFill,{backgroundColor:colors.soft,alignItems:"center",justifyContent:"center"}]}><ActivityIndicator color={colors.blue}/></View>}</NavigationThemeProvider>;
 }

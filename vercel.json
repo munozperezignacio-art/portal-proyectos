@@ -26,5 +26,10 @@
       "source": "/:path*",
       "destination": "/index.html"
     }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "fix/native-offline-sessions": false
+    }
+  }
 }
