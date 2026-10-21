@@ -2,16 +2,17 @@
   "schema": 1,
   "platform": "android",
   "packageName": "cl.obraxis.terreno",
-  "version": "1.0.8",
-  "build": 13,
-  "apkUrl": "https://expo.dev/artifacts/eas/ZX_4HG7dNiYOCWCkFnLuOiV0Vcp7pRxs9K2VtYOhqeo.apk",
-  "sha256": "8199e40ee3d8ba4d25afca9c717b8b0097896c507aeefb4cfb2c6a5409355587",
-  "commit": "418f15a7a2ac398901339a343fc3b9cf9e245abd",
-  "sourceHash": "894f4ba20ef5acaceb359d60cc13e6a6cb965f90fea01d74f5429935da04ff72",
-  "publishedAt": "2026-10-21T17:46:32.578Z",
+  "version": "1.0.9",
+  "build": 15,
+  "apkUrl": "https://expo.dev/artifacts/eas/I4t2WD60xrLra8jOhpJXsDif6q2F2qNQjX2nwKWzrVE.apk",
+  "sha256": "89b4e2ed9b7f49a0e1a9f812756e48cd788cd5fc68953d8a7726c13e70971e0d",
+  "commit": "ad70e6f8353e6839e305eab7a787f8bb1a5c63b7",
+  "sourceHash": "c23acb39a72b9c50fdb8f5ec6661e39df5020bd2165680c8f3f2c0048478c0f9",
+  "publishedAt": "2026-10-21T19:43:25.992Z",
   "notes": [
-    "Asistencia: incluye personal asignado directamente y por centro de gestión, según la fecha seleccionada.",
-    "Campo manual Otras horas, independiente de las horas extra.",
-    "Calendario desplegable para seleccionar fechas en asistencia, avances, maquinaria y formularios."
+    "Descarga de actualizaciones dentro de Obraxis, con progreso, cancelación y recuperación al volver a la app.",
+    "Instalación desde la app, con confirmación de Android y verificación de integridad del archivo.",
+    "Incluye asistencia por personal asignado, Otras horas, calendarios y mejoras de estadísticas.",
+    "Conserva modo oscuro, reportes por partida y manual de armado Impact."
   ]
 }
