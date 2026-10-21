@@ -2,16 +2,16 @@
   "schema": 1,
   "platform": "android",
   "packageName": "cl.obraxis.terreno",
-  "version": "1.0.7",
-  "build": 12,
-  "apkUrl": "https://expo.dev/artifacts/eas/nngvsdQ7lK8wBzRTDMtyMlFfxGdrngTjxXsyYnJ1nwQ.apk",
-  "sha256": "dfbbafcaa5687b2e0ffbde0b4289f8a863208e9b342a724c2fc5cd89fc3f4287",
-  "commit": "890d950eb578ae41e20010f2d6a13a85d4e793c4",
-  "sourceHash": "d77c37d22a4a1fb29fd463633ac33e92acdae526897861f42e6bf129aaacd89c",
-  "publishedAt": "2026-10-19T18:22:36.441Z",
+  "version": "1.0.8",
+  "build": 13,
+  "apkUrl": "https://expo.dev/artifacts/eas/ZX_4HG7dNiYOCWCkFnLuOiV0Vcp7pRxs9K2VtYOhqeo.apk",
+  "sha256": "8199e40ee3d8ba4d25afca9c717b8b0097896c507aeefb4cfb2c6a5409355587",
+  "commit": "418f15a7a2ac398901339a343fc3b9cf9e245abd",
+  "sourceHash": "894f4ba20ef5acaceb359d60cc13e6a6cb965f90fea01d74f5429935da04ff72",
+  "publishedAt": "2026-10-21T17:46:32.578Z",
   "notes": [
-    "Consulta los reportes de avance al tocar cada partida: fecha, cantidad, responsable y observaciones.",
-    "Chequeo automático de nuevas versiones y recomendación para actualizar desde la app.",
-    "Se mantienen los temas, las estadísticas renovadas y las mejoras de asistencia."
+    "Asistencia: incluye personal asignado directamente y por centro de gestión, según la fecha seleccionada.",
+    "Campo manual Otras horas, independiente de las horas extra.",
+    "Calendario desplegable para seleccionar fechas en asistencia, avances, maquinaria y formularios."
   ]
 }
