@@ -1,0 +1,7 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module">
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import TargetDateProjection from '../../src/components/TargetDateProjection.jsx';
+import '../../src/index.css';
+createRoot(document.getElementById('root')).render(React.createElement(TargetDateProjection,{parts:[{id:1,partida:'Pilotes',unidad:'UND',quantity:100,unitPrice:10000,start:'2026-10-01',finish:'2026-10-30'}],reports:[{partida_id:1,fecha:'2026-10-09',cantidad:20}],cutoff:'2026-10-09',baselineFinish:'2026-10-30',actualCost:200000,machineryActual:50000,costBudget:0,futureCostThrough:'2026-12-31',futureCosts:[{fecha:'2026-10-12',monto:200000},{fecha:'2026-10-13',monto:300000,categoria_proyeccion:'Uso diario de maquinaria'}]}));
+</script></body></html>

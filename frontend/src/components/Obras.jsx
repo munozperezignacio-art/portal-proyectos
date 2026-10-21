@@ -5230,7 +5230,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         futureCosts={isGlobalStats?[...costosList.filter(c=>costDate(c)>fCorteStr).map(c=>({...c,fecha:costDate(c)})),...machineryCharges.filter(c=>c.fecha>fCorteStr).map(c=>({...c,categoria_proyeccion:'Uso diario de maquinaria'}))]:[]}
                         machineryActual={isGlobalStats?dailyMachineryCharges.reduce((s,c)=>s+(Number(c.monto)||0),0):0}
                         futureCostThrough={`${new Date().getFullYear()+3}-12-31`}
-                        productionParts={targetPartidas.map(p => ({ ...p,quantity:Number(p.cantidad ?? p.cantidad_presupuestada)||0,start:getPartidaScheduledStart(p),finish:partidaExecutiveStats.find(item=>item.partida===p.partida)?.scheduledFinish || '',actualCost:getCostoImputadoPartida(p.partida) }))}
+                        productionParts={targetPartidas.map(p => ({ ...p,unitPrice:partidasCostos[p.partida] !== undefined ? Number(partidasCostos[p.partida]) : Number(p.pu)||0,quantity:Number(p.cantidad ?? p.cantidad_presupuestada)||0,start:getPartidaScheduledStart(p),finish:partidaExecutiveStats.find(item=>item.partida===p.partida)?.scheduledFinish || '',actualCost:getCostoImputadoPartida(p.partida) }))}
                         criticalItems={criticalPartidas}
                         incidents={filteredAccidentes}
                         equipment={equipmentAvailability}

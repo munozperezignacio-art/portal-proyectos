@@ -21,3 +21,22 @@ test('complete target has EAC equal to target-date cost; future reports cannot c
 test('bad dates and negative or empty percentages are rejected',()=>{
  assert.throws(()=>targetProjection({...input,date:'2026-02-30'}));assert.throws(()=>targetProjection({...input,date:'2036-10-16'}));assert.throws(()=>targetProjection({...input,targets:{1:''}}));assert.throws(()=>targetProjection({...input,extraCost:-1}));
 });
+const commercial={...input,parts:input.parts.map(p=>({...p,unitPrice:10})),budgets:{},targets:{1:100},coverage:false};
+test('full sale, cost and margin work without cost budget or confirmation',()=>{
+ const r=targetProjection(commercial);
+ assert.equal(r.targetSale,1000);assert.equal(r.ac,500);assert.equal(r.profit,500);assert.equal(r.margin,50);assert.equal(r.salePercent,100);assert.equal(r.cpi,null);assert.equal(r.ev,null);
+ const partial=targetProjection({...commercial,targets:{1:60}});assert.equal(partial.targetSale,600);assert.equal(partial.saleSpi,1.2);
+});
+test('non-machinery residual estimate offsets registered forecasts without double charging',()=>{
+ const r=targetProjection({...commercial,estimateRemaining:true,machineryActual:50,futureCosts:[{fecha:'2026-10-12',monto:200},{fecha:'2026-10-13',monto:300,categoria_proyeccion:'Uso diario de maquinaria'}]});
+ // Other actual 150 / 20% * 80% = 600; 200 already registered; residual 400.
+ assert.equal(r.residualEstimate,400);assert.equal(r.ac,1200);assert.equal(r.profit,-200);assert.equal(r.margin,-20);
+ assert.equal(targetProjection({...commercial,estimateRemaining:true,machineryActual:200}).residualEstimate,0);
+});
+test('no invented sale, no margin with cost errors, no NaN totals',()=>{
+ assert.equal(targetProjection({...commercial,parts:input.parts}).targetSale,null);
+ assert.equal(targetProjection({...commercial,costError:'failed'}).profit,null);
+ assert.equal(targetProjection({...commercial,futureCosts:[{fecha:'2026-10-12',monto:'bad'}]}).ac,null);
+ assert.equal(targetProjection({...commercial,actualCost:NaN}).ac,null);
+ const noHistory=targetProjection({...commercial,reports:[],estimateRemaining:true});assert.equal(noHistory.estimateAvailable,false);assert.equal(noHistory.residualEstimate,0);
+});
