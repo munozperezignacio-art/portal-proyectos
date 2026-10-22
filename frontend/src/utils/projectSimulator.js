@@ -114,7 +114,7 @@ export function simulateProject({cutoff,start,end,deadline,weekdays=[1,2,3,4,5],
     const item=baselineTotals.get(key)||{id:`base-${baselineTotals.size}`,name:charge.name,total:0};charge.resourceId=item.id;item.total+=charge.amount;baselineTotals.set(key,item);
     if(row.categoria_proyeccion!=='Uso diario de maquinaria')registeredOther+=charge.amount;
   }
-  const estimate=Math.max(0,Math.round(Number(remainingOtherCost)||0)-registeredOther);
+  const estimate=Math.max(0,Math.round(Number(remainingOtherCost)||0)-registeredOther-resourceStates.filter(r=>r.fromProjection).reduce((s,r)=>s+r.total,0));
   const estimateDays=days.filter(d=>d.working&&d.date<=(finish||end));
   if(estimate&&!estimateDays.length)throw new Error('Hay costos pendientes por proyectar, pero no hay jornadas laborables en el horizonte. Revisa el calendario; no se considera costo cero.');
   if(estimate&&estimateDays.length){

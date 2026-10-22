@@ -2,6 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { forecastModel } from './forecastModel.js';
 const input={cutoff:'2026-10-15',baselineFinish:'2026-11-10',actualProgress:25,plannedProgress:40,actualCost:200000,costBudget:1000000,holidays:['2026-11-02']};
+
+test('connecting partida forecasts does not discard the remaining personnel estimate',()=>{
+ const m=forecastModel({...input,futureCosts:[{fecha:'2026-10-16',monto:20000,categoria_proyeccion:'Costos proyectados de partidas'}]});
+ assert.equal(m.baseCost,800000);assert.equal(m.cashflow.reduce((s,c)=>s+c.amount,0),600000);
+});
 test('plazo cubre producción real pendiente y no solamente la programada',()=>{
  const r=forecastModel({...input,cutoff:'2026-10-19',baselineFinish:'2026-10-30',holidays:[],actualProgress:25,plannedProgress:50});
  assert.equal(r.duration,27); // 9 jornadas * 75% / 50% / SPI 0,5

@@ -20,6 +20,8 @@ import NotificationMaster from './NotificationMaster';
 import { can } from '../utils/permissionsCatalog';
 import MachineryEquipmentDetailModal from './MachineryEquipmentDetailModal';
 import { matchesWorkReport, reportedProgress, dailyTimeRate } from '../utils/workReportCalculations';
+import ProjectedCostsList from './ProjectedCostsList';
+import {loadProjectedCosts,saveProjectedCosts,deleteProjectedCost} from '../utils/projectedCostsStore';
 import {workEmailRecipients,workEmailSetting,workEmailBatches} from '../utils/workEmailRouting';
 import {sendWorkRecordNotification} from '../utils/workRecordNotifications';
 import { calendarTimeline } from '../utils/sCurveTimeline';
@@ -480,6 +482,22 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const [costosList, setCostosList] = useState([]);
   const [costosSubTab, setCostosSubTab] = useState('reales'); // 'reales' | 'proyectados'
   const [proyeccionesList, setProyeccionesList] = useState([]);
+  const [proyeccionesError,setProyeccionesError]=useState('');
+  const [proyeccionesBusy,setProyeccionesBusy]=useState(false);
+  const projectedSaving=useRef(false);
+  useEffect(()=>{
+    let active=true;setProyeccionesList([]);
+    if(!selectedObra?.id)return;
+    setProyeccionesError('Cargando costos proyectados');
+    loadProjectedCosts(supabase,selectedObra.empresa||user.empresa,selectedObra.id).then(rows=>{if(active){setProyeccionesList(rows);setProyeccionesError('');}}).catch(e=>{if(active)setProyeccionesError('No se pudieron cargar los costos proyectados: '+e.message);});
+    return ()=>{active=false;};
+  },[selectedObra?.id,selectedObra?.empresa,user.empresa]);
+  const removeProjectedCost=async item=>{
+    if(projectedSaving.current||!confirm(`¿Eliminar el costo proyectado "${item.nombre_item}"?`))return;
+    projectedSaving.current=true;setProyeccionesBusy(true);
+    try{await deleteProjectedCost(supabase,selectedObra.empresa||user.empresa,selectedObra.id,item.id);setProyeccionesList(prev=>prev.filter(c=>c.id!==item.id));setProyeccionesError('');}
+    catch(e){setProyeccionesError(e.message);}finally{projectedSaving.current=false;setProyeccionesBusy(false);}
+  };
   const [, setProyeccionesRrhhList] = useState([]);
   const [liquidacionesList, setLiquidacionesList] = useState([]);
   const [laborCostError, setLaborCostError] = useState('');
@@ -5216,7 +5234,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         bac={BAC}
                         costBudget={costBudget}
                         actualCost={AC}
-                        costError={laborCostError||machineryChargeError||(dailyMachineryCharges.some(c=>c.monto==null)?'Faltan tarifas diarias de maquinaria':'')}
+                        projectedCosts={proyeccionesList}
+                        costError={proyeccionesError||laborCostError||machineryChargeError||(dailyMachineryCharges.some(c=>c.monto==null)?'Faltan tarifas diarias de maquinaria':'')}
                         holidays={CHILEAN_HOLIDAYS}
                         canConfigure={can(user,userPermissions,'obras.gestion.configurar')}
                         onBudgetSaved={value => setSelectedObra(prev => ({ ...prev,presupuesto_costo_control:value }))}
@@ -7439,6 +7458,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   </div>
 
                   {/* TABLA COMPARATIVA PROYECTADA POR PARTIDAS */}
+                  <ProjectedCostsList items={proyeccionesList} error={proyeccionesError} busy={proyeccionesBusy} onEdit={item=>{setProyeccionFormData(item);setShowProyeccionModal(true);}} onDelete={removeProjectedCost}/>
                   <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
                     <div className="p-3.5 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                       <h4 className="font-extrabold text-slate-800 text-xs flex items-center gap-2">
@@ -7699,13 +7719,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                                             ✏️ Editar
                                                           </button>
                                                           <button
-                                                            onClick={() => {
-                                                              if (confirm(`¿Eliminar el gasto "${item.nombre_item || 'Gasto'}"?`)) {
-                                                                setProyeccionesList(prev => {
-                                                                  return prev.filter(x => x.id !== item.id);
-                                                                });
-                                                              }
-                                                            }}
+                                                            onClick={() => removeProjectedCost(item)}
                                                             className="text-[10px] bg-rose-100 hover:bg-rose-700 hover:text-white text-rose-800 px-2 py-0.5 rounded font-bold transition cursor-pointer"
                                                           >
                                                             🗑️ Eliminar
@@ -10868,21 +10882,19 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
             </div>
 
             <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                setProyeccionesList(prev => {
-                  const itemId = proyeccionFormData.id || ('proj-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6));
-                  if (proyeccionFormData.partida === '__todas__') {
-                    return [...prev, ...partidasList.filter(p => !p.es_titulo && !['TITULO', 'GRUPO'].includes(p.unidad)).map((p, index) => ({ ...proyeccionFormData, partida: p.partida, id: `${itemId}-${index}` }))];
-                  }
-                  const newItem = { ...proyeccionFormData, id: itemId };
-                  const exists = prev.some(x => x.id === itemId);
-                  return exists ? prev.map(x => x.id === itemId ? newItem : x) : [...prev, newItem];
-                });
-                setShowProyeccionModal(false);
+              onSubmit={async(e) => {
+                e.preventDefault();if(projectedSaving.current)return;
+                projectedSaving.current=true;setProyeccionesBusy(true);
+                try{
+                  const saved=await saveProjectedCosts(supabase,selectedObra.empresa||user.empresa,selectedObra.id,proyeccionFormData,partidasList);
+                  setProyeccionesList(prev=>[...prev.filter(c=>!saved.some(s=>s.id===c.id)),...saved]);
+                  setProyeccionesError('');setShowProyeccionModal(false);
+                }catch(error){setProyeccionesError(error.message);}finally{projectedSaving.current=false;setProyeccionesBusy(false);}
               }}
               className="space-y-4 text-xs"
             >
+              {proyeccionesError&&<p role="alert" className="rounded-lg bg-rose-50 p-3 text-rose-800">{proyeccionesError}</p>}
+              {proyeccionesBusy&&<p role="status">Guardando costo proyectado…</p>}
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Partida a Configurar</label>
                 <select

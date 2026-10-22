@@ -3,12 +3,13 @@ import {addSimulationDays,seedSimulationParts,simulateProject,simulationDate,sim
 import {simulationResourceTemplates} from '../utils/simulationResources';
 import SimulationAnalysis from './SimulationAnalysis';
 import {targetProjection} from '../utils/targetProjection';
+import {projectedCostResources} from '../utils/projectedWorkCosts';
 const money=value=>value==null?'N/D':new Intl.NumberFormat('es-CL',{style:'currency',currency:'CLP',maximumFractionDigits:0}).format(value);
 const num=value=>value==null?'N/D':Number(value).toLocaleString('es-CL',{maximumFractionDigits:3});
 const inputClass='mt-1 block w-full min-w-0 rounded-lg border border-slate-200 bg-white p-2 text-xs text-slate-900';
 const weekdaysNames=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
 
-export default function ProjectCompletionSimulator({cutoff,baselineFinish,actualCost,costError,costBudget,holidays=[],productionParts=[],advances=[],costs=[],equipment=[],futureCosts=[],machineryActual=0,useWorkBaseline=false,scopeLabel='Obra completa'}){
+export default function ProjectCompletionSimulator({cutoff,baselineFinish,actualCost,costError,costBudget,holidays=[],productionParts=[],advances=[],costs=[],equipment=[],futureCosts=[],projectedCosts=null,machineryActual=0,useWorkBaseline=false,scopeLabel='Obra completa'}){
   const from=addSimulationDays(cutoff,1);
   const goal=simulationDate(baselineFinish);
   const [start,setStart]=useState(from);
@@ -18,6 +19,7 @@ export default function ProjectCompletionSimulator({cutoff,baselineFinish,actual
   const [calendar,setCalendar]=useState({});
   const [parts,setParts]=useState(()=>seedSimulationParts(productionParts,advances,cutoff,goal,holidays));
   const [resources,setResources]=useState([]);
+  const combinedResources=useMemo(()=>[...(projectedCosts==null?[]:projectedCostResources(projectedCosts,parts,start)),...resources],[projectedCosts,parts,start,resources]);
   const [tab,setTab]=useState('plan');
   const [month,setMonth]=useState(from.slice(0,7));
   const [calendarPart,setCalendarPart]=useState(()=>String(productionParts.find(p=>!p.es_titulo&&!['TITULO','GRUPO'].includes(p.unidad))?.id??productionParts.find(p=>!p.es_titulo)?.partida??''));
@@ -28,7 +30,7 @@ export default function ProjectCompletionSimulator({cutoff,baselineFinish,actual
     const estimate=targetProjection({parts:productionParts,reports:advances,cutoff,date:from,baselineFinish,actualCost,costError,machineryActual,estimateRemaining:true,holidays});
     return {baseCosts:futureCosts,historicalCosts:costs,remainingOtherCost:estimate.residualEstimate};
   },[useWorkBaseline,productionParts,advances,cutoff,from,baselineFinish,actualCost,costError,machineryActual,holidays,futureCosts,costs]);
-  const result=useMemo(()=>{try{return {model:simulateProject({cutoff,start,end,deadline,weekdays,holidays,calendar,parts,resources,actualCost,costError,...base})};}catch(error){return {error:error.message};}},[cutoff,start,end,deadline,weekdays,holidays,calendar,parts,resources,actualCost,costError,base]);
+  const result=useMemo(()=>{try{return {model:simulateProject({cutoff,start,end,deadline,weekdays,holidays,calendar,parts,resources:combinedResources,actualCost,costError,...base})};}catch(error){return {error:error.message};}},[cutoff,start,end,deadline,weekdays,holidays,calendar,parts,combinedResources,actualCost,costError,base]);
   const templates=useMemo(()=>simulationResourceTemplates(costs,equipment,cutoff),[costs,equipment,cutoff]);
   const updatePart=(id,field,value)=>setParts(current=>current.map(p=>p.id===id?{...p,[field]:value}:p));
   const updateResource=(id,field,value)=>setResources(current=>current.map(r=>r.id===id?{...r,[field]:value}:r));
@@ -66,7 +68,7 @@ export default function ProjectCompletionSimulator({cutoff,baselineFinish,actual
       {model.warnings.map(w=><p key={w} className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">{w}</p>)}{costError&&<p className="rounded-lg bg-rose-50 p-3 text-xs text-rose-800">Los costos reales no están disponibles. Se calcula solo el gasto futuro seleccionado, sin costo final consolidado.</p>}
       <div className="overflow-auto"><table className="w-full min-w-[650px] text-left text-xs"><thead className="bg-slate-100"><tr>{['Partida','Término simulado','Pendiente al horizonte','Meta diaria uniforme para el objetivo'].map(t=><th key={t} className="p-3">{t}</th>)}</tr></thead><tbody>{model.parts.map(p=><tr key={p.id} className="border-b"><td className="p-3 font-bold">{p.name}</td><td className="p-3">{p.finish||'No alcanza'}</td><td className="p-3">{num(p.remaining)} {p.unit}</td><td className="p-3">{p.initialRemaining===0?'Terminada':p.requiredPace==null?'Sin jornadas disponibles':`${num(p.requiredPace)} ${p.unit}/día · ${p.availableDays} jornadas`}</td></tr>)}</tbody></table></div>
       <p className="text-[11px] text-slate-500">La meta diaria reparte lo pendiente en las jornadas disponibles hasta el objetivo, respetando el inicio y el término simulado de las predecesoras. No es una capacidad garantizada y no descuenta tus rendimientos manuales futuros. Más equipos no aumentan automáticamente la producción: ajusta el rendimiento para representar ese supuesto. Los costos se redondean a pesos enteros por recurso y día.</p>
-      <SimulationAnalysis input={{cutoff,start,end,deadline,weekdays,holidays,calendar,parts,resources,actualCost,costError,...base}} costBudget={costBudget}/>
+      <SimulationAnalysis input={{cutoff,start,end,deadline,weekdays,holidays,calendar,parts,resources:combinedResources,actualCost,costError,...base}} costBudget={costBudget}/>
       <div className="grid gap-3 md:grid-cols-2"><div className="rounded-xl border p-3"><h5 className="text-xs font-black">Qué pesa más en el gasto futuro</h5>{model.resources.slice(0,5).map(r=><p key={r.id} className="mt-2 flex justify-between gap-2 text-xs"><span>{r.name}</span><b>{money(r.total)}</b></p>)}{!model.resources.length&&<p className="mt-2 text-xs text-slate-500">Agrega recursos para comparar gastos.</p>}</div><div className="rounded-xl border p-3"><h5 className="text-xs font-black">Costo futuro por mes (no flujo de pago)</h5><div className="max-h-48 overflow-auto">{model.months.map(m=><p key={m.month} className="mt-2 flex justify-between gap-2 text-xs"><span>{m.month}</span><b>{money(m.cost)}</b></p>)}</div></div></div>
     </div>}
   </section>;

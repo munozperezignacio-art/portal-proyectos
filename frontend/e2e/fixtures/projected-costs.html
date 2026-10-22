@@ -1,0 +1,7 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module">
+import React,{useState} from 'react';import{createRoot}from'react-dom/client';import '../../src/index.css';
+import ProjectedCostsList from '../../src/components/ProjectedCostsList.jsx';
+import ProjectCompletionSimulator from '../../src/components/ProjectCompletionSimulator.jsx';
+const initial=[{id:'one',partida:'Pilas',nombre_item:'Costo operativo diario',tipo_proyeccion:'TIEMPO',tarifa_tiempo_dia:20000},{id:'two',partida:'Pilas',nombre_item:'Arriendo mensual de oficina',tipo_proyeccion:'TIEMPO',tarifa_tiempo_dia:300000,periodicidad:'Mes'}];
+function App(){const[items,setItems]=useState(initial);return React.createElement('main',{style:{padding:12,maxWidth:1200,margin:'auto'}},React.createElement(ProjectedCostsList,{items,onEdit:c=>setItems(items.map(i=>i.id===c.id?{...i,tarifa_tiempo_dia:25000}:i)),onDelete:c=>setItems(items.filter(i=>i.id!==c.id))}),React.createElement(ProjectCompletionSimulator,{cutoff:'2026-10-19',baselineFinish:'2026-10-30',actualCost:0,projectedCosts:items,productionParts:[{id:1,partida:'Pilas',unidad:'UND',quantity:60,start:'2026-10-01',unitPrice:100}],advances:[{partida_id:1,fecha:'2026-10-19',cantidad:10}]}));}createRoot(document.getElementById('root')).render(React.createElement(App));
+</script></body></html>

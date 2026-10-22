@@ -1,0 +1,21 @@
+import {test,expect} from '@playwright/test';
+test('created costs are readable, searchable and update daily projection when edited',async({page},testInfo)=>{
+ await page.goto('/e2e/fixtures/projected-costs.html');
+ const list=page.getByRole('region',{name:'Costos proyectados creados'});
+ await expect(list.getByRole('article')).toHaveCount(2);
+ await list.getByRole('searchbox').fill('operativo');
+ await expect(list.getByRole('article')).toHaveCount(1);
+ await expect(list).toContainText('$20.000');
+ await page.getByRole('spinbutton',{name:'Rendimiento Pilas',exact:true}).fill('10');
+ const calendar=page.getByRole('region',{name:'Calendario de costos del simulador'});
+ await calendar.getByRole('button',{name:/^Costos 2026-10-20:/}).click();
+ const detail=calendar.getByRole('region',{name:'Resumen de costos del día'});
+ await expect(detail.getByRole('heading')).toContainText('$30.000');
+ await list.getByRole('button',{name:'Editar',exact:true}).click();
+ await expect(detail.getByRole('heading')).toContainText('$35.000');
+ await list.getByRole('button',{name:'Eliminar',exact:true}).click();
+ await expect(detail.getByRole('heading')).toContainText('$10.000');
+ await list.getByRole('searchbox').fill('');
+ await list.screenshot({path:testInfo.outputPath('projected-cost-cards.png')});
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+});

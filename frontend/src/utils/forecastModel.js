@@ -28,7 +28,10 @@ export function forecastModel({ cutoff, baselineFinish, actualProgress, plannedP
     const machines=future.filter(c=>c.categoria_proyeccion==='Uso diario de maquinaria');
     const other=future.filter(c=>c.categoria_proyeccion!=='Uso diario de maquinaria');
     const otherActual=Math.max(0,actualCost-machineryActual);
-    const remainingOther=other.length?other.reduce((s,c)=>s+(Number(c.monto)||0),0):progress>0?otherActual*(1-progress)/progress:null;
+    const registeredOther=other.reduce((s,c)=>s+(Number(c.monto)||0),0);
+    const extrapolatedOther=progress>0?otherActual*(1-progress)/progress:null;
+    // A newly connected partida tariff is not proof that all future payroll is covered.
+    const remainingOther=other.some(c=>c.categoria_proyeccion==='Costos proyectados de partidas')?Math.max(registeredOther,extrapolatedOther||0):other.length?registeredOther:extrapolatedOther;
     baseCost=remainingOther!=null&&!machines.some(c=>c.monto==null)?Math.round(actualCost+remainingOther+machines.reduce((s,c)=>s+(Number(c.monto)||0),0)):null;
   }
   if(futureCostThrough&&finish>futureCostThrough)baseCost=null;

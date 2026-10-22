@@ -6,6 +6,7 @@ import ProductionAdvice from './ProductionAdvice';
 import {costTotals,costStateLabel} from '../utils/costControl';
 import ProjectCompletionSimulator from './ProjectCompletionSimulator';
 import TargetDateProjection from './TargetDateProjection';
+import {scheduledProjectedCosts} from '../utils/projectedWorkCosts';
 
 const DAY = 86400000;
 const number = value => Number(value || 0);
@@ -13,7 +14,8 @@ const money = value => new Intl.NumberFormat('es-CL', { style: 'currency', curre
 const dateKey = value => String(value || '').slice(0, 10);
 const validDate = value => { const date = new Date(`${dateKey(value)}T12:00:00`); return Number.isNaN(date.getTime()) ? null : date; };
 
-export default function PredictiveScenarioPanel({ obra, user, cutoff, baselineFinish, costBudget, actualCost, costError, holidays = [], canConfigure, onBudgetSaved, spi, cpi, actualProgress, plannedProgress, advances = [], costs = [], incidents = [], equipment = [], productionParts = [], simulationEquipment=[],futureCosts=[],machineryActual=0,futureCostThrough, scopeLabel='Obra completa' }) {
+export default function PredictiveScenarioPanel({ obra, user, cutoff, baselineFinish, costBudget, actualCost, costError, holidays = [], canConfigure, onBudgetSaved, spi, cpi, actualProgress, plannedProgress, advances = [], costs = [], incidents = [], equipment = [], productionParts = [], simulationEquipment=[],futureCosts:registeredFutureCosts=[],projectedCosts=null,machineryActual=0,futureCostThrough, scopeLabel='Obra completa' }) {
+  const futureCosts=useMemo(()=>[...registeredFutureCosts,...scheduledProjectedCosts({items:projectedCosts,parts:productionParts,cutoff,baselineFinish,holidays})],[registeredFutureCosts,projectedCosts,productionParts,cutoff,baselineFinish,holidays]);
   const [showSimulator,setShowSimulator]=useState(false);
   const [quality, setQuality] = useState([]);
   const [benchmark, setBenchmark] = useState([]);
@@ -83,7 +85,7 @@ export default function PredictiveScenarioPanel({ obra, user, cutoff, baselineFi
     <TargetDateProjection key={`${obra?.id}:${cutoff}:${scopeLabel}`} parts={productionParts} reports={advances} cutoff={cutoff} baselineFinish={dateKey(baselineFinish)} holidays={holidays} actualCost={actualCost} costError={costError} futureCosts={futureCosts} costBudget={costBudget} futureCostThrough={futureCostThrough} machineryActual={machineryActual}/>
     <div className="grid gap-3 sm:grid-cols-3">{Object.keys(costStateLabel).map(state=><Metric key={state} icon={CircleDollarSign} label={costStateLabel[state]} value={costError?'Carga incompleta':money(totals[state])}/>)}</div>
     <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-black text-indigo-950">Prueba tu propio escenario de término</h3><p className="mt-1 text-xs text-slate-600">Fechas, calendario, rendimientos, equipos y costos futuros editables.</p></div><button type="button" onClick={()=>setShowSimulator(current=>!current)} className="rounded-xl bg-indigo-900 px-4 py-3 text-xs font-bold text-white">{showSimulator?'Cerrar simulador (descartar escenario)':'Abrir simulador de término'}</button></div>
-    {showSimulator&&<ProjectCompletionSimulator key={JSON.stringify([obra?.id,user?.empresa,cutoff,actualCost,productionParts.map(p=>[p.id,p.partida,p.quantity]),advances.map(r=>[r.id,r.cantidad,r.fecha||r.fecha_avance||r.created_at])])} cutoff={cutoff} baselineFinish={baselineFinish} actualCost={actualCost} costError={costError} costBudget={costBudget} holidays={holidays} productionParts={productionParts} advances={advances} costs={costs} equipment={simulationEquipment} futureCosts={futureCosts} machineryActual={machineryActual} useWorkBaseline scopeLabel={scopeLabel}/>}
+    {showSimulator&&<ProjectCompletionSimulator key={JSON.stringify([obra?.id,user?.empresa,cutoff,actualCost,productionParts.map(p=>[p.id,p.partida,p.quantity]),advances.map(r=>[r.id,r.cantidad,r.fecha||r.fecha_avance||r.created_at])])} cutoff={cutoff} baselineFinish={baselineFinish} actualCost={actualCost} costError={costError} costBudget={costBudget} holidays={holidays} productionParts={productionParts} advances={advances} costs={costs} equipment={simulationEquipment} futureCosts={futureCosts.filter(c=>c.categoria_proyeccion!=='Costos proyectados de partidas')} projectedCosts={projectedCosts} machineryActual={machineryActual} useWorkBaseline scopeLabel={scopeLabel}/>}
     {model.calendarWarning && <p className="rounded-xl bg-amber-50 p-3 text-xs">{model.calendarWarning}</p>}
     {model.scheduleWarning && <p className="rounded-xl bg-amber-50 p-3 text-xs">{model.scheduleWarning}</p>}
     {model.finish && <p className="text-xs text-slate-500">Término global = último término de las partidas, calculadas con sus últimas cinco jornadas, cantidades pendientes, inicio programado y dependencias FS/SS. Las partidas futuras sin ejecución usan su rendimiento planificado, identificado por separado. El SPI es un indicador de atraso, no el motor de esta fecha.</p>}
