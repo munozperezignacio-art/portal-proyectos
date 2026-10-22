@@ -68,7 +68,7 @@ export function simulateProject({cutoff,start,end,deadline,weekdays=[1,2,3,4,5],
       if(!p.finish&&p.remaining<1e-9){p.remaining=0;p.finish=date;}
     }
     if(!finish&&states.every(p=>p.finish))finish=date;
-    let cost=0;
+    let cost=0;const charges=[];
     for(const r of resourceStates){
       const part=states.find(p=>p.id===r.partId);
       if(part&&!part.actualStart&&part.initialRemaining>0)continue;
@@ -87,8 +87,9 @@ export function simulateProject({cutoff,start,end,deadline,weekdays=[1,2,3,4,5],
       const amount=Math.round(units*r.rate*r.quantity);
       if(!Number.isFinite(amount)||!Number.isFinite(r.total+amount))throw new Error(`El costo de ${r.name} excede el rango numérico. Revisa tarifa y cantidad.`);
       r.total+=amount;cost+=amount;
+      if(units>0)charges.push({resourceId:r.id,name:r.name,source:r.source||'Costo manual',partName:part?.name||'Toda la obra',mode:r.mode,rate:r.rate,quantity:r.quantity,units,amount});
     }
-    days.push({date,working,production,cost});
+    days.push({date,working,production,cost,charges});
   }
   const resourceTotals=resourceStates.map(r=>({...r,total:Math.round(r.total)}));
   const futureCost=resourceTotals.reduce((s,r)=>s+r.total,0);

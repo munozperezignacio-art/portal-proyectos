@@ -4,6 +4,16 @@ import {simulateProject,seedSimulationParts,equipmentSimulationTemplate,simulati
 const part={id:'1',name:'Pilas',unit:'UND',remaining:50,pace:10,start:'2026-10-20'};
 const base={cutoff:'2026-10-19',start:'2026-10-20',end:'2026-11-30',deadline:'2026-10-30',weekdays:[1,2,3,4,5],parts:[part],actualCost:1000};
 const resource=(id,mode,rate=100,extra={})=>({id,name:id,mode,rate,quantity:1,start:'2026-10-20',end:'',untilFinish:true,...extra});
+test('daily cost breakdown reconciles all charging modes, resources and monthly totals',()=>{
+ const resources=['fixed','workday','calendar','hour','month22','month30','units'].map((mode,i)=>resource(mode,mode,101+i,{partId:mode==='units'?'1':'',quantity:2}));
+ const r=simulateProject({...base,resources});
+ for(const day of r.days)assert.equal(day.charges.reduce((s,c)=>s+c.amount,0),day.cost);
+ for(const item of r.resources)assert.equal(r.days.flatMap(d=>d.charges).filter(c=>c.resourceId===item.id).reduce((s,c)=>s+c.amount,0),item.total);
+ const saturday=r.days.find(d=>d.date==='2026-10-24');
+ assert.deepEqual(saturday.charges.map(c=>c.mode),['calendar','month30']);
+ assert.equal(r.days.find(d=>d.date==='2026-10-27').charges.length,0);
+ assert.equal(r.months.reduce((s,m)=>s+m.cost,0),r.days.reduce((s,d)=>s+d.cost,0));
+});
 test('fecha de término por producción pendiente y calendario; reales contados una sola vez',()=>{
   const r=simulateProject({...base,resources:[resource('Equipo','workday'),resource('Arriendo','calendar'),resource('Compra','fixed',500)]});
   assert.equal(r.finish,'2026-10-26');assert.equal(r.futureCost,1700);assert.equal(r.totalAtFinish,2700);
