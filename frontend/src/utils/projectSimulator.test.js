@@ -4,6 +4,26 @@ import {simulateProject,seedSimulationParts,equipmentSimulationTemplate,simulati
 const part={id:'1',name:'Pilas',unit:'UND',remaining:50,pace:10,start:'2026-10-20'};
 const base={cutoff:'2026-10-19',start:'2026-10-20',end:'2026-11-30',deadline:'2026-10-30',weekdays:[1,2,3,4,5],parts:[part],actualCost:1000};
 const resource=(id,mode,rate=100,extra={})=>({id,name:id,mode,rate,quantity:1,start:'2026-10-20',end:'',untilFinish:true,...extra});
+
+test('work baseline loads without manual selections, preserves ledger dates and reconciles history once',()=>{
+ const input={...base,historicalCosts:[{fecha:'2026-10-19',trabajador:'Personal',monto:1000}],remainingOtherCost:900,
+ baseCosts:[{fecha:'2026-10-20',monto:200,equipo_patente:'EXC-01',categoria_proyeccion:'Uso diario de maquinaria'},
+ {fecha:'2026-10-22',monto:200,equipo_patente:'EXC-01',categoria_proyeccion:'Uso diario de maquinaria'},
+ {fecha:'2026-10-21',monto:300,nombre:'Personal futuro',categoria_proyeccion:'Mano de obra'},
+ {fecha:'2026-10-27',monto:999,nombre:'Después del término'}]};
+ const r=simulateProject(input);
+ assert.equal(r.futureCost,1300);assert.equal(r.totalAtFinish,2300);
+ assert.equal(r.days.find(d=>d.date==='2026-10-19').cost,1000);
+ assert.equal(r.days.find(d=>d.date==='2026-10-21').charges.some(c=>c.name==='EXC-01'),false);
+ assert.equal(r.days.find(d=>d.date==='2026-10-24').cost,0);
+ assert.equal(r.days.find(d=>d.date==='2026-10-27').cost,0);
+ assert.equal(r.resources.find(r=>r.id==='base-estimate').total,600);
+ assert.equal(r.months.reduce((s,m)=>s+m.cost,0),r.futureCost);
+ assert.equal(r.calendarMonths.reduce((s,m)=>s+m.cost,0),2300);
+ for(const item of r.resources)assert.equal(r.days.filter(d=>!d.historical).flatMap(d=>d.charges).filter(c=>c.resourceId===item.id).reduce((s,c)=>s+c.amount,0),item.total);
+ assert.equal(simulateProject({...input,resources:[resource('Extra','fixed',50)]}).futureCost,1350);
+ assert.throws(()=>simulateProject({...input,baseCosts:[{fecha:'2026-10-20',monto:null}]}),/No se considera cero/);
+});
 test('daily cost breakdown reconciles all charging modes, resources and monthly totals',()=>{
  const resources=['fixed','workday','calendar','hour','month22','month30','units'].map((mode,i)=>resource(mode,mode,101+i,{partId:mode==='units'?'1':'',quantity:2}));
  const r=simulateProject({...base,resources});
@@ -42,7 +62,7 @@ test('horas, mensual/22, mensual/30 y recurso que permanece después del términ
 });
 test('costos reales no disponibles bloquean solo total consolidado; cobertura parcial advertida',()=>{
   const r=simulateProject({...base,costError:'Error',resources:[resource('Equipo','workday')]});assert.equal(r.actualCost,null);assert.equal(r.totalAtFinish,null);assert.equal(r.futureCost,500);
-  assert.match(simulateProject(base).warnings.join(' '),/No seleccionaste costos/);
+  assert.match(simulateProject(base).warnings.join(' '),/No hay costos futuros cargados/);
   assert.match(simulateProject({...base,start:'2026-10-22'}).warnings.join(' '),/intervalo/);
 });
 test('fechas, negativos, vacíos, unidades y horizontes inválidos se rechazan',()=>{

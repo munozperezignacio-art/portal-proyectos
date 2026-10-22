@@ -5,6 +5,12 @@ const parts=[{id:1,partida:'Pilas',unidad:'UND',quantity:60,start:'2026-10-01'},
 const reports=[{id:1,partida_id:1,fecha:'2026-10-19',cantidad:10},{id:2,partida_id:2,fecha:'2026-10-19',cantidad:1}];
 const props={cutoff:'2026-10-19',baselineFinish:'2026-10-30',actualCost:1000,productionParts:parts,advances:reports,costs:[{nombre:'Arriendo departamento',monto:800000}],equipment:[{id:1,tipo:'Excavadora',patente:'EXC-01',costo_interno:100,unidad_costo_interno:'$/día'}]};
 window.props=props;
+if(new URLSearchParams(location.search).has('baseline')){
+ props.useWorkBaseline=true;
+ props.productionParts=parts.map(p=>({...p,unitPrice:100}));
+ props.costs=[{fecha:'2026-10-19',monto:1000,trabajador:'Personal registrado',fuente:'Provisión aprobada'}];
+ props.futureCosts=[{fecha:'2026-10-20',monto:200,equipo_patente:'EXC-01',categoria_proyeccion:'Uso diario de maquinaria',origen_costo:'Asignación vigente'}, {fecha:'2026-10-21',monto:300,nombre:'Personal futuro',categoria_proyeccion:'Mano de obra'}];
+}
 if(new URLSearchParams(location.search).has('labor')){
   props.costs.push(...[50000,55315,67193,67193,55315,55315].map((monto,i)=>({id:`D-${i+1}`,empresa:'TEST',trabajador_id:123,trabajador:'FRANCO REINALDO ERICES ORELLANA',categoria_proyeccion:'Mano de obra',fuente:'Provisión aprobada',fecha:i===0?'2026-10-09':`2026-10-${11+i}`,monto})));
 }

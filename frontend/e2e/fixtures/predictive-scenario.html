@@ -7,5 +7,11 @@ import '../../src/index.css';
 const empty={then:resolve=>Promise.resolve({data:[],error:null}).then(resolve)};
 for(const method of ['select','eq','in','order','limit'])empty[method]=()=>empty;
 supabase.from=()=>empty;
-createRoot(document.getElementById('fixture')).render(React.createElement(PredictiveScenarioPanel,{obra:{id:1,nombre:'TEST'},user:{empresa:'TEST_ONLY'},cutoff:'2026-10-15',baselineFinish:'2026-12-28',costBudget:0,actualCost:0,actualProgress:27.7,plannedProgress:43.9,holidays:['2026-12-25'],productionParts:[{id:1,partida:'Pilotes',unidad:'UND',quantity:463,start:'2026-10-01',finish:'2026-11-05'}],advances:[{partida_id:1,cantidad:100,created_at:'2026-10-01'},{partida_id:1,cantidad:12,created_at:'2026-10-13'}]}));
+const props={obra:{id:1,nombre:'TEST'},user:{empresa:'TEST_ONLY'},cutoff:'2026-10-15',baselineFinish:'2026-12-28',costBudget:0,actualCost:0,actualProgress:27.7,plannedProgress:43.9,holidays:['2026-12-25'],productionParts:[{id:1,partida:'Pilotes',unidad:'UND',quantity:463,start:'2026-10-01',finish:'2026-11-05'}],advances:[{partida_id:1,cantidad:100,created_at:'2026-10-01'},{partida_id:1,cantidad:12,created_at:'2026-10-13'}]};
+if(new URLSearchParams(location.search).has('baseline')){
+ props.actualCost=1000;props.productionParts[0].unitPrice=100;
+ props.costs=[{fecha:'2026-10-15',monto:1000,trabajador:'Personal registrado'}];
+ props.futureCosts=[{fecha:'2026-10-16',monto:200,equipo_patente:'EXC-01',categoria_proyeccion:'Uso diario de maquinaria'}];
+}
+createRoot(document.getElementById('fixture')).render(React.createElement(PredictiveScenarioPanel,props));
 </script></body></html>

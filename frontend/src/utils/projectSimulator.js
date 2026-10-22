@@ -1,5 +1,6 @@
 import {matchesWorkReport} from './workReportCalculations.js';
 import {productionAdvice} from './productionAdvice.js';
+import {costState,costStateLabel} from './costControl.js';
 const DAY=86400000;
 export const simulationDate=value=>String(value||'').slice(0,10);
 export function validSimulationDate(value){return /^\d{4}-\d{2}-\d{2}$/.test(value||'')&&Number.isFinite(Date.parse(`${value}T12:00:00Z`))&&new Date(`${value}T12:00:00Z`).toISOString().slice(0,10)===value;}
@@ -20,7 +21,7 @@ export function seedSimulationParts(parts,reports,cutoff,deadline,holidays=[]){
     return {id:String(p.id??p.partida),name:p.partida,unit:p.unidad||'UND',quantity,completed,remaining:Math.max(0,quantity-completed),pace:pace==null?0:Math.round(pace*10000)/10000,start:p.start&&p.start>cutoff?p.start:addSimulationDays(cutoff,1),overrides:{}};
   });
 }
-export function simulateProject({cutoff,start,end,deadline,weekdays=[1,2,3,4,5],holidays=[],calendar={},parts=[],resources=[],actualCost,costError=''}){
+export function simulateProject({cutoff,start,end,deadline,weekdays=[1,2,3,4,5],holidays=[],calendar={},parts=[],resources=[],actualCost,costError='',baseCosts=[],historicalCosts=[],remainingOtherCost=0}){
   if(!validSimulationDate(cutoff)||start<=cutoff)throw new Error('La simulación debe comenzar después del corte real, para no duplicar costos ni producción.');
   if(deadline&&!validSimulationDate(deadline))throw new Error('Indica una fecha objetivo válida.');
   const dates=simulationDates(start,end),holidaySet=new Set(holidays);
@@ -91,14 +92,58 @@ export function simulateProject({cutoff,start,end,deadline,weekdays=[1,2,3,4,5],
     }
     days.push({date,working,production,cost,charges});
   }
-  const resourceTotals=resourceStates.map(r=>({...r,total:Math.round(r.total)}));
+  // The existing work ledger is the baseline, not an optional catalog selection.
+  // Keep its dates and decisions (non-use, retirement, reconciliation) unchanged.
+  const baselineTotals=new Map();
+  const append=(day,row,source)=>{
+    const raw=row.monto??row.monto_real;
+    if(raw==null||raw===''||!Number.isFinite(Number(raw)))throw new Error(`Falta el importe de ${row.nombre||row.trabajador||row.equipo_patente||'un cargo de la obra'} el ${day.date}. No se considera cero.`);
+    const amount=Math.round(Number(raw));
+    const name=row.nombre||row.trabajador||[row.equipo_tipo,row.equipo_patente].filter(Boolean).join(' ')||row.categoria_proyeccion||'Costo de obra';
+    const charge={resourceId:`base-${baselineTotals.size}-${day.date}`,name,source,partName:'Toda la obra',mode:'fixed',rate:amount,quantity:1,units:1,amount};
+    day.charges.push(charge);day.cost+=amount;
+    return charge;
+  };
+  const futureDays=new Map(days.map(d=>[d.date,d]));
+  let registeredOther=0;
+  for(const row of baseCosts){
+    const date=simulationDate(row.fecha_costo||row.fecha||row.created_at),day=futureDays.get(date);
+    if(!day||date> (finish||end))continue;
+    const charge=append(day,row,`Proyectado · ${row.origen_costo||row.fuente||row.categoria_proyeccion||'Registro de obra'}`);
+    const key=JSON.stringify([charge.name,charge.source]);
+    const item=baselineTotals.get(key)||{id:`base-${baselineTotals.size}`,name:charge.name,total:0};charge.resourceId=item.id;item.total+=charge.amount;baselineTotals.set(key,item);
+    if(row.categoria_proyeccion!=='Uso diario de maquinaria')registeredOther+=charge.amount;
+  }
+  const estimate=Math.max(0,Math.round(Number(remainingOtherCost)||0)-registeredOther);
+  const estimateDays=days.filter(d=>d.working&&d.date<=(finish||end));
+  if(estimate&&!estimateDays.length)throw new Error('Hay costos pendientes por proyectar, pero no hay jornadas laborables en el horizonte. Revisa el calendario; no se considera costo cero.');
+  if(estimate&&estimateDays.length){
+    const share=Math.floor(estimate/estimateDays.length),remainder=estimate-share*estimateDays.length;
+    estimateDays.forEach((day,i)=>{const charge=append(day,{nombre:'Personal y otros costos pendientes (estimación)',monto:share+(i<remainder?1:0)},'Estimación por avance y costo histórico no asociado a maquinaria; no es nómina confirmada');charge.resourceId='base-estimate';});
+    baselineTotals.set('estimate',{id:'base-estimate',name:'Personal y otros costos pendientes (estimación)',total:estimate});
+  }
+  const resourceTotals=[...resourceStates.map(r=>({...r,total:Math.round(r.total)})),...baselineTotals.values()];
   const futureCost=resourceTotals.reduce((s,r)=>s+r.total,0);
+  const history=new Map();
+  for(const row of historicalCosts){
+    const date=simulationDate(row.fecha_costo||row.fecha||row.created_at);
+    if(!validSimulationDate(date)||date>cutoff)continue;
+    const day=history.get(date)||{date,working:isWorkday(date),production:{},cost:0,charges:[],historical:true};
+    append(day,row,`${costStateLabel[costState(row,cutoff)]} · ${row.fuente||row.origen_costo||row.categoria_proyeccion||'Registro de obra'}`);history.set(date,day);
+  }
+  if(history.size){
+    const first=[...history.keys()].sort()[0];
+    // Historical detail is display-only: actualCost is still counted exactly once.
+    const historyDays=simulationDates(first,cutoff).map(date=>history.get(date)||{date,working:isWorkday(date),production:{},cost:0,charges:[],historical:true});
+    days.unshift(...historyDays);
+  }
   const monthMap=new Map();for(const day of days)monthMap.set(day.date.slice(0,7),(monthMap.get(day.date.slice(0,7))||0)+day.cost);
   const months=[...monthMap].map(([month,cost])=>({month,cost:Math.round(cost)}));
-  if(months.length)months.at(-1).cost+=futureCost-months.reduce((sum,m)=>sum+m.cost,0);
+  const futureMonths=months.map(m=>({...m,cost:days.filter(d=>!d.historical&&d.date.startsWith(m.month)).reduce((sum,d)=>sum+d.cost,0)}));
   const knownCost=!costError&&actualCost!=null&&Number.isFinite(Number(actualCost))&&Number(actualCost)>=0;
   const warnings=[];
-  if(!resources.length)warnings.push('No seleccionaste costos futuros: el costo simulado no representa el costo completo de terminar la obra.');
+  if(!resources.length&&!baselineTotals.size)warnings.push('No hay costos futuros cargados para este período: el costo simulado no representa el costo completo de terminar la obra.');
+  if(estimate)warnings.push('Personal y otros costos pendientes incluyen una estimación por avance, descontando los importes futuros ya registrados. No es una liquidación ni un gasto confirmado.');
   if(states.some(p=>p.initialRemaining>0&&p.pace===0))warnings.push('Hay partidas pendientes sin rendimiento base. Solo avanzarán si defines producción manual en el calendario.');
   if(states.some(p=>p.initialRemaining>0&&!p.predecessors?.length)&&states.length>1)warnings.push('Las partidas sin predecesoras pueden avanzar en paralelo. Verifica que no compartan una misma cuadrilla o equipo limitado.');
   if(resourceStates.some(r=>r.rate===0||r.quantity===0))warnings.push('Hay recursos con tarifa o cantidad cero. Revisa que no falten costos.');
@@ -109,7 +154,7 @@ export function simulateProject({cutoff,start,end,deadline,weekdays=[1,2,3,4,5],
   const years=[...new Set(dates.map(d=>d.slice(0,4)))].filter(y=>!holidays.some(h=>h.startsWith(y)));
   if(years.length)warnings.push(`Calendario manual: revisa los feriados de ${years.join(', ')}. Solo se excluyen los feriados cargados y las excepciones que indiques.`);
   return {finish,complete:Boolean(finish),futureCost,totalAtFinish:finish&&knownCost?Math.round(Number(actualCost))+futureCost:null,actualCost:knownCost?Math.round(Number(actualCost)):null,
-    resources:resourceTotals.sort((a,b)=>b.total-a.total),days,months,warnings,delayDays:finish&&deadline?Math.round((Date.parse(finish)-Date.parse(deadline))/DAY):null,
+    resources:resourceTotals.sort((a,b)=>b.total-a.total),days,months:futureMonths,calendarMonths:months,warnings,delayDays:finish&&deadline?Math.round((Date.parse(finish)-Date.parse(deadline))/DAY):null,
     parts:states.map(p=>{
       const predecessors=(p.predecessors||[]).map(id=>byId.get(id));
       const available=dates.filter(d=>isWorkday(d)&&d>=p.start&&predecessors.every(prev=>prev.finish&&prev.finish<d)&&(!deadline||d<=deadline)).length;

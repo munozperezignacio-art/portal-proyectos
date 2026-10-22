@@ -1,4 +1,31 @@
 import {test,expect} from '@playwright/test';
+
+test('projection panel passes its existing costs into the simulator',async({page})=>{
+ await page.goto('/e2e/fixtures/predictive-scenario.html?baseline');
+ await page.getByRole('button',{name:'Abrir simulador de término',exact:true}).click();
+ const calendar=page.getByRole('region',{name:'Calendario de costos del simulador'});
+ await calendar.getByRole('button',{name:/^Costos 2026-10-16:/}).click();
+ await expect(calendar.getByRole('region',{name:'Resumen de costos del día'})).toContainText('EXC-01');
+});
+
+test('existing work costs appear automatically without selecting resources',async({page},testInfo)=>{
+ await page.goto('/e2e/fixtures/project-simulator.html?baseline');
+ await page.getByRole('spinbutton',{name:'Rendimiento Pilas',exact:true}).fill('10');
+ await expect(page.getByText(/Base de la obra cargada automáticamente/)).toBeVisible();
+ const calendar=page.getByRole('region',{name:'Calendario de costos del simulador'});
+ await calendar.getByRole('button',{name:/^Costos 2026-10-20:/}).click();
+ const detail=calendar.getByRole('region',{name:'Resumen de costos del día'});
+ await expect(detail).toContainText('EXC-01');
+ await expect(detail).toContainText('Personal y otros costos pendientes (estimación)');
+ await expect(detail.getByRole('heading')).not.toContainText('· $0');
+ await calendar.getByRole('button',{name:/^Costos 2026-10-19:/}).click();
+ await expect(detail).toContainText('Personal registrado');
+ await expect(detail.getByRole('heading')).toContainText('$1.000');
+ await calendar.getByRole('button',{name:/^Costos 2026-10-21:/}).click();
+ await expect(detail).toContainText('Personal futuro');
+ await expect(detail).not.toContainText('EXC-01');
+ await calendar.screenshot({path:testInfo.outputPath('baseline-cost-calendar.png')});
+});
 test('monthly cost calendar shows daily charges and responds to scenario edits',async({page},testInfo)=>{
  await page.goto('/e2e/fixtures/project-simulator.html');
  await page.getByRole('spinbutton',{name:'Rendimiento Pilas',exact:true}).fill('10');
