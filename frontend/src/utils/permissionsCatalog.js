@@ -34,6 +34,7 @@ export const PERMISSIONS_CATALOG = [
     { id: 'estadisticas', label: 'Estadísticas de Recursos Humanos', actions: ['ver', 'descargar', 'configurar'] },
   ]},
   { id: 'maquinaria', label: 'Maquinaria y Equipos', menus: [
+    {id:'enex',label:'Combustible Enex',actions:['ver','importar','editar','enviar']},
     { id: 'inventario', label: 'Inventario, asignaciones y mantenimiento', actions: ['ver', 'crear', 'editar', 'eliminar', 'revisar', 'descargar', 'configurar'] },
     { id: 'uso', label: 'Registros de uso', actions: ['ver', 'crear', 'editar', 'eliminar', 'descargar'] },
     { id: 'fallas', label: 'Fallas de equipos', actions: ['ver', 'crear', 'editar', 'eliminar', 'revisar', 'descargar'] },

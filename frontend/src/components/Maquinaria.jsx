@@ -1,3 +1,4 @@
+import EnexFuel from './EnexFuel';
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import {useMachineryCharge} from '../utils/useMachineryCharge';
@@ -936,6 +937,8 @@ export default function Maquinaria({ user, onBack }) {
       {/* 1. Encabezado Oficial Estándar Obraxis */}
       <ModuleHeader className="mb-6" title="Gestión de Maquinaria y Equipos" subtitle="Inventario, asignaciones en faena, horómetros, reservas de obras futuras y arriendos a terceros." Icon={Truck} onBack={() => { if (activeSection !== '') { setActiveSection(''); setSuccessMsg(''); setErrorMsg(''); } else { onBack(); } }} />
 
+      {activeSection === '' && <button className="rounded-xl border bg-white p-4 mb-4" onClick={() => setActiveSection('enex')}>Combustible Enex</button>}
+      {activeSection === 'enex' && <EnexFuel key={user.empresa} user={user} />}
       {/* Alertas Globales */}
       {successMsg && <div className="mb-6 bg-emerald-50 text-emerald-700 p-2 rounded-lg text-xs font-semibold border border-emerald-250 animate-in fade-in duration-150">{successMsg}</div>}
       {errorMsg && <div className="mb-6 bg-red-50 text-red-700 p-2 rounded-lg text-xs font-semibold border border-red-250 animate-in fade-in duration-150">{errorMsg}</div>}
