@@ -10,6 +10,14 @@ const id='00000000-0000-0000-0000-000000000003';
 const row={id,empresa:'TEST_A',portal:'transporte',occurred_local:'2026-01-02T03:04:05',kind:'Carga',liters_milli:12345,amount_signed:-18000,currency:null,tax_breakdown:null,enex_assignments:[]};
 const body={permissionKey:ENEX_PERMISSION,to:'person@example.test',enexCompany:'TEST_A',enexMovementIds:[id],htmlContent:'<script>client untrusted</script>',subject:'untrusted'};
 const profile={empresa:'TEST_A',correo:'person@example.test',rol:'admin',rol_base:'admin',permisos:{[ENEX_PERMISSION]:true}};
+test('fuel mail shares Obraxis branding and escapes movement details',()=>{
+ const result=renderEnexMail('TEST',[{...row,vehicle:'<img onerror=bad>',document:'123'}],1,[row.occurred_local]);
+ assert.match(result.html,/obraxis-primary.png/);
+ assert.match(result.html,/Movimientos incluidos/);
+ assert.match(result.html,/GD\/Boleta: 123/);
+ assert.match(result.html,/&lt;img onerror=bad&gt;/);
+ assert.doesNotMatch(result.html,/<img onerror/);
+});
 function harness({profilePatch={},rows=[row],providerStatus=200,throwFetch=false,auditFailure=false}={}) {
  let handler;const requests=[];const actor={...profile,...profilePatch};
  const db={auth:{getUser:async()=>({data:{user:{id:'actor'}}}),admin:{getUserById:async()=>({data:{user:{id:'actor'}}})}},from(table){return {
