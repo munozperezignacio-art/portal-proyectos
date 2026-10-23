@@ -118,6 +118,27 @@ export default function ExecutiveReportScheduler({
     [preview, setPreview] = useState(""),
     [previewData, setPreviewData] = useState(null),
     [busy, setBusy] = useState(false);
+  const [draftPreview, setDraftPreview] = useState(null);
+  const [draftPreviewBusy, setDraftPreviewBusy] = useState(false);
+  const [draftPreviewError, setDraftPreviewError] = useState("");
+  const draftKey = JSON.stringify([form, user.empresa, obras]);
+  const showDraftPreview = async () => {
+    if (draftPreviewBusy) return;
+    setDraftPreviewError("");
+    if (form.alcance_tipo === "Seleccionadas" && !form.obras.length) {
+      setDraftPreviewError("Selecciona al menos una obra para ver el informe.");
+      return;
+    }
+    setDraftPreviewBusy(true);
+    try {
+      const result = await buildEvm(form, true);
+      setDraftPreview({ key: draftKey, html: result.html });
+    } catch {
+      setDraftPreviewError("No se pudo cargar la vista previa. Reintenta; no se ha guardado ni enviado ningún informe.");
+    } finally {
+      setDraftPreviewBusy(false);
+    }
+  };
   const roleNames = useMemo(
     () => [
       ...new Set([
@@ -209,7 +230,7 @@ export default function ExecutiveReportScheduler({
     );
     load();
   };
-  const collect = async (schedule) => {
+  const collect = async (schedule, strict = false) => {
     const selected =
       schedule.alcance_tipo === "Seleccionadas"
         ? schedule.obras
@@ -256,15 +277,20 @@ export default function ExecutiveReportScheduler({
       supabase.from("maquinaria_mantenciones").select("equipo_id,fecha,created_at").eq("empresa", user.empresa).gte("created_at", since.toISOString()),
       supabase.from("maestro_personal").select("id,obra_nombre").eq("empresa", user.empresa),
     ]);
+    if (strict && [adv, attendance, cost, nc, prevention, parts, equipmentUse, failures, maintenance, personnel].some(result => result.error)) {
+      throw new Error("No se pudieron consultar todos los datos del informe");
+    }
     let planning = [];
     try {
-      const { data: relations } = await supabase.from("obra_presupuestos").select("obra_nombre,presupuesto_id").eq("empresa", user.empresa).in("obra_nombre", selected);
+      const { data: relations, error: relationsError } = await supabase.from("obra_presupuestos").select("obra_nombre,presupuesto_id").eq("empresa", user.empresa).in("obra_nombre", selected);
+      if (strict && relationsError) throw relationsError;
       const budgetIds = [...new Set((relations || []).map(row => row.presupuesto_id).filter(Boolean))];
       if (budgetIds.length) {
-        const [{ data: scheduleRows }, { data: budgetRows }] = await Promise.all([
+        const [{ data: scheduleRows, error: scheduleError }, { data: budgetRows, error: budgetError }] = await Promise.all([
           supabase.from("planificacion_cronogramas").select("presupuesto_id,codigo,tarea,fecha_inicio,fecha_fin,duracion,porcentaje_avance").in("presupuesto_id", budgetIds),
           supabase.from("presupuestos_items").select("presupuesto_id,codigo,partida").in("presupuesto_id", budgetIds)
         ]);
+        if (strict && (scheduleError || budgetError)) throw scheduleError || budgetError;
         planning = (scheduleRows || []).flatMap(task => {
           const relation = (relations || []).find(row => String(row.presupuesto_id) === String(task.presupuesto_id));
           if (!relation) return [];
@@ -273,6 +299,7 @@ export default function ExecutiveReportScheduler({
         });
       }
     } catch (planningError) {
+      if (strict) throw planningError;
       console.warn("No fue posible incorporar la planificación en el informe:", planningError);
     }
     return {
@@ -291,8 +318,8 @@ export default function ExecutiveReportScheduler({
       personnel: personnel.data || [],
     };
   };
-  const buildEvm = async (schedule) => {
-    const d = await collect(schedule);
+  const buildEvm = async (schedule, strict = false) => {
+    const d = await collect(schedule, strict);
     const report = buildExecutiveReportHtml({
       schedule,
       company: user.empresa,
@@ -959,6 +986,21 @@ export default function ExecutiveReportScheduler({
                 ))}
               </div>
             </div>
+            <section className="mt-6 rounded-2xl border border-indigo-100 bg-slate-50 p-4" aria-label="Vista previa del informe">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-sm font-black">Vista previa del informe</h4>
+                  <p className="mt-1 text-xs text-slate-500">Usa la plantilla, las obras y la frecuencia seleccionadas. No guarda, no envía correos ni consume IA.</p>
+                </div>
+                <button type="button" disabled={draftPreviewBusy} onClick={showDraftPreview} className="flex items-center gap-2 rounded-xl bg-indigo-700 px-4 py-3 text-xs font-bold text-white disabled:opacity-50">
+                  <Eye size={16} />{draftPreviewBusy ? "Cargando vista previa…" : draftPreview ? "Actualizar vista previa" : "Ver vista previa"}
+                </button>
+              </div>
+              {form.usar_ia !== false && <p className="mt-2 text-xs text-slate-500">La interpretación de IA se incorpora al generar el informe, no en esta vista previa.</p>}
+              {draftPreviewError && <p role="alert" className="mt-3 text-sm text-red-700">{draftPreviewError}</p>}
+              {draftPreview && draftPreview.key !== draftKey && <p role="status" className="mt-3 text-xs text-amber-800">Cambiaste la configuración. Actualiza la vista previa para ver el nuevo resultado.</p>}
+              {draftPreview?.key === draftKey && <iframe title="Vista previa del informe seleccionado" sandbox="" srcDoc={draftPreview.html} className="mt-4 h-[65vh] min-h-80 w-full rounded-xl border border-slate-200 bg-white" />}
+            </section>
             <button className="mt-6 w-full rounded-xl bg-slate-950 py-3 text-xs font-black text-white">
               {editingId ? "Guardar cambios" : "Guardar programación"}
             </button>
