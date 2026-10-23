@@ -950,11 +950,6 @@ export default function Maquinaria({ user, onBack }) {
           </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-in fade-in duration-200">
-            {permissions['maquinaria.enex.ver'] === true && <button type="button" onClick={() => setActiveSection('enex')} className="group text-left bg-white border border-slate-200 rounded-3xl p-5 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 focus-visible:outline-2 focus-visible:outline-primary transition-all duration-300 flex flex-col justify-between min-h-[190px]">
-              <div className="flex items-start justify-between"><div className="p-3.5 bg-indigo-50 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition"><Fuel className="w-5 h-5" /></div><span className="text-[9px] font-extrabold px-2.5 py-0.5 rounded-full bg-indigo-50 text-primary uppercase">Enex</span></div>
-              <div className="space-y-1 mt-3"><h3 className="font-extrabold text-slate-850 text-xs uppercase tracking-wider group-hover:text-primary">Combustible Enex</h3><p className="text-[11px] text-slate-500 leading-snug">Cargas, consumo y asignaciones a obras o centros de gestión.</p></div>
-              <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] font-extrabold text-primary"><span>Gestionar combustible</span><ChevronRight className="w-3.5 h-3.5" /></div>
-            </button>}
             
             {/* Tarjeta 1: Maquinarias y Equipos */}
             <div 
@@ -1086,6 +1081,11 @@ export default function Maquinaria({ user, onBack }) {
                 <ChevronRight className="w-3.5 h-3.5 text-amber-600 group-hover:translate-x-1 transition-transform shrink-0" />
               </div>
             </div>
+            {permissions['maquinaria.enex.ver'] === true && <button type="button" onClick={() => setActiveSection('enex')} className="group text-left bg-white border border-slate-200 rounded-3xl p-5 shadow-xs hover:shadow-md hover:border-primary hover:-translate-y-1 focus-visible:outline-2 focus-visible:outline-primary transition-all duration-300 flex flex-col justify-between min-h-[190px]">
+              <div className="flex items-start justify-between"><div className="p-3.5 bg-indigo-50 text-primary rounded-2xl group-hover:bg-primary group-hover:text-white transition"><Fuel className="w-5 h-5" /></div><span className="text-[9px] font-extrabold px-2.5 py-0.5 rounded-full bg-indigo-50 text-primary uppercase">Enex</span></div>
+              <div className="space-y-1 mt-3"><h3 className="font-extrabold text-slate-850 text-xs uppercase tracking-wider group-hover:text-primary">Combustible Enex</h3><p className="text-[11px] text-slate-500 leading-snug">Cargas, consumo y asignaciones a obras o centros de gestión.</p></div>
+              <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] font-extrabold text-primary"><span>Gestionar combustible</span><ChevronRight className="w-3.5 h-3.5" /></div>
+            </button>}
 
           </div>
         </>

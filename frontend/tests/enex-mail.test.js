@@ -39,3 +39,10 @@ test('audit success is explicitly reported',async()=>{const h=harness();const va
 test('UTF8 formatting and stable canonical data',()=>{const a=enexMailContent('Compañía',[id],[{...row,empresa:'Compañía',ingested_at:'2026-01-02T12:00:00Z'}]);assert.match(a.html,/Compañía/);assert.match(a.text,/Asignaciones/);assert.ok(a.text.includes('$18.000'));assert.doesNotMatch(a.html,/\uFFFD/);assert.match(a.text,/2 de enero de 2026/);assert.equal(a.canonical,enexMailContent('Compañía',[id],[{...row,empresa:'Compañía'}]).canonical);});
 
 test("approved redesigned summary has a stable distinct revision",()=>{const c=enexMailContent("TEST_A",[id],[row]);assert.equal(JSON.parse(c.canonical)[0],"enex-summary-v2");assert.equal(c.canonical,enexMailContent("TEST_A",[id],[row]).canonical);});
+test('volume alert is strictly above 250 litres and missing card never means clean',()=>{
+ for(const [liters_milli,count] of [[250000,0],[250001,1]]){
+  const content=enexMailContent('TEST_A',[id],[{...row,liters_milli}]);
+  assert.ok(content.text.includes(`${count} cargas de más de 250 litros`));
+  assert.match(content.html,/falta el identificador de tarjeta/);
+ }
+});

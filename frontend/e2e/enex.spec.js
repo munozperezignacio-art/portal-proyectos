@@ -8,7 +8,7 @@ test('Enex notification displays branded metrics and review notices without over
  const {html}=renderEnexMail('Empresa de prueba',[row],1,[row.occurred_local]);
  await page.setContent(html);
  await expect(page.getByRole('heading',{name:'Resumen de combustible'})).toBeVisible();
- await expect(page.getByText('Alertas · Pendientes de evaluar')).toBeVisible();
+ await expect(page.getByText('Alertas · Revisión parcial')).toBeVisible();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.screenshot({path:testInfo.outputPath('enex-notification.png'),fullPage:true});
 });
@@ -16,6 +16,7 @@ test('Enex fits the machinery menu and preserves filters, assignments and contro
  await page.goto('/e2e/fixtures/enex.html');
  const entry=page.getByRole('button',{name:/Combustible Enex/});
  await expect(entry).toHaveCount(1);
+ expect(await entry.evaluate(el=>el===el.parentElement.lastElementChild)).toBe(true);
  await page.screenshot({path:testInfo.outputPath('enex-menu.png'),fullPage:true});
  await entry.click();
  const panel=page.getByRole('region',{name:'Combustible Enex',exact:true});
@@ -30,7 +31,8 @@ test('Enex fits the machinery menu and preserves filters, assignments and contro
  await form.getByRole('combobox',{name:'Obra',exact:true}).selectOption('1');
  await form.getByRole('button',{name:'Guardar asignación'}).click();
  await expect(panel.getByRole('cell',{name:/Obra de prueba/})).toBeVisible();
- await panel.locator('summary').click();
+ await expect(panel).not.toContainText('Borrador');
+ await expect(panel.getByRole('region',{name:'Movimientos sospechosos'})).toContainText('identificador de tarjeta');
  const send=panel.getByRole('button',{name:'Enviar resumen una vez'});
  await expect(send).toBeDisabled();
  await panel.getByLabel(/Confirmo enviar/).check();
