@@ -1,5 +1,8 @@
 import {test,expect} from '@playwright/test';
-import {renderEnexMail} from '../../supabase/functions/enviar-correo-sistema/enex-mail-template.js';
+import {readFileSync} from 'node:fs';
+// Load the exact dependency-free Edge template as ESM on Node 22/Linux as well as Windows.
+const templateSource=readFileSync(new URL('../../supabase/functions/enviar-correo-sistema/enex-mail-template.js',import.meta.url),'utf8');
+const {renderEnexMail}=await import('data:text/javascript;base64,'+Buffer.from(templateSource).toString('base64'));
 test('Enex notification displays branded metrics and review notices without overflow',async({page},testInfo)=>{
  const row={portal:'empresa',occurred_local:'2026-10-22 12:00:00',ingested_at:'2026-10-22T15:00:00Z',liters_milli:12345,amount_signed:-18000};
  const {html}=renderEnexMail('Empresa de prueba',[row],1,[row.occurred_local]);
