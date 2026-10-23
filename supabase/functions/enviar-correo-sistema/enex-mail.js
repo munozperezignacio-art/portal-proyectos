@@ -1,3 +1,4 @@
+import {renderEnexMail} from './enex-mail-template.js';
 export const ENEX_PERMISSION='maquinaria.enex.enviar';
 export const ENEX_SUBJECT='Obraxis | Resumen de combustible';
 const legacy=/^(obras\.(avances|personal|maquinaria|gestion|estados_pago|libro_obra|calidad|prevencion|subcontratos)|acreditaciones\.subcontratos|formularios\.formularios|clientes\.portales|mandante\.(contratos|acreditaciones)|prevencion\.registros|admin\.(usuarios|permisos))\.enviar$/;
@@ -26,6 +27,6 @@ export function enexMailContent(company,ids,rows) {
  if(!Number.isSafeInteger(liters)||!Number.isSafeInteger(debit))throw Error('Total fuera de rango');
  canonical.sort((a,b)=>a[0].localeCompare(b[0]));
  const dates=canonical.map(r=>r[2]).sort();
- const lines=[`Resumen de combustible — ${company}`,`Selección persistida: ${rows.length} cargas; ${(liters/1000).toFixed(3)} litros.`,`Fechas de movimientos: ${dates[0]} a ${dates.at(-1)} (hora local del portal).`,`Débito firmado del portal: $${debit}; no corresponde a costo neto contabilizado. Moneda ISO y desglose tributario pendientes de confirmar.`,`Pendientes de asignación: ${pending}.`,`Alertas: no evaluadas; sin reglas configuradas.`,`Estado de actualización: registros consultados y verificados en Obraxis para este envío. No acredita actualización automática de Enex.`,`No se han modificado tarjetas ni contabilizado costos.`];
- return {subject:ENEX_SUBJECT,html:lines.map(x=>`<p>${escape(x)}</p>`).join(''),canonical:JSON.stringify([company,canonical])};
+ const rendered=renderEnexMail(company,rows,pending,dates);
+ return {subject:ENEX_SUBJECT,...rendered,canonical:JSON.stringify(["enex-summary-v2",company,canonical])};
 }

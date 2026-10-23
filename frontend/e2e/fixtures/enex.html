@@ -1,0 +1,9 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module">
+import React from 'react';import{createRoot}from'react-dom/client';import '../../src/index.css';
+import Maquinaria from '../../src/components/Maquinaria.jsx';import{ supabase }from'../../src/supabaseClient.js';
+const user={id:7,empresa:'Empresa de prueba',rol:'Administrador',correo:'test@example.test',permisos:Object.fromEntries(['ver','editar','importar','enviar'].map(a=>['maquinaria.enex.'+a,true]))};
+const rows=[{id:'00000000-0000-0000-0000-000000000001',empresa:user.empresa,portal:'transporte',occurred_local:'2026-10-21 12:30:00',vehicle:'ABCD12',document:'123',kind:'Carga',liters_milli:12345,amount_signed:-18000,enex_assignments:[]}];window.sent=0;
+Object.defineProperty(supabase,'functions',{value:{invoke:async()=>{window.sent++;return{data:{success:true,id:'fixture-provider'},error:null}}}});
+supabase.from=table=>{const result=()=>({data:table==='usuarios'?[user]:table==='enex_movements'?rows:table==='obras'?[{id:1,nombre:'Obra de prueba',centro_gestion_id:1}]:table==='facturacion_centros_gestion'?[{id:1,codigo:'829',nombre:'Centro de prueba',activo:true}]:[],error:null});return{select(){return this},eq(){return this},order(){return this},range(){return this},limit(){return this},upsert(v){rows[0].enex_assignments=[v];return this},maybeSingle(){return Promise.resolve({...result(),data:result().data[0]||null})},then(resolve,reject){return Promise.resolve(result()).then(resolve,reject)}}};
+createRoot(document.getElementById('root')).render(React.createElement(Maquinaria,{user,onBack:()=>{}}));
+</script></body></html>

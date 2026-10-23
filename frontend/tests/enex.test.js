@@ -24,7 +24,7 @@ test('tenant mismatch fails closed',async()=>assert.rejects(readEnex(mockDb([sto
 test('read errors never become empty successful totals',async()=>assert.rejects(readEnex(mockDb([],true),'FICTICIA')));
 test('import verifies persisted rows independently',async()=>{const db=mockDb([stored]);assert.equal((await importEnex(db,'FICTICIA',[row])).stored.length,1);});
 test('successful RPC without persistence is failure',async()=>assert.rejects(importEnex(mockDb([]),'FICTICIA',[row]),/Persistencia/));
-test('no real rows in test; SQL draft has tenant policies and transaction',()=>{const sql=readFileSync(new URL('../../supabase/sql-drafts/enex.sql',import.meta.url),'utf8');assert.match(sql,/security invoker/g);assert.doesNotMatch(sql,/security definer/i);assert.match(sql,/pg_advisory_xact_lock/);assert.match(sql,/unique\(empresa,portal,document\)/);assert.match(sql,/Work\/company mismatch/);assert.doesNotMatch(sql,/insert into public\.(costos_reales_obra|maquinaria_uso_diario)/);});
+test('no real rows in test; versioned SQL has tenant policies and transaction',()=>{const sql=readFileSync(new URL('../../supabase/schema/enex.sql',import.meta.url),'utf8');assert.match(sql,/security invoker/g);assert.doesNotMatch(sql,/security definer/i);assert.match(sql,/pg_advisory_xact_lock/);assert.match(sql,/unique\(empresa,portal,document\)/);assert.match(sql,/Work\/company mismatch/);assert.doesNotMatch(sql,/insert into public\.(costos_reales_obra|maquinaria_uso_diario)/);});
 
 test('same document changed date or vehicle requires review',()=>{for(const patch of [{vehicle:'OTHER'},{occurred_local:'2026-01-03 03:04:05'}])assert.throws(()=>planImport('FICTICIA',[{...row,...patch}],[row]),/Conflicto/);});
 
@@ -32,9 +32,9 @@ test('existing foreign company is rejected by plan',()=>assert.throws(()=>planIm
 test('existing contradictory records fail',()=>assert.throws(()=>planImport('A',[row],[row,{...row,amount_signed:-2}]),/Conflicto/));
 
 test('synchronous operation guard rejects double click and releases',()=>{const gate=createOperationGate();assert.equal(gate.enter(),true);assert.equal(gate.enter(),false);gate.leave();assert.equal(gate.enter(),true);});
-test('assignment audit executes after actual write',()=>{const sql=readFileSync(new URL('../../supabase/sql-drafts/enex.sql',import.meta.url),'utf8');assert.match(sql,/create trigger enex_assignment_audit after insert or update/);assert.match(sql,/then return null;end if;/);});
+test('assignment audit executes after actual write',()=>{const sql=readFileSync(new URL('../../supabase/schema/enex.sql',import.meta.url),'utf8');assert.match(sql,/create trigger enex_assignment_audit after insert or update/);assert.match(sql,/then return null;end if;/);});
 
 test('mail adapter sends only persisted identifiers and own recipient',async()=>{let call;const db={functions:{invoke:async(name,args)=>{call={name,args};return {data:{success:true,id:'fake'}};}}};assert.equal(await sendEnexSummary(db,'FICTICIA','person@example.test',[stored]),'fake');assert.equal(call.args.body.permissionKey,'maquinaria.enex.enviar');assert.deepEqual(call.args.body.enexMovementIds,['synthetic']);assert.equal(call.args.body.htmlContent,undefined);});
 test('uncertain mail result is one attempt, never auto-retried',async()=>{let count=0;const db={functions:{invoke:async()=>{count++;return {error:{}};}}};await assert.rejects(sendEnexSummary(db,'FICTICIA','person@example.test',[stored]),/No repetir/);assert.equal(count,1);});
 
-test('metadata columns are not writable by authenticated callers',()=>{const sql=readFileSync(new URL('../../supabase/sql-drafts/enex.sql',import.meta.url),'utf8');for(const line of sql.split('\n').filter(l=>l.startsWith('grant insert(')))assert.doesNotMatch(line,/\b(actor|ingested_at|created_at|updated_at|happened_at)\b/);});
+test('metadata columns are not writable by authenticated callers',()=>{const sql=readFileSync(new URL('../../supabase/schema/enex.sql',import.meta.url),'utf8');for(const line of sql.split('\n').filter(l=>l.startsWith('grant insert(')))assert.doesNotMatch(line,/\b(actor|ingested_at|created_at|updated_at|happened_at)\b/);});

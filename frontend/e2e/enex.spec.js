@@ -1,0 +1,38 @@
+import {test,expect} from '@playwright/test';
+import {renderEnexMail} from '../../supabase/functions/enviar-correo-sistema/enex-mail-template.js';
+test('Enex notification displays branded metrics and review notices without overflow',async({page},testInfo)=>{
+ const row={portal:'empresa',occurred_local:'2026-10-22 12:00:00',ingested_at:'2026-10-22T15:00:00Z',liters_milli:12345,amount_signed:-18000};
+ const {html}=renderEnexMail('Empresa de prueba',[row],1,[row.occurred_local]);
+ await page.setContent(html);
+ await expect(page.getByRole('heading',{name:'Resumen de combustible'})).toBeVisible();
+ await expect(page.getByText('Alertas · Pendientes de evaluar')).toBeVisible();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.screenshot({path:testInfo.outputPath('enex-notification.png'),fullPage:true});
+});
+test('Enex fits the machinery menu and preserves filters, assignments and controlled mail',async({page},testInfo)=>{
+ await page.goto('/e2e/fixtures/enex.html');
+ const entry=page.getByRole('button',{name:/Combustible Enex/});
+ await expect(entry).toHaveCount(1);
+ await page.screenshot({path:testInfo.outputPath('enex-menu.png'),fullPage:true});
+ await entry.click();
+ const panel=page.getByRole('region',{name:'Combustible Enex',exact:true});
+ await expect(panel).toContainText('$18.000');
+ await expect(panel).toContainText('12,345');
+ await expect(panel.getByRole('cell',{name:'ABCD12'})).toBeVisible();
+ await panel.getByRole('combobox',{name:'Portal',exact:true}).selectOption('empresa');
+ await expect(panel).toContainText('No hay cargas para estos filtros');
+ await panel.getByRole('combobox',{name:'Portal',exact:true}).selectOption('');
+ await panel.getByRole('button',{name:'Asignar',exact:true}).click();
+ const form=panel.getByRole('group',{name:'Asignación explícita'});
+ await form.getByRole('combobox',{name:'Obra',exact:true}).selectOption('1');
+ await form.getByRole('button',{name:'Guardar asignación'}).click();
+ await expect(panel.getByRole('cell',{name:/Obra de prueba/})).toBeVisible();
+ await panel.locator('summary').click();
+ const send=panel.getByRole('button',{name:'Enviar resumen una vez'});
+ await expect(send).toBeDisabled();
+ await panel.getByLabel(/Confirmo enviar/).check();
+ await send.click();await expect(panel).toContainText('Proveedor aceptó');
+ await expect(send).toBeDisabled();expect(await page.evaluate(()=>window.sent)).toBe(1);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.screenshot({path:testInfo.outputPath('enex-module.png'),fullPage:true});
+});

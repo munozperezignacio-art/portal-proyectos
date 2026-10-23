@@ -1,0 +1,41 @@
+.enex-fuel { --enex-brand: var(--color-primary, #1e3a8a); display:grid; gap:20px; color:#334155; font-size:14px; min-width:0; }
+.enex-heading { display:flex; align-items:center; gap:16px; background:white; border:1px solid #e2e8f0; border-radius:24px; padding:24px; }
+.enex-heading h2 { color:#0f172a; font-size:22px; font-weight:800; margin:4px 0; }
+.enex-heading p,.enex-muted { color:#64748b; font-size:13px; }
+.enex-eyebrow { font-size:10px; letter-spacing:.08em; font-weight:800; color:var(--enex-brand); }
+.enex-icon { background:#eef2ff; color:var(--enex-brand); padding:15px; border-radius:16px; }
+.enex-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; }
+.enex-metric { background:white; border:1px solid #e2e8f0; border-radius:20px; padding:20px; box-shadow:0 1px 2px #0f172a06; }
+.enex-metric span { display:block; color:#64748b; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+.enex-metric strong { display:block; color:var(--enex-brand); font-size:26px; margin-top:8px; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
+.enex-metric:last-child strong { color:#b45309; }
+.enex-info { border:1px solid #dbeafe; background:#eff6ff; border-radius:14px; padding:14px 18px; color:#475569; font-size:12px; line-height:1.6; }
+.enex-fuel fieldset,.enex-fuel details { min-width:0; border:1px solid #e2e8f0; border-radius:20px; background:white; padding:20px; }
+.enex-fuel legend,.enex-fuel summary { font-weight:800; color:#0f172a; padding:0 5px; }
+.enex-fuel summary { cursor:pointer; }
+.enex-fuel fieldset { display:flex; flex-wrap:wrap; gap:16px; align-items:end; }
+.enex-fuel label { display:flex; flex-direction:column; gap:8px; font-size:12px; font-weight:600; flex:1 1 160px; }
+.enex-fuel label:has(input[type=checkbox]) { flex-direction:row; align-items:center; min-height:42px; font-weight:500; }
+.enex-fuel input:not([type=checkbox]),.enex-fuel select { width:100%; min-width:0; border:1px solid #cbd5e1; border-radius:10px; padding:10px 12px; background:#fff; font-size:14px; color:#334155; }
+.enex-fuel input[type=checkbox] { accent-color:var(--enex-brand); width:17px; height:17px; flex-shrink:0; }
+.enex-fuel input[type=file] { max-width:100%; flex:1 1 250px; font-size:12px; }
+.enex-fuel input::file-selector-button { border:0; padding:8px 12px; border-radius:6px; background:#eef2ff; color:var(--enex-brand); font-weight:700; margin-right:10px; cursor:pointer; }
+.enex-fuel button { border:1px solid transparent; border-radius:10px; padding:10px 16px; font-weight:700; font-size:12px; background:var(--enex-brand); color:white; cursor:pointer; }
+.enex-fuel button:hover:not(:disabled) { filter:brightness(.92); }
+.enex-fuel button:disabled { opacity:.45; cursor:not-allowed; }
+.enex-fuel :is(button,input,select,summary,[tabindex]):focus-visible { outline:2px solid #6366f1; outline-offset:3px; }
+.enex-table-wrap { overflow:auto; border:1px solid #e2e8f0; border-radius:20px; background:#fff; }
+.enex-fuel table { width:100%; min-width:900px; border-collapse:collapse; text-align:left; font-size:12px; }
+.enex-fuel th { background:#f1f5f9; font-size:10px; text-transform:uppercase; letter-spacing:.03em; color:#475569; padding:16px; }
+.enex-fuel td { padding:16px; border-top:1px solid #e2e8f0; vertical-align:middle; }
+.enex-fuel tbody tr:hover { background:#f8fafc; }
+.enex-fuel td:nth-child(5),.enex-fuel td:nth-child(6),.enex-fuel th:nth-child(5),.enex-fuel th:nth-child(6) { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.enex-assignment { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.enex-assignment button { background:#eef2ff; color:var(--enex-brand); padding:8px 12px; }
+.enex-badge { background:#eef2ff; color:var(--enex-brand); padding:5px 9px; border-radius:20px; font-weight:700; }
+.enex-pending { color:#92400e; background:#fffbeb; padding:5px 9px; border-radius:20px; }
+.enex-fuel .enex-empty { text-align:center; padding:40px; color:#64748b; }
+.enex-fuel pre { background:#f8fafc; border-radius:12px; padding:16px; margin:16px 0; font:12px/1.8 inherit; overflow-wrap:anywhere; white-space:pre-wrap; }
+.enex-fuel [role=alert] { padding:16px; border-radius:12px; background:#fff1f2; color:#be123c; }
+.enex-fuel [role=status] { padding:14px; border-radius:12px; background:#ecfdf5; color:#065f46; overflow-wrap:anywhere; }
+@media(max-width:700px) { .enex-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; } .enex-heading { padding:18px; align-items:flex-start; } .enex-heading h2 { font-size:20px; } .enex-metric { padding:16px; } .enex-metric strong { font-size:22px; } .enex-fuel fieldset { padding:16px; } }
