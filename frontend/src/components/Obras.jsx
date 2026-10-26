@@ -15,6 +15,7 @@ import {costSupplierFields} from '../utils/costSupplier';
 import { calculateEarnedValue } from '../utils/earnedValue';
 import { registrarEventoBitacora } from '../utils/bitacoraService';
 import FormAnswerDisplay from './FormAnswerDisplay';
+import Solicitudes from './Solicitudes';
 import useUserPermissions from '../utils/useUserPermissions';
 import NotificationMaster from './NotificationMaster';
 import { can } from '../utils/permissionsCatalog';
@@ -3081,6 +3082,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
           {obraActiveSubmodule === null && <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4"><div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><p className="text-xs font-black uppercase tracking-wider text-blue-900">Acciones de hoy</p><p className="mt-1 text-xs text-slate-600">Accesos directos para registrar, controlar y resolver lo prioritario en faena.</p></div><div className="flex flex-wrap gap-2"><button onClick={() => setObraActiveSubmodule('avance')} className="rounded-lg bg-blue-900 px-3 py-2 text-xs font-bold text-white">Registrar avance</button><button onClick={() => { setPrevObraSubTab('inspecciones'); setShowPrevencionAssignedForms(true); setObraActiveSubmodule('prevencion'); }} className="rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-bold text-rose-800">Registros asignados</button><button onClick={() => { setEquipoTab('asistencia'); setObraActiveSubmodule('equipo'); }} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-900">Asistencia</button><button onClick={() => setObraActiveSubmodule('calidad')} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-900">Calidad</button><button onClick={() => setObraActiveSubmodule('estados_pago')} className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-900">Estados de pago</button></div></div></div>}
 
+          {obraActiveSubmodule === null && <button onClick={() => setObraActiveSubmodule('solicitudes')} className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white"><Send className="w-4 h-4"/> Solicitudes de la obra</button>}
+
           {/* NAVEGACIÓN PRINCIPAL: VISTA DE TARJETAS / RECTÁNGULOS OPERATIVOS */}
           {obraActiveSubmodule === null && (
             <div className="space-y-4">
@@ -3367,6 +3370,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
               </span>
             </div>
           )}
+
+          {obraActiveSubmodule === 'solicitudes' && <Solicitudes key={`${user.id}:${selectedObra.id}`} user={user} obra={selectedObra}/>}
 
           {/* VISTA DEDICADA 1: REPORTE DE AVANCE & VISOR DE AVANCE */}
           {obraActiveSubmodule === 'avance' && canObraAvancesView && (
