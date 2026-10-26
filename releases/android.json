@@ -2,16 +2,15 @@
   "schema": 1,
   "platform": "android",
   "packageName": "cl.obraxis.terreno",
-  "version": "1.0.10",
-  "build": 16,
-  "apkUrl": "https://expo.dev/artifacts/eas/pVD3s0bSvxvZvaSU-h1LrCmrWohnJZM_PyRCF5gEsdc.apk",
-  "sha256": "a4c6e47bbea9c9a85a59ffa6856b831b3a961c83f07db7c121544c7b307c6bb0",
-  "commit": "f297d865b441508cd600d874bdd0da2f2c1c33e1",
-  "sourceHash": "2a26d796c55e386d93eeb254349a0ba59f76b49e7e3de78747f94823bd8c9d29",
-  "publishedAt": "2026-10-26T23:10:37.601Z",
+  "version": "1.0.11",
+  "build": 17,
+  "apkUrl": "https://expo.dev/artifacts/eas/d4-PlLCqw5evBu9RvflDdbhsZ0QL1OPVa3JnS5B_w2M.apk",
+  "sha256": "e1374b8e8243c95db6c6f687faba26f00535e0265ff47e465255ed42d426041c",
+  "commit": "92d6cc83699a6b54ec32d638a2a57c9c383ddc76",
+  "sourceHash": "a19d8322ae376fefeb31b8a539297d1059c598ddc91c45480f54e392bc7f3cd1",
+  "publishedAt": "2026-10-26T23:53:43.602Z",
   "notes": [
-    "Solicitudes de combustible, traslado de equipos, materiales, insumos de bodega y EPP.",
-    "Bandejas personales de solicitudes enviadas y recibidas, con estados e historial.",
-    "Respuesta, aprobación y rechazo de solicitudes, con avisos dentro de Obraxis."
+    "Mis solicitudes ahora está junto a la campana, en un botón rectangular compacto de la misma altura.",
+    "Se elimina la tarjeta grande de Inicio para dar más espacio a los accesos de trabajo."
   ]
 }
