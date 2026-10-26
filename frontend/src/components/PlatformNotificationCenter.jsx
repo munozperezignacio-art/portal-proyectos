@@ -4,6 +4,7 @@ import { supabase } from '../supabaseClient';
 
 const moduleFor = code => {
   const value = String(code || '').toLowerCase();
+  if (value.startsWith('solicitudes_')) return 'Solicitudes';
   if (value.startsWith('maquinaria_') || value.startsWith('mantenimiento_')) return 'Maquinaria';
   if (value.startsWith('rrhh_') || value.startsWith('personal_')) return 'Recursos Humanos';
   if (value.startsWith('prevencion_') || value.startsWith('cumplimiento_')) return 'Prevención';

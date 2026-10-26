@@ -60,9 +60,14 @@ Deno.serve(async req => {
       return reply({ ok: true });
     }
     if (body.action === "inbox") {
-      const { data: deliveries, error } = await db.from("notificaciones_entregas").select("id,evento_codigo,obra_nombre,asunto,payload,created_at,notificaciones_reglas(*)").eq("empresa", profile.empresa).eq("canal", "Plataforma").order("created_at", { ascending: false }).limit(150);
-      if (error) throw error;
-      const allowed = (deliveries || []).filter(row => isRecipient(row, profile)).slice(0, 60);
+      const fields = "id,destinatario,evento_codigo,obra_nombre,asunto,payload,created_at,notificaciones_reglas(*)";
+      const [general, direct] = await Promise.all([
+        db.from("notificaciones_entregas").select(fields).eq("empresa", profile.empresa).eq("canal", "Plataforma").order("created_at", { ascending: false }).limit(150),
+        db.from("notificaciones_entregas").select(fields).eq("empresa", profile.empresa).eq("canal", "Plataforma").in("destinatario", [String(profile.id), profile.usuario, profile.correo].filter(Boolean)).order("created_at", { ascending: false }).limit(60),
+      ]);
+      if (general.error || direct.error) throw general.error || direct.error;
+      const deliveries = [...new Map([...(general.data || []), ...(direct.data || [])].map(row => [row.id, row])).values()];
+      const allowed = deliveries.filter(row => isRecipient(row, profile)).sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 60);
       const ids = allowed.map(row => row.id);
       const { data: reads } = ids.length ? await db.from("notificaciones_lecturas").select("entrega_id,leida_at").eq("auth_user_id", auth.user.id).in("entrega_id", ids) : { data: [] };
       const readMap = new Map((reads || []).map(row => [row.entrega_id, row.leida_at]));

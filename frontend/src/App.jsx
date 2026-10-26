@@ -31,6 +31,7 @@ const Login = lazyWithRetry(() => import('./components/Login'), 'login');
 const LandingPage = lazyWithRetry(() => import('./components/LandingPage'), 'landing');
 const Obras = lazyWithRetry(() => import('./components/Obras'), 'obras');
 const Personal = lazyWithRetry(() => import('./components/Personal'), 'personal');
+const Solicitudes = lazyWithRetry(() => import('./components/Solicitudes'), 'solicitudes');
 const Maquinaria = lazyWithRetry(() => import('./components/Maquinaria'), 'maquinaria');
 const ConfigCorreos = lazyWithRetry(() => import('./components/ConfigCorreos'), 'config-correos');
 const PresupuestosPlanif = lazyWithRetry(() => import('./components/PresupuestosPlanif'), 'presupuestos');
@@ -66,6 +67,7 @@ function ModuleLoader() {
 }
 
 const moduleGroups = [
+  { label: 'Mi espacio', ids: ['solicitudes'] },
   { label: 'Proyectos', ids: ['obras', 'presupuestos'] },
   { label: 'Operación', ids: ['rrhh', 'maquinaria', 'bodega'] },
   { label: 'Control y cumplimiento', ids: ['prevencion', 'formularios_capacitaciones', 'acreditaciones', 'calidad'] },
@@ -104,6 +106,7 @@ function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
   const [currentModule, setCurrentModule] = useState('dashboard');
+  const [notificationRequestId, setNotificationRequestId] = useState(null);
   const [companyBranding, setCompanyBranding] = useState(() => {
     try {
       const saved = localStorage.getItem('obraxis_company_branding');
@@ -305,6 +308,7 @@ function App() {
 
   const openNotificationDestination = (notification) => {
     const code = String(notification?.evento_codigo || '').toLowerCase();
+    if (code.startsWith('solicitudes_')) { setNotificationRequestId(notification?.payload?.solicitud_id || null); setCurrentModule('solicitudes'); navigateTo('/dashboard'); return; }
     const module = code.startsWith('maquinaria_') || code.startsWith('mantenimiento_') ? 'maquinaria'
       : code.startsWith('rrhh_') || code.startsWith('personal_') ? 'rrhh'
       : code.startsWith('prevencion_') || code.startsWith('cumplimiento_') ? 'prevencion'
@@ -544,6 +548,7 @@ function App() {
     }
     return true;
   });
+  visibleModules.unshift({ id: 'solicitudes', title: 'Mis solicitudes', description: 'Solicitar recursos, responder y consultar tu historial.', icon: <ClipboardCheck className="w-5 h-5"/>, sidebarIcon: <ClipboardCheck className="w-4 h-4"/>, action: () => setCurrentModule('solicitudes') });
   const dashboardModules = visibleModules
     .filter(module => `${module.title} ${module.description}`.toLowerCase().includes(moduleSearch.trim().toLowerCase()))
     .sort((left, right) => Number(favorites.includes(right.id)) - Number(favorites.includes(left.id)) || left.title.localeCompare(right.title));
@@ -879,6 +884,8 @@ function App() {
               </div>
               {!dashboardModules.length && <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">No encontramos un módulo con ese nombre. Prueba con “obras”, “seguridad” o “personal”.</div>}
             </div>
+          ) : currentModule === 'solicitudes' ? (
+            <Solicitudes key={`${activeUserContext.empresa}:${activeUserContext.id}`} user={activeUserContext} initialRequestId={notificationRequestId}/>
           ) : currentModule === 'obras' ? (
             <Obras 
               user={activeUserContext} 
