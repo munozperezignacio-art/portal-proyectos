@@ -2,17 +2,16 @@
   "schema": 1,
   "platform": "android",
   "packageName": "cl.obraxis.terreno",
-  "version": "1.0.9",
-  "build": 15,
-  "apkUrl": "https://expo.dev/artifacts/eas/I4t2WD60xrLra8jOhpJXsDif6q2F2qNQjX2nwKWzrVE.apk",
-  "sha256": "89b4e2ed9b7f49a0e1a9f812756e48cd788cd5fc68953d8a7726c13e70971e0d",
-  "commit": "ad70e6f8353e6839e305eab7a787f8bb1a5c63b7",
-  "sourceHash": "c23acb39a72b9c50fdb8f5ec6661e39df5020bd2165680c8f3f2c0048478c0f9",
-  "publishedAt": "2026-10-21T19:43:25.992Z",
+  "version": "1.0.10",
+  "build": 16,
+  "apkUrl": "https://expo.dev/artifacts/eas/pVD3s0bSvxvZvaSU-h1LrCmrWohnJZM_PyRCF5gEsdc.apk",
+  "sha256": "a4c6e47bbea9c9a85a59ffa6856b831b3a961c83f07db7c121544c7b307c6bb0",
+  "commit": "f297d865b441508cd600d874bdd0da2f2c1c33e1",
+  "sourceHash": "2a26d796c55e386d93eeb254349a0ba59f76b49e7e3de78747f94823bd8c9d29",
+  "publishedAt": "2026-10-26T23:10:37.601Z",
   "notes": [
-    "Descarga de actualizaciones dentro de Obraxis, con progreso, cancelación y recuperación al volver a la app.",
-    "Instalación desde la app, con confirmación de Android y verificación de integridad del archivo.",
-    "Incluye asistencia por personal asignado, Otras horas, calendarios y mejoras de estadísticas.",
-    "Conserva modo oscuro, reportes por partida y manual de armado Impact."
+    "Solicitudes de combustible, traslado de equipos, materiales, insumos de bodega y EPP.",
+    "Bandejas personales de solicitudes enviadas y recibidas, con estados e historial.",
+    "Respuesta, aprobación y rechazo de solicitudes, con avisos dentro de Obraxis."
   ]
 }
