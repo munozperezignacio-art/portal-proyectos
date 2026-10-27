@@ -7,6 +7,31 @@ const base={company:'Prueba',work:'Lonco',workId:3,event:'avance_registrado'};
 const rule={empresa:'Prueba',activa:true,canal_email:true,evento_codigo:'avance_registrado',frecuencia:'Inmediata',correos_adicionales:['rule@example.invalid']};
 const config={email_notificaciones:'general@example.invalid',notificaciones_automaticas:true,correos_contextuales:{'avances_obra:Lonco':{emails:['obra@example.invalid'],emailsCC:['copy@example.invalid'],autoNotify:true}}};
 
+test('all works recipients include existing and future works without copying settings',()=>{
+  const global=workEmailPatch({},'Lonco',3,{material_registrado:{emails:['GLOBAL@example.invalid'],emailsCC:['copy@example.invalid'],autoNotify:true}},'all');
+  assert.deepEqual(Object.keys(global.correos_contextuales),['obras:global']);
+  for(const [work,workId] of [['Lonco',3],['Nueva obra futura',999]])assert.deepEqual(workEmailRecipients({...base,config:global,work,workId,event:'material_registrado'}),{to:['global@example.invalid'],cc:['copy@example.invalid']});
+  assert.deepEqual(workEmailRecipients({...base,config:global,event:'asistencia_registrada'}),{to:[],cc:[]});
+  assert.deepEqual(workEmailRecipients({...base,config:{},event:'material_registrado'}),{to:[],cc:[]});
+});
+test('global and local recipients combine without duplicates across TO and CC and disable independently',()=>{
+  const global=workEmailPatch(config,'Lonco',3,{avance_registrado:{emails:['shared@example.invalid'],emailsCC:['globalcopy@example.invalid'],autoNotify:true}},'all');
+  const both=workEmailPatch(global,'Lonco',3,{avance_registrado:{emails:['local@example.invalid','GLOBALCOPY@example.invalid'],emailsCC:['SHARED@example.invalid'],autoNotify:true}});
+  assert.deepEqual(workEmailRecipients({...base,config:both}),{to:['local@example.invalid','globalcopy@example.invalid','shared@example.invalid'],cc:[]});
+  const localOff=workEmailPatch(both,'Lonco',3,{avance_registrado:{emails:['local@example.invalid'],autoNotify:false}});
+  assert.deepEqual(workEmailRecipients({...base,config:localOff}),{to:['shared@example.invalid'],cc:['globalcopy@example.invalid']});
+  const globalOff=workEmailPatch(both,'Lonco',3,{avance_registrado:{autoNotify:false}},'all');
+  assert.deepEqual(workEmailRecipients({...base,config:globalOff}),{to:['local@example.invalid','globalcopy@example.invalid'],cc:['shared@example.invalid']});
+  assert.deepEqual(both.correos_contextuales['obras:global'],global.correos_contextuales['obras:global']);
+});
+test('editing global settings preserves unrelated works, events and legacy fields',()=>{
+  const before=structuredClone(config);
+  const patch=workEmailPatch(config,'Lonco',3,{material_registrado:{autoNotify:true,emails:['g@example.invalid']}},'all');
+  assert.deepEqual(config,before);
+  assert.deepEqual(patch.correos_contextuales['avances_obra:Lonco'],config.correos_contextuales['avances_obra:Lonco']);
+  assert.equal(patch.correos_contextuales['obras:global'].emails,undefined);
+});
+
 test('legacy work addresses are preserved for advances but never enable a new event',()=>{
   assert.deepEqual(workEmailRecipients({...base,config,rules:[rule]}),{to:['rule@example.invalid','obra@example.invalid'],cc:['copy@example.invalid']});
   for(const event of WORK_EMAIL_EVENTS.filter(item=>item.id!=='avance_registrado').map(item=>item.id))assert.deepEqual(workEmailRecipients({...base,event,config,rules:[rule]}),{to:[],cc:[]});

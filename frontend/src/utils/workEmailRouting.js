@@ -12,6 +12,10 @@ export const WORK_EMAIL_EVENTS = [
 export const normalizeEmails = value => [...new Set((Array.isArray(value)?value:String(value||'').split(',')).map(item=>String(item).trim().toLowerCase()).filter(Boolean))];
 export const validEmail = email => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 export const workEmailKey = (workId,work) => workId ? `obra:${workId}` : `avances_obra:${work}`;
+export const ALL_WORKS_EMAIL_KEY = 'obras:global';
+export function allWorksEmailSetting(config={},event) {
+  return config.correos_contextuales?.[ALL_WORKS_EMAIL_KEY]?.events?.[event] || {emails:[],emailsCC:[],autoNotify:true};
+}
 
 export function workEmailSetting(config={},work,workId,event) {
   const contexts=config.correos_contextuales||{};
@@ -26,18 +30,22 @@ export function workEmailSetting(config={},work,workId,event) {
 
 export function workEmailRecipients({config={},company,work,workId,event,rules=[],users=[]}) {
   const setting=workEmailSetting(config,work,workId,event);
-  if(!setting.autoNotify)return {to:[],cc:[]};
-  let to=normalizeEmails(setting.emails).filter(validEmail);
-  const cc=normalizeEmails(setting.emailsCC).filter(validEmail);
-  if(event==='avance_registrado' && !setting.exclusive)to=advanceNotificationRecipients({rules,users,company,work,fallback:to});
+  const global=allWorksEmailSetting(config,event);
+  let to=setting.autoNotify?normalizeEmails(setting.emails).filter(validEmail):[];
+  let cc=setting.autoNotify?normalizeEmails(setting.emailsCC).filter(validEmail):[];
+  if(setting.autoNotify && event==='avance_registrado' && !setting.exclusive)to=advanceNotificationRecipients({rules,users,company,work,fallback:to});
+  if(global.autoNotify){
+    to=normalizeEmails([...to,...normalizeEmails(global.emails)]).filter(validEmail);
+    cc=normalizeEmails([...cc,...normalizeEmails(global.emailsCC)]).filter(validEmail);
+  }
   // An address present as a direct recipient or through a rule gets only one email.
   return {to,cc:cc.filter(email=>!to.includes(email))};
 }
 
-export function workEmailPatch(current,work,workId,events) {
-  const key=workEmailKey(workId,work);
+export function workEmailPatch(current,work,workId,events,scope='work') {
+  const key=scope==='all'?ALL_WORKS_EMAIL_KEY:workEmailKey(workId,work);
   const contexts=current.correos_contextuales||{};
-  const previous=contexts[key]||contexts[`avances_obra:${work}`]||{};
+  const previous=contexts[key]||(scope==='all'?{}:contexts[`avances_obra:${work}`])||{};
   return {correos_contextuales:{...contexts,[key]:{...previous,events:{...(previous.events||{}),...events},updatedAt:new Date().toISOString()}}};
 }
 
