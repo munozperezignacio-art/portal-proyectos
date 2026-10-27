@@ -8,6 +8,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '@/auth/AuthProvider';
 import { EquipmentManagementActions } from '@/components/EquipmentManagementActions';
 import { MachineryActions } from '@/components/MachineryActions';
+import { MachineryReportCard } from '@/components/MachineryReportCard';
 import { Badge, Card, Empty, ErrorBox, Header, Loading, Screen, Segments } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 
@@ -53,7 +54,7 @@ export default function EquipmentDetail() {
       {(mayUse || mayFail || mayMaintain || mayReserve || mayAssign) && <><Text style={s.section}>Acciones disponibles</Text><View style={s.actions}>{mayUse && <MachineryActions mode="usage" equipment={[equipment]} initialEquipment={equipment} profile={profile!} onSaved={load}/>} {mayFail && <MachineryActions mode="failure" equipment={[equipment]} initialEquipment={equipment} profile={profile!} onSaved={load}/>} {mayReserve && <MachineryActions mode="reservation" equipment={[equipment]} initialEquipment={equipment} profile={profile!} onSaved={load}/>}<EquipmentManagementActions equipment={[equipment]} initialEquipment={equipment} profile={profile!} showAssign={mayAssign} showMaintenance={mayMaintain} onSaved={load}/></View></>}
       <View style={s.metrics}><Metric value={hours.toLocaleString('es-CL')} label="Horas registradas" /><Metric value={data.failures.length} label="Fallas" /><Metric value={data.maintenance.length} label="Mantenciones" /></View>
       <Segments value={tab} options={tabs} onChange={setTab} />
-      {tab === 'historial' && (history.length ? history.map((item: Row) => <HistoryCard key={`${item.kind}-${item.id}`} item={item} />) : <Empty text="No hay movimientos registrados para este alcance." />)}
+      {tab === 'historial' && (history.length ? history.map((item: Row) => item.kind === 'Uso' ? <MachineryReportCard key={`uso-${item.id}`} report={item} /> : <HistoryCard key={`${item.kind}-${item.id}`} item={item} />) : <Empty text="No hay movimientos registrados para este alcance." />)}
       {tab === 'mantenciones' && (data.maintenance.length ? data.maintenance.map((item: Row) => <Card key={item.id}><Badge tone="green">{item.tipo || 'Mantención'}</Badge><Text style={s.name}>{item.fecha} · Lectura {Number(item.horometro || 0).toLocaleString('es-CL')}</Text><Text style={s.meta}>{item.descripcion || 'Sin descripción'}{item.proveedor ? ` · ${item.proveedor}` : ''}</Text><Text style={s.cost}>${Number(item.costo || 0).toLocaleString('es-CL')}</Text></Card>) : <Empty text="No hay mantenciones registradas." />)}
       {tab === 'planes' && (plans.length ? plans.map((plan: Row, index: number) => <Card key={`${plan.nombre}-${index}`}><Badge tone={plan.remaining <= 0 ? 'red' : plan.remaining <= 10 ? 'amber' : 'green'}>{plan.remaining <= 0 ? 'Vencida' : 'Programada'}</Badge><Text style={s.name}>{plan.nombre || 'Mantención preventiva'}</Text><Text style={s.meta}>Próxima lectura: {plan.next.toLocaleString('es-CL')} {plan.unidad || 'horas'} · {Math.max(0, plan.remaining).toLocaleString('es-CL')} restantes</Text></Card>) : <Empty text="Este equipo no tiene planes de mantención configurados." />)}
     </> : <Empty text="El equipo no existe o no está disponible para tu empresa." />}

@@ -1,0 +1,38 @@
+-- Run inside a transaction; fixtures and all equipment changes are rolled back.
+do $$
+declare eq integer; result jsonb; retry jsonb; request uuid:=gen_random_uuid(); payload jsonb; n integer; rejected boolean; uid uuid:=gen_random_uuid(); aid integer;
+begin
+ if has_function_privilege('anon','public.registrar_reporte_maquinaria(integer,jsonb,uuid)','execute') then raise exception 'Anonymous RPC exposed'; end if;
+ if has_table_privilege('anon','public.maquinaria_reporte_config','select') then raise exception 'Anonymous config exposed'; end if;
+ if has_table_privilege('authenticated','public.maquinaria_reporte_equipo','update') then raise exception 'Unrestricted config write'; end if;
+ insert into public.inventario_maquinaria(tipo,patente,empresa,horometro_inicial) values('QA reporte','QA-ONLY','__QA_REPORTE__',100) returning id into eq;
+ insert into public.maquinaria_reporte_config(empresa,codigo,revision) values('__QA_REPORTE__','QA-123','07');
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);
+ payload:=jsonb_build_object('fecha',(now() at time zone 'America/Santiago')::date,'operador','Operador QA','horometro_inicial','100','horometro_final','108,5','hubo_combustible',true,'combustible_cargado','75,5','hubo_falla',true,'detuvo_equipo',true,'horas_fuera_servicio','1,5','descripcion','Falla QA','severidad','Media');
+ result:=public.registrar_reporte_maquinaria(eq,payload,request);
+ retry:=public.registrar_reporte_maquinaria(eq,payload,request);
+ if result->>'id'<>retry->>'id' then raise exception 'Retry duplicated report'; end if;
+ select count(*) into n from public.maquinaria_uso_diario where empresa='__QA_REPORTE__'; if n<>1 then raise exception 'Wrong report count'; end if;
+ if not exists(select 1 from public.maquinaria_uso_diario where id=(result->>'id')::bigint and horas_trabajadas=8.5 and combustible_cargado=75.5 and reporte_datos->>'codigo'='QA-123') then raise exception 'Payload mismatch'; end if;
+ if not exists(select 1 from public.maquinaria_fallas where uso_diario_id=(result->>'id')::bigint and horas_fuera_servicio=1.5) then raise exception 'Failure missing'; end if;
+ rejected:=false;begin perform public.registrar_reporte_maquinaria(eq,payload,gen_random_uuid());exception when others then rejected:=true;end;if not rejected then raise exception 'Stale reading accepted';end if;
+ insert into public.maquinaria_reporte_equipo(equipo_id,empresa,unidad,qr_activo) values(eq,'__QA_REPORTE__','km',false);
+ rejected:=false;begin perform public.registrar_reporte_maquinaria(eq,payload||'{"horometro_inicial":108.5,"horometro_final":110}',gen_random_uuid());exception when others then rejected:=true;end;if not rejected then raise exception 'Disabled QR accepted';end if;
+ update public.maquinaria_reporte_equipo set qr_activo=true where equipo_id=eq;
+ perform public.registrar_reporte_maquinaria(eq,payload||'{"horometro_inicial":108.5,"horometro_final":200,"horas_trabajadas":"6,5","hubo_falla":false,"hubo_combustible":false}',gen_random_uuid());
+ if not exists(select 1 from public.maquinaria_uso_diario where equipo_id=eq::text and horometro_final=200 and horas_trabajadas=6.5 and reporte_datos->>'unidad'='km') then raise exception 'Kilometers interpreted as hours';end if;
+ perform set_config('request.jwt.claims','{"role":"authenticated"}',true);
+ rejected:=false;begin perform public.configurar_reporte_maquinaria('__QA_REPORTE__','consultar');exception when others then rejected:=true;end;if not rejected then raise exception 'Missing identity accepted';end if;
+ rejected:=false;begin perform public.registrar_reporte_maquinaria(eq,payload,gen_random_uuid());exception when others then rejected:=true;end;if not rejected then raise exception 'Missing identity submitted';end if;
+ insert into auth.users(id,email) values(uid,uid||'@example.invalid');
+ insert into public.usuarios(usuario,correo,empresa,rol,rol_base,auth_user_id) values('__qa_report_'||uid,uid||'@example.invalid','__QA_REPORTE__','Administrador de Empresa','Administrador de Empresa',uid) returning id into aid;
+ perform set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub',uid)::text,true);
+ perform public.configurar_reporte_maquinaria('__QA_REPORTE__','documento',jsonb_build_object('codigo','QA-NEW','revision','08','responsable_id',aid));
+ if not exists(select 1 from public.maquinaria_reporte_config where empresa='__QA_REPORTE__' and codigo='QA-NEW') then raise exception 'Authorized configuration failed';end if;
+ rejected:=false;begin perform public.configurar_reporte_maquinaria('__OTHER_COMPANY__','consultar');exception when others then rejected:=true;end;if not rejected then raise exception 'Cross-company access accepted';end if;
+ update public.usuarios set rol='Usuario',rol_base='Usuario',permisos='{"maquinaria.inventario.configurar":false}' where id=aid;
+ perform public.configurar_reporte_maquinaria('__QA_REPORTE__','documento',jsonb_build_object('codigo','QA-DELEGATED','revision','09','responsable_id',aid));
+ rejected:=false;begin perform public.configurar_reporte_maquinaria('__QA_REPORTE__','documento','{"codigo":"A","revision":"1","responsable_id":null}');exception when others then rejected:=true;end;if not rejected then raise exception 'Delegate reassigned responsibility';end if;
+ update public.maquinaria_reporte_config set responsable_id=null where empresa='__QA_REPORTE__';
+ rejected:=false;begin perform public.configurar_reporte_maquinaria('__QA_REPORTE__','consultar');exception when others then rejected:=true;end;if not rejected then raise exception 'Unprivileged config access accepted';end if;
+end;$$;

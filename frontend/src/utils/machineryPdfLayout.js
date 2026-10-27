@@ -35,7 +35,10 @@ export function drawMachineryReport(doc, { report, company, companyLogo, fields,
     text(7.5); doc.text('Control diario de operación', 104, 35, { align: 'center' });
     text(7.5); doc.text(`Registro: ${report.id}`, 153, 22);
     doc.text(`Fecha: ${String(report.fecha || 'No informada').slice(0, 10)}`, 153, 29);
-    doc.text('Formato: MAQ-01', 153, 36);
+    const code = `Doc: ${report.reporte_datos?.codigo || 'MAQ-01'}`;
+    text(6.5); if (doc.getTextWidth(code) > 38) doc.setFontSize(6.5 * 38 / doc.getTextWidth(code));
+    doc.text(code, 153, 34); text(6.5);
+    doc.text(`Rev: ${report.reporte_datos?.revision || '01'}`, 153, 38);
     y = 47;
   };
   const ensure = h => { if (y + h > bottom) { doc.addPage(); header(); } };
@@ -75,7 +78,7 @@ export function drawMachineryReport(doc, { report, company, companyLogo, fields,
   };
   const group = (label, indexes, cols = 2) => {
     title(label);
-    for (let i = 0; i < indexes.length; i += cols) cells(indexes.slice(i, i + cols).map(n => n === 12 || n === 13 ? [`${fields[n][0]} (h)`, fields[n][1]] : fields[n]));
+    for (let i = 0; i < indexes.length; i += cols) cells(indexes.slice(i, i + cols).map(n => (n === 12 || n === 13) && report.reporte_datos?.unidad !== 'km' ? [`${fields[n][0]} (h)`, fields[n][1]] : fields[n]));
     y += 2;
   };
   header();
@@ -93,6 +96,8 @@ export function drawMachineryReport(doc, { report, company, companyLogo, fields,
   }
   title('06  OBSERVACIONES Y TRAZABILIDAD');
   note(...fields[19]); cells([fields[20], fields[21]]);
+  if (report.reporte_datos?.responsable) cells([['Responsable de maquinaria al registrar', report.reporte_datos.responsable]]);
+  if (report.reporte_datos?.configuracion_actual) note('Formato del documento', 'Este registro anterior no conserva revisión propia. El encabezado usa la configuración actual de maquinaria.');
   note('Alcance de los datos', 'Responsables y marca/modelo corresponden a las fichas actuales. Las fallas se consultan por equipo, obra y fecha, sin afirmar un vínculo directo con este reporte. Sin registros no significa ausencia de incidentes. Combustible según uso registrado; no se infieren cargas ENEX por patente.');
   for (let page = 1; page <= doc.getNumberOfPages(); page++) {
     doc.setPage(page); doc.setDrawColor(203, 213, 225); doc.line(left, 282, left + width, 282);

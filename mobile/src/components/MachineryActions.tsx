@@ -1,4 +1,5 @@
 import { DateField } from '@/components/DateField';
+import { MachineryUsageForm } from './MachineryUsageForm';
 import { useTheme, useThemedStyles } from '@/theme/ThemeProvider';
 import type { ThemeColors } from '@/lib/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,7 +14,11 @@ type Row = Record<string, any>;
 type Mode = 'usage' | 'failure' | 'reservation';
 const today = () => new Date().toISOString().slice(0, 10);
 
-export function MachineryActions({ mode, equipment, profile, onSaved, initialEquipment }: { mode: Mode; equipment: Row[]; profile: Profile; onSaved: () => void; initialEquipment?: Row }) {
+type ActionProps = { mode: Mode; equipment: Row[]; profile: Profile; onSaved: () => void; initialEquipment?: Row };
+export function MachineryActions(props: ActionProps) {
+  return props.mode === 'usage' ? <MachineryUsageForm {...props} /> : <LegacyMachineryActions {...props} />;
+}
+function LegacyMachineryActions({ mode, equipment, profile, onSaved, initialEquipment }: ActionProps) {
   const {colors}=useTheme();
   const s=useThemedStyles(createStyles);
 

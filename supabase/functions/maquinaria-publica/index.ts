@@ -19,43 +19,38 @@ Deno.serve(async (req: Request) => {
   if (!serviceKey) return reply({ error: "Servicio no configurado." }, 503, origin);
   const db = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey, { auth: { persistSession: false } });
   try {
-    const body = await req.json();
+    const raw = await req.text();
+    if (raw.length > 20000) return reply({ error: 'Formulario demasiado extenso.' }, 400, origin);
+    const body = JSON.parse(raw);
     const action = clean(body?.action, 20), token = clean(body?.token, 160);
-    if (token.length < 20) return reply({ error: "Enlace inválido." }, 404, origin);
+    if (!/^[a-f0-9]{48}$/.test(token) || !['cargar','registrar'].includes(action)) return reply({ error: "Enlace inválido." }, 404, origin);
     const ip = clean(req.headers.get("x-forwarded-for")?.split(",")[0] || "unknown", 80);
     const [tokenHash, ipHash] = await Promise.all([digest(token), digest(ip)]);
     const since = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-    const { count } = await db.from("formulario_publico_intentos").select("id", { count: "exact", head: true }).eq("token_hash", tokenHash).eq("ip_hash", ipHash).eq("accion", `maq_${action}`).gte("created_at", since);
+    const { count, error: rateError } = await db.from("formulario_publico_intentos").select("id", { count: "exact", head: true }).eq("token_hash", tokenHash).eq("accion", `maq_${action}`).gte("created_at", since);
+    if (rateError) return reply({ error: 'Control de acceso no disponible.' }, 503, origin);
     if ((count || 0) >= (action === "registrar" ? 12 : 80)) return reply({ error: "Demasiados intentos. Intenta nuevamente más tarde." }, 429, origin);
     const log = (success: boolean) => db.from("formulario_publico_intentos").insert({ token_hash: tokenHash, ip_hash: ipHash, accion: `maq_${action}`, exitoso: success });
+    const attempt = await log(false);
+    if (attempt.error) return reply({ error: 'Control de acceso no disponible.' }, 503, origin);
 
     const { data: equipment } = await db.from("inventario_maquinaria").select("id,tipo,patente,marca,obra_nombre,horometro_inicial,empresa").eq("publico_token", token).maybeSingle();
     if (!equipment) { await log(false); return reply({ error: "Equipo no disponible." }, 404, origin); }
-    const { data: lastUse } = await db.from("maquinaria_uso_diario").select("horometro_final,fecha").eq("empresa", equipment.empresa).eq("equipo_id", String(equipment.id)).order("created_at", { ascending: false }).limit(1).maybeSingle();
-    const currentReading = Number(lastUse?.horometro_final ?? equipment.horometro_inicial ?? 0);
-    if (action === "cargar") { await log(true); return reply({ equipo: { ...equipment, horometro_inicial: currentReading } }, 200, origin); }
+    const [config, equipmentConfig] = await Promise.all([
+      db.from('maquinaria_reporte_config').select('codigo,revision').eq('empresa',equipment.empresa).maybeSingle(),
+      db.from('maquinaria_reporte_equipo').select('unidad,qr_activo').eq('equipo_id',equipment.id).eq('empresa',equipment.empresa).maybeSingle(),
+    ]);
+    if(config.error || equipmentConfig.error) return reply({error:'Configuración no disponible.'},503,origin);
+    if(equipmentConfig.data?.qr_activo === false) return reply({error:'Este QR fue desactivado.'},404,origin);
+    if (action === "cargar") return reply({ equipo: { tipo:equipment.tipo,patente:equipment.patente,marca:equipment.marca,empresa:equipment.empresa,obra_nombre:equipment.obra_nombre,
+      horometro_inicial:equipment.horometro_inicial??0,unidad:equipmentConfig.data?.unidad||'h',codigo:config.data?.codigo||'MAQ-01',revision:config.data?.revision||'01' } },200,origin);
     if (action !== "registrar") return reply({ error: "Acción inválida." }, 400, origin);
 
-    const initial = Number(body?.horometro_inicial), final = Number(body?.horometro_final);
-    const fuel = Math.max(0, Number(body?.combustible_cargado) || 0);
-    const date = clean(body?.fecha, 10), operator = clean(body?.operador, 180), notes = clean(body?.observaciones, 2000);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !operator || !Number.isFinite(initial) || !Number.isFinite(final)) return reply({ error: "Completa correctamente fecha, operador y lecturas." }, 400, origin);
-    if (Math.abs(initial - currentReading) > .01) return reply({ error: `La lectura inicial vigente es ${currentReading}. Actualiza el formulario.` }, 409, origin);
-    if (final < initial || final - initial > 5000) return reply({ error: "La lectura final no es válida." }, 400, origin);
-
-    const { error: insertError } = await db.from("maquinaria_uso_diario").insert({
-      equipo_id: String(equipment.id), equipo_tipo: equipment.tipo, equipo_patente: equipment.patente,
-      obra_nombre: equipment.obra_nombre || "Sin asignar", fecha: date, horometro_inicial: initial,
-      horometro_final: final, horas_trabajadas: Math.max(0, final - initial), combustible_cargado: fuel,
-      operador: operator, observaciones: notes, empresa: equipment.empresa,
-      obra_cargo_diario: clean(body?.obra_cargo_diario,300) || null,
-    });
-    if(insertError?.message==="MAQUINARIA_DESTINO_REQUERIDO"){
-      return reply({error:insertError.message,details:insertError.details},200,origin);
-    }
-    if (insertError) throw insertError;
-    await db.from("inventario_maquinaria").update({ horometro_inicial: final }).eq("id", equipment.id).eq("empresa", equipment.empresa);
-    await log(true); return reply({ ok: true, horas_trabajadas: Math.max(0, final - initial) }, 200, origin);
+    if (!/^[0-9a-f-]{36}$/i.test(String(body.solicitud_id || ''))) return reply({error:'Actualiza el formulario antes de enviar.'},400,origin);
+    const { data, error: saveError } = await db.rpc('registrar_reporte_maquinaria', {p_equipo_id:equipment.id,p_datos:body,p_solicitud:body.solicitud_id});
+    if(saveError?.message==='MAQUINARIA_DESTINO_REQUERIDO') return reply({error:'El responsable debe resolver el destino del cargo diario en el portal. No se guardó el reporte.'},409,origin);
+    if(saveError) return reply({error:saveError.code==='P0001'?saveError.message:'Revisa los datos. No se pudo guardar.'},400,origin);
+    return reply({ok:true,id:data.id},200,origin);
   } catch (error) {
     console.error(error); return reply({ error: error instanceof Error ? error.message : "Error inesperado." }, 500, origin);
   }

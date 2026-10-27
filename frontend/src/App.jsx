@@ -47,7 +47,7 @@ const PublicTrainingFiller = lazyWithRetry(() => import('./components/PublicTrai
 const PublicSubcontractAcreditacion = lazyWithRetry(() => import('./components/PublicSubcontractAcreditacion'), 'subcontrato-publico');
 const SubcontractOperationsPortal = lazyWithRetry(() => import('./components/SubcontractOperationsPortal'), 'operacion-subcontrato');
 const PublicSupplierAcreditacion = lazyWithRetry(() => import('./components/PublicSupplierAcreditacion'), 'proveedor-publico');
-const PublicReporteDiarioMaquinaria = lazyWithRetry(() => import('./components/PublicReporteDiarioMaquinaria'), 'maquinaria-publica');
+const PublicReporteDiarioMaquinaria = lazyWithRetry(() => import('./components/MachineryPublicForm'), 'maquinaria-publica');
 const PublicEstadoPago = lazyWithRetry(() => import('./components/PublicEstadoPago'), 'estado-pago-publico');
 const PublicLibroObra = lazyWithRetry(() => import('./components/PublicLibroObra'), 'libro-obra-publico');
 const ClientesPortal = lazyWithRetry(() => import('./components/ClientesPortal'), 'clientes');

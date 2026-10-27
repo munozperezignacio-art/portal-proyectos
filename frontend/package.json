@@ -23,6 +23,7 @@
     "jspdf": "^4.2.1",
     "lucide-react": "^1.24.0",
     "mammoth": "1.13.0",
+    "qrcode": "1.5.4",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"

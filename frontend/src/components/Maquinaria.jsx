@@ -15,6 +15,8 @@ import { can } from '../utils/permissionsCatalog';
 import MachineryMeterAI from './MachineryMeterAI';
 import MachineryEquipmentDetailModal from './MachineryEquipmentDetailModal';
 import MachineryDownload from './MachineryDownload';
+import MachineryReportSettings from './MachineryReportSettings';
+import EquipmentQrImage from './EquipmentQrImage';
 import EquipmentBulkImport from './EquipmentBulkImport';
 import EquipmentAssignments from './EquipmentAssignments';
 import EquipmentInventory from './EquipmentInventory';
@@ -938,6 +940,7 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
       {/* 1. Encabezado Oficial Estándar Obraxis */}
       <ModuleHeader className="mb-6" title="Gestión de Maquinaria y Equipos" subtitle="Inventario, asignaciones en faena, horómetros, reservas de obras futuras y arriendos a terceros." Icon={Truck} onBack={() => { if (activeSection !== '') { setActiveSection(''); setSuccessMsg(''); setErrorMsg(''); } else { onBack(); } }} />
 
+      {(activeSection === '' || activeSection === 'inventario' || activeSection === 'uso') && <MachineryReportSettings user={user} equipment={maquinaria} canConfigure={canConfigure} onChanged={fetchData} />}
       {activeSection === 'enex' && <EnexFuel key={user.empresa} user={user} />}
       {/* Alertas Globales */}
       {successMsg && <div className="mb-6 bg-emerald-50 text-emerald-700 p-2 rounded-lg text-xs font-semibold border border-emerald-250 animate-in fade-in duration-150">{successMsg}</div>}
@@ -2158,7 +2161,6 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
         const equipment = maquinaria.find(item => String(item.id) === String(arr.equipo_id));
         const baseUrl = window.location.origin;
         const qrTargetUrl = `${baseUrl}/?maquinaria_token=${encodeURIComponent(equipment?.publico_token || '')}`;
-        const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrTargetUrl)}`;
 
         return (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
@@ -2179,7 +2181,7 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
                 </div>
 
                 <div className="w-56 h-56 bg-white border border-slate-300 rounded-2xl p-2 mx-auto flex items-center justify-center shadow-inner">
-                  <img src={qrApiUrl} alt={`QR ${arr.equipo_patente}`} className="w-full h-full object-contain" />
+                  <EquipmentQrImage value={qrTargetUrl} label={`QR ${arr.equipo_patente}`} />
                 </div>
 
                 <p className="text-[10px] text-slate-500 font-medium leading-tight">

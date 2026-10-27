@@ -8,7 +8,7 @@ const safeName = value => String(value || 'equipo').replace(/[^\p{L}\p{N}_.-]+/g
 
 export function relatedFailures(report, failures) {
   // Same-day events are context, not a fabricated direct relationship to this report.
-  return failures.filter(f => String(f.equipo_id) === String(report.equipo_id)
+  return failures.filter(f => (f.uso_diario_id == null || String(f.uso_diario_id) === String(report.id)) && String(f.equipo_id) === String(report.equipo_id)
     && f.obra_nombre === report.obra_nombre && day(f.fecha) === day(report.fecha));
 }
 
@@ -22,14 +22,16 @@ export function reportFields(report, equipment = {}, work = {}, failures = []) {
     ['Administrador (ficha actual)', work.admin_contrato], ['Oficina técnica (ficha actual)', work.oficina_tecnica],
     ['Equipo', report.equipo_tipo || equipment.tipo], ['Código / patente', report.equipo_patente || equipment.patente],
     ['Marca / modelo (ficha actual)', equipment.marca], ['Operador', report.operador],
-    ['Horómetro inicial', number(report.horometro_inicial)], ['Horómetro final', number(report.horometro_final)],
+    [report.reporte_datos?.unidad === 'km' ? 'Odómetro inicial (km)' : 'Horómetro inicial', number(report.horometro_inicial)], [report.reporte_datos?.unidad === 'km' ? 'Odómetro final (km)' : 'Horómetro final', number(report.horometro_final)],
     ['Horas trabajadas (h)', number(report.horas_trabajadas)],
     ['Carga de combustible', fuel === null ? 'No informado' : fuel > 0 ? 'Sí' : 'No, según el reporte'],
     ['Combustible cargado (L)', fuel],
-    ['Fallas del equipo / obra en la fecha', events.length ? `Sí: ${events.length} registro(s)` : 'Sin registro asociado a la fecha'],
-    ['Paralización', stopped ? 'Sí, registrada en la fecha' : events.length && events.every(f => f.detuvo_equipo === false) ? 'No, según las fallas registradas' : 'No informada'],
+    ['Fallas del equipo / obra en la fecha', report.reporte_datos?.hubo_falla === false ? `No declarada en este reporte${events.length ? `; ${events.length} evento(s) en la fecha` : ''}` : events.length ? `Sí: ${events.length} registro(s)` : 'Sin registro asociado a la fecha'],
+    ['Paralización', report.reporte_datos?.detuvo_equipo === false ? 'No, según el reporte' : stopped ? 'Sí, registrada en la fecha' : events.length && events.every(f => f.detuvo_equipo === false) ? 'No, según las fallas registradas' : 'No informada'],
     ['Observaciones', report.observaciones], ['Registrado por', report.registrado_por],
     ['Fecha de creación', report.created_at],
+    ['Código de documento', report.reporte_datos?.codigo], ['Revisión', report.reporte_datos?.revision],
+    ['Responsable de maquinaria', report.reporte_datos?.responsable],
   ].map(([label, value]) => [label, present(value) ? value : 'No informado']);
 }
 
@@ -60,20 +62,23 @@ export async function readMachineryExport(db, { company, equipmentId, workName, 
   });
   if (reportId && usage.length !== 1) throw new Error('El reporte ya no existe o no está autorizado.');
   const report = usage[0];
-  const [failures, maintenance, equipmentResult, works] = await Promise.all([
+  const [failures, maintenance, equipmentResult, works, reportConfig] = await Promise.all([
     readAllMachineryRows(() => reportId ? scope('maquinaria_fallas').eq('fecha', day(report.fecha)).eq('obra_nombre', report.obra_nombre) : scope('maquinaria_fallas')),
     reportId ? [] : readAllMachineryRows(() => scope('maquinaria_mantenciones')),
     db.from('inventario_maquinaria').select('*').eq('empresa', company).eq('id', equipmentId).maybeSingle(),
     readAllMachineryRows(() => db.from('obras').select('id,nombre,cliente,ubicacion,admin_contrato,oficina_tecnica').eq('empresa', company)),
+    db.from('maquinaria_reporte_config').select('codigo,revision').eq('empresa',company).maybeSingle(),
   ]);
   if (equipmentResult.error) throw new Error('No se pudo consultar la ficha del equipo.');
-  return { usage, failures, maintenance, equipment: equipmentResult.data || {}, works, company, workName };
+  if (reportConfig.error) throw new Error('No se pudo consultar el formato del reporte.');
+  return { usage, failures, maintenance, equipment: equipmentResult.data || {}, works, company, workName, reportConfig: reportConfig.data };
 }
 
 export async function createMachineryPdf(data) {
   const jsPDF = await loadPdfEngine();
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  const report = data.usage[0];
+  const original = data.usage[0];
+  const report = original && { ...original, reporte_datos: original.reporte_datos || { ...data.reportConfig, configuracion_actual: true } };
   if (!report) throw new Error('Reporte no disponible.');
   const work = data.works.find(w => w.nombre === report.obra_nombre) || {};
   let companyLogo = data.companyLogo;
