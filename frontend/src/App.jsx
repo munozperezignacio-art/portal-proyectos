@@ -910,7 +910,7 @@ function App() {
               setCurrentModule('dashboard');
             }} />
           ) : currentModule === 'maquinaria' ? (
-            <Maquinaria user={activeUserContext} onBack={() => {
+            <Maquinaria companyBranding={companyBranding} user={activeUserContext} onBack={() => {
               setSelectedObraName(null);
               setCurrentModule('dashboard');
             }} />

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { reportFields, relatedFailures, historySheets, readAllMachineryRows } from './machineryExports.js';
+import { reportFields, relatedFailures, historySheets, readAllMachineryRows, createMachineryPdf } from './machineryExports.js';
 
 const report = { id: 5, equipo_id: 9, empresa: 'Demo', fecha: '2026-10-27', obra_nombre: 'Obra A', combustible_cargado: 0, horometro_inicial: 0, horometro_final: 8, horas_trabajadas: 8 };
 test('preserves zero and distinguishes unknown from no fuel', () => {
@@ -30,4 +30,22 @@ test('reads every page and does not export partial results on failure', async ()
 });
 test('rejects repeated IDs during pagination', async () => {
   await assert.rejects(readAllMachineryRows(() => ({ order: () => ({ range: async () => ({data:[{id:1}]}) }) }), 1), /cambió/);
+});
+
+test('corporate PDF repeats header and preserves long observations across pages', async () => {
+  const doc = await createMachineryPdf({ company: 'Demo Company', equipment: {}, works: [], failures: [],
+    usage: [{ ...report, observaciones: 'Long observation. '.repeat(1200) + 'FINAL_MARKER' }] });
+  assert.ok(doc.getNumberOfPages() > 2);
+  const pages = doc.internal.pages.slice(1).map(page => page.join('\n'));
+  for (const page of pages) {
+    assert.match(page, /REPORTE DE MAQUINARIA/);
+    assert.match(page, /Demo Company/);
+  }
+  assert.match(pages.join('\n'), /FINAL_MARKER/);
+  assert.doesNotMatch(pages.join('\n'), /OBRAXIS \| REPORTE/);
+});
+
+test('invalid company logo falls back to company name, never Obraxis logo', async () => {
+  const doc = await createMachineryPdf({ company: 'Company B', companyLogo: 'invalid', equipment: {}, works: [], failures: [], usage: [report] });
+  assert.match(doc.output(), /Company B/);
 });

@@ -3,7 +3,7 @@ import { Download } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { readMachineryExport, downloadMachinery } from '../utils/machineryExports';
 
-export default function MachineryDownload({ company, equipmentId, workName, reportId, allowed = false }) {
+export default function MachineryDownload({ companyBranding, company, equipmentId, workName, reportId, allowed = false }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   if (!allowed) return null;
@@ -12,6 +12,7 @@ export default function MachineryDownload({ company, equipmentId, workName, repo
     setBusy(true); setError('');
     try {
       const data = await readMachineryExport(supabase, { company, equipmentId, workName, reportId });
+      data.companyLogo = companyBranding?.logo_base64 || companyBranding?.logo_url || null;
       await downloadMachinery(data, reportId ? 'pdf' : 'xlsx');
     } catch (e) { setError(e.message || 'No se pudo descargar. Intenta nuevamente.'); }
     finally { setBusy(false); }

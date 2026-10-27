@@ -1,7 +1,7 @@
+import { drawMachineryReport } from './machineryPdfLayout.js';
 import { loadPdfEngine, loadSpreadsheetEngine } from '../services/documentEngines.js';
 
 const present = value => value !== null && value !== undefined && value !== '';
-const display = value => present(value) ? String(value) : 'No informado';
 const number = value => present(value) && Number.isFinite(Number(value)) ? Number(value) : null;
 const day = value => String(value || '').slice(0, 10);
 const safeName = value => String(value || 'equipo').replace(/[^\p{L}\p{N}_.-]+/gu, '_').slice(0, 80);
@@ -76,37 +76,17 @@ export async function createMachineryPdf(data) {
   const report = data.usage[0];
   if (!report) throw new Error('Reporte no disponible.');
   const work = data.works.find(w => w.nombre === report.obra_nombre) || {};
-  let y;
-  const header = () => {
-    doc.setFillColor(30, 27, 75); doc.rect(14, 12, 182, 23, 'F');
-    doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
-    doc.text('OBRAXIS | REPORTE DE MAQUINARIA', 19, 22);
-    doc.setFontSize(9); doc.text(`Registro ${report.id} | ${display(report.fecha)}`, 19, 29);
-    doc.setTextColor(30, 41, 59); y = 43;
-  };
-  header();
-  const row = (label, value) => {
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-    const lines = doc.splitTextToSize(`${label}: ${display(value)}`, 171);
-    // Split even a single very long observation over pages without clipping.
-    for (const line of lines) {
-      if (y > 276) { doc.addPage(); header(); }
-      doc.text(line, 18, y); y += 4.5;
-    }
-    y += 2;
-  };
-  for (const [label, value] of reportFields(report, data.equipment, work, data.failures)) row(label, value);
-  for (const failure of relatedFailures(report, data.failures)) {
-    row('Falla registrada en la misma fecha (no vínculo directo)', failure.id);
-    for (const [key, label] of [['descripcion','Descripción'],['severidad','Severidad'],['detuvo_equipo','Detuvo el equipo'],['horas_fuera_servicio','Horas fuera de servicio'],['causa','Causa'],['solucion','Solución'],['responsable','Responsable']]) {
-      row(label, typeof failure[key] === 'boolean' ? failure[key] ? 'Sí' : 'No' : failure[key]);
-    }
+  let companyLogo = data.companyLogo;
+  if (typeof companyLogo === 'string' && /^https:\/\//i.test(companyLogo)) {
+    try {
+      const response = await fetch(companyLogo, { credentials: 'omit', signal: AbortSignal.timeout(8000) });
+      if (!response.ok) throw new Error('Logo no disponible');
+      companyLogo = new Uint8Array(await response.arrayBuffer());
+    } catch { companyLogo = null; }
   }
-  row('Alcance', 'Responsables y marca/modelo corresponden a las fichas actuales, no a una certificación histórica. Sin registros no significa ausencia de incidentes. Combustible según reporte de uso; no se infieren cargas ENEX por patente.');
-  for (let page = 1; page <= doc.getNumberOfPages(); page++) {
-    doc.setPage(page); doc.setFontSize(8); doc.setTextColor(100, 116, 139);
-    doc.text(`Obraxis | ${page} / ${doc.getNumberOfPages()}`, 196, 288, { align: 'right' });
-  }
+  drawMachineryReport(doc, { report, company: data.company, companyLogo,
+    fields: reportFields(report, data.equipment, work, data.failures),
+    events: relatedFailures(report, data.failures) });
   return doc;
 }
 

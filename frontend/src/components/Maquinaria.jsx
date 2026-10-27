@@ -79,7 +79,7 @@ const EQUIPMENT_COLORS = ['#2563EB', '#7C3AED', '#DC2626', '#EA580C', '#059669',
 const dateToISO = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 const colorForEquipment = (equipment, index = 0) => equipment?.color_calendario || EQUIPMENT_COLORS[index % EQUIPMENT_COLORS.length];
 
-export default function Maquinaria({ user, onBack }) {
+export default function Maquinaria({ companyBranding, user, onBack }) {
   const machineryCharge=useMachineryCharge();
   const { permissions, loading: permissionsLoading } = useUserPermissions(user);
   const canView = can(user, permissions, 'maquinaria.inventario.ver');
@@ -1169,7 +1169,7 @@ export default function Maquinaria({ user, onBack }) {
                       <td className="p-3 font-black text-emerald-700">+{log.horas_trabajadas} hrs</td>
                       <td className="p-3">{log.combustible_cargado} Lts</td>
                       <td className="p-3 text-slate-600">{log.operador}</td>
-                      <td className="p-3"><MachineryDownload company={user.empresa} equipmentId={log.equipo_id} reportId={log.id} allowed={!permissionsLoading && can(user, permissions, 'maquinaria.uso.descargar')} /></td>
+                      <td className="p-3"><MachineryDownload companyBranding={companyBranding} company={user.empresa} equipmentId={log.equipo_id} reportId={log.id} allowed={!permissionsLoading && can(user, permissions, 'maquinaria.uso.descargar')} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -2805,6 +2805,7 @@ export default function Maquinaria({ user, onBack }) {
       )}
 
       {viewingEquip && <MachineryEquipmentDetailModal
+        companyBranding={companyBranding}
         company={user.empresa}
         canDownload={!permissionsLoading && can(user, permissions, 'maquinaria.uso.descargar') && can(user, permissions, 'maquinaria.fallas.descargar') && can(user, permissions, 'maquinaria.mantenimiento.descargar')}
         equipment={viewingEquip}
