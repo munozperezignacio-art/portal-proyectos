@@ -1,0 +1,7 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="fixture"></div><script type="module">
+import React from 'react';import{createRoot}from'react-dom/client';import '../../src/index.css';import Operators from '../../src/components/MachineryOperators.jsx';import{supabase}from'../../src/supabaseClient.js';
+window.ops=[];window.operatorHistory=[{id:1,empresa:'QA',operador_id:'op-1',fecha:'2026-10-27',equipo_id:'1',equipo_patente:'EXC-01',equipo_tipo:'Excavadora',obra_nombre:'Obra A',horas_trabajadas:8,combustible_cargado:10,registrado_por:'Supervisor distinto'}];
+supabase.from=table=>{const f={};const q={select(){return q},eq(k,v){f[k]=v;return q},order(){return q},range:async(a,b)=>({data:(table==='maquinaria_operadores'?window.ops:window.operatorHistory).filter(r=>Object.entries(f).every(([k,v])=>r[k]===v)).slice(a,b+1)})};return q};
+supabase.rpc=async(name,{p_accion,p_datos})=>{if(new URLSearchParams(location.search).has('readonly'))return {error:{message:'Sin permiso'}};if(p_accion==='personas')return {data:[{id:7,nombre:'Operador QA',cargo:'Operador'}]};if(p_accion==='agregar')window.ops=[{id:'op-1',empresa:'QA',nombre:'Operador QA',activo:true}];if(p_accion==='estado')window.ops[0].activo=p_datos.activo;return {data:{ok:true}};};
+createRoot(document.getElementById('fixture')).render(React.createElement(Operators,{company:'QA'}));
+</script></body></html>
