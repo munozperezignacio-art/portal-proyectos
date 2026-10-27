@@ -1,6 +1,9 @@
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { Settings, Mail, Check, Plus } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+import useUserPermissions from '../utils/useUserPermissions';
+import { can } from '../utils/permissionsCatalog';
+import { canConfigureWork } from '../utils/workConfigurationAccess';
 import {WORK_EMAIL_EVENTS,workEmailSetting,allWorksEmailSetting,workEmailPatch,uniqueWorkEmailPatch,moveWorkEmail,normalizeEmails,validEmail} from '../utils/workEmailRouting';
 
 export default function ContextualEmailConfigModal({
@@ -13,6 +16,9 @@ export default function ContextualEmailConfigModal({
   user
 }) {
   const isWork=moduloKey==='avances_obra';
+  const { permissions, loading: permissionsLoading } = useUserPermissions(user);
+  const canGlobal = !permissionsLoading && can(user, permissions, 'admin.permisos.configurar');
+  const canEditWork = !permissionsLoading && canConfigureWork(user, permissions, obraNombre);
   const [event,setEvent]=useState('avance_registrado');
   const [scope,setScope]=useState('work');
   const formKey=scope==='all'?`all:${event}`:event;
@@ -31,8 +37,11 @@ export default function ContextualEmailConfigModal({
   const emailsCC=isWork?normalizeEmails([...(eventForms[event]?.emailsCC||[]),...(eventForms[`all:${event}`]?.emailsCC||[])]).filter(email=>!emails.includes(email)):baseEmailsCC;
   const emailScope=email=>[...(eventForms[`all:${event}`]?.emails||[]),...(eventForms[`all:${event}`]?.emailsCC||[])].includes(email)?'all':'work';
   const moveEmail=(email,type,target)=>{
+    if(!canEditWork || (!canGlobal && (target==='all'||emailScope(email)==='all'))){
+      setMsg({type:'error',text:'Los destinatarios de todas las obras requieren permiso general de configuración.'});return;
+    }
     setEventForms(current=>moveWorkEmail(current,event,email,type,target));
-    setDirtyEvents(current=>[...new Set([...current,event,`all:${event}`])]);
+    setDirtyEvents(current=>[...new Set([...current,event,...(canGlobal?[`all:${event}`]:[])])]);
   };
   const autoNotify=isWork?Boolean(currentEvent.autoNotify):baseAutoNotify;
   const updateEvent=patch=>{setDirtyEvents(current=>[...new Set([...current,formKey])]);setEventForms(current=>({...current,[formKey]:{...current[formKey],...patch}}));};
@@ -130,6 +139,7 @@ export default function ContextualEmailConfigModal({
     try {
       if (!user?.empresa) throw new Error('No existe una empresa activa para guardar esta configuración.');
       if(!configLoaded)throw new Error('Primero debe cargarse la configuración de la empresa.');
+      if(isWork && !canEditWork)throw new Error('No tienes permiso para configurar los correos de esta obra.');
       if(newEmail.trim() || newEmailCC.trim())throw new Error('Agrega el correo que escribiste con el botón Agregar antes de guardar.');
       if(isWork && Object.values(eventForms).some(item=>[...item.emails,...item.emailsCC].some(email=>!validEmail(email))))throw new Error('Revisa los correos de los tipos de notificación.');
 
@@ -152,8 +162,15 @@ export default function ContextualEmailConfigModal({
         email_notificaciones:emails.join(', '),email_notificaciones_cc:emailsCC.join(', '),notificaciones_automaticas:autoNotify,correos_contextuales:contexts
       };
       if(isWork && Object.keys(globalEvents).length)patch=workEmailPatch({...current,...patch},obraNombre,obraId,globalEvents,'all');
-      if(isWork)patch=uniqueWorkEmailPatch(patch);
+      if(isWork)patch=uniqueWorkEmailPatch(patch,canGlobal?null:[`obra:${obraId}`,`avances_obra:${obraNombre}`]);
       const savedAt=new Date().toISOString();
+      if(isWork){
+        const {data:version,error:saveError}=await supabase.rpc('guardar_correos_obra',{
+          p_empresa:user.empresa,p_obra:obraId,p_contextos:patch.correos_contextuales,p_version:current.updated_at
+        });
+        if(saveError)throw saveError;
+        loadedVersion.current=version;
+      }else{
       let query = supabase
         .from('config_empresa')
         .update({...patch,updated_at:savedAt})
@@ -162,6 +179,7 @@ export default function ContextualEmailConfigModal({
       const {error:saveError}=await query.select('empresa').single();
       if (saveError) throw saveError;
       loadedVersion.current=savedAt;
+      }
       setDirtyEvents([]);
 
       setMsg({ type: 'success', text: 'Configuración de correos guardada exitosamente.' });
@@ -199,7 +217,7 @@ export default function ContextualEmailConfigModal({
         )}
 
         <form onSubmit={handleSave} className="space-y-4">
-          <fieldset disabled={loading||!configLoaded} className="space-y-4 disabled:opacity-60">
+          <fieldset disabled={loading||!configLoaded||permissionsLoading||(isWork&&!canEditWork)} className="space-y-4 disabled:opacity-60">
           {isWork && <div className="space-y-2 rounded-xl border border-blue-100 bg-blue-50 p-3">
             <label htmlFor="workEmailEvent" className="block text-xs font-bold text-slate-800">Tipo de notificación</label>
             <select id="workEmailEvent" value={event} onChange={e=>{
@@ -215,10 +233,11 @@ export default function ContextualEmailConfigModal({
               setScope(e.target.value);setMsg({type:'',text:''});
             }} className="w-full rounded-lg border border-slate-200 bg-white p-3 text-xs">
               <option value="work">Solo esta obra</option>
-              <option value="all">Todas las obras (existentes y nuevas)</option>
+              <option value="all" disabled={!canGlobal}>Todas las obras (existentes y nuevas)</option>
             </select>
             <p className="text-xs font-semibold text-blue-900">{scope==='all'?`Todas las obras de ${user?.empresa}: los correos que agregues aquí también se aplicarán a obras futuras.`:`Solo ${obraNombre}: los correos que agregues aquí no se aplicarán a otras obras.`}</p>
             <p className="text-xs text-slate-600">La lista muestra todos los destinatarios de este aviso para esta obra. Cada correo aparece una sola vez: cambia su alcance junto a su dirección. Pasarlo a todas las obras elimina sus reglas locales para este tipo de aviso; volver a esta obra lo retira del alcance general.</p>
+            {!canGlobal&&<p className="text-xs font-semibold text-slate-700">Puedes configurar esta obra. Los destinatarios de todas las obras son de solo lectura y los administra quien tenga permiso general.</p>}
             <details className="text-xs text-slate-600"><summary className="cursor-pointer font-semibold">Prioridad y otras notificaciones</summary>
               <p className="mt-2">Desactivar el envío solo afecta la lista del alcance seleccionado. Los correos de «Todas las obras» siguen recibiendo aunque la lista local esté desactivada. Para detenerlos, cambia a ese alcance y desactívalo. Las reglas antiguas de avance se conservan hasta guardar una configuración específica de esta obra.</p>
               <p className="mt-2">Los recordatorios de pendientes, registros de prevención e informes programados se administran en Control de notificaciones y en sus módulos respectivos. No se activan desde aquí.</p>
@@ -258,8 +277,8 @@ export default function ContextualEmailConfigModal({
                   <span key={e} className="inline-flex items-center gap-1 bg-blue-100 text-blue-950 text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-blue-200">
                     <Mail className="w-3 h-3 text-blue-800" />
                     <span>{e}</span>
-                    {isWork&&<select aria-label={`Alcance de ${e}`} value={emailScope(e)} onChange={change=>moveEmail(e,'to',change.target.value)} className="max-w-full rounded border border-blue-200 bg-white p-1 text-[11px]"><option value="work">Solo esta obra</option><option value="all">Todas las obras</option></select>}
-                    <button type="button" onClick={() => handleRemoveEmail(e, 'to')} className="text-blue-700 hover:text-red-600 font-bold ml-1 cursor-pointer">✕</button>
+                    {isWork&&<select disabled={!canGlobal} aria-label={`Alcance de ${e}`} value={emailScope(e)} onChange={change=>moveEmail(e,'to',change.target.value)} className="max-w-full rounded border border-blue-200 bg-white p-1 text-[11px]"><option value="work">Solo esta obra</option><option value="all">Todas las obras</option></select>}
+                    <button type="button" disabled={isWork&&!canGlobal&&emailScope(e)==='all'} onClick={() => handleRemoveEmail(e, 'to')} className="text-blue-700 hover:text-red-600 font-bold ml-1 cursor-pointer disabled:opacity-30">✕</button>
                   </span>
                 ))
               )}
@@ -298,8 +317,8 @@ export default function ContextualEmailConfigModal({
                   <span key={e} className="inline-flex items-center gap-1 bg-slate-200 text-slate-800 text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-slate-300">
                     <Mail className="w-3 h-3 text-slate-600" />
                     <span>{e}</span>
-                    {isWork&&<select aria-label={`Alcance de ${e}`} value={emailScope(e)} onChange={change=>moveEmail(e,'cc',change.target.value)} className="max-w-full rounded border border-slate-300 bg-white p-1 text-[11px]"><option value="work">Solo esta obra</option><option value="all">Todas las obras</option></select>}
-                    <button type="button" onClick={() => handleRemoveEmail(e, 'cc')} className="text-slate-600 hover:text-red-600 font-bold ml-1 cursor-pointer">✕</button>
+                    {isWork&&<select disabled={!canGlobal} aria-label={`Alcance de ${e}`} value={emailScope(e)} onChange={change=>moveEmail(e,'cc',change.target.value)} className="max-w-full rounded border border-slate-300 bg-white p-1 text-[11px]"><option value="work">Solo esta obra</option><option value="all">Todas las obras</option></select>}
+                    <button type="button" disabled={isWork&&!canGlobal&&emailScope(e)==='all'} onClick={() => handleRemoveEmail(e, 'cc')} className="text-slate-600 hover:text-red-600 font-bold ml-1 cursor-pointer disabled:opacity-30">✕</button>
                   </span>
                 ))
               )}

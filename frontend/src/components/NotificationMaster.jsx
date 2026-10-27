@@ -7,6 +7,7 @@ import {
 import ExecutiveReportScheduler from './ExecutiveReportScheduler';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
+import { canConfigureWork, canConfigureResponsibility } from '../utils/workConfigurationAccess';
 
 const CATALOG = [
   { code: 'avance_registrado', module: 'Obras', name: 'Avance registrado', description: 'Informa cada nuevo reporte de avance físico.', frequency: 'Inmediata' },
@@ -76,7 +77,7 @@ export default function NotificationMaster({ user, obras = [], roles = [], work 
   const [loadedRoles, setLoadedRoles] = useState([]);
   const [saving, setSaving] = useState(false);
   const [personSearch, setPersonSearch] = useState('');
-  const editable = rule => canGlobal || (canWork && rule.condiciones?.alcance_tipo === 'seleccionadas' && normalizeArray(rule.condiciones?.obras_seleccionadas).length > 0);
+  const editable = rule => !permissionsLoading && canConfigureResponsibility(user, permissions, rule.condiciones);
   const [section, setSection] = useState('alertas');
   const [rules, setRules] = useState([]);
   const [deliveries, setDeliveries] = useState([]);
@@ -153,6 +154,7 @@ export default function NotificationMaster({ user, obras = [], roles = [], work 
     event.preventDefault();
     if(saving)return;
     if(!canGlobal && (!canWork || form.alcance_tipo!=='seleccionadas')){setMessage('Tu rol solo puede configurar responsabilidades de obras seleccionadas.');return;}
+    if(!editable({condiciones:form})){setMessage('Solo puedes configurar responsabilidades de tus obras autorizadas.');return;}
     if(form.alcance_tipo==='asignadas' && form.correos.some(value=>value.trim())){setMessage('Para incluir correos externos, elige obras seleccionadas. El alcance por asignación requiere usuarios con obras asignadas.');return;}
     if (form.alcance_tipo === 'seleccionadas' && !form.obras_seleccionadas.length) {
       setMessage('Selecciona al menos una obra para este alcance.'); return;
@@ -183,14 +185,14 @@ export default function NotificationMaster({ user, obras = [], roles = [], work 
   const remove = async (id) => {
     if(!editable(rules.find(rule=>rule.id===id)||{}))return;
     if (!window.confirm('¿Eliminar esta regla de notificación? El historial de entregas se conservará.')) return;
-    const { error } = await supabase.from('notificaciones_reglas').delete().eq('id', id);
-    if (error) setMessage(error.message); else load();
+    const { data, error } = await supabase.from('notificaciones_reglas').delete().eq('id', id).select('id');
+    if (error || !data?.length) setMessage(error?.message || 'No se eliminó: revisa tus permisos.'); else load();
   };
 
   const toggle = async (rule) => {
     if(!editable(rule))return;
-    const { error } = await supabase.from('notificaciones_reglas').update({ activa: !rule.activa, updated_at: new Date().toISOString() }).eq('id', rule.id);
-    if (!error) load();
+    const { data, error } = await supabase.from('notificaciones_reglas').update({ activa: !rule.activa, updated_at: new Date().toISOString() }).eq('id', rule.id).select('id');
+    if (error || !data?.length) setMessage(error?.message || 'No se modificó: revisa tus permisos.'); else load();
   };
 
   const addRecommended = async () => {
@@ -276,7 +278,7 @@ export default function NotificationMaster({ user, obras = [], roles = [], work 
           <label className="md:col-span-2"><span className="text-[10px] font-black uppercase text-slate-500">Evento o plantilla</span><select value={form.template_code} onChange={e => selectTemplate(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 p-3 text-xs">{CATALOG.map(t => <option key={t.code} value={t.code}>{t.module} · {t.name}</option>)}</select></label>
           <label><span className="text-[10px] font-black uppercase text-slate-500">Nombre de la regla</span><input required value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 p-3 text-xs" /></label>
           <label><span className="text-[10px] font-black uppercase text-slate-500">Alcance de obras</span><select disabled={Boolean(work) || !canGlobal} value={form.alcance_tipo} onChange={e => setForm({ ...form, alcance_tipo: e.target.value, obras_seleccionadas: e.target.value === 'seleccionadas' ? form.obras_seleccionadas : [] })} className="mt-1 w-full rounded-xl border border-slate-200 p-3 text-xs"><option value="todas">Todas las obras, incluidas las futuras</option><option value="asignadas">Solo obras asignadas a cada destinatario</option><option value="seleccionadas">Una o varias obras seleccionadas</option></select></label>
-          {form.alcance_tipo === 'seleccionadas' && <div className="md:col-span-2"><span className="text-[10px] font-black uppercase text-slate-500">Obras incluidas</span><div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{obras.map(obra => { const checked = form.obras_seleccionadas.includes(obra.nombre); return <label key={obra.nombre} className={`flex cursor-pointer items-center gap-2 rounded-xl border p-3 text-xs font-bold ${checked ? 'border-blue-600 bg-blue-50 text-blue-900' : 'border-slate-200 text-slate-600'}`}><input type="checkbox" checked={checked} onChange={() => setForm({ ...form, obras_seleccionadas: checked ? form.obras_seleccionadas.filter(name => name !== obra.nombre) : [...form.obras_seleccionadas, obra.nombre] })}/>{obra.nombre}</label>; })}</div></div>}
+          {form.alcance_tipo === 'seleccionadas' && <div className="md:col-span-2"><span className="text-[10px] font-black uppercase text-slate-500">Obras incluidas</span><div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{obras.filter(obra=>canConfigureWork(user,permissions,obra.nombre)).map(obra => { const checked = form.obras_seleccionadas.includes(obra.nombre); return <label key={obra.nombre} className={`flex cursor-pointer items-center gap-2 rounded-xl border p-3 text-xs font-bold ${checked ? 'border-blue-600 bg-blue-50 text-blue-900' : 'border-slate-200 text-slate-600'}`}><input type="checkbox" checked={checked} onChange={() => setForm({ ...form, obras_seleccionadas: checked ? form.obras_seleccionadas.filter(name => name !== obra.nombre) : [...form.obras_seleccionadas, obra.nombre] })}/>{obra.nombre}</label>; })}</div></div>}
           <div className="md:col-span-2"><span className="text-[10px] font-black uppercase text-slate-500">Responsables por rol</span><div className="mt-2 flex flex-wrap gap-2">{companyRoles.length ? companyRoles.map(role => <button type="button" key={role} onClick={() => setForm({ ...form, roles: form.roles.includes(role) ? form.roles.filter(x => x !== role) : [...form.roles, role] })} className={`rounded-full border px-3 py-2 text-[11px] font-bold ${form.roles.includes(role) ? 'border-blue-700 bg-blue-700 text-white' : 'border-slate-200 text-slate-600'}`}>{role}</button>) : <span className="text-xs text-slate-400">Crea roles en la pestaña Roles.</span>}</div></div>
           <div className="md:col-span-2"><span className="text-[10px] font-black uppercase text-slate-500">Personas responsables · {form.usuarios.length} seleccionadas</span>
             <input aria-label="Buscar responsable" value={personSearch} onChange={e=>setPersonSearch(e.target.value)} placeholder="Buscar por nombre, correo o rol" className="mt-2 w-full rounded-xl border border-slate-200 p-3 text-sm" />

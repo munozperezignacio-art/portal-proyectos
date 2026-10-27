@@ -51,7 +51,7 @@ export function workEmailPatch(current,work,workId,events,scope='work') {
 
 // One address cannot have both a company-wide rule and a local rule for an event.
 // Keep other event types and unrelated module settings untouched.
-export function uniqueWorkEmailPatch(patch) {
+export function uniqueWorkEmailPatch(patch, editableKeys = null) {
   const contexts=JSON.parse(JSON.stringify(patch.correos_contextuales||{}));
   const clean=setting=>{
     if(!setting)return;
@@ -60,10 +60,11 @@ export function uniqueWorkEmailPatch(patch) {
   };
   for(const definition of WORK_EMAIL_EVENTS){
     const global=contexts[ALL_WORKS_EMAIL_KEY]?.events?.[definition.id];
-    clean(global);
-    const globalEmails=new Set([...(global?.emails||[]),...(global?.emailsCC||[])]);
+    if (!editableKeys || editableKeys.includes(ALL_WORKS_EMAIL_KEY)) clean(global);
+    const globalEmails=new Set(normalizeEmails([...(global?.emails||[]),...(global?.emailsCC||[])]));
     for(const [key,context] of Object.entries(contexts)){
       if(key===ALL_WORKS_EMAIL_KEY || !/^(obra:|avances_obra:)/.test(key))continue;
+      if(editableKeys && !editableKeys.includes(key))continue;
       const setting=context.events?.[definition.id] || (definition.id==='avance_registrado' && Object.hasOwn(context,'autoNotify')?context:null);
       clean(setting);
       if(setting){setting.emails=setting.emails.filter(email=>!globalEmails.has(email));setting.emailsCC=setting.emailsCC.filter(email=>!globalEmails.has(email));}
