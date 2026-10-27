@@ -82,7 +82,7 @@ export function drawMachineryReport(doc, { report, company, companyLogo, fields,
     y += 2;
   };
   header();
-  group('01  PROYECTO Y RESPONSABLES', [1, 3, 4, 5, 6, 7]);
+  group('01  PROYECTO Y RESPONSABLES', [3, 4, 6, 7]);
   group('02  EQUIPO Y OPERADOR', [8, 9, 10, 11]);
   group('03  HORÓMETRO Y JORNADA', [12, 13, 14], 3);
   group('04  COMBUSTIBLE', [15, 16]);

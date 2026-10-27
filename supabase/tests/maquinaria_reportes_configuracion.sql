@@ -1,16 +1,22 @@
 -- Run inside a transaction; fixtures and all equipment changes are rolled back.
 do $$
-declare eq integer; result jsonb; retry jsonb; request uuid:=gen_random_uuid(); payload jsonb; n integer; rejected boolean; uid uuid:=gen_random_uuid(); aid integer;
+declare eq integer; result jsonb; retry jsonb; request uuid:=gen_random_uuid(); payload jsonb; n integer; rejected boolean; uid uuid:=gen_random_uuid(); aid integer; wid integer; opid uuid;
 begin
  if has_function_privilege('anon','public.registrar_reporte_maquinaria(integer,jsonb,uuid)','execute') then raise exception 'Anonymous RPC exposed'; end if;
  if has_table_privilege('anon','public.maquinaria_reporte_config','select') then raise exception 'Anonymous config exposed'; end if;
  if has_table_privilege('authenticated','public.maquinaria_reporte_equipo','update') then raise exception 'Unrestricted config write'; end if;
  insert into public.inventario_maquinaria(tipo,patente,empresa,horometro_inicial) values('QA reporte','QA-ONLY','__QA_REPORTE__',100) returning id into eq;
  insert into public.maquinaria_reporte_config(empresa,codigo,revision) values('__QA_REPORTE__','QA-123','07');
+ insert into public.maestro_personal(nombre,rut,empresa) values('Operador QA','QA-'||gen_random_uuid(),'__QA_REPORTE__') returning id into wid;
+ insert into public.maquinaria_operadores(empresa,trabajador_id,nombre) values('__QA_REPORTE__',wid,'Operador QA') returning id into opid;
  perform set_config('request.jwt.claims','{"role":"service_role"}',true);
- payload:=jsonb_build_object('fecha',(now() at time zone 'America/Santiago')::date,'operador','Operador QA','horometro_inicial','100','horometro_final','108,5','hubo_combustible',true,'combustible_cargado','75,5','hubo_falla',true,'detuvo_equipo',true,'horas_fuera_servicio','1,5','descripcion','Falla QA','severidad','Media');
+ payload:=jsonb_build_object('operador_id',opid,'fecha',(now() at time zone 'America/Santiago')::date,'operador','Operador QA','horometro_inicial','100','horometro_final','108,5','hubo_combustible',true,'combustible_cargado','75,5','hubo_falla',true,'detuvo_equipo',true,'horas_fuera_servicio','1,5','descripcion','Falla QA','severidad','Media');
  result:=public.registrar_reporte_maquinaria(eq,payload,request);
  retry:=public.registrar_reporte_maquinaria(eq,payload,request);
+ if not exists(select 1 from public.maquinaria_uso_diario where id=(result->>'id')::bigint and operador_id=opid and operador='Operador QA') then raise exception 'Operator link missing';end if;
+ update public.maquinaria_operadores set activo=false where id=opid;
+ rejected:=false;begin perform public.registrar_reporte_maquinaria(eq,payload||'{"horometro_inicial":108.5,"horometro_final":109}',gen_random_uuid());exception when others then rejected:=true;end;if not rejected then raise exception 'Inactive operator accepted';end if;
+ update public.maquinaria_operadores set activo=true where id=opid;
  if result->>'id'<>retry->>'id' then raise exception 'Retry duplicated report'; end if;
  select count(*) into n from public.maquinaria_uso_diario where empresa='__QA_REPORTE__'; if n<>1 then raise exception 'Wrong report count'; end if;
  if not exists(select 1 from public.maquinaria_uso_diario where id=(result->>'id')::bigint and horas_trabajadas=8.5 and combustible_cargado=75.5 and reporte_datos->>'codigo'='QA-123') then raise exception 'Payload mismatch'; end if;

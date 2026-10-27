@@ -44,8 +44,10 @@ Deno.serve(async (req: Request) => {
     if(config.error || equipmentConfig.error) return reply({error:'Configuración no disponible.'},503,origin);
     if(equipmentConfig.data?.qr_activo === false) return reply({error:'Este QR fue desactivado.'},404,origin);
     if (action === "cargar") {
+      const operators=[];
+      for(let offset=0;;offset+=500){const result=await db.from('maquinaria_operadores').select('id,nombre').eq('empresa',equipment.empresa).eq('activo',true).order('id').range(offset,offset+499);if(result.error)return reply({error:'Operadores no disponibles.'},503,origin);operators.push(...result.data);if(result.data.length<500)break;}
       await db.from('formulario_publico_intentos').update({exitoso:true}).eq('id',attempt.data.id);
-      return reply({ equipo: { tipo:equipment.tipo,patente:equipment.patente,marca:equipment.marca,empresa:equipment.empresa,obra_nombre:equipment.obra_nombre,
+      return reply({ operadores:operators, equipo: { tipo:equipment.tipo,patente:equipment.patente,marca:equipment.marca,empresa:equipment.empresa,obra_nombre:equipment.obra_nombre,
       horometro_inicial:equipment.horometro_inicial??0,unidad:equipmentConfig.data?.unidad||'h',codigo:config.data?.codigo||'MAQ-01',revision:config.data?.revision||'01' } },200,origin);
     }
     if (action !== "registrar") return reply({ error: "Acción inválida." }, 400, origin);

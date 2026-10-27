@@ -16,6 +16,7 @@ import MachineryMeterAI from './MachineryMeterAI';
 import MachineryEquipmentDetailModal from './MachineryEquipmentDetailModal';
 import MachineryDownload from './MachineryDownload';
 import MachineryReportSettings from './MachineryReportSettings';
+import MachineryOperators, { OperatorSelect } from './MachineryOperators';
 import EquipmentQrImage from './EquipmentQrImage';
 import EquipmentBulkImport from './EquipmentBulkImport';
 import EquipmentAssignments from './EquipmentAssignments';
@@ -510,7 +511,8 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
       horometro_final: hFin,
       horas_trabajadas: hrsTrabajadas,
       combustible_cargado: parseFloat(usoForm.combustible_cargado) || 0,
-      operador: usoForm.operador || user?.nombre || user?.usuario,
+      operador: usoForm.operador,
+      operador_id: usoForm.operador_id,
       observaciones: usoForm.observaciones,
       empresa: user?.empresa || 'OBRAXIS',
       created_at: new Date().toISOString()
@@ -1098,7 +1100,8 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
       {/* 3. SUBMÓDULO 1: INVENTARIO DE MAQUINARIAS Y EQUIPOS */}
       {bulkImportOpen && canCreate && <EquipmentBulkImport company={user.empresa} categories={categories} onClose={() => setBulkImportOpen(false)} onImported={fetchData} />}
       {categoriesOpen && canConfigure && <EquipmentCategories company={user.empresa} categories={categories} equipment={maquinaria} onClose={()=>setCategoriesOpen(false)} onChanged={async()=>{if(!await fetchData())throw new Error('El cambio se guardó, pero no se pudo recargar el inventario. Actualiza la pantalla.');}}/>}
-      {activeSection === 'inventario'&&<div className="flex flex-wrap gap-2" aria-label="Vistas del inventario"><button type="button" aria-pressed={inventoryView==='list'} onClick={()=>setInventoryView('list')} className={`rounded-xl border px-4 py-3 text-xs font-bold ${inventoryView==='list'?'bg-primary text-white':'bg-white'}`}>Listado de equipos</button><button type="button" aria-pressed={inventoryView==='groups'} onClick={()=>setInventoryView('groups')} className={`rounded-xl border px-4 py-3 text-xs font-bold ${inventoryView==='groups'?'bg-primary text-white':'bg-white'}`}>Grupos de equipos</button></div>}
+{activeSection === 'inventario'&&<div className="flex flex-wrap gap-2" aria-label="Vistas del inventario"><button type="button" aria-pressed={inventoryView==='list'} onClick={()=>setInventoryView('list')} className={`rounded-xl border px-4 py-3 text-xs font-bold ${inventoryView==='list'?'bg-primary text-white':'bg-white'}`}>Listado de equipos</button><button type="button" aria-pressed={inventoryView==='groups'} onClick={()=>setInventoryView('groups')} className={`rounded-xl border px-4 py-3 text-xs font-bold ${inventoryView==='groups'?'bg-primary text-white':'bg-white'}`}>Grupos de equipos</button><button type="button" onClick={()=>setInventoryView('operators')} className="rounded-xl border px-4 py-3 text-xs font-bold">Operadores</button></div>}
+      {activeSection==='inventario'&&inventoryView==='operators'&&<MachineryOperators company={user.empresa}/>}
       {activeSection === 'inventario'&&inventoryView==='groups'&&<EquipmentGroups key={user.empresa} company={user.empresa} equipment={maquinaria} works={obras} reservations={reservasList} rentals={arriendosList} canEdit={canEdit} onSaved={fetchData} onView={setViewingEquip}/>}
       {activeSection === 'inventario'&&inventoryView==='list' && <EquipmentInventory equipment={maquinaria} categories={categories} works={obras} bookings={reservasList} rentals={arriendosList} loading={loading}
         canCreate={canCreate} canEdit={canEdit} canDelete={canDelete} canConfigure={canConfigure}
@@ -1128,7 +1131,7 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
                   horometro_inicial: maquinaria[0] ? (maquinaria[0].horometro_inicial || 0).toString() : '0',
                   horometro_final: '',
                   combustible_cargado: '0',
-                  operador: user?.nombre || user?.usuario || '',
+                  operador: '', operador_id: '',
                   observaciones: ''
                 });
                 setUsoModalOpen(true);
@@ -2594,12 +2597,7 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Operador a Cargo</label>
-                  <input
-                    type="text"
-                    value={usoForm.operador}
-                    onChange={(e) => setUsoForm(prev => ({ ...prev, operador: e.target.value }))}
-                    className="w-full border border-slate-200 rounded-xl p-2.5 font-bold"
-                  />
+                  <OperatorSelect company={user.empresa} value={usoForm.operador_id} onChange={row=>setUsoForm(prev=>({...prev,operador_id:row?.id||'',operador:row?.nombre||''}))}/>
                 </div>
               </div>
 
@@ -2815,7 +2813,7 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
         failures={fallasList}
         maintenance={mantencionesList}
         onClose={() => setViewingEquip(null)}
-        onUsage={() => { setUsoForm({ equipo_id: String(viewingEquip.id), equipo_patente: viewingEquip.patente || '', obra_nombre: viewingEquip.obra_nombre || 'Bodega / Sin asignar', fecha: dateToISO(new Date()), horometro_inicial: String(viewingEquip.horometro_inicial || 0), horometro_final: '', combustible_cargado: '0', operador: user?.nombre || user?.usuario || '', observaciones: '' }); setViewingEquip(null); setUsoModalOpen(true); }}
+        onUsage={() => { setUsoForm({ equipo_id: String(viewingEquip.id), equipo_patente: viewingEquip.patente || '', obra_nombre: viewingEquip.obra_nombre || 'Bodega / Sin asignar', fecha: dateToISO(new Date()), horometro_inicial: String(viewingEquip.horometro_inicial || 0), horometro_final: '', combustible_cargado: '0', operador: '', operador_id: '', observaciones: '' }); setViewingEquip(null); setUsoModalOpen(true); }}
         onFailure={() => { setFallaForm({ equipo_id: String(viewingEquip.id), fecha: dateToISO(new Date()), severidad: 'Media', detuvo_equipo: true, horas_fuera_servicio: '', descripcion: '', causa: '', solucion: '', responsable: user?.nombre || user?.usuario || '' }); setViewingEquip(null); setFallaModalOpen(true); }}
         onMaintenance={() => { setMantencionForm({ equipo_id: String(viewingEquip.id), fecha: dateToISO(new Date()), tipo: 'Preventiva', horometro: '', descripcion: '', costo: '', proveedor: '', responsable: user?.nombre || user?.usuario || '' }); setViewingEquip(null); setMantencionModalOpen(true); }}
       />}
