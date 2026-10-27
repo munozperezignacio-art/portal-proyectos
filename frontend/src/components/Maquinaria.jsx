@@ -14,6 +14,7 @@ import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
 import MachineryMeterAI from './MachineryMeterAI';
 import MachineryEquipmentDetailModal from './MachineryEquipmentDetailModal';
+import MachineryDownload from './MachineryDownload';
 import EquipmentBulkImport from './EquipmentBulkImport';
 import EquipmentAssignments from './EquipmentAssignments';
 import EquipmentInventory from './EquipmentInventory';
@@ -1154,6 +1155,7 @@ export default function Maquinaria({ user, onBack }) {
                     <th className="p-3">Hrs Operativas</th>
                     <th className="p-3">Combustible</th>
                     <th className="p-3">Operador</th>
+                    <th className="p-3">Descargar</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -1167,6 +1169,7 @@ export default function Maquinaria({ user, onBack }) {
                       <td className="p-3 font-black text-emerald-700">+{log.horas_trabajadas} hrs</td>
                       <td className="p-3">{log.combustible_cargado} Lts</td>
                       <td className="p-3 text-slate-600">{log.operador}</td>
+                      <td className="p-3"><MachineryDownload company={user.empresa} equipmentId={log.equipo_id} reportId={log.id} allowed={!permissionsLoading && can(user, permissions, 'maquinaria.uso.descargar')} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -2802,6 +2805,8 @@ export default function Maquinaria({ user, onBack }) {
       )}
 
       {viewingEquip && <MachineryEquipmentDetailModal
+        company={user.empresa}
+        canDownload={!permissionsLoading && can(user, permissions, 'maquinaria.uso.descargar') && can(user, permissions, 'maquinaria.fallas.descargar') && can(user, permissions, 'maquinaria.mantenimiento.descargar')}
         equipment={viewingEquip}
         usage={usoList}
         failures={fallasList}
