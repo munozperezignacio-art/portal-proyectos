@@ -49,6 +49,43 @@ export function workEmailPatch(current,work,workId,events,scope='work') {
   return {correos_contextuales:{...contexts,[key]:{...previous,events:{...(previous.events||{}),...events},updatedAt:new Date().toISOString()}}};
 }
 
+// One address cannot have both a company-wide rule and a local rule for an event.
+// Keep other event types and unrelated module settings untouched.
+export function uniqueWorkEmailPatch(patch) {
+  const contexts=JSON.parse(JSON.stringify(patch.correos_contextuales||{}));
+  const clean=setting=>{
+    if(!setting)return;
+    setting.emails=normalizeEmails(setting.emails);
+    setting.emailsCC=normalizeEmails(setting.emailsCC).filter(email=>!setting.emails.includes(email));
+  };
+  for(const definition of WORK_EMAIL_EVENTS){
+    const global=contexts[ALL_WORKS_EMAIL_KEY]?.events?.[definition.id];
+    clean(global);
+    const globalEmails=new Set([...(global?.emails||[]),...(global?.emailsCC||[])]);
+    for(const [key,context] of Object.entries(contexts)){
+      if(key===ALL_WORKS_EMAIL_KEY || !/^(obra:|avances_obra:)/.test(key))continue;
+      const setting=context.events?.[definition.id] || (definition.id==='avance_registrado' && Object.hasOwn(context,'autoNotify')?context:null);
+      clean(setting);
+      if(setting){setting.emails=setting.emails.filter(email=>!globalEmails.has(email));setting.emailsCC=setting.emailsCC.filter(email=>!globalEmails.has(email));}
+    }
+  }
+  return {...patch,correos_contextuales:contexts};
+}
+
+export function moveWorkEmail(forms,event,email,type,targetScope) {
+  const result=structuredClone(forms);
+  for(const key of [event,`all:${event}`]){
+    result[key]={emails:[],emailsCC:[],autoNotify:true,...result[key]};
+    result[key].emails=normalizeEmails(result[key].emails).filter(value=>value!==email);
+    result[key].emailsCC=normalizeEmails(result[key].emailsCC).filter(value=>value!==email);
+  }
+  if(targetScope){
+    const key=targetScope==='all'?`all:${event}`:event;
+    result[key][type==='to'?'emails':'emailsCC'].push(email);
+  }
+  return result;
+}
+
 // The server accepts ten total recipients. Preserve CC, including CC-only groups.
 export function workEmailBatches({to=[],cc=[]}) {
   const direct=normalizeEmails(to),copies=normalizeEmails(cc).filter(email=>!direct.includes(email));

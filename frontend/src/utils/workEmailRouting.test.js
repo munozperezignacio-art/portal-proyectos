@@ -1,11 +1,34 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {workEmailRecipients,workEmailSetting,workEmailPatch,workEmailBatches,WORK_EMAIL_EVENTS} from './workEmailRouting.js';
+import {workEmailRecipients,workEmailSetting,workEmailPatch,workEmailBatches,uniqueWorkEmailPatch,moveWorkEmail,WORK_EMAIL_EVENTS} from './workEmailRouting.js';
 import {emailRecipientLists} from '../../../supabase/functions/enviar-correo-sistema/recipients.js';
 import {PERMISSIONS_CATALOG} from './permissionsCatalog.js';
 const base={company:'Prueba',work:'Lonco',workId:3,event:'avance_registrado'};
 const rule={empresa:'Prueba',activa:true,canal_email:true,evento_codigo:'avance_registrado',frecuencia:'Inmediata',correos_adicionales:['rule@example.invalid']};
 const config={email_notificaciones:'general@example.invalid',notificaciones_automaticas:true,correos_contextuales:{'avances_obra:Lonco':{emails:['obra@example.invalid'],emailsCC:['copy@example.invalid'],autoNotify:true}}};
+
+test('moving an existing recipient changes its rule instead of copying it, including CC',()=>{
+  const forms={avance_registrado:{emails:['a@example.invalid'],emailsCC:[],autoNotify:true}};
+  const global=moveWorkEmail(forms,'avance_registrado','a@example.invalid','to','all');
+  assert.deepEqual(global.avance_registrado.emails,[]);
+  assert.deepEqual(global['all:avance_registrado'].emails,['a@example.invalid']);
+  const local=moveWorkEmail(global,'avance_registrado','a@example.invalid','cc','work');
+  assert.deepEqual(local['all:avance_registrado'].emails,[]);
+  assert.deepEqual(local.avance_registrado.emailsCC,['a@example.invalid']);
+  const removed=moveWorkEmail(local,'avance_registrado','a@example.invalid','cc',null);
+  assert.deepEqual(removed.avance_registrado.emailsCC,[]);
+  assert.deepEqual(forms.avance_registrado.emails,['a@example.invalid']);
+});
+test('global rule removes duplicates from all local works and legacy lists without touching other notices',()=>{
+  const item={emails:[' A@example.invalid ','a@example.invalid'],emailsCC:['A@example.invalid','b@example.invalid'],autoNotify:true};
+  const input={correos_contextuales:{'obra:3':{events:{avance_registrado:item,material_registrado:item}},'obra:7':{events:{avance_registrado:item}},'avances_obra:Antigua':item,'obras:global':{events:{avance_registrado:{emails:['a@example.invalid'],emailsCC:['A@example.invalid'],autoNotify:true}}}}};
+  const result=uniqueWorkEmailPatch(input);
+  for(const id of [3,7])assert.deepEqual(result.correos_contextuales[`obra:${id}`].events.avance_registrado.emails,[]);
+  assert.deepEqual(result.correos_contextuales['avances_obra:Antigua'].emails,[]);
+  assert.deepEqual(result.correos_contextuales['obra:3'].events.material_registrado.emails,['a@example.invalid']);
+  assert.deepEqual(result.correos_contextuales['obras:global'].events.avance_registrado.emailsCC,[]);
+  assert.equal(input.correos_contextuales['obra:3'].events.avance_registrado.emails.length,2);
+});
 
 test('all works recipients include existing and future works without copying settings',()=>{
   const global=workEmailPatch({},'Lonco',3,{material_registrado:{emails:['GLOBAL@example.invalid'],emailsCC:['copy@example.invalid'],autoNotify:true}},'all');
