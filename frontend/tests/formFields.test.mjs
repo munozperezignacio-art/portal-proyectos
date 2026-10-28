@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateFormAnswers, workCatalog } from '../../supabase/functions/_shared/formFields.mjs';
+import { validateFormAnswers, workCatalog, responsibleCatalog } from '../../supabase/functions/_shared/formFields.mjs';
 
 test('required controls include choices, photos, signatures, rating and work', () => {
   for (const type of ['text','textarea','date','time','select','radio','checkbox','rating','photo','signature','data_lookup','repeater']) {
@@ -25,4 +25,21 @@ test('work catalog exposes configured ficha data only, not contact or costs', ()
   assert.equal(record.ubicacion,'Lugar');
   assert.equal(record.cliente_email,undefined);
   assert.equal(record.costos,undefined);
+});
+
+test('responsibles include every matching active person, only authorized centers, multiple cargos', () => {
+  const people = [
+    {id:1,nombre:'Uno',cargo:'Supervisor',centro_gestion_id:7,rut:'PRIVATE'},
+    {id:2,nombre:'Dos',cargo:'Supervisor',centro_gestion_id:7},
+    {id:3,nombre:'Tres',cargo:'Capataz',centro_gestion_id:9},
+    {id:4,nombre:'Otro cargo',cargo:'Operador',centro_gestion_id:7},
+    {id:5,nombre:'Terminado',cargo:'Supervisor',centro_gestion_id:7,fecha_vencimiento_contrato:'2026-10-01'},
+    {id:6,nombre:'Otra obra',cargo:'Supervisor',centro_gestion_id:9},
+    {id:7,nombre:'Futuro',cargo:'Supervisor',centro_gestion_id:7,fecha_inicio_contrato:'2026-11-01'}
+  ];
+  const assignments = [{trabajador_id:3,centro_gestion_id:7,fecha_inicio:'2026-10-01',fecha_termino:null}];
+  const records=responsibleCatalog({cargos:['Supervisor','Capataz']},people,assignments,[{id:7}],'2026-10-28');
+  assert.deepEqual(records.map(item=>item.nombre),['Uno','Dos','Tres']);
+  assert.ok(records.every(item=>!('rut' in item)));
+  assert.deepEqual(responsibleCatalog({cargos:[]},people,assignments,[{id:7}],'2026-10-28'),[]);
 });

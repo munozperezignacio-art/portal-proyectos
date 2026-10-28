@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { workCatalog, validateFormAnswers } from "../_shared/formFields.mjs";
+import { workCatalog, responsibleCatalog, validateFormAnswers } from "../_shared/formFields.mjs";
 
 const cors={"Access-Control-Allow-Origin":"https://www.obraxis.cl","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json"}});
@@ -28,6 +28,23 @@ Deno.serve(async(req)=>{
     if(formError||!form){await log(false);return json({error:"Formulario no disponible"},404);}
     const fields=Array.isArray(form.campos)?form.campos:(form.campos?.items||[]);
     const catalogFor=async(field:any,centers:any[])=>{
+      if(field.source==="responsibles"){
+        if(!Array.isArray(field.cargos)||!field.cargos.length)return [];
+        const today=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago"}).format(new Date());
+        const readAll=async(table:string,columns:string)=>{
+          const rows:any[]=[];
+          for(let offset=0;;offset+=1000){
+            const {data,error}=await db.from(table).select(columns).eq("empresa",form.empresa).order("id").range(offset,offset+999);
+            if(error)throw error;
+            rows.push(...(data||[]));if(!data||data.length<1000)return rows;
+          }
+        };
+        const [people,assignments]=await Promise.all([
+          readAll("maestro_personal","id,nombre,cargo,centro_gestion_id,obra_nombre,fecha_asig,fecha_inicio_contrato,fecha_vencimiento_contrato"),
+          readAll("rrhh_personal_centros","id,trabajador_id,centro_gestion_id,fecha_inicio,fecha_termino")
+        ]);
+        return responsibleCatalog(field,people,assignments,centers,today);
+      }
       if(field.source==="works"){
         const ids=centers.map((center:any)=>center.id);
         if(!ids.length)return [];
@@ -75,7 +92,8 @@ Deno.serve(async(req)=>{
       const keys=field.source==="works"?["nombre",...(field.autofillKeys||[])]:[field.selectorKey,...(field.autofillKeys||[])];
       answers[field.id]={_id:record._id,_display:record._display,...Object.fromEntries(keys.filter((key:string)=>Object.hasOwn(record,key)&&!key.startsWith("_")).map((key:string)=>[key,record[key]]))};
     }
-    const inspector=clean(body?.inspector,200)||"Trabajador Terreno",signature=clean(body?.firma_url,4*1024*1024)||null;
+    const responsibleField=fields.find((field:any)=>field.type==="data_lookup"&&field.source==="responsibles");
+    const inspector=clean(responsibleField?answers[responsibleField.id]?.nombre:body?.inspector,200)||"Trabajador Terreno",signature=clean(body?.firma_url,4*1024*1024)||null;
     const {data:saved,error:saveError}=await db.from("prevencion_respuestas").insert({formulario_id:form.id,centro_gestion_id:centerId,obra_id:workId,proyecto_nombre:workName,inspector,respuestas:answers,firma_url:signature}).select("id").single();
     if(saveError){await log(false);throw saveError;}
     if(control.tipo_registro==="maquinaria_uso"){

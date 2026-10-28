@@ -7,6 +7,22 @@ export const WORK_COLUMNS = [
   { key: 'prevencionista', label: 'Prevencionista' },
   { key: 'tipo', label: 'Especialidad' }
 ];
+export const RESPONSIBLE_COLUMNS = [{ key: 'nombre', label: 'Responsable' }, { key: 'cargo', label: 'Cargo' }];
+
+export function responsibleCatalog(field, people, assignments, centers, today) {
+  const normalize = value => String(value || '').trim().toLocaleLowerCase('es');
+  const cargos = new Set((field.cargos || []).map(normalize).filter(Boolean));
+  const allowedCenters = new Set(centers.map(center => String(center.id)));
+  if (!cargos.size) return [];
+  return people.filter(person => cargos.has(normalize(person.cargo)) && (!person.fecha_inicio_contrato || person.fecha_inicio_contrato <= today) && (!person.fecha_vencimiento_contrato || person.fecha_vencimiento_contrato >= today)).flatMap(person => {
+    const membership = assignments.filter(item => String(item.trabajador_id) === String(person.id) && item.fecha_inicio <= today && (!item.fecha_termino || item.fecha_termino >= today));
+    const ids = new Set(membership.map(item => String(item.centro_gestion_id)));
+    if (person.centro_gestion_id && (!person.fecha_asig || person.fecha_asig <= today)) ids.add(String(person.centro_gestion_id));
+    // Legacy workers can still be linked by the exact work name, never by a fuzzy match.
+    if (!ids.size && person.obra_nombre && (!person.fecha_asig || person.fecha_asig <= today)) centers.filter(center => normalize(center.obra_nombre) === normalize(person.obra_nombre)).forEach(center => ids.add(String(center.id)));
+    return [...ids].filter(id => allowedCenters.has(id)).map(id => ({ _id: `${person.id}:${id}`, _display: `${person.nombre} · ${person.cargo}`, centro_gestion_id: Number(id), nombre: person.nombre, cargo: person.cargo }));
+  });
+}
 
 export function workCatalog(field, works) {
   const allowed = new Set(WORK_COLUMNS.map(column => column.key));

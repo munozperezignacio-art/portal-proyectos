@@ -148,14 +148,22 @@ export default function PublicFormFiller({ formToken }) {
 
   const selectLinkedRecord = (field, recordId) => {
     const record = (linkedCatalogs[field.id] || []).find(item => String(item._id) === String(recordId));
-    if (!record) { setFillAnswers(previous => ({ ...previous, [field.id]: null })); return; }
+    if (!record) {
+      setFillAnswers(previous => ({ ...previous, [field.id]: null, ...(field.source === 'works' ? Object.fromEntries((form.campos || []).filter(item => item.type === 'data_lookup').map(item => [item.id, null])) : {}) }));
+      if (field.source === 'works') setFillMetadata(previous => ({ ...previous, centro_gestion_id: '', obra_id: '', proyecto_nombre: '', inspector: form.campos.some(item => item.source === 'responsibles') ? '' : previous.inspector }));
+      if (field.source === 'responsibles') setFillMetadata(previous => ({ ...previous, inspector: '' }));
+      return;
+    }
     const selectedKeys = [field.selectorKey, ...(field.autofillKeys || [])];
     const answer = { _id: record._id, _display: record._display };
     selectedKeys.forEach(key => { answer[key] = record[key] ?? ''; });
     if (field.source === 'works') {
-      setFillMetadata(previous => ({ ...previous, centro_gestion_id: record.centro_gestion_id, obra_id: record.obra_id, proyecto_nombre: record.nombre || record._display }));
+      setFillMetadata(previous => ({ ...previous, centro_gestion_id: record.centro_gestion_id, obra_id: record.obra_id, proyecto_nombre: record.nombre || record._display, inspector: form.campos.some(item => item.source === 'responsibles') ? '' : previous.inspector }));
       setFillAnswers(previous => ({ ...previous, ...Object.fromEntries((form.campos || []).filter(item => item.type === 'data_lookup').map(item => [item.id, null])), [field.id]: answer }));
-    } else setFillAnswers(previous => ({ ...previous, [field.id]: answer }));
+    } else {
+      setFillAnswers(previous => ({ ...previous, [field.id]: answer }));
+      if (field.source === 'responsibles') setFillMetadata(previous => ({ ...previous, inspector: record.nombre || '' }));
+    }
   };
 
   // Manejo de bloques repetibles
@@ -383,8 +391,8 @@ export default function PublicFormFiller({ formToken }) {
           {error && <p role="alert" className="whitespace-pre-line rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
           
           {/* Identificación del Terreno */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
-            <div>
+          {!(form.campos.some(field => field.source === 'works') && form.campos.some(field => field.source === 'responsibles')) && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+            {!form.campos.some(field => field.type === 'data_lookup' && field.source === 'works') && <div>
               <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Centro de gestión *</label>
               <select
                 required
@@ -407,15 +415,15 @@ export default function PublicFormFiller({ formToken }) {
                 ))}
               </select>
               {fillMetadata.proyecto_nombre && <p className="mt-1 text-[9px] font-bold text-slate-500">Obra vinculada: {fillMetadata.proyecto_nombre}</p>}
-            </div>
-            <div>
+            </div>}
+            {!form.campos.some(field => field.type === 'data_lookup' && field.source === 'responsibles') && <div>
               <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Inspector / Trabajador *</label>
               <input required value={fillMetadata.inspector}
                 onChange={(e) => setFillMetadata({ ...fillMetadata, inspector: e.target.value })}
                 placeholder="Nombre del responsable"
                 className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-semibold uppercase text-slate-800 focus:outline-none focus:border-primary" />
-            </div>
-          </div>
+            </div>}
+          </div>}
 
           {/* Preguntas Dinámicas */}
           <div className="space-y-6">

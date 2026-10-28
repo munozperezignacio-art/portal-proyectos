@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient';
 import ModuleHeader from './ModuleHeader';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
-import { WORK_COLUMNS } from '../../../supabase/functions/_shared/formFields.mjs';
+import { WORK_COLUMNS, RESPONSIBLE_COLUMNS } from '../../../supabase/functions/_shared/formFields.mjs';
 import { 
   ChevronRight, ClipboardCheck, Plus, FileText,
   Trash2, Share2, Download, Eye, GripVertical, ArrowUp, ArrowDown,
@@ -215,17 +215,18 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
 
   const addLinkedDataField = (source) => {
     const matrix = riskMatrices[0];
-    const sourceColumns = source === 'works' ? WORK_COLUMNS : source === 'risk_matrix' ? (matrix?.columnas || []) : MACHINERY_SOURCE_COLUMNS;
-    const selectorKey = source === 'works' ? 'nombre' : source === 'risk_matrix' ? (sourceColumns.find(column => column.key === 'tarea')?.key || sourceColumns[0]?.key || '') : 'equipo';
+    const sourceColumns = source === 'responsibles' ? RESPONSIBLE_COLUMNS : source === 'works' ? WORK_COLUMNS : source === 'risk_matrix' ? (matrix?.columnas || []) : MACHINERY_SOURCE_COLUMNS;
+    const selectorKey = ['works', 'responsibles'].includes(source) ? 'nombre' : source === 'risk_matrix' ? (sourceColumns.find(column => column.key === 'tarea')?.key || sourceColumns[0]?.key || '') : 'equipo';
     setFormFields(current => [...current, {
       id: `linked_${Date.now()}`,
       type: 'data_lookup',
-      label: source === 'works' ? 'Obra' : source === 'risk_matrix' ? 'Datos de matriz de riesgos' : 'Equipo / maquinaria',
-      required: false,
+      label: source === 'responsibles' ? 'Responsable' : source === 'works' ? 'Obra' : source === 'risk_matrix' ? 'Datos de matriz de riesgos' : 'Equipo / maquinaria',
+      required: ['works', 'responsibles'].includes(source),
       source,
+      cargos: source === 'responsibles' ? [] : undefined,
       matrixId: source === 'risk_matrix' ? (matrix?.id || '') : undefined,
       selectorKey,
-      autofillKeys: source === 'works' ? ['admin_contrato', 'ubicacion', 'oficina_tecnica'] : source === 'risk_matrix' ? [] : ['tipo', 'patente', 'marca', 'estado_equipo'],
+      autofillKeys: source === 'responsibles' ? ['cargo'] : source === 'works' ? ['admin_contrato', 'ubicacion', 'oficina_tecnica'] : source === 'risk_matrix' ? [] : ['tipo', 'patente', 'marca', 'estado_equipo'],
       sourceColumns
     }]);
   };
@@ -318,6 +319,10 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     if (editingForm ? !canEdit : !canCreate) { setErrorMsg('Tu perfil no está autorizado para guardar este formulario.'); return; }
     if (!formTitle.trim()) {
       setErrorMsg('Ingrese el título del formulario.');
+      return;
+    }
+    if (formFields.some(field => field.source === 'responsibles' && !(field.cargos || []).length)) {
+      setErrorMsg('Selecciona al menos un cargo para cada campo Responsable.');
       return;
     }
     if (!allWorks && !formCenterIds.length) {
@@ -760,6 +765,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                 {[['text','Texto corto'],['textarea','Texto largo'],['date','Fecha'],['time','Hora'],['select','Lista desplegable'],['radio','Selección múltiple · una respuesta'],['checkbox','Checkbox · varias respuestas'],['rating','Nivel de valoración'],['photo','Subir imágenes'],['signature','Dibujar firma'],['repeater','Grupo repetible']].map(([type,label]) => <button key={type} type="button" onClick={() => handleAddField(type)} className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">+ {label}</button>)}
                 <button type="button" onClick={() => addLinkedDataField('risk_matrix')} className="rounded-xl bg-rose-50 px-3.5 py-2 text-xs font-black text-rose-800 hover:bg-rose-100">+ Usar matriz de riesgo</button>
                 <button type="button" onClick={() => addLinkedDataField('machinery')} className="rounded-xl bg-blue-50 px-3.5 py-2 text-xs font-black text-blue-800 hover:bg-blue-100">+ Usar datos de maquinaria</button>
+                <button type="button" onClick={() => addLinkedDataField('responsibles')} className="rounded-xl bg-blue-50 px-3.5 py-2 text-xs font-black text-blue-800 hover:bg-blue-100">+ Responsable por cargo</button>
                 <button type="button" onClick={() => addLinkedDataField('works')} className="rounded-xl bg-blue-50 px-3.5 py-2 text-xs font-black text-blue-800 hover:bg-blue-100">+ Obra y datos de ficha</button>
               </div>
             </div>
@@ -814,11 +820,11 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                   {field.type === 'rating' && <div className="space-y-1"><label className="block text-[9.5px] font-bold text-slate-500 uppercase">Máximo de la escala</label><select value={field.maxRating || 5} onChange={e => handleUpdateField(field.id, 'maxRating', Number(e.target.value))} className="h-9 rounded-lg border border-slate-200 px-3 text-xs font-bold"><option value="3">1 a 3</option><option value="5">1 a 5</option><option value="10">1 a 10</option></select></div>}
                   {field.type === 'data_lookup' && (() => {
                     const selectedMatrix = riskMatrices.find(matrix => matrix.id === field.matrixId);
-                    const sourceColumns = field.source === 'works' ? WORK_COLUMNS : field.source === 'risk_matrix' ? (selectedMatrix?.columnas || field.sourceColumns || []) : MACHINERY_SOURCE_COLUMNS;
+                    const sourceColumns = field.source === 'responsibles' ? RESPONSIBLE_COLUMNS : field.source === 'works' ? WORK_COLUMNS : field.source === 'risk_matrix' ? (selectedMatrix?.columnas || field.sourceColumns || []) : MACHINERY_SOURCE_COLUMNS;
                     const updateSource = source => {
                       const matrix = riskMatrices[0];
-                      const nextColumns = source === 'works' ? WORK_COLUMNS : source === 'risk_matrix' ? (matrix?.columnas || []) : MACHINERY_SOURCE_COLUMNS;
-                      setFormFields(current => current.map(item => item.id === field.id ? { ...item, source, matrixId: source === 'risk_matrix' ? matrix?.id || '' : undefined, sourceColumns: nextColumns, selectorKey: source === 'works' ? 'nombre' : source === 'risk_matrix' ? nextColumns[0]?.key || '' : 'equipo', autofillKeys: [] } : item));
+                      const nextColumns = source === 'responsibles' ? RESPONSIBLE_COLUMNS : source === 'works' ? WORK_COLUMNS : source === 'risk_matrix' ? (matrix?.columnas || []) : MACHINERY_SOURCE_COLUMNS;
+                      setFormFields(current => current.map(item => item.id === field.id ? { ...item, source, matrixId: source === 'risk_matrix' ? matrix?.id || '' : undefined, sourceColumns: nextColumns, selectorKey: ['works', 'responsibles'].includes(source) ? 'nombre' : source === 'risk_matrix' ? nextColumns[0]?.key || '' : 'equipo', autofillKeys: source === 'responsibles' ? ['cargo'] : [], cargos: source === 'responsibles' ? [] : undefined } : item));
                     };
                     const updateMatrix = matrixId => {
                       const matrix = riskMatrices.find(item => item.id === matrixId);
@@ -826,10 +832,11 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                     };
                     return <div className="space-y-3 rounded-xl border border-blue-100 bg-blue-50/50 p-3">
                       <div className="grid gap-3 md:grid-cols-2">
-                        <label className="text-[10px] font-black uppercase text-slate-600">Fuente de datos<select value={field.source || 'machinery'} onChange={e => updateSource(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs"><option value="risk_matrix">Matriz de riesgos</option><option value="machinery">Maquinaria y equipos</option><option value="works">Obra y ficha del proyecto</option></select></label>
+                        <label className="text-[10px] font-black uppercase text-slate-600">Fuente de datos<select value={field.source || 'machinery'} onChange={e => updateSource(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs"><option value="risk_matrix">Matriz de riesgos</option><option value="machinery">Maquinaria y equipos</option><option value="works">Obra y ficha del proyecto</option><option value="responsibles">Responsables por cargo (RRHH)</option></select></label>
                         {field.source === 'risk_matrix' && <label className="text-[10px] font-black uppercase text-slate-600">Matriz<select value={field.matrixId || ''} onChange={e => updateMatrix(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs"><option value="">Seleccionar matriz</option>{riskMatrices.map(matrix => <option key={matrix.id} value={matrix.id}>{matrix.codigo} · {matrix.nombre} · v{matrix.version}</option>)}</select></label>}
                       </div>
-                      <label className="block text-[10px] font-black uppercase text-slate-600">Campo que seleccionará el usuario<select disabled={field.source === 'works'} value={field.selectorKey || ''} onChange={e => handleUpdateField(field.id, 'selectorKey', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs">{sourceColumns.map(column => <option key={column.key} value={column.key}>{column.label}</option>)}</select></label>
+                      <label className="block text-[10px] font-black uppercase text-slate-600">Campo que seleccionará el usuario<select disabled={['works', 'responsibles'].includes(field.source)} value={field.selectorKey || ''} onChange={e => handleUpdateField(field.id, 'selectorKey', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs">{sourceColumns.map(column => <option key={column.key} value={column.key}>{column.label}</option>)}</select></label>
+                      {field.source === 'responsibles' && <div><p className="text-xs font-bold">Cargos de los responsables</p><p className="my-2 text-xs text-slate-500">Selecciona uno o varios cargos de Recursos Humanos. En el enlace público se mostrarán únicamente nombres y cargos de las personas vinculadas a la obra elegida. Esta selección no verifica la identidad de quien responde.</p><div className="flex flex-wrap gap-2">{availableCargos.map(cargo => <label key={cargo} className="flex items-center gap-2 rounded-lg border bg-white p-2 text-xs"><input type="checkbox" checked={(field.cargos || []).includes(cargo)} onChange={event => handleUpdateField(field.id, 'cargos', event.target.checked ? [...(field.cargos || []), cargo] : field.cargos.filter(item => item !== cargo))} />{cargo}</label>)}</div>{!availableCargos.length && <p className="text-xs text-amber-700">No hay cargos registrados en Recursos Humanos.</p>}</div>}
                       <div><p className="text-[10px] font-black uppercase text-slate-600">Campos que se completarán automáticamente</p><div className="mt-2 flex flex-wrap gap-2">{sourceColumns.filter(column => column.key !== field.selectorKey).map(column => <label key={column.key} className={`cursor-pointer rounded-lg border px-2 py-1 text-[10px] font-bold ${field.autofillKeys?.includes(column.key) ? 'border-blue-700 bg-blue-700 text-white' : 'border-slate-200 bg-white text-slate-600'}`}><input type="checkbox" className="sr-only" checked={field.autofillKeys?.includes(column.key) || false} onChange={() => handleUpdateField(field.id, 'autofillKeys', field.autofillKeys?.includes(column.key) ? field.autofillKeys.filter(key => key !== column.key) : [...(field.autofillKeys || []), column.key])} />{column.label}</label>)}</div></div>
                     </div>;
                   })()}
