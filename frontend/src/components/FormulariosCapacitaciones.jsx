@@ -6,7 +6,7 @@ import { can } from '../utils/permissionsCatalog';
 import { WORK_COLUMNS } from '../../../supabase/functions/_shared/formFields.mjs';
 import { 
   ChevronRight, ClipboardCheck, Plus, FileText,
-  Trash2, Share2, Download, Eye,
+  Trash2, Share2, Download, Eye, GripVertical, ArrowUp, ArrowDown,
   GraduationCap, CheckSquare, Sparkles
 } from 'lucide-react';
 
@@ -37,6 +37,8 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   const [viewingResponse, setViewingResponse] = useState(null);
   const [pdfPreview, setPdfPreview] = useState('');
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [draggedField, setDraggedField] = useState(null);
+  const [dropTarget, setDropTarget] = useState(null);
   useEffect(() => () => { if (pdfPreview) URL.revokeObjectURL(pdfPreview); }, [pdfPreview]);
 
   // Módulos disponibles para asignar formularios
@@ -195,6 +197,20 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     const field = formFields.find(item => item.id === id);
     if (field && isProtectedField(field) && ['label', 'required', 'type'].includes(key)) return;
     setFormFields(formFields.map(f => f.id === id ? { ...f, [key]: value } : f));
+  };
+
+  const moveField = (id, targetId) => {
+    setFormFields(current => {
+      const from = current.findIndex(field => field.id === id);
+      const to = current.findIndex(field => field.id === targetId);
+      if (from < 0 || to < 0 || from === to) return current;
+      const reordered = [...current];
+      const [field] = reordered.splice(from, 1);
+      reordered.splice(to, 0, field);
+      return reordered;
+    });
+    setDraggedField(null);
+    setDropTarget(null);
   };
 
   const addLinkedDataField = (source) => {
@@ -749,11 +765,23 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
             </div>
 
             {/* Lista de Campos */}
+            <p className="text-xs text-slate-500">Arrastra el agarre de cada campo para cambiar el orden, o usa las flechas. Guarda los cambios para aplicarlos al formulario y al PDF.</p>
             <div className="space-y-3">
               {formFields.map((field, index) => (
-                <div key={field.id} className="p-4 rounded-2xl border border-slate-200 bg-white shadow-xs space-y-3 relative">
+                <div key={field.id} data-field-id={field.id}
+                  onDragOver={event => { if (draggedField === null) return; event.preventDefault(); event.dataTransfer.dropEffect = 'move'; setDropTarget(field.id); }}
+                  onDrop={event => { if (draggedField === null) return; event.preventDefault(); event.stopPropagation(); moveField(draggedField, field.id); }}
+                  className={`p-4 rounded-2xl border bg-white shadow-xs space-y-3 relative ${dropTarget === field.id && draggedField !== field.id ? 'border-primary ring-2 ring-primary/20' : 'border-slate-200'} ${draggedField === field.id ? 'opacity-50' : ''}`}>
                   <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
-                    <span className="text-[10px] font-black text-primary uppercase tracking-wider">Campo #{index + 1} ({field.type})</span>
+                    <div className="flex items-center gap-2">
+                      <button type="button" draggable aria-label={`Arrastrar ${field.label}`} title="Arrastra para ordenar"
+                        onDragStart={event => { event.stopPropagation(); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('application/x-obraxis-field', String(field.id)); setDraggedField(field.id); }}
+                        onDragEnd={() => { setDraggedField(null); setDropTarget(null); }}
+                        className="cursor-grab rounded-lg p-2 text-slate-500 hover:bg-slate-100 active:cursor-grabbing"><GripVertical className="h-4 w-4" /></button>
+                      <span className="text-[10px] font-black text-primary uppercase tracking-wider">Campo #{index + 1} ({field.type})</span>
+                      <button type="button" aria-label={`Subir ${field.label}`} disabled={index === 0} onClick={() => moveField(field.id, formFields[index - 1]?.id)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-25"><ArrowUp className="h-4 w-4" /></button>
+                      <button type="button" aria-label={`Bajar ${field.label}`} disabled={index === formFields.length - 1} onClick={() => moveField(field.id, formFields[index + 1]?.id)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-25"><ArrowDown className="h-4 w-4" /></button>
+                    </div>
                     {isProtectedField(field) ? <span className="rounded-lg bg-amber-50 px-2 py-1 text-[9px] font-black uppercase text-amber-800">Campo base bloqueado</span> : <button type="button" onClick={() => handleRemoveField(field.id)} className="text-slate-400 hover:text-rose-600 transition cursor-pointer"><Trash2 className="w-4 h-4" /></button>}
                   </div>
 
