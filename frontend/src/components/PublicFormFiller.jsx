@@ -1,5 +1,6 @@
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
+import { validateFormAnswers } from '../../../supabase/functions/_shared/formFields.mjs';
 import { 
   Send, CheckCircle2, Camera, AlertCircle, Loader2, Plus
 } from 'lucide-react';
@@ -151,7 +152,10 @@ export default function PublicFormFiller({ formToken }) {
     const selectedKeys = [field.selectorKey, ...(field.autofillKeys || [])];
     const answer = { _id: record._id, _display: record._display };
     selectedKeys.forEach(key => { answer[key] = record[key] ?? ''; });
-    setFillAnswers(previous => ({ ...previous, [field.id]: answer }));
+    if (field.source === 'works') {
+      setFillMetadata(previous => ({ ...previous, centro_gestion_id: record.centro_gestion_id, obra_id: record.obra_id, proyecto_nombre: record.nombre || record._display }));
+      setFillAnswers(previous => ({ ...previous, ...Object.fromEntries((form.campos || []).filter(item => item.type === 'data_lookup').map(item => [item.id, null])), [field.id]: answer }));
+    } else setFillAnswers(previous => ({ ...previous, [field.id]: answer }));
   };
 
   // Manejo de bloques repetibles
@@ -163,6 +167,12 @@ export default function PublicFormFiller({ formToken }) {
   };
 
   const handleDeleteRepeaterInstance = (fieldId, index) => {
+    setRepeaterSignatures(previous => Object.fromEntries(Object.entries(previous).flatMap(([key, value]) => {
+      const prefix = `${fieldId}_instance_`;
+      if (!key.startsWith(prefix)) return [[key, value]];
+      const rest = key.slice(prefix.length), separator = rest.indexOf('_'), row = Number(rest.slice(0, separator));
+      return row === index ? [] : [[`${prefix}${row > index ? row - 1 : row}${rest.slice(separator)}`, value]];
+    })));
     setFillAnswers(prev => ({
       ...prev,
       [fieldId]: (prev[fieldId] || []).filter((_, idx) => idx !== index)
@@ -186,8 +196,8 @@ export default function PublicFormFiller({ formToken }) {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX || (e.touches && e.touches[0].clientX)) - rect.left;
-    const y = (e.clientY || (e.touches && e.touches[0].clientY)) - rect.top;
+    const x = ((e.clientX ?? e.touches?.[0]?.clientX) - rect.left) * canvas.width / rect.width;
+    const y = ((e.clientY ?? e.touches?.[0]?.clientY) - rect.top) * canvas.height / rect.height;
 
     ctx.beginPath();
     ctx.moveTo(x, y);
@@ -200,8 +210,8 @@ export default function PublicFormFiller({ formToken }) {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX || (e.touches && e.touches[0].clientX)) - rect.left;
-    const y = (e.clientY || (e.touches && e.touches[0].clientY)) - rect.top;
+    const x = ((e.clientX ?? e.touches?.[0]?.clientX) - rect.left) * canvas.width / rect.width;
+    const y = ((e.clientY ?? e.touches?.[0]?.clientY) - rect.top) * canvas.height / rect.height;
 
     ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
@@ -246,6 +256,7 @@ export default function PublicFormFiller({ formToken }) {
     try {
       const finalAnswers = JSON.parse(JSON.stringify(fillAnswers));
       Object.entries(repeaterSignatures).forEach(([key, sigUrl]) => {
+        if (key.startsWith('field:')) { finalAnswers[key.slice(6)] = sigUrl; return; }
         const [fieldId, instanceKey] = key.split('_instance_');
         const separator = instanceKey?.indexOf('_');
         const instanceIndex = separator >= 0 ? instanceKey.slice(0, separator) : '';
@@ -262,7 +273,9 @@ export default function PublicFormFiller({ formToken }) {
         finalAnswers[signatureField.id] = mainSignatureDataUrl;
       }
 
-      const { error: insErr } = await supabase.functions.invoke('formulario-publico', {
+      const validationErrors = validateFormAnswers(form.campos || [], finalAnswers);
+      if (validationErrors.length) throw new Error(validationErrors.join('\n'));
+      const { data: result, error: insErr } = await supabase.functions.invoke('formulario-publico', {
         body: {
           action: 'enviar', token: String(formToken),
           centro_gestion_id: fillMetadata.centro_gestion_id ? Number(fillMetadata.centro_gestion_id) : null,
@@ -275,6 +288,7 @@ export default function PublicFormFiller({ formToken }) {
       });
 
       if (insErr) throw insErr;
+      if (result?.error) throw new Error(result.error);
 
       setSubmittedSuccess(true);
     } catch (err) {
@@ -295,7 +309,7 @@ export default function PublicFormFiller({ formToken }) {
     );
   }
 
-  if (error || !form) {
+  if (!form) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100 text-center space-y-4 max-w-md w-full">
@@ -366,6 +380,7 @@ export default function PublicFormFiller({ formToken }) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {error && <p role="alert" className="whitespace-pre-line rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
           
           {/* Identificación del Terreno */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
@@ -379,6 +394,7 @@ export default function PublicFormFiller({ formToken }) {
                   const linkedWork = obrasList.find(work => String(work.centro_gestion_id) === String(centerId));
                   const center = centrosGestion.find(item => String(item.id) === String(centerId));
                   setFillMetadata({ ...fillMetadata, centro_gestion_id: centerId, obra_id: linkedWork?.id || '', proyecto_nombre: linkedWork?.nombre || center?.nombre || 'Centro corporativo' });
+                  setFillAnswers(previous => ({ ...previous, ...Object.fromEntries((form.campos || []).filter(field => field.type === 'data_lookup').map(field => [field.id, null])) }));
                   if (form.tipo_registro === 'maquinaria_uso') {
                     setFillAnswers(previous => ({ ...previous, equipo_patente: '', marca_modelo: '', unidad_medicion: '', horometro_inicial: '' }));
                   }
@@ -441,9 +457,11 @@ export default function PublicFormFiller({ formToken }) {
                               {sub.label}
                             </label>
 
-                            {sub.type === 'text' && (
+                            {['text', 'date', 'time'].includes(sub.type) && (
                               <input
-                                type="text"
+                                type={sub.type}
+                                aria-label={sub.label}
+                                required={sub.required}
                                 value={inst[sub.id] || ''}
                                 onChange={(e) => handleUpdateRepeaterAnswer(f.id, instIdx, sub.id, e.target.value)}
                                 placeholder="Escriba aquí..."
@@ -522,7 +540,7 @@ export default function PublicFormFiller({ formToken }) {
               // CAMPOS ESTÁNDAR
               const measurementName = fillAnswers.unidad_medicion === 'Kilometraje (km)' ? 'Kilometraje' : 'Horómetro';
               const displayedLabel = f.id === 'horometro_inicial' ? `${measurementName} inicial` : f.id === 'horometro_final' ? `${measurementName} final` : f.label;
-              const linkedOptions = (linkedCatalogs[f.id] || []).filter(item => !fillMetadata.centro_gestion_id || !item.centro_gestion_id || String(item.centro_gestion_id) === String(fillMetadata.centro_gestion_id));
+              const linkedOptions = (linkedCatalogs[f.id] || []).filter(item => f.source === 'works' || !fillMetadata.centro_gestion_id || !item.centro_gestion_id || String(item.centro_gestion_id) === String(fillMetadata.centro_gestion_id));
               return (
                 <div key={f.id} className="space-y-2 border-b border-slate-100 pb-5">
                   <label className="block text-xs font-extrabold text-slate-800 uppercase">
@@ -531,8 +549,8 @@ export default function PublicFormFiller({ formToken }) {
 
                   {f.type === 'data_lookup' ? (
                     <div className="space-y-3 rounded-2xl border border-blue-100 bg-blue-50/40 p-3">
-                      <select required={f.required} value={fillAnswers[f.id]?._id || ''} onChange={e => selectLinkedRecord(f, e.target.value)} disabled={!fillMetadata.centro_gestion_id} className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-800 disabled:bg-slate-100">
-                        <option value="">{fillMetadata.centro_gestion_id ? '-- Seleccionar --' : '-- Primero selecciona un centro de gestión --'}</option>
+                      <select aria-label={f.label} required={f.required} value={fillAnswers[f.id]?._id || ''} onChange={e => selectLinkedRecord(f, e.target.value)} disabled={f.source !== 'works' && !fillMetadata.centro_gestion_id} className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-800 disabled:bg-slate-100">
+                        <option value="">{f.source === 'works' || fillMetadata.centro_gestion_id ? '-- Seleccionar --' : '-- Primero selecciona un centro de gestión --'}</option>
                         {linkedOptions.map(item => <option key={item._id} value={item._id}>{item._display}</option>)}
                       </select>
                       {fillAnswers[f.id] && <div className="grid gap-2 sm:grid-cols-2">{Object.entries(fillAnswers[f.id]).filter(([key]) => !key.startsWith('_')).map(([key, value]) => <div key={key} className="rounded-lg border border-blue-100 bg-white p-2"><p className="text-[9px] font-black uppercase text-slate-400">{f.sourceColumns?.find(column => column.key === key)?.label || key}</p><p className="mt-1 text-xs font-bold text-slate-700">{String(value || 'Sin información')}</p></div>)}</div>}
@@ -563,6 +581,7 @@ export default function PublicFormFiller({ formToken }) {
                     />
                   )}
 
+                  {f.type === 'select' && !(form.tipo_registro === 'maquinaria_uso' && f.id === 'equipo_patente') && <select aria-label={f.label} required={f.required} value={fillAnswers[f.id] ?? ''} onChange={e => setFillAnswers(previous => ({ ...previous, [f.id]: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs"><option value="">Seleccionar…</option>{(f.options || []).map(option => <option key={option} value={option}>{option}</option>)}</select>}
                   {f.type === 'textarea' && (
                     <textarea
                       rows="3"
@@ -642,15 +661,16 @@ export default function PublicFormFiller({ formToken }) {
                     <div className="space-y-2">
                       <div className="border-2 border-slate-200 rounded-2xl p-1 bg-slate-50/50">
                         <canvas
-                          ref={mainCanvasRef}
+                          ref={el => { repeaterCanvasRefs.current[`field:${f.id}`] = el; }}
                           width={500}
                           height={150}
-                          onMouseDown={(e) => startDrawing(e, 'main')}
-                          onMouseMove={(e) => draw(e, 'main')}
-                          onMouseUp={() => stopDrawing('main')}
-                          onTouchStart={(e) => startDrawing(e, 'main')}
-                          onTouchMove={(e) => draw(e, 'main')}
-                          onTouchEnd={() => stopDrawing('main')}
+                          onMouseDown={(e) => startDrawing(e, `field:${f.id}`)}
+                          onMouseMove={(e) => draw(e, `field:${f.id}`)}
+                          onMouseUp={() => stopDrawing(`field:${f.id}`)}
+                          onMouseLeave={() => stopDrawing(`field:${f.id}`)}
+                          onTouchStart={(e) => startDrawing(e, `field:${f.id}`)}
+                          onTouchMove={(e) => draw(e, `field:${f.id}`)}
+                          onTouchEnd={() => stopDrawing(`field:${f.id}`)}
                           className="w-full h-32 bg-white rounded-xl touch-none border border-slate-200 cursor-crosshair"
                         />
                       </div>
@@ -658,7 +678,7 @@ export default function PublicFormFiller({ formToken }) {
                         <span className="text-slate-450 font-bold">Dibuja tu firma en el recuadro con el dedo</span>
                         <button
                           type="button"
-                          onClick={() => clearSignature('main')}
+                          onClick={() => clearSignature(`field:${f.id}`)}
                           className="text-red-650 hover:underline font-bold"
                         >
                           Limpiar Firma

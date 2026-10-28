@@ -73,7 +73,7 @@ export async function generateFormPdf({ form, metadata, answers, mainSignature, 
     doc.setFontSize(9.5);
     doc.setTextColor(15, 23, 42);
     const titleText = (form.titulo || 'Formulario de Prevención').toUpperCase();
-    doc.text(titleText, margin + 85, y + 15, { align: 'center' });
+    doc.text(doc.splitTextToSize(titleText, 74).slice(0, 3), margin + 85, y + 13, { align: 'center' });
 
     // Columna 3: Metadatos de la Revisión
     doc.setFont('helvetica', 'normal');
@@ -105,8 +105,8 @@ export async function generateFormPdf({ form, metadata, answers, mainSignature, 
   
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(15, 23, 42);
-  doc.text(metadata.inspector || 'Anónimo', margin + 40, y + 8);
-  doc.text(metadata.proyecto_nombre || 'General', margin + 40, y + 16);
+  doc.text(doc.splitTextToSize(metadata.inspector || 'Anónimo', 65).slice(0, 2), margin + 40, y + 6);
+  doc.text(doc.splitTextToSize(metadata.proyecto_nombre || 'General', 120).slice(0, 2), margin + 40, y + 15);
 
   // Fecha y hora a la derecha
   doc.setFont('helvetica', 'bold');
@@ -129,7 +129,7 @@ export async function generateFormPdf({ form, metadata, answers, mainSignature, 
     // La firma principal se almacena separada en respuestas históricas. Si el
     // formulario contiene un campo firma, pertenece a ese campo y no a un
     // segundo bloque genérico de firma al final del documento.
-    const val = answers[field.id] || (field.id === signatureField?.id ? mainSignature : undefined);
+    const val = answers[field.id] ?? (field.id === signatureField?.id ? mainSignature : undefined);
     
     // Calcular altura estimada requerida para la pregunta
     let heightNeeded = 12;
@@ -149,8 +149,8 @@ export async function generateFormPdf({ form, metadata, answers, mainSignature, 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(51, 65, 85);
-    doc.text(field.label || 'Campo', margin, y);
-    y += 5;
+    const labelLines = doc.splitTextToSize(field.label || 'Campo', contentWidth);
+    labelLines.forEach(line => { checkPage(5); doc.text(line, margin, y); y += 5; });
 
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(15, 23, 42);
@@ -171,7 +171,7 @@ export async function generateFormPdf({ form, metadata, answers, mainSignature, 
             const subField = field.subFields?.find(sf => sf.id === subId);
             const subLabel = subField ? subField.label : subId;
             
-            checkPage(6);
+            checkPage((subField?.type === 'photo' || subField?.type === 'signature') && subVal ? 45 : 10);
             if ((subField?.type === 'signature' || subField?.type === 'photo') && subVal) {
               doc.text(`- ${subLabel}: ${subField?.type === 'photo' ? '[Evidencia fotográfica]' : '[Firma Digital]'}`, margin + 10, y);
               try {
@@ -181,14 +181,15 @@ export async function generateFormPdf({ form, metadata, answers, mainSignature, 
                 // Si la imagen falla
               }
             } else {
-              doc.text(`- ${subLabel}: ${subVal || 'N/R'}`, margin + 10, y);
+              const lines = doc.splitTextToSize(`- ${subLabel}: ${Array.isArray(subVal) ? subVal.join(', ') : subVal ?? 'Sin respuesta'}`, contentWidth - 15);
+              lines.forEach(line => { checkPage(5); doc.text(line, margin + 10, y); y += 5; });
             }
             y += 5;
           });
           y += 2;
         });
       } else {
-        doc.setFontStyle('italic');
+        doc.setFont('helvetica', 'italic');
         doc.text('Sin registros ingresados', margin + 5, y);
         y += 5;
       }
@@ -201,6 +202,7 @@ export async function generateFormPdf({ form, metadata, answers, mainSignature, 
         y += 5;
       }
     } else if (field.type === 'photo' && val) {
+      checkPage(40);
       try {
         doc.addImage(val, 'JPEG', margin, y - 3, 60, 35);
         y += 37;
@@ -209,16 +211,15 @@ export async function generateFormPdf({ form, metadata, answers, mainSignature, 
         y += 5;
       }
     } else if (field.type === 'checkbox') {
-      doc.text(Array.isArray(val) && val.length ? val.join(', ') : 'Sin alternativas marcadas', margin, y);
-      y += 5;
+      doc.splitTextToSize(Array.isArray(val) && val.length ? val.join(', ') : 'Sin alternativas marcadas', contentWidth).forEach(line => { checkPage(5); doc.text(line, margin, y); y += 5; });
     } else if (field.type === 'data_lookup' && val && typeof val === 'object') {
       Object.entries(val).filter(([key]) => !key.startsWith('_')).forEach(([key, itemValue]) => {
         const label = field.sourceColumns?.find(column => column.key === key)?.label || key;
-        const lines = doc.splitTextToSize(`${label}: ${itemValue || 'N/R'}`, contentWidth - 5);
+        const lines = doc.splitTextToSize(`${label}: ${itemValue ?? 'Sin información'}`, contentWidth - 5);
         lines.forEach(line => { checkPage(5); doc.text(line, margin + 5, y); y += 5; });
       });
     } else {
-      const textVal = String(val || 'N/R');
+      const textVal = field.type === 'signature' ? '[Espacio para firma]' : field.type === 'photo' ? '[Espacio para evidencia fotográfica]' : String(val ?? 'Sin respuesta');
       // Ajustar texto largo en múltiples líneas
       const splitText = doc.splitTextToSize(textVal, contentWidth);
       splitText.forEach((line) => {

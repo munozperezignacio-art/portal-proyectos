@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { workCatalog, validateFormAnswers } from "../_shared/formFields.mjs";
 
 const cors={"Access-Control-Allow-Origin":"https://www.obraxis.cl","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json"}});
@@ -25,6 +26,19 @@ Deno.serve(async(req)=>{
     const log=async(exitoso:boolean)=>{await db.from("formulario_publico_intentos").insert({token_hash:tokenHash,ip_hash:ipHash,accion:action,exitoso});};
     const {data:form,error:formError}=await db.from("prevencion_formularios").select("id,titulo,descripcion,categoria,campos,publico_token,codigo,revision,fecha_revision,empresa,cargos_obligados").eq("publico_token",token).maybeSingle();
     if(formError||!form){await log(false);return json({error:"Formulario no disponible"},404);}
+    const fields=Array.isArray(form.campos)?form.campos:(form.campos?.items||[]);
+    const catalogFor=async(field:any,centers:any[])=>{
+      if(field.source==="works"){
+        const ids=centers.map((center:any)=>center.id);
+        if(!ids.length)return [];
+        const {data,error}=await db.from("obras").select("id,nombre,centro_gestion_id,admin_contrato,ubicacion,oficina_tecnica,cliente,prevencionista,tipo").eq("empresa",form.empresa).in("centro_gestion_id",ids).order("nombre");
+        if(error)throw error;
+        return workCatalog(field,data||[]);
+      }
+      const {data,error}=await db.rpc("formulario_catalogo_vinculado",{p_token:token,p_campo_id:String(field.id)});
+      if(error)throw error;
+      return Array.isArray(data)?data:[];
+    };
 
     if(action==="cargar"){
       const {data:branding}=await db.from("config_empresa").select("logo_base64,color_primario,color_secundario").eq("empresa",form.empresa).maybeSingle();
@@ -34,9 +48,7 @@ Deno.serve(async(req)=>{
       const fields=Array.isArray(storedFields)?storedFields:(storedFields?.items||[]);
       const linkedFields=fields.filter((field:any)=>field?.type==="data_lookup"&&field?.id);
       const catalogEntries=await Promise.all(linkedFields.map(async(field:any)=>{
-        const{data,error}=await db.rpc("formulario_catalogo_vinculado",{p_token:token,p_campo_id:String(field.id)});
-        if(error)throw error;
-        return[String(field.id),Array.isArray(data)?data:[]];
+        return[String(field.id),await catalogFor(field,Array.isArray(centers)?centers:[])];
       }));
       await log(true); return json({form,branding:branding||null,centros:Array.isArray(centers)?centers:[],catalogos:Object.fromEntries(catalogEntries)});
     }
@@ -52,6 +64,17 @@ Deno.serve(async(req)=>{
     const centers=Array.isArray(authorizedCenters)?authorizedCenters:[];
     if(!centerId||!centers.some((center:any)=>Number(center.id)===centerId))return json({error:"Centro de gestión no autorizado"},403);
     if(workId){const {data:work}=await db.from("obras").select("id,nombre,centro_gestion_id").eq("id",workId).eq("empresa",form.empresa).maybeSingle();if(!work||Number(work.centro_gestion_id)!==centerId)return json({error:"Obra no autorizada"},403);workName=work.nombre;}
+    const validationErrors=validateFormAnswers(fields,answers);
+    if(validationErrors.length)return json({error:validationErrors.join("\n")},400);
+    for(const field of fields.filter((field:any)=>field.type==="data_lookup")){
+      const value=answers[field.id];
+      if(!value)continue;
+      const catalog=await catalogFor(field,centers);
+      const record=catalog.find((item:any)=>String(item._id)===String(value._id));
+      if(!record||(record.centro_gestion_id&&Number(record.centro_gestion_id)!==centerId)||(field.source==="works"&&Number(record.obra_id)!==workId))return json({error:`${field.label}: registro no autorizado para esta obra.`},403);
+      const keys=field.source==="works"?["nombre",...(field.autofillKeys||[])]:[field.selectorKey,...(field.autofillKeys||[])];
+      answers[field.id]={_id:record._id,_display:record._display,...Object.fromEntries(keys.filter((key:string)=>Object.hasOwn(record,key)&&!key.startsWith("_")).map((key:string)=>[key,record[key]]))};
+    }
     const inspector=clean(body?.inspector,200)||"Trabajador Terreno",signature=clean(body?.firma_url,4*1024*1024)||null;
     const {data:saved,error:saveError}=await db.from("prevencion_respuestas").insert({formulario_id:form.id,centro_gestion_id:centerId,obra_id:workId,proyecto_nombre:workName,inspector,respuestas:answers,firma_url:signature}).select("id").single();
     if(saveError){await log(false);throw saveError;}

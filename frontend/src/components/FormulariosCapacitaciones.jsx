@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 import ModuleHeader from './ModuleHeader';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
+import { WORK_COLUMNS } from '../../../supabase/functions/_shared/formFields.mjs';
 import { 
   ChevronRight, ClipboardCheck, Plus, FileText,
   Trash2, Share2, Download, Eye,
@@ -34,6 +35,9 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   const [formSearch, setFormSearch] = useState('');
   const [responseSearch, setResponseSearch] = useState('');
   const [viewingResponse, setViewingResponse] = useState(null);
+  const [pdfPreview, setPdfPreview] = useState('');
+  const [previewLoading, setPreviewLoading] = useState(false);
+  useEffect(() => () => { if (pdfPreview) URL.revokeObjectURL(pdfPreview); }, [pdfPreview]);
 
   // Módulos disponibles para asignar formularios
   const modulosAsignables = [
@@ -195,17 +199,17 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
 
   const addLinkedDataField = (source) => {
     const matrix = riskMatrices[0];
-    const sourceColumns = source === 'risk_matrix' ? (matrix?.columnas || []) : MACHINERY_SOURCE_COLUMNS;
-    const selectorKey = source === 'risk_matrix' ? (sourceColumns.find(column => column.key === 'tarea')?.key || sourceColumns[0]?.key || '') : 'equipo';
+    const sourceColumns = source === 'works' ? WORK_COLUMNS : source === 'risk_matrix' ? (matrix?.columnas || []) : MACHINERY_SOURCE_COLUMNS;
+    const selectorKey = source === 'works' ? 'nombre' : source === 'risk_matrix' ? (sourceColumns.find(column => column.key === 'tarea')?.key || sourceColumns[0]?.key || '') : 'equipo';
     setFormFields(current => [...current, {
       id: `linked_${Date.now()}`,
       type: 'data_lookup',
-      label: source === 'risk_matrix' ? 'Datos de matriz de riesgos' : 'Equipo / maquinaria',
+      label: source === 'works' ? 'Obra' : source === 'risk_matrix' ? 'Datos de matriz de riesgos' : 'Equipo / maquinaria',
       required: false,
       source,
       matrixId: source === 'risk_matrix' ? (matrix?.id || '') : undefined,
       selectorKey,
-      autofillKeys: source === 'risk_matrix' ? [] : ['tipo', 'patente', 'marca', 'estado_equipo'],
+      autofillKeys: source === 'works' ? ['admin_contrato', 'ubicacion', 'oficina_tecnica'] : source === 'risk_matrix' ? [] : ['tipo', 'patente', 'marca', 'estado_equipo'],
       sourceColumns
     }]);
   };
@@ -510,6 +514,21 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
 
   if (permissionsLoading) return <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">Cargando permisos…</div>;
   if (!canView) return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center text-sm font-bold text-amber-900">Tu perfil no tiene permiso para ver Formularios y Capacitaciones.</div>;
+  const previewFormPdf = async (savedForm) => {
+    setPreviewLoading(true);
+    try {
+      const stored = savedForm?.campos;
+      const control = stored && !Array.isArray(stored) ? stored.control_documental || {} : {};
+      const fields = savedForm ? (Array.isArray(stored) ? stored : stored?.items || []) : formFields;
+      const previewForm = savedForm ? { ...savedForm, ...control, campos: fields } : { titulo: formTitle || 'Formulario', empresa: user.empresa, codigo: formCodigo, revision: formRevision, fecha_revision: formFechaRevision, campos: fields };
+      const sample = field => field.type === 'data_lookup' ? Object.fromEntries([field.selectorKey, ...(field.autofillKeys || [])].map(key => [key, `[${field.sourceColumns?.find(c => c.key === key)?.label || key}]`])) : field.type === 'repeater' ? [Object.fromEntries((field.subFields || []).map(child => [child.id, sample(child)]))] : field.type === 'date' ? '2026-10-28' : field.type === 'time' ? '08:30' : field.type === 'checkbox' ? (field.options || []).slice(0, 2) : ['select', 'radio'].includes(field.type) ? field.options?.[0] || '' : field.type === 'rating' ? 3 : ['photo', 'signature'].includes(field.type) ? '' : '[Respuesta de ejemplo]';
+      const { generateFormPdf } = await import('../utils/pdfGenerator');
+      const base64 = await generateFormPdf({ form: previewForm, metadata: { inspector: 'VISTA PREVIA · Datos de ejemplo', proyecto_nombre: '[Obra seleccionada]' }, answers: Object.fromEntries(fields.map(field => [field.id, sample(field)])), companyLogo: companyBranding?.logo_base64 });
+      setPdfPreview(URL.createObjectURL(new Blob([Uint8Array.from(atob(base64), c => c.charCodeAt(0))], { type: 'application/pdf' })));
+    } catch (error) { setErrorMsg(`No se pudo generar la vista previa: ${error.message}`); }
+    finally { setPreviewLoading(false); }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 p-4 sm:p-6 font-sans">
       {/* Header Estándar de Obraxis */}
@@ -725,6 +744,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                 {[['text','Texto corto'],['textarea','Texto largo'],['date','Fecha'],['time','Hora'],['select','Lista desplegable'],['radio','Selección múltiple · una respuesta'],['checkbox','Checkbox · varias respuestas'],['rating','Nivel de valoración'],['photo','Subir imágenes'],['signature','Dibujar firma'],['repeater','Grupo repetible']].map(([type,label]) => <button key={type} type="button" onClick={() => handleAddField(type)} className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">+ {label}</button>)}
                 <button type="button" onClick={() => addLinkedDataField('risk_matrix')} className="rounded-xl bg-rose-50 px-3.5 py-2 text-xs font-black text-rose-800 hover:bg-rose-100">+ Usar matriz de riesgo</button>
                 <button type="button" onClick={() => addLinkedDataField('machinery')} className="rounded-xl bg-blue-50 px-3.5 py-2 text-xs font-black text-blue-800 hover:bg-blue-100">+ Usar datos de maquinaria</button>
+                <button type="button" onClick={() => addLinkedDataField('works')} className="rounded-xl bg-blue-50 px-3.5 py-2 text-xs font-black text-blue-800 hover:bg-blue-100">+ Obra y datos de ficha</button>
               </div>
             </div>
 
@@ -766,11 +786,11 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                   {field.type === 'rating' && <div className="space-y-1"><label className="block text-[9.5px] font-bold text-slate-500 uppercase">Máximo de la escala</label><select value={field.maxRating || 5} onChange={e => handleUpdateField(field.id, 'maxRating', Number(e.target.value))} className="h-9 rounded-lg border border-slate-200 px-3 text-xs font-bold"><option value="3">1 a 3</option><option value="5">1 a 5</option><option value="10">1 a 10</option></select></div>}
                   {field.type === 'data_lookup' && (() => {
                     const selectedMatrix = riskMatrices.find(matrix => matrix.id === field.matrixId);
-                    const sourceColumns = field.source === 'risk_matrix' ? (selectedMatrix?.columnas || field.sourceColumns || []) : MACHINERY_SOURCE_COLUMNS;
+                    const sourceColumns = field.source === 'works' ? WORK_COLUMNS : field.source === 'risk_matrix' ? (selectedMatrix?.columnas || field.sourceColumns || []) : MACHINERY_SOURCE_COLUMNS;
                     const updateSource = source => {
                       const matrix = riskMatrices[0];
-                      const nextColumns = source === 'risk_matrix' ? (matrix?.columnas || []) : MACHINERY_SOURCE_COLUMNS;
-                      setFormFields(current => current.map(item => item.id === field.id ? { ...item, source, matrixId: source === 'risk_matrix' ? matrix?.id || '' : undefined, sourceColumns: nextColumns, selectorKey: source === 'risk_matrix' ? nextColumns[0]?.key || '' : 'equipo', autofillKeys: [] } : item));
+                      const nextColumns = source === 'works' ? WORK_COLUMNS : source === 'risk_matrix' ? (matrix?.columnas || []) : MACHINERY_SOURCE_COLUMNS;
+                      setFormFields(current => current.map(item => item.id === field.id ? { ...item, source, matrixId: source === 'risk_matrix' ? matrix?.id || '' : undefined, sourceColumns: nextColumns, selectorKey: source === 'works' ? 'nombre' : source === 'risk_matrix' ? nextColumns[0]?.key || '' : 'equipo', autofillKeys: [] } : item));
                     };
                     const updateMatrix = matrixId => {
                       const matrix = riskMatrices.find(item => item.id === matrixId);
@@ -778,19 +798,20 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                     };
                     return <div className="space-y-3 rounded-xl border border-blue-100 bg-blue-50/50 p-3">
                       <div className="grid gap-3 md:grid-cols-2">
-                        <label className="text-[10px] font-black uppercase text-slate-600">Fuente de datos<select value={field.source || 'machinery'} onChange={e => updateSource(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs"><option value="risk_matrix">Matriz de riesgos</option><option value="machinery">Maquinaria y equipos</option></select></label>
+                        <label className="text-[10px] font-black uppercase text-slate-600">Fuente de datos<select value={field.source || 'machinery'} onChange={e => updateSource(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs"><option value="risk_matrix">Matriz de riesgos</option><option value="machinery">Maquinaria y equipos</option><option value="works">Obra y ficha del proyecto</option></select></label>
                         {field.source === 'risk_matrix' && <label className="text-[10px] font-black uppercase text-slate-600">Matriz<select value={field.matrixId || ''} onChange={e => updateMatrix(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs"><option value="">Seleccionar matriz</option>{riskMatrices.map(matrix => <option key={matrix.id} value={matrix.id}>{matrix.codigo} · {matrix.nombre} · v{matrix.version}</option>)}</select></label>}
                       </div>
-                      <label className="block text-[10px] font-black uppercase text-slate-600">Campo que seleccionará el usuario<select value={field.selectorKey || ''} onChange={e => handleUpdateField(field.id, 'selectorKey', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs">{sourceColumns.map(column => <option key={column.key} value={column.key}>{column.label}</option>)}</select></label>
+                      <label className="block text-[10px] font-black uppercase text-slate-600">Campo que seleccionará el usuario<select disabled={field.source === 'works'} value={field.selectorKey || ''} onChange={e => handleUpdateField(field.id, 'selectorKey', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs">{sourceColumns.map(column => <option key={column.key} value={column.key}>{column.label}</option>)}</select></label>
                       <div><p className="text-[10px] font-black uppercase text-slate-600">Campos que se completarán automáticamente</p><div className="mt-2 flex flex-wrap gap-2">{sourceColumns.filter(column => column.key !== field.selectorKey).map(column => <label key={column.key} className={`cursor-pointer rounded-lg border px-2 py-1 text-[10px] font-bold ${field.autofillKeys?.includes(column.key) ? 'border-blue-700 bg-blue-700 text-white' : 'border-slate-200 bg-white text-slate-600'}`}><input type="checkbox" className="sr-only" checked={field.autofillKeys?.includes(column.key) || false} onChange={() => handleUpdateField(field.id, 'autofillKeys', field.autofillKeys?.includes(column.key) ? field.autofillKeys.filter(key => key !== column.key) : [...(field.autofillKeys || []), column.key])} />{column.label}</label>)}</div></div>
                     </div>;
                   })()}
-                  {field.type === 'repeater' && <div className="space-y-2 rounded-xl bg-amber-50 p-3"><p className="text-[11px] font-semibold text-amber-900">Campos dentro del grupo. Arrastra ⠿ para ordenar:</p><div className="flex flex-wrap gap-2">{[['text','Texto corto'],['select','Lista'],['radio','Selección múltiple · una respuesta'],['checkbox','Checkbox · varias respuestas'],['photo','Imagen'],['signature','Firma']].map(([type,label])=><button key={type} type="button" onClick={()=>addRepeaterField(field.id,type)} className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[10px] font-black text-amber-900">+ {label}</button>)}</div>{(field.subFields || []).map((sub, subIndex)=><div key={sub.id} draggable onDragStart={event=>event.dataTransfer.setData('text/plain', String(subIndex))} onDragOver={event=>event.preventDefault()} onDrop={event=>{ event.preventDefault(); moveRepeaterField(field.id, Number(event.dataTransfer.getData('text/plain')), subIndex); }} className="cursor-grab rounded-lg bg-white p-3 text-xs active:cursor-grabbing"><div className="flex items-center justify-between gap-2"><span className="flex items-center gap-2"><b className="text-slate-400">⠿</b><b className="text-slate-400">({sub.type})</b></span><button type="button" onClick={()=>removeRepeaterField(field.id,sub.id)} className="text-[10px] font-black text-rose-700">Quitar</button></div><input value={sub.label} onChange={e=>updateRepeaterSubField(field.id,sub.id,'label',e.target.value)} className="mt-2 h-9 w-full rounded-lg border border-slate-200 px-3 text-xs font-semibold"/>{['select','radio','checkbox'].includes(sub.type) && <div className="mt-2 space-y-1">{(sub.options || []).map((option, index)=><input key={index} value={option} onChange={e=>updateRepeaterOption(field.id,sub.id,index,e.target.value)} className="h-8 w-full rounded-lg border border-slate-200 px-2 text-[11px]"/>)}<button type="button" onClick={()=>addRepeaterOption(field.id,sub.id)} className="text-[10px] font-black text-primary">+ Agregar opción</button></div>}</div>)}</div>}
+                  {field.type === 'repeater' && <div className="space-y-2 rounded-xl bg-amber-50 p-3"><p className="text-[11px] font-semibold text-amber-900">Campos dentro del grupo. Arrastra ⠿ para ordenar:</p><div className="flex flex-wrap gap-2">{[['text','Texto corto'],['date','Fecha'],['time','Hora'],['select','Lista'],['radio','Selección múltiple · una respuesta'],['checkbox','Checkbox · varias respuestas'],['photo','Imagen'],['signature','Firma']].map(([type,label])=><button key={type} type="button" onClick={()=>addRepeaterField(field.id,type)} className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[10px] font-black text-amber-900">+ {label}</button>)}</div>{(field.subFields || []).map((sub, subIndex)=><div key={sub.id} draggable onDragStart={event=>event.dataTransfer.setData('text/plain', String(subIndex))} onDragOver={event=>event.preventDefault()} onDrop={event=>{ event.preventDefault(); moveRepeaterField(field.id, Number(event.dataTransfer.getData('text/plain')), subIndex); }} className="cursor-grab rounded-lg bg-white p-3 text-xs active:cursor-grabbing"><div className="flex items-center justify-between gap-2"><span className="flex items-center gap-2"><b className="text-slate-400">⠿</b><b className="text-slate-400">({sub.type})</b></span><button type="button" onClick={()=>removeRepeaterField(field.id,sub.id)} className="text-[10px] font-black text-rose-700">Quitar</button></div><input value={sub.label} onChange={e=>updateRepeaterSubField(field.id,sub.id,'label',e.target.value)} className="mt-2 h-9 w-full rounded-lg border border-slate-200 px-3 text-xs font-semibold"/>{['select','radio','checkbox'].includes(sub.type) && <div className="mt-2 space-y-1">{(sub.options || []).map((option, index)=><input key={index} value={option} onChange={e=>updateRepeaterOption(field.id,sub.id,index,e.target.value)} className="h-8 w-full rounded-lg border border-slate-200 px-2 text-[11px]"/>)}<button type="button" onClick={()=>addRepeaterOption(field.id,sub.id)} className="text-[10px] font-black text-primary">+ Agregar opción</button></div>}</div>)}</div>}
                 </div>
               ))}
             </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <button type="button" disabled={previewLoading} onClick={() => previewFormPdf()} className="rounded-xl border border-primary px-4 py-2 text-xs font-bold text-primary">{previewLoading ? 'Generando…' : 'Vista previa PDF'}</button>
               <button
                 type="button"
                 onClick={() => setActiveTab('menu')}
@@ -838,7 +859,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {formularios.filter(form => `${form.titulo} ${form.descripcion || ''} ${form.categoria || form.modulo_asignado || ''}`.toLowerCase().includes(formSearch.toLowerCase())).map(form => {
-                const publicUrl = `${window.location.origin}/?prevencion_form=${form.publico_token || form.token_publico || form.id}`;
+                const publicUrl = `${window.location.origin}/?prevencion_form=${form.publico_token || form.token_publico || ''}`;
                 const modObj = modulosAsignables.find(m => m.id === (form.categoria || form.modulo_asignado)) || { name: 'General' };
 
                 return (
@@ -858,10 +879,10 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                       {form.descripcion && <p className="text-[11px] text-slate-500 line-clamp-2 mt-1">{form.descripcion}</p>}
                     </div>
 
-                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                    <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2"><button disabled={previewLoading} onClick={() => previewFormPdf(form)} className="rounded-xl border border-primary px-3 py-2 text-xs font-bold text-primary">Vista previa PDF</button>{form.publico_token && <a href={publicUrl} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold">Abrir enlace público</a>}
                       {!form.id && <button onClick={() => publishLocalForm(form)} disabled={loading} className="py-2 px-3 rounded-xl bg-emerald-600 text-white text-[10.5px] font-bold hover:bg-emerald-700">Publicar</button>}
                       <button
-                        onClick={() => form.id ? copyToClipboard(publicUrl) : setErrorMsg('Primero publica este formulario para generar un enlace público.')}
+                        onClick={() => (form.publico_token || form.token_publico) ? copyToClipboard(publicUrl) : setErrorMsg('Primero publica este formulario para generar un enlace público.')}
                         className="flex-1 py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10.5px] font-bold flex items-center justify-center gap-1.5 cursor-pointer border border-slate-200"
                       >
                         <Share2 className="w-3.5 h-3.5 text-primary" />
@@ -997,6 +1018,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
           )}
         </div>
       )}
+      {pdfPreview && <div role="dialog" aria-modal="true" aria-label="Vista previa PDF" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4"><div className="flex h-[90vh] w-full max-w-5xl flex-col rounded-2xl bg-white p-4"><div className="mb-3 flex items-center justify-between gap-3"><div><h3 className="font-bold">Vista previa PDF</h3><p className="text-xs text-slate-500">Datos de ejemplo. No se guarda ni envía una respuesta.</p></div><button type="button" onClick={() => setPdfPreview('')} className="rounded-xl bg-slate-100 px-4 py-2 font-bold">Cerrar</button></div><iframe title="Vista previa del formulario PDF" src={pdfPreview} className="min-h-0 flex-1 rounded-xl border" /><a href={pdfPreview} target="_blank" rel="noopener noreferrer" className="mt-2 text-sm underline">Abrir PDF en otra pestaña</a></div></div>}
       {viewingResponse && (() => { const form = responseForm(viewingResponse); return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"><div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl"><div className="mb-5 flex items-start justify-between gap-4 border-b border-slate-100 pb-4"><div><h3 className="text-sm font-black uppercase text-slate-850">{form.titulo || 'Formulario'}</h3><p className="mt-1 text-xs text-slate-500">{viewingResponse.inspector || 'Anónimo'} · {viewingResponse.proyecto_nombre || 'Sin centro'} · {new Date(viewingResponse.created_at || Date.now()).toLocaleString('es-CL')}</p></div><button onClick={() => setViewingResponse(null)} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700">Cerrar</button></div><div className="space-y-4">{(form.campos || []).map(field => <div key={field.id} className="rounded-xl border border-slate-200 p-3"><p className="text-[10px] font-black uppercase text-slate-500">{field.label}</p>{renderResponseAnswer(field, viewingResponse)}</div>)}</div></div></div>; })()}
     </div>
   );
