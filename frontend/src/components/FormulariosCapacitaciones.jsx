@@ -36,6 +36,8 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   const [responseSearch, setResponseSearch] = useState('');
   const [viewingResponse, setViewingResponse] = useState(null);
   const [pdfPreview, setPdfPreview] = useState('');
+  const [qrPreview, setQrPreview] = useState(null);
+  const [qrLoading, setQrLoading] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [draggedField, setDraggedField] = useState(null);
   const [dropTarget, setDropTarget] = useState(null);
@@ -535,6 +537,19 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
 
   if (permissionsLoading) return <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">Cargando permisos…</div>;
   if (!canView) return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center text-sm font-bold text-amber-900">Tu perfil no tiene permiso para ver Formularios y Capacitaciones.</div>;
+  const previewFormQr = async (form) => {
+    const token = form.publico_token || form.token_publico;
+    if (!token) { setErrorMsg('Guarda y publica el formulario para obtener su QR.'); return; }
+    setQrLoading(true);
+    try {
+      const url = `${window.location.origin}/?prevencion_form=${encodeURIComponent(token)}`;
+      const QRCode = await import('qrcode');
+      const image = await QRCode.toDataURL(url, { width: 900, margin: 4, errorCorrectionLevel: 'M', color: { dark: '#000000', light: '#ffffff' } });
+      setQrPreview({ image, url, title: form.titulo, filename: `QR-formulario-${form.id}.png` });
+    } catch (error) { setErrorMsg(`No se pudo generar el QR: ${error.message}`); }
+    finally { setQrLoading(false); }
+  };
+
   const previewFormPdf = async (savedForm) => {
     setPreviewLoading(true);
     try {
@@ -915,6 +930,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                     </div>
 
                     <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2"><button disabled={previewLoading} onClick={() => previewFormPdf(form)} className="rounded-xl border border-primary px-3 py-2 text-xs font-bold text-primary">Vista previa PDF</button>{form.publico_token && <a href={publicUrl} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold">Abrir enlace público</a>}
+                      {(form.publico_token || form.token_publico) && <button type="button" onClick={() => previewFormQr(form)} disabled={qrLoading} className="rounded-xl border border-primary bg-primary/5 px-3 py-2 text-xs font-bold text-primary disabled:opacity-50">{qrLoading ? 'Generando QR…' : 'Ver / descargar QR'}</button>}
                       {!form.id && <button onClick={() => publishLocalForm(form)} disabled={loading} className="py-2 px-3 rounded-xl bg-emerald-600 text-white text-[10.5px] font-bold hover:bg-emerald-700">Publicar</button>}
                       <button
                         onClick={() => (form.publico_token || form.token_publico) ? copyToClipboard(publicUrl) : setErrorMsg('Primero publica este formulario para generar un enlace público.')}
@@ -1053,6 +1069,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
           )}
         </div>
       )}
+      {qrPreview && <div role="dialog" aria-modal="true" aria-label="Código QR del formulario" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4" onKeyDown={event => { if (event.key === 'Escape') setQrPreview(null); }}><div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 shadow-xl"><div className="flex items-start justify-between gap-3"><div><h3 className="font-bold">Código QR del formulario</h3><p className="mt-1 text-sm text-slate-600">{qrPreview.title}</p></div><button autoFocus type="button" onClick={() => setQrPreview(null)} className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-bold">Cerrar</button></div><img src={qrPreview.image} alt={`QR para abrir ${qrPreview.title}`} className="mx-auto my-4 aspect-square w-full max-w-xs" /><p className="mb-4 text-xs text-slate-500">Escanea con la cámara para abrir el formulario público. No requiere iniciar sesión.</p><div className="flex flex-wrap gap-2"><a href={qrPreview.image} download={qrPreview.filename} className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white">Descargar QR (PNG)</a><a href={qrPreview.url} target="_blank" rel="noopener noreferrer" className="rounded-xl border px-4 py-2 text-sm font-bold">Abrir formulario</a><button type="button" onClick={() => copyToClipboard(qrPreview.url)} className="rounded-xl border px-4 py-2 text-sm font-bold">Copiar enlace</button></div></div></div>}
       {pdfPreview && <div role="dialog" aria-modal="true" aria-label="Vista previa PDF" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4"><div className="flex h-[90vh] w-full max-w-5xl flex-col rounded-2xl bg-white p-4"><div className="mb-3 flex items-center justify-between gap-3"><div><h3 className="font-bold">Vista previa PDF</h3><p className="text-xs text-slate-500">Datos de ejemplo. No se guarda ni envía una respuesta.</p></div><button type="button" onClick={() => setPdfPreview('')} className="rounded-xl bg-slate-100 px-4 py-2 font-bold">Cerrar</button></div><iframe title="Vista previa del formulario PDF" src={pdfPreview} className="min-h-0 flex-1 rounded-xl border" /><a href={pdfPreview} target="_blank" rel="noopener noreferrer" className="mt-2 text-sm underline">Abrir PDF en otra pestaña</a></div></div>}
       {viewingResponse && (() => { const form = responseForm(viewingResponse); return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"><div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl"><div className="mb-5 flex items-start justify-between gap-4 border-b border-slate-100 pb-4"><div><h3 className="text-sm font-black uppercase text-slate-850">{form.titulo || 'Formulario'}</h3><p className="mt-1 text-xs text-slate-500">{viewingResponse.inspector || 'Anónimo'} · {viewingResponse.proyecto_nombre || 'Sin centro'} · {new Date(viewingResponse.created_at || Date.now()).toLocaleString('es-CL')}</p></div><button onClick={() => setViewingResponse(null)} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700">Cerrar</button></div><div className="space-y-4">{(form.campos || []).map(field => <div key={field.id} className="rounded-xl border border-slate-200 p-3"><p className="text-[10px] font-black uppercase text-slate-500">{field.label}</p>{renderResponseAnswer(field, viewingResponse)}</div>)}</div></div></div>; })()}
     </div>
