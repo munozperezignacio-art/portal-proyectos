@@ -61,6 +61,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
   const [availableCargos, setAvailableCargos] = useState([]);
   const [availableCenters, setAvailableCenters] = useState([]);
   const [formCenterIds, setFormCenterIds] = useState([]);
+  const [allWorks, setAllWorks] = useState(false);
   const [riskMatrices, setRiskMatrices] = useState([]);
   const [editingForm, setEditingForm] = useState(null);
   const [formFields, setFormFields] = useState([
@@ -243,6 +244,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     setFormCodigo(control.codigo || ''); setFormRevision(control.revision || '0'); setFormFechaRevision(control.fecha_revision || new Date().toISOString().slice(0, 10)); setFormEmails((form.correos_notificacion || '').split(',').map(email => email.trim()).filter(Boolean).concat((form.correos_notificacion || '').trim() ? [] : ['']));
     setFormAllowedCargos((form.cargos_obligados || '').split(',').map(cargo => cargo.trim()).filter(Boolean));
     setFormCenterIds((control.centros_gestion_ids || []).map(Number).filter(Number.isFinite));
+    setAllWorks(control.todas_las_obras === true);
     const requiredIds = protectedBaseFields[formRegistrationType(form)] || [];
     setFormFields((Array.isArray(stored) ? stored : (stored?.items || [])).map(field => (field.systemRequired || requiredIds.includes(field.id)) ? { ...field, systemRequired: true, required: true } : field));
     setActiveTab('designer');
@@ -298,7 +300,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       setErrorMsg('Ingrese el título del formulario.');
       return;
     }
-    if (!formCenterIds.length) {
+    if (!allWorks && !formCenterIds.length) {
       setErrorMsg('Selecciona al menos un centro de gestión para publicar y registrar este formulario.');
       return;
     }
@@ -313,10 +315,12 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       campos: {
         items: formFields,
         control_documental: {
+          ...(!Array.isArray(editingForm?.campos) ? editingForm?.campos?.control_documental : {}),
           codigo: formCodigo.trim(),
           revision: formRevision.trim(),
           fecha_revision: formFechaRevision,
-          centros_gestion_ids: formCenterIds
+          centros_gestion_ids: allWorks ? [] : formCenterIds,
+          todas_las_obras: allWorks
         }
       },
       publico_token: editingForm?.publico_token || token,
@@ -347,6 +351,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
       setFormEmails(['']);
       setFormAllowedCargos([]);
       setFormCenterIds([]);
+      setAllWorks(false);
       setEditingForm(null);
       setFormFields([{ id: Date.now(), type: 'text', label: 'Nombre o Título', required: true, options: [] }]);
       setActiveTab('forms_list');
@@ -699,7 +704,8 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                   <label className="block text-[10.5px] font-extrabold uppercase text-slate-600">Centros de gestión autorizados *</label>
                   <p className="mt-1 text-[10px] text-slate-400">El enlace público solo podrá consultar y registrar información de los centros seleccionados.</p>
                 </div>
-                {availableCenters.length ? <div className="flex flex-wrap gap-2">{availableCenters.map(center => <label key={center.id} className={`cursor-pointer rounded-lg border px-2.5 py-1.5 text-[10px] font-bold transition ${formCenterIds.includes(center.id) ? 'border-primary bg-primary text-white' : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-primary/50'}`}><input type="checkbox" className="sr-only" checked={formCenterIds.includes(center.id)} onChange={() => setFormCenterIds(current => current.includes(center.id) ? current.filter(id => id !== center.id) : [...current, center.id])} />{center.codigo} · {center.nombre}</label>)}</div> : <p className="text-[10px] text-amber-700">Crea primero un centro de gestión activo para poder publicar el formulario.</p>}
+                <label className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs font-bold text-slate-700"><input type="checkbox" checked={allWorks} onChange={e => setAllWorks(e.target.checked)} />Todas las obras, actuales y futuras</label>
+                {allWorks ? <p className="text-xs text-slate-500">Incluye automáticamente las obras de esta empresa y sus centros activos, también cuando se creen nuevas obras. No incluye centros independientes sin obra.</p> : availableCenters.length ? <div className="flex flex-wrap gap-2">{availableCenters.map(center => <label key={center.id} className={`cursor-pointer rounded-lg border px-2.5 py-1.5 text-[10px] font-bold transition ${formCenterIds.includes(center.id) ? 'border-primary bg-primary text-white' : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-primary/50'}`}><input type="checkbox" className="sr-only" checked={formCenterIds.includes(center.id)} onChange={() => setFormCenterIds(current => current.includes(center.id) ? current.filter(id => id !== center.id) : [...current, center.id])} />{center.codigo} · {center.nombre}</label>)}</div> : <p className="text-[10px] text-amber-700">Crea primero un centro de gestión activo para poder publicar el formulario.</p>}
               </div>
 
               <div className="md:col-span-3 space-y-2 rounded-xl border border-slate-200 bg-white p-3">

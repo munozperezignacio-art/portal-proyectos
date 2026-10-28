@@ -47,9 +47,11 @@ Deno.serve(async(req)=>{
     const centerId=Number(body?.centro_gestion_id)||null,workId=Number(body?.obra_id)||null;
     let workName=clean(body?.proyecto_nombre,250)||"Terreno";
     const stored:any=form.campos,control=stored&&!Array.isArray(stored)?stored.control_documental||{}:{};
-    const centers=(control.centros_gestion_ids||[]).map((x:any)=>Number(x)).filter(Number.isFinite);
-    if(centerId&&(!centers.includes(centerId)||(await db.from("facturacion_centros_gestion").select("id").eq("id",centerId).eq("empresa",form.empresa).eq("activo",true).maybeSingle()).data===null))return json({error:"Centro de gestión no autorizado"},403);
-    if(workId){const {data:work}=await db.from("obras").select("id,nombre,centro_gestion_id").eq("id",workId).eq("empresa",form.empresa).maybeSingle();if(!work||(centerId&&Number(work.centro_gestion_id)!==centerId))return json({error:"Obra no autorizada"},403);workName=work.nombre;}
+    const {data:authorizedCenters,error:scopeError}=await db.rpc("formulario_centros_gestion",{p_token:token});
+    if(scopeError)throw scopeError;
+    const centers=Array.isArray(authorizedCenters)?authorizedCenters:[];
+    if(!centerId||!centers.some((center:any)=>Number(center.id)===centerId))return json({error:"Centro de gestión no autorizado"},403);
+    if(workId){const {data:work}=await db.from("obras").select("id,nombre,centro_gestion_id").eq("id",workId).eq("empresa",form.empresa).maybeSingle();if(!work||Number(work.centro_gestion_id)!==centerId)return json({error:"Obra no autorizada"},403);workName=work.nombre;}
     const inspector=clean(body?.inspector,200)||"Trabajador Terreno",signature=clean(body?.firma_url,4*1024*1024)||null;
     const {data:saved,error:saveError}=await db.from("prevencion_respuestas").insert({formulario_id:form.id,centro_gestion_id:centerId,obra_id:workId,proyecto_nombre:workName,inspector,respuestas:answers,firma_url:signature}).select("id").single();
     if(saveError){await log(false);throw saveError;}
