@@ -2110,14 +2110,16 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         throw new Error('Debes agregar al menos una partida para reportar avance.');
       }
 
-      // Validar comentarios obligatorios en cada partida
+      const reportObservations = avanceItems[0]?.observaciones?.trim() || '';
+      if (!reportObservations) throw new Error('Debes ingresar las observaciones generales del reporte.');
+      if (editingRecordId && avanceItems.length > 1 && !canAdvanceCreate) {
+        throw new Error('Tu rol necesita permiso para crear avances para agregar partidas nuevas.');
+      }
+      // La observación es común a todas las partidas de este envío.
       for (let i = 0; i < avanceItems.length; i++) {
         const item = avanceItems[i];
         if (!item.partida) {
           throw new Error(`Partida #${i + 1}: Debes seleccionar una partida.`);
-        }
-        if (!item.observaciones || !item.observaciones.trim()) {
-          throw new Error(`Partida #${i + 1} (${item.partida}): Los comentarios u observaciones son OBLIGATORIOS.`);
         }
         if (cuadrillasList.length > 0 && !item.cuadrilla_id) {
           throw new Error(`Partida #${i + 1} (${item.partida}): Debes indicar la cuadrilla que ejecutó el trabajo.`);
@@ -2140,15 +2142,16 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         cuadrilla_nombre: cuadrilla?.nombre || null,
         cuadrilla_miembros: cuadrilla?.miembros || [],
         horas_cuadrilla: null,
-        observaciones: item.observaciones.trim(),
+        observaciones: reportObservations,
         created_at: avanceFecha ? new Date(avanceFecha + 'T12:00:00Z').toISOString() : new Date().toISOString()
       });
       });
 
-      if (editingRecordId && rowsToInsert.length !== 1) throw new Error('La edición debe conservar una sola partida del reporte seleccionado.');
       const query = supabase.from('avances_produccion_partidas');
       const { data: savedReports, error } = editingRecordId
-        ? await query.update(rowsToInsert[0]).eq('id', editingRecordId).eq('empresa', user.empresa).eq('obra_id', selectedObra.id).select('id')
+        ? rowsToInsert.length === 1
+          ? await query.update(rowsToInsert[0]).eq('id', editingRecordId).eq('empresa', user.empresa).eq('obra_id', selectedObra.id).select('id')
+          : await query.upsert(rowsToInsert.map((row, index) => index === 0 ? { ...row, id: editingRecordId } : row), { onConflict: 'id', defaultToNull: false }).select('id')
         : await query.insert(rowsToInsert).select('id');
 
       if (error) throw error;
@@ -2205,7 +2208,6 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
               <td style="padding: 10px; font-weight: bold; color: #1e293b;">${escapeEmailText(item.partida)}</td>
               <td style="padding: 10px; color: #475569;">${escapeEmailText(item.frente || 'Frente Principal')}</td>
               <td style="padding: 10px; font-weight: bold; color: #047857; text-align: right;">${escapeEmailText(item.cantidad)} ${escapeEmailText(item.unidad || 'UND')}</td>
-              <td style="padding: 10px; color: #334155; font-style: italic;">${escapeEmailText(item.observaciones || 'Sin comentarios')}</td>
             </tr>
           `).join('');
 
@@ -2228,7 +2230,6 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     <th style="padding: 10px;">Partida</th>
                     <th style="padding: 10px;">Frente</th>
                     <th style="padding: 10px; text-align: right;">Cantidad Avance</th>
-                    <th style="padding: 10px;">Observaciones / Comentarios</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2236,6 +2237,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 </tbody>
               </table>
 
+              <p style="color: #334155; white-space: pre-wrap;"><strong>Observaciones del reporte:</strong> ${escapeEmailText(reportObservations)}</p>
               ${summaryHtml}
 
               <div style="text-align: center; margin-top: 24px; padding-top: 16px; border-top: 1px solid #f1f5f9;">
@@ -8616,7 +8618,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                       <span className="text-[10px] font-extrabold uppercase text-blue-900 bg-blue-100 px-2 py-0.5 rounded-md">
                         Partida #{idx + 1}
                       </span>
-                      {avanceItems.length > 1 && (
+                      {avanceItems.length > 1 && idx > 0 && (
                         <button
                           type="button"
                           onClick={() => setAvanceItems(avanceItems.filter((_, i) => i !== idx))}
@@ -8741,23 +8743,6 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                       <p className="mt-2 text-[9px] font-semibold text-emerald-800">Las jornadas y el costo de mano de obra se calcularán automáticamente desde la asistencia de los integrantes. Si la cuadrilla informa varias partidas el mismo día, el día se distribuirá proporcionalmente entre ellas.</p>
                     </div>
 
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">
-                        Comentarios / Observaciones Obligatorios <span className="text-red-500">*</span>
-                      </label>
-                      <textarea
-                        rows="2"
-                        required
-                        value={item.observaciones}
-                        onChange={(e) => {
-                          const copy = [...avanceItems];
-                          copy[idx].observaciones = e.target.value;
-                          setAvanceItems(copy);
-                        }}
-                        placeholder="Comentarios obligatorios sobre el estado de la partida o condiciones de faena..."
-                        className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 bg-white focus:outline-none focus:border-blue-600"
-                      />
-                    </div>
                   </div>
                 ))}
               </div>
@@ -8765,13 +8750,24 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
               {/* Botón para agregar otra partida */}
               <button
                 type="button"
-                disabled={Boolean(editingRecordId)}
+                disabled={modalLoading || (Boolean(editingRecordId) && !canAdvanceCreate)}
                 onClick={() => setAvanceItems([...avanceItems, { frente: avanceItems[0]?.frente || 'Frente Principal', partida_id: null, partida: '', unidad: 'UND', cantidad: '', cuadrilla_id: avanceItems[0]?.cuadrilla_id || '', observaciones: '' }])}
                 className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-blue-900 border border-slate-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 <span>Agregar Otra Partida al Reporte</span>
               </button>
+
+              <div>
+                <label htmlFor="avance-observaciones" className="block text-[10px] font-bold uppercase text-slate-500 mb-1">
+                  Observaciones generales del reporte <span className="text-red-500">*</span>
+                </label>
+                <textarea id="avance-observaciones" rows="3" required
+                  value={avanceItems[0]?.observaciones || ''}
+                  onChange={(e) => setAvanceItems(items => items.map((item, index) => index === 0 ? { ...item, observaciones: e.target.value } : item))}
+                  placeholder="Comentarios sobre los trabajos y condiciones de faena. Se aplican a todas las partidas de este reporte."
+                  className="w-full border border-slate-200 rounded-lg p-2 text-xs text-slate-800 bg-white focus:outline-none focus:border-blue-600" />
+              </div>
 
               <button
                 type="submit"
