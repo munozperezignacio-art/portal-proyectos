@@ -1,7 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import {supabase} from '../supabaseClient';
 import {chileanAttendanceToday} from '../utils/attendanceDates';
-import {loadMonthlyWorkerSources, buildMonthlyWorkerReport} from '../utils/monthlyWorkerReport';
+import {loadMonthlyWorkerSources, buildMonthlyWorkerReport, monthDays} from '../utils/monthlyWorkerReport';
 import WorkerDocumentsPanel from './WorkerDocumentsPanel';
 
 const money = value => value == null || value === '' ? 'No informado' : new Intl.NumberFormat('es-CL', {style:'currency',currency:'CLP',maximumFractionDigits:0}).format(Number(value));
@@ -10,6 +10,8 @@ const tabs = [['documents','Documentos'],['calendar','Calendario'],['earnings','
 export default function WorkerDossierPanel({user, worker, workers, documentTypes, aiEnabled}) {
   const [tab,setTab] = useState('documents');
   const [period,setPeriod] = useState(()=>chileanAttendanceToday().slice(0,7));
+  const [from,setFrom] = useState(()=>monthDays(period).start);
+  const [through,setThrough] = useState(()=>monthDays(period).days.at(-1));
   const [selected,setSelected] = useState('');
   const [report,setReport] = useState(null);
   const [busy,setBusy] = useState(false);
@@ -17,19 +19,34 @@ export default function WorkerDossierPanel({user, worker, workers, documentTypes
   const [retry,setRetry] = useState(0);
   const needsReport = tab !== 'documents';
   useEffect(()=>{
-    if(!needsReport || !period)return;
+    if(!needsReport)return;
     let active=true;
     setBusy(true);setError('');setReport(null);setSelected('');
-    loadMonthlyWorkerSources(supabase,user.empresa,period).then(sources=>{
-      const result=buildMonthlyWorkerReport({company:user.empresa,period,workers,selectedIds:[worker.id],sources});
+    (async()=>{
+      if(!from||!through||from>through)throw new Error('Selecciona fechas válidas: Desde debe ser anterior o igual a Hasta.');
+      const result={daily:[],warnings:[]};
+      let month=from.slice(0,7);
+      while(month<=through.slice(0,7)){
+        if(!active)return;
+        const sources=await loadMonthlyWorkerSources(supabase,user.empresa,month);
+        const part=buildMonthlyWorkerReport({company:user.empresa,period:month,workers,selectedIds:[worker.id],sources});
+        result.daily.push(...part.daily.filter(row=>row.date>=from&&row.date<=through));
+        result.warnings.push(...part.warnings);
+        month=monthDays(month).end.slice(0,7);
+      }
+      result.warnings=[...new Set(result.warnings)];
       if(active){setReport(result);setSelected(result.daily[0]?.date||'');}
-    }).catch(err=>{if(active)setError(err.message||'No fue posible cargar los registros.');})
+    })().catch(err=>{if(active)setError(err.message||'No fue posible cargar los registros.');})
       .finally(()=>{if(active)setBusy(false);});
     return ()=>{active=false;};
-  },[needsReport,period,user.empresa,worker.id,workers,retry]);
+  },[needsReport,from,through,user.empresa,worker.id,workers,retry]);
+  function selectMonth(value){
+    if(!value)return;
+    setPeriod(value);setFrom(monthDays(value).start);setThrough(monthDays(value).days.at(-1));
+  }
   function changeMonth(delta){
     const date=new Date(`${period||chileanAttendanceToday().slice(0,7)}-01T12:00:00Z`);
-    date.setUTCMonth(date.getUTCMonth()+delta);setPeriod(date.toISOString().slice(0,7));
+    date.setUTCMonth(date.getUTCMonth()+delta);selectMonth(date.toISOString().slice(0,7));
   }
   const day=report?.daily.find(row=>row.date===selected);
   const offset=report?.daily.length?(new Date(`${report.daily[0].date}T12:00:00Z`).getUTCDay()+6)%7:0;
@@ -39,14 +56,16 @@ export default function WorkerDossierPanel({user, worker, workers, documentTypes
     </div>
     {tab==='documents'?<div role="tabpanel" id="worker-panel-documents" aria-label="Documentos"><WorkerDocumentsPanel user={user} worker={worker} documentTypes={documentTypes} aiEnabled={aiEnabled}/></div>:<div role="tabpanel" id={`worker-panel-${tab}`} aria-label={tab==='calendar'?'Calendario':'Asignaciones y haberes'} className="space-y-4">
       <div className="flex flex-wrap items-end gap-2">
-        <label className="text-xs font-bold text-slate-600">Mes<input aria-label="Mes de la ficha" type="month" min="1900-01" max="2999-12" value={period} onChange={e=>{if(e.target.value)setPeriod(e.target.value);}} className="mt-1 block rounded-lg border p-2.5"/></label>
+        <label className="text-xs font-bold text-slate-600">Desde<input aria-label="Desde" type="date" min="1900-01-01" max="2999-12-31" value={from} onChange={e=>setFrom(e.target.value)} className="mt-1 block rounded-lg border p-2.5"/></label>
+        <label className="text-xs font-bold text-slate-600">Hasta<input aria-label="Hasta" type="date" min="1900-01-01" max="2999-12-31" value={through} onChange={e=>setThrough(e.target.value)} className="mt-1 block rounded-lg border p-2.5"/></label>
+        <label className="text-xs font-bold text-slate-600">Mes completo (acceso rápido)<input aria-label="Mes de la ficha" type="month" min="1900-01" max="2999-12" value={period} onChange={e=>selectMonth(e.target.value)} className="mt-1 block rounded-lg border p-2.5"/></label>
         <button type="button" onClick={()=>changeMonth(-1)} className="rounded-lg border p-2.5" aria-label="Mes anterior">←</button>
         <button type="button" onClick={()=>changeMonth(1)} className="rounded-lg border p-2.5" aria-label="Mes siguiente">→</button>
       </div>
       {tab==='earnings'&&<section className="space-y-3"><h4 className="font-bold">Haberes configurados en la ficha actual</h4><p className="text-xs text-slate-500">Estos valores no son una liquidación ni acreditan pago. No representan necesariamente los valores históricos del mes consultado.</p><dl className="grid grid-cols-2 gap-3">
         {[['Sueldo base',money(worker.sueldo_base)],['Colación',money(worker.colacion)],['Movilización',money(worker.movilizacion)],['Gratificación',worker.gratificacion||'No informada']].map(([label,value])=><div key={label} className="rounded-xl border bg-slate-50 p-3"><dt className="text-xs text-slate-500">{label}</dt><dd className="mt-1 font-bold break-words">{value}</dd></div>)}
       </dl></section>}
-      {busy&&<p role="status">Cargando historial del mes…</p>}
+      {busy&&<p role="status">Cargando historial del período…</p>}
       {error&&<div role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">No se pudo cargar el historial: {error} <button type="button" onClick={()=>setRetry(value=>value+1)} className="underline">Reintentar</button></div>}
       {report&&!busy&&!error&&<>
         {report.warnings.map(warning=><p key={warning} role="status" className="rounded-lg bg-amber-50 p-3 text-sm">{warning}</p>)}
@@ -57,7 +76,7 @@ export default function WorkerDossierPanel({user, worker, workers, documentTypes
             {['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map(label=><div key={label} className="p-2 text-center text-xs font-bold">{label}</div>)}
             {Array.from({length:offset},(_,i)=><div key={`empty-${i}`}/>)}
             {report.daily.map(row=><button key={row.date} type="button" aria-label={`Ver día ${row.date}`} aria-pressed={selected===row.date} onClick={()=>setSelected(row.date)} className={`min-h-28 rounded-xl border p-2 text-left text-xs ${selected===row.date?'ring-2 ring-blue-800':''} ${row.actualCenters?'border-blue-200 bg-blue-50':row.assignedCenters?'border-amber-200 bg-amber-50':'border-slate-200 bg-slate-50'}`}>
-              <b className="block text-sm">{Number(row.date.slice(-2))}</b><span className="block mt-1 font-semibold">{row.state}</span><span className="mt-1 block break-words">{row.actualCenters|| (row.assignedCenters?`Asignado: ${row.assignedCenters}`:'Sin ubicación registrada')}</span>
+              <b className="block text-sm">{row.date.slice(8,10)}/{row.date.slice(5,7)}</b><span className="block mt-1 font-semibold">{row.state}</span><span className="mt-1 block break-words">{row.actualCenters|| (row.assignedCenters?`Asignado: ${row.assignedCenters}`:'Sin ubicación registrada')}</span>
             </button>)}
           </div></div>
           {day&&<section className="rounded-xl border border-blue-200 bg-white p-4 space-y-3" aria-label="Detalle del día"><h4 className="font-bold">Detalle del {day.date}</h4><p className="text-sm">{day.state}</p><dl className="grid gap-3 sm:grid-cols-2 text-sm">

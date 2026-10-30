@@ -1,5 +1,19 @@
 import {test,expect} from '@playwright/test';
 
+test('rango inclusivo entre meses y validación de fechas',async({page})=>{
+ await page.goto('/e2e/fixtures/worker-dossier.html');
+ await page.getByRole('tab',{name:'Calendario',exact:true}).click();
+ await page.getByLabel('Hasta',{exact:true}).fill('2026-11-03');
+ await page.getByLabel('Desde',{exact:true}).fill('2026-10-29');
+ await expect(page.getByRole('button',{name:/Ver día/})).toHaveCount(6);
+ await expect(page.getByRole('button',{name:'Ver día 2026-11-03',exact:true})).toBeVisible();
+ await page.getByRole('tab',{name:'Asignaciones y haberes'}).click();
+ await expect(page.getByRole('table').locator('tbody tr')).toHaveCount(6);
+ await page.getByLabel('Desde',{exact:true}).fill('2026-11-04');
+ await expect(page.getByRole('alert')).toContainText('Desde debe ser anterior');
+ await expect(page.getByRole('table')).toHaveCount(0);
+});
+
 test('ficha muestra documentos, calendario real/asignado y haberes sin escribir datos',async({page},testInfo)=>{
  await page.goto('/e2e/fixtures/worker-dossier.html');
  await expect(page.getByText('contrato.pdf')).toBeVisible();
