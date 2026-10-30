@@ -20,7 +20,7 @@ import MonthlyWorkerAssignments from './MonthlyWorkerAssignments';
 import {workerAssignedToWork} from '../utils/workerCenters';
 import {toggleVisibleWorkers,workerMatchesSearch} from '../utils/workerAssignment.js';
 import { workerContractSummary } from '../utils/workerImport.js';
-import WorkerDocumentsPanel from './WorkerDocumentsPanel';
+import WorkerDossierPanel from './WorkerDossierPanel';
 
 const afpCommissionRates = {
   'Habitat': { fondo: 10.00, comision: 1.27, total: 11.27 },
@@ -948,7 +948,7 @@ function Personal({ user, onBack }) {
                       <tr key={p.id} className="hover:bg-slate-50 transition">
                         {canEdit && <td className="p-3"><input type="checkbox" aria-label={`Seleccionar ${p.nombre}`} checked={selectedWorkerIds.includes(String(p.id))} onChange={() => setSelectedWorkerIds(current => current.includes(String(p.id)) ? current.filter(id => id !== String(p.id)) : [...current, String(p.id)])}/></td>}
                         <td className="p-3 font-bold text-slate-800">
-                          <div>{p.nombre}</div>
+                          <button type="button" onClick={() => { setSelectedWorkerDoc(p); setShowDocModal(true); }} className="block text-left hover:text-blue-800 hover:underline" aria-label={`Ver ficha de ${p.nombre}`}>{p.nombre}</button>
                           <span className="text-[10px] text-slate-500 font-mono font-medium">{formatRut(p.rut) || 'Sin RUT'} {p.fono ? `• ${p.fono}` : ''}</span>
                         </td>
                         <td className="p-3">
@@ -1514,16 +1514,16 @@ function Personal({ user, onBack }) {
       {/* MODAL: ADJUNTAR / VER DOCUMENTACIÓN DEL TRABAJADOR */}
       {showDocModal && selectedWorkerDoc && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-2xl p-6 shadow-2xl space-y-4 border border-slate-100 animate-in fade-in zoom-in duration-150 max-h-[92vh] overflow-y-auto">
+          <div role="dialog" aria-modal="true" aria-label="Ficha del trabajador" className="bg-white rounded-2xl w-full max-w-5xl p-4 sm:p-6 shadow-2xl space-y-4 border border-slate-100 animate-in fade-in zoom-in duration-150 max-h-[92vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b pb-3">
               <div>
-                <h3 className="font-extrabold text-slate-800 text-sm">Documentación del Trabajador</h3>
+                <h3 className="font-extrabold text-slate-800 text-sm">Ficha del trabajador</h3>
                 <p className="text-xs text-slate-500">{selectedWorkerDoc.nombre} ({selectedWorkerDoc.rut || 'Sin RUT'})</p>
               </div>
-              <button onClick={() => setShowDocModal(false)} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+              <button type="button" aria-label="Cerrar ficha del trabajador" onClick={() => setShowDocModal(false)} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
             </div>
 
-            <WorkerDocumentsPanel user={user} worker={selectedWorkerDoc} documentTypes={docTypes} aiEnabled={rrhhAIEnabled} />
+            <WorkerDossierPanel key={selectedWorkerDoc.id} user={user} worker={selectedWorkerDoc} workers={personal} documentTypes={docTypes} aiEnabled={rrhhAIEnabled} />
 
             <div className="hidden space-y-3">
               <div>

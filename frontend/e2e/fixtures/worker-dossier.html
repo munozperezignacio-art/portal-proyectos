@@ -1,0 +1,28 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="fixture"></div><script type="module">
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import '../../src/index.css';
+import WorkerDossierPanel from '../../src/components/WorkerDossierPanel.jsx';
+import {supabase} from '../../src/supabaseClient.js';
+const worker={id:1,empresa:'TEST',nombre:'Trabajador prueba',rut:'1-9',sueldo_base:700000,colacion:50000,movilizacion:30000,gratificacion:'Art. 50 (25% tope)'};
+const workers=[worker,{id:2,empresa:'TEST',nombre:'Otra persona',rut:'2-7'}];
+window.queries=[];window.fail=false;
+supabase.from=table=>{
+ const filters=[];
+ const result=()=>{
+   window.queries.push({table,filters});
+   if(window.fail&&table==='asistencia_personal')return {error:{message:'Error de prueba'},data:null};
+   const period=filters.find(f=>f[0]==='gte'&&f[1]==='fecha_marcacion')?.[2]?.slice(0,7)||'2026-10';
+   const rows={
+     rrhh_documentos_trabajadores:[{id:1,tipo_documento:'Contrato',archivo_nombre:'contrato.pdf',estado_vigencia:'Vigente'}],
+     asistencia_personal:filters.some(f=>f[0]==='is')?[]:[{id:1,empresa:'TEST',rut:'1-9',trabajador:worker.nombre,fecha_marcacion:`${period}-05`,obra_id:10,asistencia:'PRESENTE',ingreso:'08:00',salida:'18:00',horas_extras_auto:2,otras_horas:1},{id:2,empresa:'TEST',rut:'2-7',fecha_marcacion:`${period}-05`,obra_nombre:'Obra ajena',asistencia:'PRESENTE'}],
+     rrhh_asignaciones_personal:[{id:1,empresa:'TEST',trabajador_id:1,centro_gestion_id:20,fecha_inicio:'2026-10-01',fecha_termino:'2026-10-06'}],
+     facturacion_centros_gestion:[{id:20,empresa:'TEST',codigo:'020',nombre:'Obra Norte'}],
+     obras:[{id:10,empresa:'TEST',nombre:'Obra Norte',centro_gestion_id:20}]
+   };
+   return {data:rows[table]||[],error:null};
+ };
+ const chain=new Proxy({}, {get:(_,key)=>key==='then'?(resolve=>Promise.resolve(result()).then(resolve)):(...args)=>{filters.push([key,...args]);return chain;}});return chain;
+};
+createRoot(document.getElementById('fixture')).render(React.createElement('main',{className:'max-w-5xl mx-auto p-4 bg-white'},React.createElement(WorkerDossierPanel,{user:{empresa:'TEST'},worker,workers,documentTypes:['Contrato'],aiEnabled:false})));
+</script></body></html>
