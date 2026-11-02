@@ -16,6 +16,8 @@ test('proveedor en costo real: valida, guarda y conserva factura al editar',asyn
   }
   await page.getByPlaceholder('Ej. Compra Hormigón H30 / Subcontrato Moldajes').fill('Arriendo departamento');
   await page.getByPlaceholder('1.250.000',{exact:true}).fill('800000');
+  await expect(page.getByRole('row',{name:'Nuevo costo'})).toContainText('IVA estimado (19%): $152.000');
+  await expect(page.getByRole('row',{name:'Nuevo costo'})).toContainText('Total estimado: $952.000');
   await page.getByPlaceholder('FACT-94820').fill('F-123');
   await expect(page.getByLabel('Razón social del emisor',{exact:true})).toHaveAttribute('required','');
   await expect(page.getByLabel('RUT del emisor',{exact:true})).toHaveAttribute('required','');

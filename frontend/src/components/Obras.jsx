@@ -13,6 +13,7 @@ import { sendSystemEmail } from '../utils/emailService';
 import { formatRut, formatNumberWithDots, parseNumberFromDots } from '../utils/rutUtils';
 import {costSupplierFields} from '../utils/costSupplier';
 import SupplierIdentityFields from './SupplierIdentityFields';
+import CostTaxDetail from './CostTaxDetail';
 import { calculateEarnedValue } from '../utils/earnedValue';
 import { registrarEventoBitacora } from '../utils/bitacoraService';
 import FormAnswerDisplay from './FormAnswerDisplay';
@@ -7232,7 +7233,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                               <th className="p-2.5">Emisor · razón social / RUT</th>
                               <th className="p-2.5">Tipo de Costo</th>
                               <th className="p-2.5">N° Factura / Doc</th>
-                              <th className="p-2.5">Monto Total Costo ($)</th>
+                              <th className="p-2.5">Costo neto ($) / IVA</th>
                               <th className="p-2.5">Imputación a Partidas (%)</th>
                               <th className="p-2.5 text-center">Acciones</th>
                             </tr>
@@ -7290,8 +7291,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     value={formatNumberWithDots(costoFormData.monto)}
                     onChange={(e) => setCostoFormData({ ...costoFormData, monto: parseNumberFromDots(e.target.value) })}
                     placeholder="1.250.000"
+                    aria-label="Costo neto en pesos"
                     className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 font-mono font-bold"
-                  /></td>
+                  /><CostTaxDetail cost={costoFormData}/></td>
 <td className="p-2 align-top min-w-[280px]">              <div className="space-y-2 pt-2 border-t">
                 <div className="flex justify-between items-center">
                   <h4 className="font-bold text-slate-800 uppercase text-[10px]">Imputación a Partida(s) de Obra por Porcentaje (%)</h4>
@@ -7477,6 +7479,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                 </td>
                                 <td className="p-2.5 font-mono font-bold text-emerald-900">
                                   ${(parseFloat(c.monto) || 0).toLocaleString('es-CL')}
+                                  <CostTaxDetail cost={c}/>
                                 </td>
                                 <td className="p-2.5 space-y-1">
                                   {c.imputaciones && c.imputaciones.length > 0 ? (
