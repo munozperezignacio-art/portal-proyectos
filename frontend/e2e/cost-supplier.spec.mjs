@@ -37,4 +37,8 @@ test('proveedor en costo real: valida, guarda y conserva factura al editar',asyn
   await page.getByLabel('Razón social del emisor',{exact:true}).fill('Proveedor actualizado');
   await page.getByRole('button',{name:'Guardar Costo e Imputaciones'}).click();
   expect(await page.evaluate(()=>window.costSaves.at(-1).data)).toMatchObject({id:7,proveedor_nombre:'Proveedor actualizado',asociar_factura:true,num_factura:'F-123',monto:800000});
+  await page.getByRole('button',{name:'Registrar Factura / Compra'}).click();
+  await page.getByLabel('RUT del emisor',{exact:true}).fill('123456785');
+  await page.getByLabel('RUT del emisor',{exact:true}).press('Tab');
+  await expect(page.getByLabel('Razón social del emisor',{exact:true})).toHaveValue('Proveedor actualizado');
 });

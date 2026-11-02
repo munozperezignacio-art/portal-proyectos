@@ -12,6 +12,7 @@ import { canCreateObras } from '../utils/userLevel';
 import { sendSystemEmail } from '../utils/emailService';
 import { formatRut, formatNumberWithDots, parseNumberFromDots } from '../utils/rutUtils';
 import {costSupplierFields} from '../utils/costSupplier';
+import SupplierIdentityFields from './SupplierIdentityFields';
 import { calculateEarnedValue } from '../utils/earnedValue';
 import { registrarEventoBitacora } from '../utils/bitacoraService';
 import FormAnswerDisplay from './FormAnswerDisplay';
@@ -7246,12 +7247,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   placeholder="Ej. Compra Hormigón H30 / Subcontrato Moldajes"
                   className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 font-bold"
                 />                <div className="mb-3 grid gap-3 "><label className="text-xs">Estado del costo<select form="costo-inline" aria-label="Estado del costo" value={costoFormData.estado_costo||'confirmado'} onChange={e=>setCostoFormData({...costoFormData,estado_costo:e.target.value})} className="block w-full rounded border p-2"><option value="confirmado">Confirmado</option><option value="pendiente">Incurrido pendiente de confirmar</option><option value="proyectado">Futuro proyectado</option></select></label><label className="text-xs">Fecha del costo<input form="costo-inline" aria-label="Fecha del costo" required type="date" value={costoFormData.fecha_costo||costDate(editingCosto||{})||new Date().toLocaleDateString('en-CA',{timeZone:'America/Santiago'})} onChange={e=>setCostoFormData({...costoFormData,fecha_costo:e.target.value})} className="block w-full rounded border p-2"/></label></div></td>
-<td className="p-2 align-top min-w-[175px]">                  <label className="block text-[10px] font-bold uppercase text-slate-500">RUT del emisor {costoFormData.asociar_factura==='SI'&&<span className="text-red-500">*</span>}
-                    <input form="costo-inline" aria-label="RUT del emisor" required={costoFormData.asociar_factura==='SI'} type="text" maxLength={12} value={costoFormData.proveedor_rut || ''} onChange={e=>setCostoFormData(current=>({...current,proveedor_rut:e.target.value}))} onBlur={()=>setCostoFormData(current=>({...current,proveedor_rut:formatRut(current.proveedor_rut)}))} placeholder="12.345.678-5" className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2.5 font-mono text-xs text-slate-800"/>
-                  </label>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500">Razón social del emisor {costoFormData.asociar_factura==='SI'&&<span className="text-red-500">*</span>}
-                    <input form="costo-inline" aria-label="Razón social del emisor" required={costoFormData.asociar_factura==='SI'} type="text" maxLength={200} value={costoFormData.proveedor_nombre || ''} onChange={e=>setCostoFormData(current=>({...current,proveedor_nombre:e.target.value}))} placeholder="Razón social de quien emite la factura" className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-800"/>
-                  </label></td>
+<td className="p-2 align-top min-w-[175px]"><SupplierIdentityFields key={String(selectedObra?.id)+':'+(editingCosto?.id||'nuevo')} company={user?.empresa} form={costoFormData} setForm={setCostoFormData} /></td>
 <td className="p-2 align-top min-w-[135px]">                  <select form="costo-inline"
                     value={costoFormData.tipo_costo}
                     onChange={(e) => setCostoFormData({ ...costoFormData, tipo_costo: e.target.value })}
