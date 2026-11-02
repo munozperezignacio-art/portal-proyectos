@@ -9,6 +9,11 @@ test('proveedor en costo real: valida, guarda y conserva factura al editar',asyn
   await page.getByRole('button',{name:'Cancelar',exact:true}).click();
   await expect(page.getByRole('row',{name:'Nuevo costo'})).toHaveCount(0);
   await page.getByRole('button',{name:'Registrar Factura / Compra'}).click();
+  const tipo = page.locator('select').filter({has:page.getByRole('option',{name:'Materiales',exact:true})});
+  for (const categoria of ['Alimentación','Traslado de equipos','Instalación de faenas','Elementos de protección personal','Costos financieros','Traslado de personal','Alojamiento']) {
+    await tipo.selectOption(categoria);
+    await expect(tipo).toHaveValue(categoria);
+  }
   await page.getByPlaceholder('Ej. Compra Hormigón H30 / Subcontrato Moldajes').fill('Arriendo departamento');
   await page.getByPlaceholder('1.250.000',{exact:true}).fill('800000');
   await page.getByPlaceholder('FACT-94820').fill('F-123');
@@ -25,6 +30,7 @@ test('proveedor en costo real: valida, guarda y conserva factura al editar',asyn
   await expect(page.getByRole('columnheader',{name:'Emisor · razón social / RUT'})).toBeVisible();
   expect(await page.evaluate(()=>window.costSaves[0].data)).toMatchObject({proveedor_rut:'12.345.678-5',proveedor_nombre:'Proveedor de prueba',asociar_factura:true,num_factura:'F-123',monto:800000});
   await page.getByRole('button',{name:'Editar costo Arriendo departamento'}).click();
+  await expect(tipo).toHaveValue('Alojamiento');
   await expect(page.getByLabel('Razón social del emisor',{exact:true})).toHaveValue('Proveedor de prueba');
   await expect(page.getByLabel('RUT del emisor',{exact:true})).toHaveValue('12.345.678-5');
   await expect(page.getByPlaceholder('FACT-94820')).toHaveValue('F-123');
