@@ -4,6 +4,10 @@ test('proveedor en costo real: valida, guarda y conserva factura al editar',asyn
   await page.goto('/e2e/fixtures/project-profile.html?budget');
   await page.getByRole('button').filter({has:page.getByRole('heading',{name:'Plan y Control de Obra',exact:true})}).click();
   await page.getByRole('button',{name:'Control de costos',exact:true}).click();
+  await page.getByRole('button',{name:/Registrar el Primer Costo/}).click();
+  await expect(page.getByRole('row',{name:'Nuevo costo'}).getByRole('cell')).toHaveCount(7);
+  await page.getByRole('button',{name:'Cancelar',exact:true}).click();
+  await expect(page.getByRole('row',{name:'Nuevo costo'})).toHaveCount(0);
   await page.getByRole('button',{name:'Registrar Factura / Compra'}).click();
   await page.getByPlaceholder('Ej. Compra Hormigón H30 / Subcontrato Moldajes').fill('Arriendo departamento');
   await page.getByPlaceholder('1.250.000',{exact:true}).fill('800000');

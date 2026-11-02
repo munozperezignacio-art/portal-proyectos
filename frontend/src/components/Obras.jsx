@@ -7197,7 +7197,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
               {costosSubTab === 'reales' ? (
                 <>
-                  {costosList.length === 0 ? (
+                  {costosList.length === 0 && !showCostoModal ? (
                     <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-3">
                       <FileSpreadsheet className="w-8 h-8 text-slate-300 mx-auto" />
                       <p className="text-xs text-slate-600 font-semibold">No se han registrado costos reales para esta obra aún.</p>
@@ -7237,6 +7237,235 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-150 text-[11px]">
+{showCostoModal && <tr aria-label={editingCosto?'Editar costo':'Nuevo costo'} className="bg-emerald-50">
+<td className="p-2 align-top min-w-[200px]">                <input form="costo-inline"
+                  autoFocus aria-label="Concepto del costo" type="text"
+                  required
+                  value={costoFormData.nombre}
+                  onChange={(e) => setCostoFormData({ ...costoFormData, nombre: e.target.value })}
+                  placeholder="Ej. Compra Hormigón H30 / Subcontrato Moldajes"
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 font-bold"
+                />                <div className="mb-3 grid gap-3 "><label className="text-xs">Estado del costo<select form="costo-inline" aria-label="Estado del costo" value={costoFormData.estado_costo||'confirmado'} onChange={e=>setCostoFormData({...costoFormData,estado_costo:e.target.value})} className="block w-full rounded border p-2"><option value="confirmado">Confirmado</option><option value="pendiente">Incurrido pendiente de confirmar</option><option value="proyectado">Futuro proyectado</option></select></label><label className="text-xs">Fecha del costo<input form="costo-inline" aria-label="Fecha del costo" required type="date" value={costoFormData.fecha_costo||costDate(editingCosto||{})||new Date().toLocaleDateString('en-CA',{timeZone:'America/Santiago'})} onChange={e=>setCostoFormData({...costoFormData,fecha_costo:e.target.value})} className="block w-full rounded border p-2"/></label></div></td>
+<td className="p-2 align-top min-w-[175px]">                  <label className="block text-[10px] font-bold uppercase text-slate-500">RUT del emisor {costoFormData.asociar_factura==='SI'&&<span className="text-red-500">*</span>}
+                    <input form="costo-inline" aria-label="RUT del emisor" required={costoFormData.asociar_factura==='SI'} type="text" maxLength={12} value={costoFormData.proveedor_rut || ''} onChange={e=>setCostoFormData(current=>({...current,proveedor_rut:e.target.value}))} onBlur={()=>setCostoFormData(current=>({...current,proveedor_rut:formatRut(current.proveedor_rut)}))} placeholder="12.345.678-5" className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2.5 font-mono text-xs text-slate-800"/>
+                  </label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500">Razón social del emisor {costoFormData.asociar_factura==='SI'&&<span className="text-red-500">*</span>}
+                    <input form="costo-inline" aria-label="Razón social del emisor" required={costoFormData.asociar_factura==='SI'} type="text" maxLength={200} value={costoFormData.proveedor_nombre || ''} onChange={e=>setCostoFormData(current=>({...current,proveedor_nombre:e.target.value}))} placeholder="Razón social de quien emite la factura" className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-800"/>
+                  </label></td>
+<td className="p-2 align-top min-w-[135px]">                  <select form="costo-inline"
+                    value={costoFormData.tipo_costo}
+                    onChange={(e) => setCostoFormData({ ...costoFormData, tipo_costo: e.target.value })}
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 bg-white font-semibold"
+                  >
+                    <option value="Materiales">Materiales</option>
+                    <option value="Mano de Obra">Mano de Obra</option>
+                    <option value="Maquinaria & Equipos">Maquinaria & Equipos</option>
+                    <option value="Subcontratos">Subcontratos</option>
+                    <option value="Gastos Generales / Varios">Gastos Generales / Varios</option>
+                  </select></td>
+<td className="p-2 align-top min-w-[150px]">                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">¿Asociar Factura / Documento?</label>
+                  <select form="costo-inline"
+                    value={costoFormData.asociar_factura}
+                    onChange={(e) => setCostoFormData({ ...costoFormData, asociar_factura: e.target.value })}
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 bg-white font-semibold"
+                  >
+                    <option value="SI">Sí, asociar N° Factura / Guía</option>
+                    <option value="NO">No, gasto interno sin factura</option>
+                  </select>
+                </div>
+
+                {costoFormData.asociar_factura === 'SI' && (
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">N° Factura / Guía Despacho</label>
+                    <input form="costo-inline"
+                      type="text"
+                      value={costoFormData.num_factura}
+                      onChange={(e) => setCostoFormData({ ...costoFormData, num_factura: e.target.value })}
+                      placeholder="FACT-94820"
+                      className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 font-mono font-bold"
+                    />
+                  </div>
+                )}</td>
+<td className="p-2 align-top min-w-[130px]">                  <input form="costo-inline"
+                    type="text"
+                    required
+                    value={formatNumberWithDots(costoFormData.monto)}
+                    onChange={(e) => setCostoFormData({ ...costoFormData, monto: parseNumberFromDots(e.target.value) })}
+                    placeholder="1.250.000"
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 font-mono font-bold"
+                  /></td>
+<td className="p-2 align-top min-w-[280px]">              <div className="space-y-2 pt-2 border-t">
+                <div className="flex justify-between items-center">
+                  <h4 className="font-bold text-slate-800 uppercase text-[10px]">Imputación a Partida(s) de Obra por Porcentaje (%)</h4>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const defaultName = partidasList.length > 0
+                        ? (partidasList[costoFormData.imputaciones.length % partidasList.length]?.partida || partidasList[0].partida)
+                        : `Partida ${costoFormData.imputaciones.length + 1}`;
+                      setCostoFormData(prev => ({
+                        ...prev,
+                        imputaciones: [...(prev.imputaciones || []), { partida: defaultName, porcentaje: 100 }]
+                      }));
+                    }}
+                    className="text-xs bg-emerald-100 hover:bg-emerald-200 text-emerald-900 font-bold px-2.5 py-1 rounded-lg border border-emerald-300 transition cursor-pointer"
+                  >
+                    + Asociar Otra Partida
+                  </button>
+                </div>
+
+                {costoFormData.imputaciones.length === 0 ? (
+                  <p className="text-[11px] text-slate-400 italic">Haz clic en "+ Asociar Otra Partida" para distribuir este costo en la obra.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {costoFormData.imputaciones.map((imp, iIdx) => (
+                      <div key={iIdx} className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
+                        {partidasList.length > 0 ? (
+                          <select form="costo-inline"
+                            value={imp.partida}
+                            onChange={(e) => {
+                              const newImp = [...costoFormData.imputaciones];
+                              newImp[iIdx].partida = e.target.value;
+                              setCostoFormData({ ...costoFormData, imputaciones: newImp });
+                            }}
+                            className="flex-1 border border-slate-300 rounded-lg p-1.5 text-xs font-bold text-slate-800 bg-white"
+                          >
+                            {partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo)).map(p => (
+                              <option key={p.partida} value={p.partida}>{p.partida}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input form="costo-inline"
+                            type="text"
+                            value={imp.partida}
+                            onChange={(e) => {
+                              const newImp = [...costoFormData.imputaciones];
+                              newImp[iIdx].partida = e.target.value;
+                              setCostoFormData({ ...costoFormData, imputaciones: newImp });
+                            }}
+                            placeholder="Nombre de la partida..."
+                            className="flex-1 border border-slate-300 rounded-lg p-1.5 text-xs font-bold text-slate-800 bg-white"
+                          />
+                        )}
+
+                        <div className="flex items-center gap-1 w-28">
+                          <input form="costo-inline"
+                            type="number"
+                            min="1"
+                            max="100"
+                            value={imp.porcentaje}
+                            onChange={(e) => {
+                              const newImp = [...costoFormData.imputaciones];
+                              newImp[iIdx].porcentaje = parseFloat(e.target.value) || 0;
+                              setCostoFormData({ ...costoFormData, imputaciones: newImp });
+                            }}
+                            className="w-16 border border-slate-300 rounded-lg p-1.5 text-xs font-mono font-bold text-slate-800 text-center"
+                          />
+                          <span className="text-xs font-bold text-slate-600">%</span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCostoFormData(prev => ({
+                              ...prev,
+                              imputaciones: prev.imputaciones.filter((_, i) => i !== iIdx)
+                            }));
+                          }}
+                          className="text-slate-400 hover:text-red-700 font-bold text-xs p-1"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}</div></td>
+<td className="p-2 align-top min-w-32"><form id="costo-inline"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setCostoSaveError('');
+                const monto = Number(costoFormData.monto);
+                const imputaciones = (costoFormData.imputaciones || []).map(item => ({
+                  partida: String(item.partida || '').trim(),
+                  porcentaje: Number(item.porcentaje) || 0
+                }));
+                const totalImputado = imputaciones.reduce((sum, item) => sum + item.porcentaje, 0);
+                let supplier;
+                try { supplier=costSupplierFields(costoFormData); }
+                catch(error){setCostoSaveError(error.message);return;}
+
+                if (!costoFormData.nombre.trim()) {
+                  setCostoSaveError('Ingresa el nombre o concepto del costo.');
+                  return;
+                }
+                if (!Number.isFinite(monto) || monto <= 0) {
+                  setCostoSaveError('Ingresa un monto mayor que cero.');
+                  return;
+                }
+                if (imputaciones.some(item => !item.partida || item.porcentaje <= 0)) {
+                  setCostoSaveError('Todas las imputaciones deben tener una partida y un porcentaje mayor que cero.');
+                  return;
+                }
+                if (imputaciones.length > 0 && Math.abs(totalImputado - 100) > 0.001) {
+                  setCostoSaveError(`La distribución debe sumar 100%. Actualmente suma ${totalImputado}%.`);
+                  return;
+                }
+                
+                const newCosto = {
+                  ...supplier,
+                  ...(editingCosto?.id ? { id: editingCosto.id } : {}),
+                  nombre: costoFormData.nombre.trim(),
+                  estado_costo: costoFormData.estado_costo || 'confirmado',
+                  fecha_costo: costoFormData.fecha_costo || costDate(editingCosto||{}) || new Date().toLocaleDateString('en-CA',{timeZone:'America/Santiago'}),
+                  tipo_costo: costoFormData.tipo_costo,
+                  asociar_factura: costoFormData.asociar_factura === 'SI',
+                  num_factura: costoFormData.asociar_factura === 'SI' ? String(costoFormData.num_factura||'').trim() || null : null,
+                  monto,
+                  imputaciones
+                };
+
+                try {
+                  setCostoSaving(true);
+                  const payload = {
+                    ...newCosto,
+                    empresa: user?.empresa || 'Obraxis',
+                    obra_nombre: selectedObra?.nombre || ''
+                  };
+                  const { data, error } = await supabase.from('costos_reales_obra').upsert(payload).select().single();
+                  if (error) throw error;
+                  setCostosList(prev => editingCosto
+                    ? prev.map(c => c.id === editingCosto.id ? data : c)
+                    : [...prev, data]);
+                } catch (err) {
+                  const message = `No fue posible guardar el costo: ${err.message}`;
+                  setCostoSaveError(message);
+                  setErrorMsg(message);
+                  return;
+                } finally {
+                  setCostoSaving(false);
+                }
+
+                setShowCostoModal(false);
+                setCostoSaveError('');
+              }}
+              className="space-y-4 text-xs"
+            >
+              {costoSaveError && (
+                <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] font-bold text-rose-700">
+                  {costoSaveError}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={costoSaving}
+                className="w-full bg-emerald-900 hover:bg-emerald-800 disabled:cursor-wait disabled:opacity-60 text-white font-bold py-3 rounded-xl shadow-xs text-xs cursor-pointer transition"
+              >
+                {costoSaving ? 'Guardando costo…' : 'Guardar Costo e Imputaciones'}
+              </button>
+<button type="button" disabled={costoSaving} onClick={()=>{setShowCostoModal(false);setCostoSaveError('');}} className="rounded border px-3 py-2">Cancelar</button></form></td>
+</tr>}
                             {costosList.map((c, idx) => (
                               <tr key={idx} className="hover:bg-slate-50">
                                 <td className="p-2.5 font-bold text-slate-800">{c.nombre}<span className="mt-1 block text-[10px] font-normal text-indigo-800">{costDate(c)} · {costStateLabel[costState(c,new Date().toLocaleDateString('en-CA',{timeZone:'America/Santiago'}))]}</span></td>
@@ -11076,276 +11305,6 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         </div>
       )}
 
-      {/* MODAL: REGISTRAR / EDITAR COSTO REAL DE OBRA */}
-      {showCostoModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 max-h-[92vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-3 border-b pb-2">
-              <h3 className="font-extrabold text-slate-800 text-sm">
-                {editingCosto ? 'Editar Costo de Obra' : 'Registrar Costo Real de Obra'}
-              </h3>
-              <button onClick={() => setShowCostoModal(false)} className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer">✕</button>
-            </div>
-
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                setCostoSaveError('');
-                const monto = Number(costoFormData.monto);
-                const imputaciones = (costoFormData.imputaciones || []).map(item => ({
-                  partida: String(item.partida || '').trim(),
-                  porcentaje: Number(item.porcentaje) || 0
-                }));
-                const totalImputado = imputaciones.reduce((sum, item) => sum + item.porcentaje, 0);
-                let supplier;
-                try { supplier=costSupplierFields(costoFormData); }
-                catch(error){setCostoSaveError(error.message);return;}
-
-                if (!costoFormData.nombre.trim()) {
-                  setCostoSaveError('Ingresa el nombre o concepto del costo.');
-                  return;
-                }
-                if (!Number.isFinite(monto) || monto <= 0) {
-                  setCostoSaveError('Ingresa un monto mayor que cero.');
-                  return;
-                }
-                if (imputaciones.some(item => !item.partida || item.porcentaje <= 0)) {
-                  setCostoSaveError('Todas las imputaciones deben tener una partida y un porcentaje mayor que cero.');
-                  return;
-                }
-                if (imputaciones.length > 0 && Math.abs(totalImputado - 100) > 0.001) {
-                  setCostoSaveError(`La distribución debe sumar 100%. Actualmente suma ${totalImputado}%.`);
-                  return;
-                }
-                
-                const newCosto = {
-                  ...supplier,
-                  ...(editingCosto?.id ? { id: editingCosto.id } : {}),
-                  nombre: costoFormData.nombre.trim(),
-                  estado_costo: costoFormData.estado_costo || 'confirmado',
-                  fecha_costo: costoFormData.fecha_costo || costDate(editingCosto||{}) || new Date().toLocaleDateString('en-CA',{timeZone:'America/Santiago'}),
-                  tipo_costo: costoFormData.tipo_costo,
-                  asociar_factura: costoFormData.asociar_factura === 'SI',
-                  num_factura: costoFormData.asociar_factura === 'SI' ? String(costoFormData.num_factura||'').trim() || null : null,
-                  monto,
-                  imputaciones
-                };
-
-                try {
-                  setCostoSaving(true);
-                  const payload = {
-                    ...newCosto,
-                    empresa: user?.empresa || 'Obraxis',
-                    obra_nombre: selectedObra?.nombre || ''
-                  };
-                  const { data, error } = await supabase.from('costos_reales_obra').upsert(payload).select().single();
-                  if (error) throw error;
-                  setCostosList(prev => editingCosto
-                    ? prev.map(c => c.id === editingCosto.id ? data : c)
-                    : [...prev, data]);
-                } catch (err) {
-                  const message = `No fue posible guardar el costo: ${err.message}`;
-                  setCostoSaveError(message);
-                  setErrorMsg(message);
-                  return;
-                } finally {
-                  setCostoSaving(false);
-                }
-
-                setShowCostoModal(false);
-                alert('Costo e imputaciones registrados con éxito.');
-              }}
-              className="space-y-4 text-xs"
-            >
-
-              {costoSaveError && (
-                <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] font-bold text-rose-700">
-                  {costoSaveError}
-                </div>
-              )}
-
-
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nombre / Concepto del Costo <span className="text-red-500">*</span></label>
-                <div className="mb-3 grid gap-3 sm:grid-cols-2"><label className="text-xs">Estado del costo<select aria-label="Estado del costo" value={costoFormData.estado_costo||'confirmado'} onChange={e=>setCostoFormData({...costoFormData,estado_costo:e.target.value})} className="block w-full rounded border p-2"><option value="confirmado">Confirmado</option><option value="pendiente">Incurrido pendiente de confirmar</option><option value="proyectado">Futuro proyectado</option></select></label><label className="text-xs">Fecha del costo<input aria-label="Fecha del costo" required type="date" value={costoFormData.fecha_costo||costDate(editingCosto||{})||new Date().toLocaleDateString('en-CA',{timeZone:'America/Santiago'})} onChange={e=>setCostoFormData({...costoFormData,fecha_costo:e.target.value})} className="block w-full rounded border p-2"/></label><p className="text-xs text-slate-500 sm:col-span-2">Al llegar su fecha, un proyectado entra al control como pendiente. Para confirmarlo, edita este mismo costo; no lo registres nuevamente.</p></div>
-                <input
-                  type="text"
-                  required
-                  value={costoFormData.nombre}
-                  onChange={(e) => setCostoFormData({ ...costoFormData, nombre: e.target.value })}
-                  placeholder="Ej. Compra Hormigón H30 / Subcontrato Moldajes"
-                  className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 font-bold"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Tipo de Costo</label>
-                  <select
-                    value={costoFormData.tipo_costo}
-                    onChange={(e) => setCostoFormData({ ...costoFormData, tipo_costo: e.target.value })}
-                    className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 bg-white font-semibold"
-                  >
-                    <option value="Materiales">Materiales</option>
-                    <option value="Mano de Obra">Mano de Obra</option>
-                    <option value="Maquinaria & Equipos">Maquinaria & Equipos</option>
-                    <option value="Subcontratos">Subcontratos</option>
-                    <option value="Gastos Generales / Varios">Gastos Generales / Varios</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Monto Total Costo ($) <span className="text-red-500">*</span></label>
-                  <input
-                    type="text"
-                    required
-                    value={formatNumberWithDots(costoFormData.monto)}
-                    onChange={(e) => setCostoFormData({ ...costoFormData, monto: parseNumberFromDots(e.target.value) })}
-                    placeholder="1.250.000"
-                    className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 font-mono font-bold"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">¿Asociar Factura / Documento?</label>
-                  <select
-                    value={costoFormData.asociar_factura}
-                    onChange={(e) => setCostoFormData({ ...costoFormData, asociar_factura: e.target.value })}
-                    className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 bg-white font-semibold"
-                  >
-                    <option value="SI">Sí, asociar N° Factura / Guía</option>
-                    <option value="NO">No, gasto interno sin factura</option>
-                  </select>
-                </div>
-
-                {costoFormData.asociar_factura === 'SI' && (
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">N° Factura / Guía Despacho</label>
-                    <input
-                      type="text"
-                      value={costoFormData.num_factura}
-                      onChange={(e) => setCostoFormData({ ...costoFormData, num_factura: e.target.value })}
-                      placeholder="FACT-94820"
-                      className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 font-mono font-bold"
-                    />
-                  </div>
-                )}
-              </div>
-
-              <fieldset className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
-                <legend className="px-1 text-[10px] font-bold uppercase text-slate-600">Emisor de la factura / documento</legend>
-                <div className="grid gap-3 sm:grid-cols-[150px_1fr]">
-                  <label className="block text-[10px] font-bold uppercase text-slate-500">RUT del emisor {costoFormData.asociar_factura==='SI'&&<span className="text-red-500">*</span>}
-                    <input aria-label="RUT del emisor" required={costoFormData.asociar_factura==='SI'} type="text" maxLength={12} value={costoFormData.proveedor_rut || ''} onChange={e=>setCostoFormData(current=>({...current,proveedor_rut:e.target.value}))} onBlur={()=>setCostoFormData(current=>({...current,proveedor_rut:formatRut(current.proveedor_rut)}))} placeholder="12.345.678-5" className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2.5 font-mono text-xs text-slate-800"/>
-                  </label>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500">Razón social del emisor {costoFormData.asociar_factura==='SI'&&<span className="text-red-500">*</span>}
-                    <input aria-label="Razón social del emisor" required={costoFormData.asociar_factura==='SI'} type="text" maxLength={200} value={costoFormData.proveedor_nombre || ''} onChange={e=>setCostoFormData(current=>({...current,proveedor_nombre:e.target.value}))} placeholder="Razón social de quien emite la factura" className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-800"/>
-                  </label>
-                </div>
-                <p className="text-[10px] text-slate-500">Ingresa los datos de quien emite la factura, no los de la empresa que la recibe. Son obligatorios al asociar un documento; para un gasto interno sin factura son opcionales.</p>
-              </fieldset>
-              {/* Seccion de Imputación por Porcentaje a Partidas */}
-              <div className="space-y-2 pt-2 border-t">
-                <div className="flex justify-between items-center">
-                  <h4 className="font-bold text-slate-800 uppercase text-[10px]">Imputación a Partida(s) de Obra por Porcentaje (%)</h4>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const defaultName = partidasList.length > 0
-                        ? (partidasList[costoFormData.imputaciones.length % partidasList.length]?.partida || partidasList[0].partida)
-                        : `Partida ${costoFormData.imputaciones.length + 1}`;
-                      setCostoFormData(prev => ({
-                        ...prev,
-                        imputaciones: [...(prev.imputaciones || []), { partida: defaultName, porcentaje: 100 }]
-                      }));
-                    }}
-                    className="text-xs bg-emerald-100 hover:bg-emerald-200 text-emerald-900 font-bold px-2.5 py-1 rounded-lg border border-emerald-300 transition cursor-pointer"
-                  >
-                    + Asociar Otra Partida
-                  </button>
-                </div>
-
-                {costoFormData.imputaciones.length === 0 ? (
-                  <p className="text-[11px] text-slate-400 italic">Haz clic en "+ Asociar Otra Partida" para distribuir este costo en la obra.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {costoFormData.imputaciones.map((imp, iIdx) => (
-                      <div key={iIdx} className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
-                        {partidasList.length > 0 ? (
-                          <select
-                            value={imp.partida}
-                            onChange={(e) => {
-                              const newImp = [...costoFormData.imputaciones];
-                              newImp[iIdx].partida = e.target.value;
-                              setCostoFormData({ ...costoFormData, imputaciones: newImp });
-                            }}
-                            className="flex-1 border border-slate-300 rounded-lg p-1.5 text-xs font-bold text-slate-800 bg-white"
-                          >
-                            {partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo)).map(p => (
-                              <option key={p.partida} value={p.partida}>{p.partida}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <input
-                            type="text"
-                            value={imp.partida}
-                            onChange={(e) => {
-                              const newImp = [...costoFormData.imputaciones];
-                              newImp[iIdx].partida = e.target.value;
-                              setCostoFormData({ ...costoFormData, imputaciones: newImp });
-                            }}
-                            placeholder="Nombre de la partida..."
-                            className="flex-1 border border-slate-300 rounded-lg p-1.5 text-xs font-bold text-slate-800 bg-white"
-                          />
-                        )}
-
-                        <div className="flex items-center gap-1 w-28">
-                          <input
-                            type="number"
-                            min="1"
-                            max="100"
-                            value={imp.porcentaje}
-                            onChange={(e) => {
-                              const newImp = [...costoFormData.imputaciones];
-                              newImp[iIdx].porcentaje = parseFloat(e.target.value) || 0;
-                              setCostoFormData({ ...costoFormData, imputaciones: newImp });
-                            }}
-                            className="w-16 border border-slate-300 rounded-lg p-1.5 text-xs font-mono font-bold text-slate-800 text-center"
-                          />
-                          <span className="text-xs font-bold text-slate-600">%</span>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCostoFormData(prev => ({
-                              ...prev,
-                              imputaciones: prev.imputaciones.filter((_, i) => i !== iIdx)
-                            }));
-                          }}
-                          className="text-slate-400 hover:text-red-700 font-bold text-xs p-1"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <button
-                type="submit"
-                disabled={costoSaving}
-                className="w-full bg-emerald-900 hover:bg-emerald-800 disabled:cursor-wait disabled:opacity-60 text-white font-bold py-3 rounded-xl shadow-xs text-xs cursor-pointer transition"
-              >
-                {costoSaving ? 'Guardando costo…' : 'Guardar Costo e Imputaciones'}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* MODAL: CREAR / EDITAR ACTIVIDAD DE PLANIFICACIÓN */}
       {showActividadModal && (
