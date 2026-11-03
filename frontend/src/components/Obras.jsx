@@ -4344,7 +4344,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                   {a.moneda_costo && a.moneda_costo !== 'CLP' && <small className="block mt-1">{Number(a.costo_original).toLocaleString('es-CL', {maximumFractionDigits:6})} {a.moneda_costo}{unidadStr.slice(1)} · Conversión guardada: ${Number(a.cambio_costo_clp).toLocaleString('es-CL')}</small>}
                                 </td>
                                 <td className="p-2 font-semibold text-amber-900 text-[11px]">
-                                  <span className="bg-amber-50 px-2 py-0.5 rounded border border-amber-200">{minStr}</span>
+                                  <span className="inline-block max-w-full whitespace-normal break-words leading-relaxed bg-amber-50 px-2 py-1 rounded border border-amber-200">{minStr}</span>
                                 </td>
                                 <td className="p-2 text-slate-500 text-[11px]">{a.fechaInicio || 'N/A'} al {a.fechaTermino || 'N/A'}</td>
                                 {canEquipmentActions && (

@@ -9,9 +9,15 @@ test('tarifa UF guarda CLP y conserva original al editar',async({page})=>{
   await page.getByLabel('Moneda',{exact:true}).selectOption('UF');
   await page.getByLabel('Valor de 1 UF en CLP').fill('40000');
   await page.getByPlaceholder('Ej. 250000').fill('0.77');
+  await page.locator('select').filter({has:page.getByRole('option',{name:'Horas Mínimas / Mes',exact:true})}).selectOption('horas_mes');
+  await page.getByPlaceholder('ej. 180 hrs').fill('180');
   await page.getByRole('button',{name:'Guardar Arriendo de Equipo',exact:true}).click();
   expect(await page.evaluate(()=>window.rentalSaves.at(-1))).toMatchObject({costo:30800,costo_original:0.77,moneda_costo:'UF',cambio_costo_clp:40000});
   await expect(page.getByText(/0,77 UF/)).toBeVisible();
+  const minimum=page.getByText('Mín. 180 hrs/mes',{exact:true});
+  await expect(minimum).toHaveCSS('display','inline-block');
+  expect(await minimum.evaluate(el=>el.getClientRects().length)).toBe(1);
+  expect(await minimum.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
   await page.getByTitle('Editar arriendo de maquinaria').click();
   await expect(page.getByPlaceholder('Ej. 250000')).toHaveValue('0.77');
   await expect(page.getByLabel('Moneda',{exact:true})).toHaveValue('UF');
