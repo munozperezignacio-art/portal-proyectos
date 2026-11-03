@@ -51,7 +51,12 @@ test('proveedor en costo real: valida, guarda y conserva factura al editar',asyn
   await page.getByPlaceholder('1.250.000',{exact:true}).fill('50000');
   await page.locator('select').filter({has:page.getByRole('option',{name:'No, gasto interno sin factura',exact:true})}).selectOption('NO');
   await page.getByLabel('N° Orden de compra (OC)').fill('OC-789');
+  await tipo.selectOption('Traslado de equipos');
   await page.getByRole('button',{name:'Guardar Costo e Imputaciones'}).click();
   expect(await page.evaluate(()=>window.costSaves.at(-1).data)).toMatchObject({num_oc:'OC-789',asociar_factura:false,num_factura:null,monto:50000});
   await expect(page.getByText('OC: OC-789',{exact:true})).toBeVisible();
+  const badge = page.getByText('Traslado de equipos', {exact:true}).filter({visible:true});
+  await expect(badge).toHaveCSS('display','inline-block');
+  expect(await badge.evaluate(el => el.getClientRects().length)).toBe(1);
+  expect(await badge.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
 });

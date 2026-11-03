@@ -7480,7 +7480,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                 <td className="p-2.5 font-bold text-slate-800">{c.nombre}<span className="mt-1 block text-[10px] font-normal text-indigo-800">{costDate(c)} · {costStateLabel[costState(c,new Date().toLocaleDateString('en-CA',{timeZone:'America/Santiago'}))]}</span></td>
                                 <td className="p-2.5"><span className="block font-semibold">{c.proveedor_nombre || 'Sin proveedor informado'}</span>{c.proveedor_rut && <span className="block font-mono text-slate-500">{c.proveedor_rut}</span>}</td>
                                 <td className="p-2.5">
-                                  <span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-700 px-2 py-0.5 rounded border">
+                                  <span className="inline-block max-w-full whitespace-normal break-words text-[10px] leading-relaxed font-bold uppercase bg-slate-100 text-slate-700 px-2 py-1 rounded border">
                                     {c.tipo_costo}
                                   </span>
                                 </td>
