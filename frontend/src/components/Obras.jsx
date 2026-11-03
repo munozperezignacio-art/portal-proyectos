@@ -7277,7 +7277,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     <option value="Mano de Obra">Mano de Obra</option>
                     <option value="Maquinaria & Equipos">Maquinaria & Equipos</option>
                     <option value="Subcontratos">Subcontratos</option>
-                    {['Alimentación', 'Alojamiento', 'Traslado de equipos', 'Instalación de faenas', 'Elementos de protección personal', 'Costos financieros', 'Traslado de personal'].map(tipo => <option key={tipo} value={tipo}>{tipo}</option>)}
+                    {['Alimentación', 'Alojamiento', 'Traslado de equipos', 'Instalación de faenas', 'Elementos de protección personal', 'Costos financieros', 'Traslado de personal', 'Reparaciones'].map(tipo => <option key={tipo} value={tipo}>{tipo}</option>)}
                     <option value="Gastos Generales / Varios">Gastos Generales / Varios</option>
                   </select></td>
 <td className="p-2 align-top min-w-[150px]">                <div>

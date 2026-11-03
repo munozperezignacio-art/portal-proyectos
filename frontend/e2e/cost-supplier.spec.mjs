@@ -10,7 +10,7 @@ test('proveedor en costo real: valida, guarda y conserva factura al editar',asyn
   await expect(page.getByRole('row',{name:'Nuevo costo'})).toHaveCount(0);
   await page.getByRole('button',{name:'Registrar Factura / Compra'}).click();
   const tipo = page.locator('select').filter({has:page.getByRole('option',{name:'Materiales',exact:true})});
-  for (const categoria of ['Alimentación','Traslado de equipos','Instalación de faenas','Elementos de protección personal','Costos financieros','Traslado de personal','Alojamiento']) {
+  for (const categoria of ['Alimentación','Traslado de equipos','Instalación de faenas','Elementos de protección personal','Costos financieros','Traslado de personal','Alojamiento','Reparaciones']) {
     await tipo.selectOption(categoria);
     await expect(tipo).toHaveValue(categoria);
   }
@@ -35,7 +35,7 @@ test('proveedor en costo real: valida, guarda y conserva factura al editar',asyn
   await page.getByRole('button',{name:'Editar costo Arriendo departamento'}).click();
   await expect(page.getByLabel('N° Orden de compra (OC)')).toHaveValue('OC-456');
   expect(await page.evaluate(()=>window.costSaves[0].data.num_oc)).toBe('OC-456');
-  await expect(tipo).toHaveValue('Alojamiento');
+  await expect(tipo).toHaveValue('Reparaciones');
   await expect(page.getByLabel('Razón social del emisor',{exact:true})).toHaveValue('Proveedor de prueba');
   await expect(page.getByLabel('RUT del emisor',{exact:true})).toHaveValue('12.345.678-5');
   await expect(page.getByPlaceholder('FACT-94820')).toHaveValue('F-123');
