@@ -29,6 +29,11 @@ const advanceFixture=new URLSearchParams(location.search).has('advance');
 window.advanceSaves=[];
 window.advanceRows=advanceFixture?[{id:81,obra_id:123,empresa:'TEST',obra_nombre:work.nombre,partida_id:2,partida:budgetRows[1].partida,unidad:'M2',cantidad:9,frente:'Frente Principal',observaciones:'Observación original conservada',created_at:new Date().toISOString()}]:[];
 window.costSaves=[];window.costRows=[];window.failCost=false;
+const chartCosts=new URLSearchParams(location.search).has('chartCosts');
+if(chartCosts){budgetRows[1].costo_por_dia=10000;budgetRows[1].rendimiento_meta=1000;}
+const chartToday=new Date().toLocaleDateString('en-CA',{timeZone:'America/Santiago'});
+const chartFuture=new Date(Date.now()+86400000*30).toLocaleDateString('en-CA',{timeZone:'America/Santiago'});
+if(chartCosts)window.costRows=[{id:7,monto:1000,fecha_costo:chartToday,imputaciones:[{partida:budgetRows[1].partida,porcentaje:60}]},{id:8,monto:999999,fecha_costo:chartFuture,imputaciones:[{partida:budgetRows[1].partida,porcentaje:100}]}];
 window.rentalRows=[];window.rentalSaves=[];
 const attendanceFixture=new URLSearchParams(location.search).has('attendance');
 window.attendanceSaves=[];window.attendanceRows=attendanceFixture?[{id:91,empresa:'TEST',obra_id:123,obra_nombre:work.nombre,trabajador:'Persona principal',rut:'2-7',fecha_marcacion:'2026-10-01',asistencia:'PRESENTE',ingreso:'08:00',salida:'19:00',colacion:'SI',otras_horas:1.25,horas_extras_auto:1,verificado_qr:false}]:[];
@@ -47,6 +52,7 @@ supabase.from=table=>{
   if(table==='asistencia_personal'&&mutation){window.attendanceSaves.push(mutation);const payload=Array.isArray(mutation.data)?mutation.data[0]:mutation.data;window.attendanceRows=[{...window.attendanceRows[0],...payload,id:91}];return {data:[{id:91}],error:null};}
     if(table==='costos_reales_obra'&&mutation){window.costSaves.push(mutation);if(window.failCost)return {data:null,error:{message:'Fallo simulado'}};const row={...mutation.data,id:7};window.costRows=[row];return {data:row,error:null};}
     if(table==='costos_reales_obra')return {data:window.costRows,error:null};
+    if(table==='obra_liquidaciones'&&chartCosts)return {data:[{id:9,fecha:chartToday,periodo:chartToday.slice(0,7),monto_real:200,obra_liquidaciones_partidas:[{partida_id:2,partida:budgetRows[1].partida,monto_imputado:200}]}],error:null};
     return {data:table==='asistencia_personal'?window.attendanceRows:table==='obras'?[work]:table==='usuarios'?user:table==='partidas_obra'&&budget?budgetRows:table==='maestro_personal'&&multiCenterWork?workStaff:table==='rrhh_personal_centros_detalle'&&multiCenterWork?workLinks:single?null:[],error:null};};
   const chain=new Proxy({}, {get:(_target,key)=>key==='then'?(resolve=>Promise.resolve(result()).then(resolve)):
     (...args)=>{if(key==='single'||key==='maybeSingle')single=true;if(key==='insert'||key==='update'||key==='upsert')mutation={action:key,data:args[0]};return chain;}});

@@ -5835,14 +5835,20 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                             <div className="flex justify-between items-center border-b pb-2">
                               <h4 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
                                 <DollarSign className="w-4 h-4 text-emerald-700" />
-                                <span>📊 Venta de Avance vs Costo Real por Partida</span>
+                                <span>📊 Venta de avance vs costo imputado por partida</span>
                               </h4>
                               <span className="text-[10px] bg-blue-100 text-blue-900 px-2 py-0.5 rounded font-extrabold">Top Partidas</span>
                             </div>
+                            <p className="text-[11px] text-slate-600">Costos registrados y personal imputados hasta {fCorteStr}, incluidos los pendientes de confirmar. Los costos futuros se muestran en la proyección, no como incurridos.</p>
+                            {isGlobalStats && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+                              <strong>Costos de obra sin imputar a partidas: ${Math.max(0, AC - targetPartidas.filter(p => !p.es_titulo).reduce((sum, p) => sum + getCostoImputadoPartida(p.partida), 0)).toLocaleString('es-CL')}</strong>
+                              <p className="mt-1">Incluidos en el costo global de la obra. Maquinaria, mantenciones y gastos sin distribución no se reparten automáticamente entre partidas.</p>
+                            </div>}
+                            {(laborCostError || machineryChargeError || costLoadIssue) && <p role="alert" className="text-xs text-rose-700">Información de costos incompleta: {laborCostError || machineryChargeError || costLoadIssue}</p>}
 
                             <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
                               {(() => {
-                                const partidasParaComparar = (partidasConDesviacion.length > 0 ? partidasConDesviacion : targetPartidas.filter(p => !p.es_titulo).map(p => {
+                                const partidasParaComparar = targetPartidas.filter(p => !p.es_titulo).map(p => {
                                   const pu = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (parseFloat(p.pu) || parseFloat(p.costo_por_dia) || 0);
                                   const pReps = (reportesAvanceList || []).filter(r => {
                                     const fRep = r.fecha || r.fecha_avance || (r.created_at ? String(r.created_at).substring(0, 10) : '');
@@ -5851,11 +5857,10 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                   const cantAv = pReps.reduce((rSum, r) => rSum + (parseFloat(r.cantidad) || 0), 0);
                                   const ventaAvance = Math.round(Math.min(parseFloat(p.cantidad) || 0, cantAv) * pu);
 
-                                  const cFact = (costosList || []).filter(c => (c.fecha || c.created_at?.substring(0, 10)) <= fCorteStr && isMatchPartidaName(c.partida, p.partida)).reduce((acc, c) => acc + (parseFloat(c.monto) || 0), 0);
-                                  const costoImputadoReal = cFact;
+                                  const costoImputadoReal = getCostoImputadoPartida(p.partida);
                                   const esSobrecosto = costoImputadoReal > ventaAvance;
                                   return { partida: p.partida, ventaAvance, costoImputadoReal, esSobrecosto };
-                                })).sort((a, b) => b.ventaAvance - a.ventaAvance).slice(0, 5);
+                                }).sort((a, b) => b.ventaAvance - a.ventaAvance).slice(0, 5);
 
                                 return partidasParaComparar.map((p, idx) => {
                                   const maxVal = Math.max(1, p.ventaAvance, p.costoImputadoReal);
