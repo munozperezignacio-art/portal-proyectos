@@ -7232,7 +7232,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                               <th className="p-2.5">Concepto / Nombre Costo</th>
                               <th className="p-2.5">Emisor · razón social / RUT</th>
                               <th className="p-2.5">Tipo de Costo</th>
-                              <th className="p-2.5">N° Factura / Doc</th>
+                              <th className="p-2.5">Factura / Guía / OC</th>
                               <th className="p-2.5">Costo neto ($) / IVA</th>
                               <th className="p-2.5">Imputación a Partidas (%)</th>
                               <th className="p-2.5 text-center">Acciones</th>
@@ -7284,7 +7284,16 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                       className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 font-mono font-bold"
                     />
                   </div>
-                )}</td>
+                )}
+                <div className="mt-3">
+                  <label htmlFor="costo-num-oc" className="block text-[10px] font-bold uppercase text-slate-500 mb-1">N° Orden de compra (OC)</label>
+                  <input id="costo-num-oc" form="costo-inline" type="text" maxLength={100}
+                    value={costoFormData.num_oc || ''}
+                    onChange={(e) => setCostoFormData({ ...costoFormData, num_oc: e.target.value })}
+                    placeholder="OC-00123"
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 font-mono font-bold" />
+                  <small className="block mt-1 text-slate-500">Opcional. Puede coexistir con la factura o guía.</small>
+                </div></td>
 <td className="p-2 align-top min-w-[130px]">                  <input form="costo-inline"
                     type="text"
                     required
@@ -7420,6 +7429,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   tipo_costo: costoFormData.tipo_costo,
                   asociar_factura: costoFormData.asociar_factura === 'SI',
                   num_factura: costoFormData.asociar_factura === 'SI' ? String(costoFormData.num_factura||'').trim() || null : null,
+                  num_oc: String(costoFormData.num_oc || '').trim() || null,
                   monto,
                   imputaciones
                 };
@@ -7476,6 +7486,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                 </td>
                                 <td className="p-2.5 font-mono text-slate-700">
                                   {c.asociar_factura === true || c.asociar_factura === 'SI' ? (c.num_factura || 'Factura N/A') : 'Sin Factura'}
+                                  {c.num_oc && <span className="block mt-1 font-semibold text-indigo-800">OC: {c.num_oc}</span>}
                                 </td>
                                 <td className="p-2.5 font-mono font-bold text-emerald-900">
                                   ${(parseFloat(c.monto) || 0).toLocaleString('es-CL')}

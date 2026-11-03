@@ -19,6 +19,7 @@ test('proveedor en costo real: valida, guarda y conserva factura al editar',asyn
   await expect(page.getByRole('row',{name:'Nuevo costo'})).toContainText('IVA estimado (19%): $152.000');
   await expect(page.getByRole('row',{name:'Nuevo costo'})).toContainText('Total estimado: $952.000');
   await page.getByPlaceholder('FACT-94820').fill('F-123');
+  await page.getByLabel('N° Orden de compra (OC)').fill('OC-456');
   await expect(page.getByLabel('Razón social del emisor',{exact:true})).toHaveAttribute('required','');
   await expect(page.getByLabel('RUT del emisor',{exact:true})).toHaveAttribute('required','');
   await page.getByRole('button',{name:'Guardar Costo e Imputaciones'}).click();
@@ -32,6 +33,8 @@ test('proveedor en costo real: valida, guarda y conserva factura al editar',asyn
   await expect(page.getByRole('columnheader',{name:'Emisor · razón social / RUT'})).toBeVisible();
   expect(await page.evaluate(()=>window.costSaves[0].data)).toMatchObject({proveedor_rut:'12.345.678-5',proveedor_nombre:'Proveedor de prueba',asociar_factura:true,num_factura:'F-123',monto:800000});
   await page.getByRole('button',{name:'Editar costo Arriendo departamento'}).click();
+  await expect(page.getByLabel('N° Orden de compra (OC)')).toHaveValue('OC-456');
+  expect(await page.evaluate(()=>window.costSaves[0].data.num_oc)).toBe('OC-456');
   await expect(tipo).toHaveValue('Alojamiento');
   await expect(page.getByLabel('Razón social del emisor',{exact:true})).toHaveValue('Proveedor de prueba');
   await expect(page.getByLabel('RUT del emisor',{exact:true})).toHaveValue('12.345.678-5');
@@ -40,7 +43,15 @@ test('proveedor en costo real: valida, guarda y conserva factura al editar',asyn
   await page.getByRole('button',{name:'Guardar Costo e Imputaciones'}).click();
   expect(await page.evaluate(()=>window.costSaves.at(-1).data)).toMatchObject({id:7,proveedor_nombre:'Proveedor actualizado',asociar_factura:true,num_factura:'F-123',monto:800000});
   await page.getByRole('button',{name:'Registrar Factura / Compra'}).click();
+  await expect(page.getByLabel('N° Orden de compra (OC)')).toHaveValue('');
   await page.getByLabel('RUT del emisor',{exact:true}).fill('123456785');
   await page.getByLabel('RUT del emisor',{exact:true}).press('Tab');
   await expect(page.getByLabel('Razón social del emisor',{exact:true})).toHaveValue('Proveedor actualizado');
+  await page.getByPlaceholder('Ej. Compra Hormigón H30 / Subcontrato Moldajes').fill('Compra con OC');
+  await page.getByPlaceholder('1.250.000',{exact:true}).fill('50000');
+  await page.locator('select').filter({has:page.getByRole('option',{name:'No, gasto interno sin factura',exact:true})}).selectOption('NO');
+  await page.getByLabel('N° Orden de compra (OC)').fill('OC-789');
+  await page.getByRole('button',{name:'Guardar Costo e Imputaciones'}).click();
+  expect(await page.evaluate(()=>window.costSaves.at(-1).data)).toMatchObject({num_oc:'OC-789',asociar_factura:false,num_factura:null,monto:50000});
+  await expect(page.getByText('OC: OC-789',{exact:true})).toBeVisible();
 });
