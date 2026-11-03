@@ -1,0 +1,20 @@
+import {test,expect} from '@playwright/test';
+test('tarifa UF guarda CLP y conserva original al editar',async({page})=>{
+  await page.goto('/e2e/fixtures/project-profile.html');
+  await page.getByRole('button').filter({has:page.getByRole('heading',{name:'Equipos & Maquinarias',exact:true})}).click();
+  await page.getByRole('button',{name:/Arriendos/}).click();
+  await page.getByRole('button',{name:'Registrar Arriendo',exact:true}).click();
+  await page.getByPlaceholder('Ej. Retroexcavadora CAT 416, Camión Tolva').fill('Manipulador UF');
+  await page.getByPlaceholder('Ej. Arriendos y Equipos S.A.').fill('Proveedor');
+  await page.getByLabel('Moneda',{exact:true}).selectOption('UF');
+  await page.getByLabel('Valor de 1 UF en CLP').fill('40000');
+  await page.getByPlaceholder('Ej. 250000').fill('0.77');
+  await page.getByRole('button',{name:'Guardar Arriendo de Equipo',exact:true}).click();
+  expect(await page.evaluate(()=>window.rentalSaves.at(-1))).toMatchObject({costo:30800,costo_original:0.77,moneda_costo:'UF',cambio_costo_clp:40000});
+  await expect(page.getByText(/0,77 UF/)).toBeVisible();
+  await page.getByTitle('Editar arriendo de maquinaria').click();
+  await expect(page.getByPlaceholder('Ej. 250000')).toHaveValue('0.77');
+  await expect(page.getByLabel('Moneda',{exact:true})).toHaveValue('UF');
+  await page.getByRole('button',{name:'Guardar Arriendo de Equipo',exact:true}).click();
+  expect(await page.evaluate(()=>window.rentalSaves.at(-1).costo)).toBe(30800);
+});

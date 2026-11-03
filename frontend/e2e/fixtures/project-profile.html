@@ -29,13 +29,18 @@ const advanceFixture=new URLSearchParams(location.search).has('advance');
 window.advanceSaves=[];
 window.advanceRows=advanceFixture?[{id:81,obra_id:123,empresa:'TEST',obra_nombre:work.nombre,partida_id:2,partida:budgetRows[1].partida,unidad:'M2',cantidad:9,frente:'Frente Principal',observaciones:'Observación original conservada',created_at:new Date().toISOString()}]:[];
 window.costSaves=[];window.costRows=[];window.failCost=false;
+window.rentalRows=[];window.rentalSaves=[];
 const attendanceFixture=new URLSearchParams(location.search).has('attendance');
 window.attendanceSaves=[];window.attendanceRows=attendanceFixture?[{id:91,empresa:'TEST',obra_id:123,obra_nombre:work.nombre,trabajador:'Persona principal',rut:'2-7',fecha_marcacion:'2026-10-01',asistencia:'PRESENTE',ingreso:'08:00',salida:'19:00',colacion:'SI',otras_horas:1.25,horas_extras_auto:1,verificado_qr:false}]:[];
 Object.defineProperty(supabase,'functions',{value:{invoke:async()=>({data:{ok:true},error:null})}});
 supabase.from=table=>{
   let single=false;
   let mutation=null;
-  const result=()=>{if(table==='avances_produccion_partidas'){
+  const result=()=>{if(table==='arriendos_maquinaria'){
+    if(mutation){const payload=Array.isArray(mutation.data)?mutation.data[0]:mutation.data;window.rentalSaves.push(payload);window.rentalRows=[{...payload,id:44}];}
+    return {data:single?window.rentalRows[0]:window.rentalRows,error:null};
+  }
+  if(table==='avances_produccion_partidas'){
     if(mutation){window.advanceSaves.push(mutation);if(window.failSave)return {data:null,error:{message:'Fallo simulado'}};window.advanceRows=(Array.isArray(mutation.data)?mutation.data:[mutation.data]).map((row,i)=>({...row,id:row.id||81+i}));}
     return {data:window.advanceRows,error:null};
   }

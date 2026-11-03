@@ -66,6 +66,7 @@ const SubcontratosObra = React.lazy(() => import('./SubcontratosObra'));
 const FlujoCajaObra = React.lazy(() => import('./FlujoCajaObra'));
 const SpecializedAssistanceInbox = React.lazy(() => import('./SpecializedAssistanceInbox'));
 import {machineryCostControl,costDate,costState,costStateLabel} from '../utils/costControl';
+import {rentalCurrency} from '../utils/rentalCurrency';
 import MachineryCostControl from './MachineryCostControl';
 const PredictiveScenarioPanel = React.lazy(() => import('./PredictiveScenarioPanel'));
 const BudgetExcelImporter = React.lazy(() => import('./BudgetExcelImporter'));
@@ -1891,6 +1892,10 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           patente: item.patente || '',
           proveedor: item.proveedor || item.empresa_arrendadora || 'Proveedor',
           costo: parseFloat(item.costo || item.costo_arriendo || item.tarifa) || 0,
+          moneda_costo: item.moneda_costo || 'CLP',
+          costo_original: item.costo_original,
+          cambio_costo_clp: item.cambio_costo_clp,
+          modalidad_dias: item.modalidad_dias || 'laborales',
           unidad_costo: item.unidad_costo || item.unidad_tarifa || '$/mes',
           tipo_condicion_minima: item.tipo_condicion_minima || 'sin_minimo',
           cantidad_minima: parseFloat(item.cantidad_minima) || 0,
@@ -2437,7 +2442,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       equipo: a.equipo || '',
       patente: a.patente || '',
       proveedor: a.proveedor || '',
-      costo: a.costo || '',
+      costo: a.costo_original ?? a.costo ?? '',
+      moneda_costo: a.moneda_costo || 'CLP',
+      cambio_costo_clp: a.cambio_costo_clp || '',
       unidad_costo: a.unidad_costo || '$/mes',
       tipo_condicion_minima: a.tipo_condicion_minima || 'sin_minimo',
       cantidad_minima: a.cantidad_minima || '',
@@ -2703,12 +2710,15 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
     const targetId = editingRecordId || null;
 
+    let currencyFields;
+    try { currencyFields = rentalCurrency(arriendoData); }
+    catch (error) { alert(error.message); return; }
     const newArriendo = {
       id: targetId,
       equipo: arriendoData.equipo.trim(),
       patente: arriendoData.patente.trim(),
       proveedor: arriendoData.proveedor.trim(),
-      costo: parseFloat(arriendoData.costo) || 0,
+      ...currencyFields,
       unidad_costo: arriendoData.unidad_costo || '$/mes',
       tipo_condicion_minima: arriendoData.tipo_condicion_minima || 'sin_minimo',
       cantidad_minima: parseFloat(arriendoData.cantidad_minima) || 0,
@@ -2726,6 +2736,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         patente: newArriendo.patente,
         proveedor: newArriendo.proveedor,
         costo: newArriendo.costo,
+        moneda_costo: newArriendo.moneda_costo,
+        costo_original: newArriendo.costo_original,
+        cambio_costo_clp: newArriendo.cambio_costo_clp,
         unidad_costo: newArriendo.unidad_costo,
         tipo_condicion_minima: newArriendo.tipo_condicion_minima,
         cantidad_minima: newArriendo.cantidad_minima,
@@ -4328,6 +4341,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                 <td className="p-2 font-bold text-blue-950">{a.proveedor}</td>
                                 <td className="p-2 font-bold text-emerald-800">
                                   ${tarifaVal} <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{unidadStr}</span>
+                                  {a.moneda_costo && a.moneda_costo !== 'CLP' && <small className="block mt-1">{Number(a.costo_original).toLocaleString('es-CL', {maximumFractionDigits:6})} {a.moneda_costo}{unidadStr.slice(1)} · Conversión guardada: ${Number(a.cambio_costo_clp).toLocaleString('es-CL')}</small>}
                                 </td>
                                 <td className="p-2 font-semibold text-amber-900 text-[11px]">
                                   <span className="bg-amber-50 px-2 py-0.5 rounded border border-amber-200">{minStr}</span>
@@ -9689,9 +9703,11 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 </span>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-[9.5px] font-bold uppercase text-amber-900 mb-1">Costo / Tarifa ($ CLP)</label>
+                    <label className="block text-[9.5px] font-bold uppercase text-amber-900 mb-1">Costo / Tarifa ({arriendoData.moneda_costo || 'CLP'})</label>
                     <input
                       type="number"
+                      step="any"
+                      min="0"
                       required
                       value={arriendoData.costo}
                       onChange={(e) => setArriendoData({ ...arriendoData, costo: e.target.value })}
@@ -9706,13 +9722,17 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                       onChange={(e) => setArriendoData({ ...arriendoData, unidad_costo: e.target.value })}
                       className="w-full border border-amber-300 rounded-lg p-2 font-bold text-slate-900 bg-white text-xs"
                     >
-                      <option value="$/mes">$/mes (Tarifa Mensual Base)</option>
-                      <option value="$/día">$/día (Por Día de Obra)</option>
-                      <option value="$/hr">$/hr (Por Hora Horómetro)</option>
+                      <option value="$/mes">{arriendoData.moneda_costo || 'CLP'}/mes (Tarifa Mensual Base)</option>
+                      <option value="$/día">{arriendoData.moneda_costo || 'CLP'}/día (Por Día de Obra)</option>
+                      <option value="$/hr">{arriendoData.moneda_costo || 'CLP'}/hr (Por Hora Horómetro)</option>
                     </select>
                   </div>
                 </div>
 
+                <PartidaCurrencyField currency={arriendoData.moneda_costo || 'CLP'} value={arriendoData.cambio_costo_clp}
+                  onCurrencyChange={moneda_costo => setArriendoData(current => ({...current, moneda_costo, cambio_costo_clp: ''}))}
+                  onRateChange={cambio_costo_clp => setArriendoData(current => ({...current, cambio_costo_clp}))}/>
+                <p className="text-[10px] text-amber-900">La tarifa se conserva en la moneda elegida. Costos y proyecciones utilizan su equivalente en CLP con esta conversión guardada, sin reajuste diario automático.</p>
                 <div className="grid grid-cols-2 gap-2 pt-1 border-t border-amber-200/60">
                   <div>
                     <label className="block text-[9.5px] font-bold uppercase text-amber-900 mb-1">Garantía / Condición Mínima</label>
