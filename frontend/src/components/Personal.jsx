@@ -21,6 +21,8 @@ import {workerAssignedToWork} from '../utils/workerCenters';
 import {toggleVisibleWorkers,workerMatchesSearch} from '../utils/workerAssignment.js';
 import { workerContractSummary } from '../utils/workerImport.js';
 import WorkerDossierPanel from './WorkerDossierPanel';
+import WorkerAllowancesEditor from './WorkerAllowancesEditor';
+import {validateAllowances, allowanceTotals, allowanceMonth} from '../utils/workerAllowances';
 
 const afpCommissionRates = {
   'Habitat': { fondo: 10.00, comision: 1.27, total: 11.27 },
@@ -147,7 +149,8 @@ function Personal({ user, onBack }) {
     afp: 'Habitat',
     prevision_salud: 'FONASA',
     colacion: '0',
-    movilizacion: '0'
+    movilizacion: '0',
+    otras_asignaciones: []
   });
 
   // Indicadores previsionales oficiales vigentes en Chile.
@@ -329,14 +332,16 @@ function Personal({ user, onBack }) {
     const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
     const money = value => `$${Math.round(Number(value || 0)).toLocaleString('es-CL')}`;
     const payroll = worker.payroll || {};
+    const allowances = allowanceTotals(worker,worker.periodo || allowanceMonth());
+    const allowanceDetails = payroll.allowances ?? allowances.details;
     const base = payroll.base ?? (parseFloat(worker.sueldo_base) || 0);
     const gratuityCap = Math.round((4.75 * (indicadores.salarioMinimo || INDICADORES_OFICIALES_CHILE.salarioMinimo)) / 12);
     const hasGratuity = worker.gratificacion !== 'Sin Gratificación';
     const gratuity = payroll.gratification ?? (hasGratuity ? Math.min(Math.round(base * .25), gratuityCap) : 0);
-    const taxable = payroll.taxableGross ?? (base + gratuity);
+    const taxable = payroll.taxableGross ?? (base + gratuity + allowances.taxable);
     const collation = payroll.collation ?? (parseFloat(worker.colacion) || 0);
     const transport = payroll.transport ?? (parseFloat(worker.movilizacion) || 0);
-    const assets = payroll.totalAssets ?? (taxable + collation + transport);
+    const assets = payroll.totalAssets ?? (taxable + collation + transport + allowances.nonTaxable);
     const afp = getAFPDetails(worker.afp);
     const afpAmount = payroll.afp ?? Math.round(taxable * afp.total / 100);
     const health = payroll.health ?? Math.round(taxable * .07);
@@ -357,7 +362,7 @@ function Personal({ user, onBack }) {
       @page{size:letter portrait;margin:12mm}*{box-sizing:border-box}body{margin:0;color:#172033;font-family:Arial,Helvetica,sans-serif;font-size:10.5px;line-height:1.35}.sheet{width:100%;max-width:190mm;margin:auto}.top{display:grid;grid-template-columns:1.3fr .7fr;border:1.4px solid #172033}.brand{padding:14px}.brand h1{margin:0;font-size:17px;text-transform:uppercase;letter-spacing:.5px}.brand p{margin:4px 0 0;color:#536176}.control{border-left:1px solid #172033;padding:12px}.control div{display:flex;justify-content:space-between;gap:8px;margin:3px 0}.title{text-align:center;font-weight:800;font-size:15px;letter-spacing:1px;margin:18px 0 10px;text-transform:uppercase}.worker{width:100%;border-collapse:collapse;border:1px solid #9aa5b5;margin-bottom:14px}.worker th{width:18%;background:#eef1f5;text-align:left;color:#39465b}.worker th,.worker td{border:1px solid #c8ced8;padding:6px 8px}.columns{display:grid;grid-template-columns:1fr 1fr;gap:12px}.block{border:1px solid #9aa5b5}.block h2{margin:0;padding:7px 9px;background:#172033;color:white;font-size:10px;letter-spacing:.4px;text-transform:uppercase}.block table{width:100%;border-collapse:collapse}.block td{padding:6px 9px;border-bottom:1px solid #e2e6eb}.amount{text-align:right;font-family:'Courier New',monospace;font-weight:700;white-space:nowrap}.total td{border-top:1.5px solid #172033;border-bottom:0;background:#eef1f5;font-weight:800}.bases{display:flex;gap:18px;margin:12px 0;padding:7px 9px;border:1px solid #c8ced8;background:#f7f8fa}.bases b{margin-right:4px}.net{display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding:12px 14px;border:2px solid #172033}.net span{font-size:12px;font-weight:800;text-transform:uppercase}.net strong{font-family:'Courier New',monospace;font-size:20px}.legal{margin-top:10px;color:#536176;font-size:9px;text-align:justify}.signatures{display:grid;grid-template-columns:1fr 1fr;gap:65px;margin-top:60px}.signature{border-top:1px solid #172033;text-align:center;padding-top:6px;font-weight:700}.signature small{display:block;color:#68758a;font-weight:400;margin-top:2px}.footer{display:flex;justify-content:space-between;border-top:1px solid #c8ced8;margin-top:22px;padding-top:6px;color:#68758a;font-size:8.5px}.actions{text-align:center;margin:18px}.actions button{background:#172033;color:white;border:0;border-radius:7px;padding:11px 20px;font-weight:700;cursor:pointer}@media print{.actions{display:none}.sheet{max-width:none}}
     </style></head><body><div class="sheet"><section class="top"><div class="brand"><h1>${escape(user?.empresa || 'Empresa')}</h1><p>RUT empresa: ${escape(employerRut)}</p></div><div class="control"><div><b>Documento</b><span>Liquidación de remuneraciones</span></div><div><b>Período</b><span>${escape(period)}</span></div><div><b>Folio</b><span>LIQ-${escape(periodValue)}-${escape(worker.id || worker.rut || '')}</span></div></div></section><div class="title">Liquidación de sueldo</div>
       <table class="worker"><tr><th>Trabajador</th><td>${escape(worker.nombre)}</td><th>RUT</th><td>${escape(worker.rut || 'No informado')}</td></tr><tr><th>Cargo</th><td>${escape(worker.cargo || '')}</td><th>Centro de gestión</th><td>${escape(worker.payroll?.centroGestion || worker.centro_gestion_nombre || worker.centro_trabajo || worker.obra_nombre || 'Sin asignar')}</td></tr><tr><th>Contrato</th><td>${escape(worker.tipo_contrato || 'Indefinido')}</td><th>Fecha ingreso</th><td>${escape(worker.fecha_inicio_contrato || worker.inicio || 'No informada')}</td></tr><tr><th>AFP</th><td>${escape(worker.afp || 'No informada')} (${afp.total}%)</td><th>Salud</th><td>${escape(worker.prevision_salud || 'No informada')} (7%)</td></tr></table>
-      <div class="columns"><section class="block"><h2>Haberes</h2><table>${rows([['Sueldo base',base,true],['Gratificación legal',gratuity,hasGratuity],['Colación (no imponible)',collation],['Movilización (no imponible)',transport]],'TOTAL HABERES',assets)}</table></section><section class="block"><h2>Descuentos</h2><table>${rows([[`AFP ${worker.afp || ''} (${afp.total}%)`,afpAmount,true,true],[`Salud ${worker.prevision_salud || ''} (7%)`,health,true,true],[`Seguro de cesantía (${indefinite ? '0,6%' : '0%'})`,afc,true,true],['Impuesto único',tax,false,true],['Otros descuentos',otherDiscounts,false,true]],'TOTAL DESCUENTOS',discounts)}</table></section></div>
+      <div class="columns"><section class="block"><h2>Haberes</h2><table>${rows([['Sueldo base',base,true],['Gratificación legal',gratuity,hasGratuity],['Colación (no imponible)',collation],['Movilización (no imponible)',transport],['Horas extra',payroll.overtime||0],['Bonos ocasionales',payroll.bonus||0],['Otros haberes no imponibles',payroll.otherNonTaxable||0],...allowanceDetails.map(a=>[`${a.nombre} (${a.tipo==='imponible'?'imponible':'no imponible'})`,a.amount])],'TOTAL HABERES',assets)}</table></section><section class="block"><h2>Descuentos</h2><table>${rows([[`AFP ${worker.afp || ''} (${afp.total}%)`,afpAmount,true,true],[`Salud ${worker.prevision_salud || ''} (7%)`,health,true,true],[`Seguro de cesantía (${indefinite ? '0,6%' : '0%'})`,afc,true,true],['Impuesto único',tax,false,true],['Otros descuentos',otherDiscounts,false,true]],'TOTAL DESCUENTOS',discounts)}</table></section></div>
       <div class="bases"><span><b>Total imponible:</b>${money(taxable)}</span><span><b>Total no imponible:</b>${money(collation + transport)}</span></div><div class="net"><span>Líquido a pagar</span><strong>${money(net)}</strong></div><p class="legal">Declaro recibir conforme la presente liquidación de remuneraciones, sin perjuicio de los derechos que legalmente me correspondan. Este documento fue generado por Obraxis con los antecedentes registrados por la empresa.</p><div class="signatures"><div class="signature">Firma del trabajador<small>${escape(worker.nombre)} · ${escape(worker.rut || '')}</small></div><div class="signature">Firma del empleador<small>${escape(user?.empresa || 'Empresa')}</small></div></div><footer class="footer"><span>Generado mediante sistema Obraxis</span><span>${new Date().toLocaleString('es-CL')}</span></footer></div><div class="actions"><button onclick="window.print()">Imprimir / Guardar como PDF</button></div></body></html>`);
     printWindow.document.close();
     printWindow.focus();
@@ -423,7 +428,8 @@ function Personal({ user, onBack }) {
       afp: 'Habitat',
       prevision_salud: 'FONASA',
       colacion: '0',
-      movilizacion: '0'
+      movilizacion: '0',
+      otras_asignaciones: []
     });
     setSuccessMsg('');
     setErrorMsg('');
@@ -455,7 +461,8 @@ function Personal({ user, onBack }) {
       afp: worker.afp || 'Habitat',
       prevision_salud: worker.prevision_salud || 'FONASA',
       colacion: worker.colacion !== undefined && worker.colacion !== null ? worker.colacion.toString() : '0',
-      movilizacion: worker.movilizacion !== undefined && worker.movilizacion !== null ? worker.movilizacion.toString() : '0'
+      movilizacion: worker.movilizacion !== undefined && worker.movilizacion !== null ? worker.movilizacion.toString() : '0',
+      otras_asignaciones: (worker.otras_asignaciones || []).map(row=>({...row}))
     });
     setSuccessMsg('');
     setErrorMsg('');
@@ -645,6 +652,9 @@ function Personal({ user, onBack }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (editingWorker ? !canEdit : !canCreate) { setErrorMsg('Tu perfil no está autorizado para guardar trabajadores.'); return; }
+    let otherAllowances;
+    try { otherAllowances=validateAllowances(formData.otras_asignaciones); }
+    catch(error){setErrorMsg(error.message);return;}
     setModalLoading(true);
     setSuccessMsg('');
     setErrorMsg('');
@@ -676,6 +686,7 @@ function Personal({ user, onBack }) {
       prevision_salud: formData.prevision_salud,
       colacion: parseFloat(formData.colacion) || 0,
       movilizacion: parseFloat(formData.movilizacion) || 0,
+      otras_asignaciones: otherAllowances,
       empresa: user?.empresa || 'Obraxis'
     };
 
@@ -1787,7 +1798,7 @@ function Personal({ user, onBack }) {
 
               {/* Sección 4: Remuneración, Asignaciones y Datos Bancarios */}
               <div className="space-y-3 pt-2">
-                <h4 className="font-bold text-blue-950 uppercase text-[10px] tracking-wider border-b pb-1">4. Remuneración, Asignaciones (No Imponibles) y Pago Bancario</h4>
+                <h4 className="font-bold text-blue-950 uppercase text-[10px] tracking-wider border-b pb-1">4. Remuneración, Asignaciones y Pago Bancario</h4>
                 
                 <div className="grid grid-cols-4 gap-3">
                   <div>
@@ -1832,6 +1843,7 @@ function Personal({ user, onBack }) {
                   </div>
                 </div>
 
+                <WorkerAllowancesEditor value={formData.otras_asignaciones} onChange={value=>setFormData(current=>({...current,otras_asignaciones:value}))}/>
                 <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Banco</label>
@@ -2022,15 +2034,17 @@ function Personal({ user, onBack }) {
               {/* Ficha e Info del Trabajador */}
               {(() => {
                 const payroll = selectedWorkerLiquidacion.payroll;
+                const allowances=allowanceTotals(selectedWorkerLiquidacion,selectedWorkerLiquidacion.periodo || allowanceMonth());
+                const allowanceDetails=payroll?.allowances ?? allowances.details;
                 const sBase = payroll?.base ?? (parseFloat(selectedWorkerLiquidacion.sueldo_base) || 600000);
                 const topeGratif = Math.round((4.75 * (indicadores.salarioMinimo || INDICADORES_OFICIALES_CHILE.salarioMinimo)) / 12);
                 const tieneGratif = selectedWorkerLiquidacion.gratificacion !== 'Sin Gratificación';
                 const gratifMonto = payroll?.gratification ?? (tieneGratif ? Math.min(Math.round(sBase * 0.25), topeGratif) : 0);
-                const imponible = payroll?.taxableGross ?? (sBase + gratifMonto);
+                const imponible = payroll?.taxableGross ?? (sBase + gratifMonto + allowances.taxable);
 
                 const colacion = payroll?.collation ?? (parseFloat(selectedWorkerLiquidacion.colacion) || 0);
                 const movilizacion = payroll?.transport ?? (parseFloat(selectedWorkerLiquidacion.movilizacion) || 0);
-                const totalHaberes = payroll?.totalAssets ?? (imponible + colacion + movilizacion);
+                const totalHaberes = payroll?.totalAssets ?? (imponible + colacion + movilizacion + allowances.nonTaxable);
 
                 const afpInfo = getAFPDetails(selectedWorkerLiquidacion.afp);
                 const afpMonto = payroll?.afp ?? Math.round(imponible * (afpInfo.total / 100));
@@ -2075,6 +2089,7 @@ function Personal({ user, onBack }) {
                                 <td className="p-1.5 text-right font-mono font-bold text-emerald-800">+${gratifMonto.toLocaleString('es-CL')}</td>
                               </tr>
                             )}
+                            {allowanceDetails.map((a,i)=><tr key={`allowance-${i}`}><td className="p-1.5 text-slate-600 break-words">{a.nombre} ({a.tipo==='imponible'?'imponible':'no imponible'})</td><td className="p-1.5 text-right font-mono text-slate-600">${a.amount.toLocaleString('es-CL')}</td></tr>)}
                             {colacion > 0 && (
                               <tr>
                                 <td className="p-1.5 text-slate-500">Asignación Colación (No Imp.)</td>

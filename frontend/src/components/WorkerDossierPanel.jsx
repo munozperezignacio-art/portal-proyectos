@@ -64,7 +64,7 @@ export default function WorkerDossierPanel({user, worker, workers, documentTypes
       </div>
       {tab==='earnings'&&<section className="space-y-3"><h4 className="font-bold">Haberes configurados en la ficha actual</h4><p className="text-xs text-slate-500">Estos valores no son una liquidación ni acreditan pago. No representan necesariamente los valores históricos del mes consultado.</p><dl className="grid grid-cols-2 gap-3">
         {[['Sueldo base',money(worker.sueldo_base)],['Colación',money(worker.colacion)],['Movilización',money(worker.movilizacion)],['Gratificación',worker.gratificacion||'No informada']].map(([label,value])=><div key={label} className="rounded-xl border bg-slate-50 p-3"><dt className="text-xs text-slate-500">{label}</dt><dd className="mt-1 font-bold break-words">{value}</dd></div>)}
-      </dl></section>}
+      </dl><h5 className="text-sm font-bold">Otras asignaciones mensuales</h5>{!(worker.otras_asignaciones || []).length?<p className="text-xs text-slate-500">Sin otras asignaciones.</p>:<ul className="space-y-2">{worker.otras_asignaciones.map((row,index)=><li key={index} className="rounded-xl border p-3 text-sm"><b className="break-words">{row.nombre}</b><span className="block">{money(row.monto)} / mes · {row.tipo==='imponible'?'Imponible':'No imponible'}</span><small>Desde {row.desde}{row.hasta?` hasta ${row.hasta}`:' · sin término'}</small></li>)}</ul>}</section>}
       {busy&&<p role="status">Cargando historial del período…</p>}
       {error&&<div role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">No se pudo cargar el historial: {error} <button type="button" onClick={()=>setRetry(value=>value+1)} className="underline">Reintentar</button></div>}
       {report&&!busy&&!error&&<>

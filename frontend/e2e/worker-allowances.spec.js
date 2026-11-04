@@ -1,0 +1,23 @@
+import {test,expect} from '@playwright/test';
+test('add, classify, save and remove allowances without overflow',async({page})=>{
+ const errors=[];page.on('pageerror',error=>errors.push(error.message));
+ await page.goto('/e2e/fixtures/worker-allowances.html');
+ await page.getByRole('button',{name:'+ Agregar asignación',exact:true}).click();
+ await page.getByLabel('Nombre asignación 1',{exact:true}).fill('Asignación responsabilidad');
+ await page.getByLabel('Monto asignación 1',{exact:true}).fill('90000');
+ await page.getByLabel('Tipo asignación 1',{exact:true}).selectOption('imponible');
+ await page.getByLabel('Desde asignación 1',{exact:true}).fill('2026-11');
+ await page.getByRole('button',{name:'+ Agregar asignación',exact:true}).click();
+ await page.getByLabel('Nombre asignación 2',{exact:true}).fill('Viático');
+ await page.getByLabel('Monto asignación 2',{exact:true}).fill('60000');
+ await page.getByLabel('Tipo asignación 2',{exact:true}).selectOption('no_imponible');
+ await page.getByLabel('Desde asignación 2',{exact:true}).fill('2026-11');
+ await page.getByLabel('Hasta asignación 2',{exact:true}).fill('2026-12');
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+ await page.getByRole('button',{name:'Guardar ficha'}).click();
+ await expect(page.locator('output')).toContainText('"monto":90000');
+ await expect(page.locator('output')).toContainText('no_imponible');
+ await page.getByRole('button',{name:'Quitar asignación 1'}).click();
+ await expect(page.getByLabel('Nombre asignación 1',{exact:true})).toHaveValue('Viático');
+ expect(errors).toEqual([]);
+});

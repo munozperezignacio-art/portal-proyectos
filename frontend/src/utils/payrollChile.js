@@ -1,3 +1,4 @@
+import {allowanceTotals} from './workerAllowances.js';
 const num = value => Number(value || 0);
 const round = value => Math.round(num(value));
 const cleanRut = value => String(value || '').replace(/[^0-9kK]/g, '').toUpperCase();
@@ -43,9 +44,10 @@ export const calculatePayroll = (worker, attendance, parameters, novelty = {}) =
   const overtimeHours = num(novelty.horas_extra ?? attendance.overtime);
   const overtime = round(hourly * (parameters.factorHoraExtra || 1.5) * overtimeHours);
   const bonus = round(novelty.bonos ?? attendance.bonus);
-  const gratificationBase=base+(parameters.gratificarHaberesVariables ? overtime+bonus : 0);
+  const allowances = allowanceTotals(worker, parameters.periodo || '', paidDays);
+  const gratificationBase=base+(parameters.gratificarHaberesVariables ? overtime+bonus+allowances.taxable : 0);
   const gratification = worker.gratificacion === 'Sin Gratificación' ? 0 : Math.min(round(gratificationBase * 0.25), gratificationCap);
-  const taxableGrossRaw = base + gratification + overtime + bonus;
+  const taxableGrossRaw = base + gratification + overtime + bonus + allowances.taxable;
   const pensionCap = num(parameters.topeAfpUf) * num(parameters.uf);
   const unemploymentCap = num(parameters.topeCesantiaUf) * num(parameters.uf);
   const pensionTaxable = Math.min(taxableGrossRaw, pensionCap || taxableGrossRaw);
@@ -63,9 +65,9 @@ export const calculatePayroll = (worker, attendance, parameters, novelty = {}) =
   const otherNonTaxable = round(novelty.no_imponibles ?? attendance.nonTaxable);
   const otherDiscounts = round(novelty.otros_descuentos);
   const legalDiscounts = afp + health + afc + tax;
-  const totalAssets = taxableGrossRaw + collation + transport + otherNonTaxable;
+  const totalAssets = taxableGrossRaw + collation + transport + otherNonTaxable + allowances.nonTaxable;
   const employerCharges = round(taxableGrossRaw * num(parameters.cargasEmpleadorPct) / 100);
   const employerCost = totalAssets + employerCharges;
   const net = Math.max(0, totalAssets - legalDiscounts - otherDiscounts);
-  return { workerId: worker.id, rut: worker.rut, nombre: worker.nombre, obra: worker.obra_nombre, cargo: worker.cargo, paidDays, attendanceRecords: attendance.records, absentDays: attendance.absent, overtimeHours, baseContract, base, gratification, overtime, bonus, taxableGross: taxableGrossRaw, pensionTaxable, collation, transport, otherNonTaxable, totalAssets, employerCharges, employerCost, afpRate, afp, health, afc, tax, legalDiscounts, otherDiscounts, net };
+  return { workerId: worker.id, rut: worker.rut, nombre: worker.nombre, obra: worker.obra_nombre, cargo: worker.cargo, paidDays, attendanceRecords: attendance.records, absentDays: attendance.absent, overtimeHours, baseContract, base, gratification, overtime, bonus, allowances: allowances.details, taxableGross: taxableGrossRaw, pensionTaxable, collation, transport, otherNonTaxable, totalAssets, employerCharges, employerCost, afpRate, afp, health, afc, tax, legalDiscounts, otherDiscounts, net };
 };

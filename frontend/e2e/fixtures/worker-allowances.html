@@ -1,0 +1,9 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="fixture"></div><script type="module">
+import React,{useState} from 'react';
+import {createRoot} from 'react-dom/client';
+import '../../src/index.css';
+import Editor from '../../src/components/WorkerAllowancesEditor.jsx';
+import {validateAllowances} from '../../src/utils/workerAllowances.js';
+function App(){const [value,setValue]=useState([]),[saved,setSaved]=useState('');return React.createElement('form',{className:'max-w-2xl mx-auto p-4',onSubmit:e=>{e.preventDefault();setSaved(JSON.stringify(validateAllowances(value)));}},React.createElement(Editor,{value,onChange:setValue}),React.createElement('button',{type:'submit'},'Guardar ficha'),React.createElement('output',null,saved));}
+createRoot(document.getElementById('fixture')).render(React.createElement(App));
+</script></body></html>

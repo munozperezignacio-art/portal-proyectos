@@ -52,7 +52,7 @@ export default function PayrollAutomation({ user, personal, centrosGestion = [],
   const allCalculations = useMemo(() => personal.filter(worker => String(worker.estado || 'Activo').toLowerCase() !== 'inactivo').map(worker => {
     const center = centerMap.get(String(worker.centro_gestion_id || ''));
     const effective=laborCostParameters(worker,costConfig);
-    const workerParameters={...parameters,horasSemanales:effective.horas_semanales || parameters.horasSemanales,cargasEmpleadorPct:effective.cargas_empleador_pct ?? parameters.cargasEmpleadorPct,gratificarHaberesVariables:costConfig?.origen==='Automático'};
+    const workerParameters={...parameters,periodo:period,horasSemanales:effective.horas_semanales || parameters.horasSemanales,cargasEmpleadorPct:effective.cargas_empleador_pct ?? parameters.cargasEmpleadorPct,gratificarHaberesVariables:costConfig?.origen==='Automático'};
     return { ...calculatePayroll(worker, attendanceSummary(worker, attendance, period, approvedDays), workerParameters, novelties[worker.id] || {}), centroGestionId: worker.centro_gestion_id || null, centroGestion: center ? `${center.codigo} · ${center.nombre}` : 'Sin centro de gestión' };
   }), [personal, attendance, period, parameters, novelties, centerMap,approvedDays,costConfig]);
   const calculations = useMemo(() => centerFilter === 'Todos' ? allCalculations : allCalculations.filter(row => String(row.centroGestionId || '') === centerFilter), [allCalculations, centerFilter]);
