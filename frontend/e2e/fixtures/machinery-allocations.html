@@ -2,13 +2,14 @@
 import React,{useState,useMemo} from 'react';import {createRoot} from 'react-dom/client';import '../../src/index.css';
 import Panel from '../../src/components/MachineryCostControl.jsx';import {supabase} from '../../src/supabaseClient.js';
 import {applyMachineryAllocations} from '../../src/utils/costControl.js';
-const readonly=location.search.includes('readonly');window.calls=[];window.decisions=[];
+const readonly=location.search.includes('readonly');window.calls=[];window.decisions=[];window.excluded=[];
 const base=[{equipo_id:10,fecha:'2026-10-21',monto:101,equipo_tipo:'Excavadora',equipo_patente:'EX-01',estado_costo:'pendiente'}, {equipo_id:11,fecha:'2026-10-21',monto:203,equipo_tipo:'Martillo',equipo_patente:'MV-01',estado_costo:'confirmado'}];
 supabase.rpc=async(name,args)=>{if(name==='permisos_imputaciones_personal_obra')return {data:{ver:true,editar:!readonly,aprobar:!readonly}};
+ if(name==='excluir_cargo_maquinaria_obra'){window.calls.push(args);window.excluded.push(args.p_cargo);return{data:{guardado:true,excluido:true}};}
  if(name!=='guardar_imputacion_maquinaria_partidas')throw Error('RPC inesperada');
  window.calls.push(args);const [equipo_id,fecha]=args.p_cargo.split(':');const previous=window.decisions.find(d=>String(d.equipo_id)===equipo_id);
  const value={equipo_id:Number(equipo_id),fecha,version:args.p_version+1,distribucion:args.p_distribucion.map(p=>({...p,partida:p.partida_id===1?'Pilas':'Logística'})),historial:[...(previous?.historial||[]),{fecha:new Date().toISOString(),responsable:'Admin',motivo:args.p_motivo,nueva:args.p_distribucion}]};
  window.decisions=window.decisions.filter(d=>String(d.equipo_id)!==equipo_id).concat(value);return{data:{guardado:true}};};
-function Fixture(){const [revision,setRevision]=useState(0);const rows=useMemo(()=>applyMachineryAllocations(base,window.decisions),[revision]);return React.createElement('main',{className:'max-w-5xl p-4 mx-auto'},React.createElement(Panel,{rows,periods:[],obra:{id:1,empresa:'TEST'},user:{empresa:'TEST'},company:'TEST',canEdit:false,parts:[{id:1,partida:'Pilas',cantidad:3,pu:100},{id:2,partida:'Logística',cantidad:1,pu:100}],onSaved:()=>setRevision(x=>x+1)}),React.createElement('p',null,'Imputado Pilas: '+rows.reduce((s,r)=>s+(r.obra_liquidaciones_partidas.find(p=>p.partida_id===1)?.monto_imputado||0),0)),React.createElement('p',null,'Costo total: '+rows.reduce((s,r)=>s+r.monto,0)));}
+function Fixture(){const [revision,setRevision]=useState(0);const rows=useMemo(()=>applyMachineryAllocations(base.filter(r=>!window.excluded.includes(`${r.equipo_id}:${r.fecha}`)),window.decisions),[revision]);return React.createElement('main',{className:'max-w-5xl p-4 mx-auto'},React.createElement(Panel,{rows,periods:[],obra:{id:1,empresa:'TEST'},user:{empresa:'TEST'},company:'TEST',canEdit:false,parts:[{id:1,partida:'Pilas',cantidad:3,pu:100},{id:2,partida:'Logística',cantidad:1,pu:100}],onSaved:()=>setRevision(x=>x+1)}),React.createElement('p',null,'Imputado Pilas: '+rows.reduce((s,r)=>s+(r.obra_liquidaciones_partidas.find(p=>p.partida_id===1)?.monto_imputado||0),0)),React.createElement('p',null,'Costo total: '+rows.reduce((s,r)=>s+r.monto,0)));}
 createRoot(document.getElementById('fixture')).render(React.createElement(Fixture));
 </script></body></html>

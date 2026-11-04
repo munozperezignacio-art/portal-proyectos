@@ -41,5 +41,16 @@ test('machinery allocation permissions, audit, stale edits and unchanged costs',
  await assert.rejects(asUser(1,call,[2,distribution]),/cargo cambió/);
  await db.exec(`update usuarios set obras='No autorizada' where nombre='Contrato'`);
  await assert.rejects(asUser(2,call,[2,distribution]),{code:'42501'});
+ await db.exec(`alter table maquinaria_decisiones_costo add primary key(empresa,equipo_id,fecha);alter table maquinaria_decisiones_costo add column motivo text,add column actualizado_por uuid,add column actualizado_at timestamptz;`);
+ await db.exec(await readFile(new URL('../../supabase/migrations/20261104155637_excluir_cargos_maquinaria_obra.sql',import.meta.url),'utf8'));
+ const exclude=`select excluir_cargo_maquinaria_obra('A',1,'10:2026-10-21',2,102,'No corresponde a esta obra')`;
+ await assert.rejects(asUser(3,exclude),{code:'42501'});
+ await assert.rejects(asUser(1,exclude.replace(',102,',',101,')),/cargo cambió/);
+ await asUser(1,exclude);
+ const decision=(await db.query('select * from maquinaria_decisiones_costo')).rows[0];
+ assert.equal(decision.tipo,'no_uso');assert.equal(decision.motivo,'No corresponde a esta obra');
+ assert.equal(decision.actualizado_por,'10000000-0000-0000-0000-000000000001');
+ await assert.rejects(asUser(1,exclude),/ya no está vigente/);
+ assert.equal((await db.query('select count(*) from maquinaria_partidas_decisiones')).rows[0].count,1);
  }finally{await db.close();}
 });

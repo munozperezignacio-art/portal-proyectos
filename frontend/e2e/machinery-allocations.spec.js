@@ -1,4 +1,22 @@
 import {test,expect} from '@playwright/test';
+test('selected equipment scrolls to approval and can be excluded without selecting parts',async({page})=>{
+ await page.goto('/e2e/fixtures/machinery-allocations.html');
+ await page.locator('summary').filter({hasText:'Control de costos de maquinaria'}).click();
+ await page.getByLabel('Seleccionar Excavadora EX-01 2026-10-21',{exact:true}).check();
+ await page.evaluate(()=>{window.scrollRequests=0;const original=Element.prototype.scrollIntoView;Element.prototype.scrollIntoView=function(options){window.scrollRequests++;original.call(this,{...options,behavior:'instant'});};});
+ await page.getByRole('button',{name:'Distribuir seleccionados (1)',exact:true}).click();
+ const editor=page.getByRole('region',{name:'Editar distribución de maquinaria'});
+ await expect(editor).toBeFocused();
+ expect(await page.evaluate(()=>window.scrollRequests)).toBeGreaterThan(0);
+ await page.getByRole('button',{name:'No cargar a obra',exact:true}).click();
+ await page.getByRole('button',{name:'Confirmar no cargar a obra',exact:true}).click();
+ await expect(page.getByRole('alert')).toContainText('motivo');
+ await page.getByLabel('Motivo de la aprobación o edición').fill('Equipo no corresponde a esta obra');
+ await page.getByRole('button',{name:'Confirmar no cargar a obra',exact:true}).click();
+ await expect(page.getByText('Costo total: 203',{exact:true})).toBeVisible();
+ expect(await page.evaluate(()=>window.excluded)).toEqual(['10:2026-10-21']);
+ expect(await page.evaluate(()=>window.calls[0].p_distribucion)).toBeUndefined();
+});
 test('approve equipment by day, budget weights, refresh and audited editing',async({page})=>{
  await page.goto('/e2e/fixtures/machinery-allocations.html');
  await page.locator('summary').filter({hasText:'Control de costos de maquinaria'}).click();
