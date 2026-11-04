@@ -71,6 +71,7 @@ const SpecializedAssistanceInbox = React.lazy(() => import('./SpecializedAssista
 import {machineryCostControl,costDate,costState,costStateLabel} from '../utils/costControl';
 import {rentalCurrency} from '../utils/rentalCurrency';
 import MachineryCostControl from './MachineryCostControl';
+import {applyMachineryAllocations} from '../utils/costControl';
 const PredictiveScenarioPanel = React.lazy(() => import('./PredictiveScenarioPanel'));
 const BudgetExcelImporter = React.lazy(() => import('./BudgetExcelImporter'));
 
@@ -222,19 +223,20 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const loadMachineryCharges=async obra=>{
     const request=++machineryLoadId.current;
     const all=async factory=>{let data=[];for(let from=0;from<100000;from+=1000){const page=await factory().range(from,from+999);if(page.error)return page;data.push(...page.data);if(page.data.length<1000)return {data};}return {error:new Error('Demasiados registros para consolidar sin paginación adicional')};};
-    const [reports,periods,decisions,work]=await Promise.all([
+    const [reports,periods,decisions,work,allocations]=await Promise.all([
       all(()=>supabase.from('maquinaria_uso_diario').select('id,empresa,equipo_id,fecha,obra_nombre,obra_cargo_diario,cargo_obra_id,tarifa_diaria_aplicada,cargo_decidido_at,equipo_tipo,equipo_patente,created_at').eq('empresa',user.empresa).order('id')),
       all(()=>supabase.from('maquinaria_periodos_costo').select('*').eq('empresa',user.empresa).order('id')),
       all(()=>supabase.from('maquinaria_decisiones_costo').select('*').eq('empresa',user.empresa).order('fecha').order('equipo_id')),
-      supabase.from('obras').select('id').eq('empresa',user.empresa).eq('nombre',obra).single()
+      supabase.from('obras').select('id').eq('empresa',user.empresa).eq('nombre',obra).single(),
+      all(()=>supabase.from('maquinaria_partidas_decisiones').select('*').eq('empresa',user.empresa).order('obra_id').order('fecha').order('equipo_id'))
     ]);
     if(request!==machineryLoadId.current)return;
-    if(reports.error||periods.error||decisions.error||work.error){setMachineryCharges([]);setMachineryPeriods([]);setMachineryDecisions([]);setMachineryChargeError('No se pudieron cargar todos los cargos de maquinaria. El costo de control está incompleto.');return;}
+    if(reports.error||periods.error||decisions.error||work.error||allocations.error){setMachineryCharges([]);setMachineryPeriods([]);setMachineryDecisions([]);setMachineryChargeError('No se pudieron cargar todos los cargos de maquinaria. El costo de control está incompleto.');return;}
     const today=new Date().toLocaleDateString('en-CA',{timeZone:'America/Santiago'});
     const end=`${Number(today.slice(0,4))+3}-12-31`;
     setMachineryPeriods(periods.data||[]);
     setMachineryDecisions(decisions.data||[]);
-    setMachineryCharges(machineryCostControl({periods:periods.data,reports:reports.data,decisions:decisions.data,holidays:CHILEAN_HOLIDAYS,end,cutoff:today,obraId:work.data.id,obraName:obra}));
+    setMachineryCharges(applyMachineryAllocations(machineryCostControl({periods:periods.data,reports:reports.data,decisions:decisions.data,holidays:CHILEAN_HOLIDAYS,end,cutoff:today,obraId:work.data.id,obraName:obra}),allocations.data.filter(d=>String(d.obra_id)===String(work.data.id))));
     setMachineryChargeError('');
   };
   const { permissions: userPermissions, loading: permissionsLoading } = useUserPermissions(user);
@@ -4212,7 +4214,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 )}
               </div>
 
-              {maqSubTab === 'costos' && canObraGestionView && <MachineryCostControl rows={machineryCharges} periods={machineryPeriods} decisions={machineryDecisions} obra={selectedObra} company={user.empresa} canEdit={canEquipmentEdit||can(user,userPermissions,'obras.gestion.configurar')} onSaved={()=>loadMachineryCharges(selectedObra.nombre)}/>}
+              {maqSubTab === 'costos' && canObraGestionView && <MachineryCostControl parts={partidasList} user={user} rows={machineryCharges} periods={machineryPeriods} decisions={machineryDecisions} obra={selectedObra} company={user.empresa} canEdit={canEquipmentEdit||can(user,userPermissions,'obras.gestion.configurar')} onSaved={()=>loadMachineryCharges(selectedObra.nombre)}/>}
 
               {/* CONTENIDO PESTAÑA 1: ASIGNACIONES DE EMPRESA */}
               {maqSubTab === 'asignaciones' && (
@@ -5025,7 +5027,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     .reduce((subtotal, detalle) => subtotal + (parseFloat(detalle.monto_imputado) || 0), 0);
                 }, 0);
                 const getCostoImputadoPartida = (partidaName) =>
-                  getCostoDirectoImputadoPartida(partidaName) + getCostoManoObraPartida(partidaName);
+                  getCostoDirectoImputadoPartida(partidaName) + getCostoManoObraPartida(partidaName) + machineryCharges.filter(c=>c.fecha<=fCorteStr).reduce((sum,c)=>sum+(c.obra_liquidaciones_partidas||[]).filter(i=>isMatchPartidaName(i.partida,partidaName)).reduce((s,i)=>s+(Number(i.monto_imputado)||0),0),0);
                 const AC_facturas = isGlobalStats
                   ? (costosList || []).filter(c => getCostDate(c) <= fCorteStr).reduce((acc, c) => acc + (parseFloat(c.monto) || 0), 0)
                   : targetPartidas.reduce((sum, p) => sum + getCostoImputadoPartida(p.partida), 0);
@@ -5048,7 +5050,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   ...(costosList || []).filter(c => getCostDate(c) <= fCorteStr).map(c => ({ ...c,monto_base:Number(c.monto)||0,fecha:getCostDate(c),monto:isGlobalStats ? Number(c.monto)||0 : (c.imputaciones || []).filter(i => targetPartidas.some(p => isMatchPartidaName(i.partida,p.partida))).reduce((sum,i)=>sum+Math.round((Number(c.monto)||0)*(Number(i.porcentaje)||0)/100),0) })),
                   ...(liquidacionesList || []).filter(c => (c.fecha || String(c.created_at || '').slice(0,10)) <= fCorteStr).map(c => ({ ...c,categoria_proyeccion:'Mano de obra',fecha:c.fecha || String(c.created_at || '').slice(0,10),monto:isGlobalStats ? Number(c.monto_real)||0 : (c.obra_liquidaciones_partidas || []).filter(i => targetPartidas.some(p => isMatchPartidaName(i.partida,p.partida))).reduce((sum,i)=>sum+(Number(i.monto_imputado)||0),0) })),
                   ...(isGlobalStats ? filteredMantenciones : []).map(c => ({ ...c,categoria_proyeccion:'Mantenciones de equipos',monto:Number(c.costo)||0 })),
-                  ...(isGlobalStats?dailyMachineryCharges:[]).map(c=>({...c,id:`maquinaria-dia-${c.equipo_id}-${c.fecha}`,nombre:`${c.equipo_tipo} ${c.equipo_patente}`,categoria_proyeccion:'Uso diario de maquinaria',monto:Number(c.monto)||0}))
+                  ...dailyMachineryCharges.map(c=>({...c,id:`maquinaria-dia-${c.equipo_id}-${c.fecha}`,nombre:`${c.equipo_tipo} ${c.equipo_patente}`,categoria_proyeccion:'Uso diario de maquinaria',monto:isGlobalStats?Number(c.monto)||0:(c.obra_liquidaciones_partidas||[]).filter(i=>targetPartidas.some(p=>isMatchPartidaName(i.partida,p.partida))).reduce((s,i)=>s+(Number(i.monto_imputado)||0),0)}))
                 ];
 
                 // PARTIDAS CON ALERTA Y DESVIACIÓN CRÍTICA DE COSTO

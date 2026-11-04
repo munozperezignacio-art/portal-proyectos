@@ -1,0 +1,30 @@
+import {test,expect} from '@playwright/test';
+test('approve equipment by day, budget weights, refresh and audited editing',async({page})=>{
+ await page.goto('/e2e/fixtures/machinery-allocations.html');
+ await page.locator('summary').filter({hasText:'Control de costos de maquinaria'}).click();
+ await page.getByLabel('Seleccionar todos Pendiente 2026-10-21',{exact:true}).check();
+ await page.getByRole('button',{name:'Seleccionar todas las partidas y ponderar'}).click();
+ await expect(page.getByLabel('Porcentaje Pilas')).toHaveValue('75.00');
+ await page.getByLabel('Motivo de la aprobación o edición').fill('Equipos del día aprobados');
+ await page.getByRole('button',{name:'Aprobar distribución',exact:true}).click();
+ await expect(page.getByText('Imputado Pilas: 228',{exact:true})).toBeVisible();
+ await expect(page.getByText('Costo total: 304',{exact:true})).toBeVisible();
+ expect(await page.evaluate(()=>window.calls.length)).toBe(2);
+ await expect(page.locator('summary').filter({hasText:'2026-10-21 · Excavadora'})).not.toBeVisible();
+ await page.locator('summary').filter({hasText:'Ver editadas y aprobadas'}).click();
+ await page.locator('summary').filter({hasText:'2026-10-21 · Excavadora'}).click();
+ await page.getByRole('button',{name:'Editar imputación'}).click();
+ await page.getByLabel('Porcentaje Pilas').fill('50');await page.getByLabel('Porcentaje Logística').fill('50');
+ await page.getByLabel('Motivo de la aprobación o edición').fill('Corrección revisada de equipos');
+ await page.getByRole('button',{name:'Guardar cambios',exact:true}).click();
+ await expect(page.getByText('Imputado Pilas: 202.75',{exact:true})).toBeVisible();
+ expect(await page.evaluate(()=>window.decisions.find(d=>d.equipo_id===10).historial.length)).toBe(2);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
+test('unauthorized roles cannot select or approve equipment',async({page})=>{
+ await page.goto('/e2e/fixtures/machinery-allocations.html?readonly');
+ await page.locator('summary').filter({hasText:'Control de costos de maquinaria'}).click();
+ await expect(page.getByRole('checkbox')).toHaveCount(0);
+ await page.locator('summary').filter({hasText:'2026-10-21 · Excavadora'}).click();
+ await expect(page.getByRole('button',{name:'Revisar y aprobar'})).toHaveCount(0);
+});

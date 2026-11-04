@@ -1,6 +1,20 @@
 export const costDate=c=>String(c.fecha_costo||c.fecha||c.created_at||'').slice(0,10);
 export const costState=(c,cutoff)=>costDate(c)>cutoff?'proyectado':['pendiente','proyectado'].includes(c.estado_costo)?'pendiente':'confirmado';
 export const costStateLabel={confirmado:'Confirmado',pendiente:'Incurrido · pendiente de confirmar',proyectado:'Futuro proyectado'};
+export function applyMachineryAllocations(rows, decisions) {
+ const index=new Map(decisions.map(d=>[`${d.equipo_id}:${d.fecha}`,d]));
+ return rows.map(row=>{
+  const d=index.get(`${row.equipo_id}:${row.fecha}`);
+  let accumulated=0,assigned=0;
+  const links=(d?.distribucion||[]).map((p,i,list)=>{
+   accumulated+=Number(p.porcentaje)/100;
+   const end=i===list.length-1?Number(row.monto):Math.round(Number(row.monto)*accumulated*100)/100;
+   const amount=end-assigned;assigned=end;
+   return {...p,factor:Number(p.porcentaje)/100,monto_imputado:amount,criterio:'Imputación de maquinaria aprobada'};
+  });
+  return {...row,imputaciones:d?.distribucion||[],obra_liquidaciones_partidas:links,version_imputacion:d?.version||0,historial_imputacion:d?.historial||[]};
+ });
+}
 // Cost confirmation and assignment to budget items are independent states.
 export function pendingMachineryAllocations(rows, cutoff) {
  return rows.filter(r=>r.fecha<=cutoff).map(r=>{

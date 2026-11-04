@@ -1,0 +1,45 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {PGlite} from '@electric-sql/pglite';
+test('machinery allocation permissions, audit, stale edits and unchanged costs',async()=>{
+ const db=new PGlite();
+ try{
+ await db.exec(`create role anon;create role authenticated;create schema auth;create schema private;
+ create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
+ create table obras(id integer primary key,empresa text,nombre text);
+ create table usuarios(auth_user_id uuid,empresa text,nombre text,rol text,rol_base text,obras text,permisos jsonb);
+ create table roles(empresa text,nombre text,rol_base text,permisos jsonb);
+ create function private.obraxis_actor_can_access_company(c text) returns boolean language sql stable security definer as $$select exists(select 1 from public.usuarios where auth_user_id=auth.uid() and empresa=c)$$;
+ create table partidas_obra(id integer,empresa text,obra_id integer,partida text,es_titulo boolean,unidad text);
+ create table maquinaria_periodos_costo(id bigint,empresa text,equipo_id integer,obra_id bigint,desde date,hasta date,tarifa numeric,asignacion_id bigint);
+ create table maquinaria_uso_diario(id bigint,empresa text,equipo_id text,fecha date,cargo_obra_id bigint,obra_cargo_diario text,obra_nombre text,tarifa_diaria_aplicada numeric,cargo_decidido_at timestamptz,created_at timestamptz);
+ create table maquinaria_decisiones_costo(empresa text,equipo_id integer,obra_id bigint,fecha date,periodo_id bigint,tipo text,monto numeric);
+ insert into obras values(1,'A','Obra'),(2,'B','Otra');
+ insert into partidas_obra values(1,'A',1,'Pilas',false,'UND'),(2,'A',1,'Logística',false,'GL'),(3,'B',2,'Ajena',false,'GL');
+ insert into maquinaria_periodos_costo values(1,'A',10,1,'2026-10-01',null,101,1);
+ insert into usuarios values('10000000-0000-0000-0000-000000000001','A','Admin','Administrador de Empresa',null,'todas','{}'),('10000000-0000-0000-0000-000000000002','A','Contrato','Administrador de Contratos',null,'Obra','{}'),('10000000-0000-0000-0000-000000000003','A','Supervisor','Supervisor',null,'todas','{}');
+ grant usage on schema private,auth to authenticated;`);
+ const previous=await readFile(new URL('../../supabase/migrations/20261104144849_aprobar_imputaciones_partidas_personal.sql',import.meta.url),'utf8');
+ await db.exec(previous.slice(previous.indexOf('create function private.rrhh_partidas_permiso'),previous.indexOf('create policy decisiones_lectura')));
+ await db.exec(await readFile(new URL('../../supabase/migrations/20261104153431_imputaciones_maquinaria_partidas.sql',import.meta.url),'utf8'));
+ const asUser=(id,query,params=[])=>db.transaction(async tx=>{await tx.exec(`set local role authenticated;select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-00000000000${id}',true)`);return tx.query(query,params);});
+ const call=`select guardar_imputacion_maquinaria_partidas('A',1,'10:2026-10-21',$1,101,$2,'Distribución revisada')`;
+ const distribution=JSON.stringify([{partida_id:1,porcentaje:75},{partida_id:2,porcentaje:25}]);
+ await assert.rejects(asUser(3,call,[0,distribution]),{code:'42501'});
+ await assert.rejects(asUser(1,call,[0,'[{"partida_id":3,"porcentaje":100}]']),/no pertenecen/);
+ await assert.rejects(asUser(1,call,[0,'[{"partida_id":1,"porcentaje":90}]']),/sumar 100/);
+ await asUser(1,call,[0,distribution]);
+ await assert.rejects(asUser(1,call,[0,distribution]),/cargo cambió/);
+ await asUser(2,call,[1,distribution]);
+ const rows=(await asUser(1,'select * from maquinaria_partidas_decisiones')).rows;
+ assert.equal(rows.length,1);assert.equal(rows[0].version,2);assert.equal(rows[0].historial.length,2);
+ assert.equal(rows[0].historial[1].responsable,'Contrato');
+ assert.equal(Number((await db.query('select tarifa from maquinaria_periodos_costo')).rows[0].tarifa),101);
+ await assert.rejects(asUser(1,'delete from maquinaria_partidas_decisiones'),{code:'42501'});
+ await db.exec(`update maquinaria_periodos_costo set tarifa=102`);
+ await assert.rejects(asUser(1,call,[2,distribution]),/cargo cambió/);
+ await db.exec(`update usuarios set obras='No autorizada' where nombre='Contrato'`);
+ await assert.rejects(asUser(2,call,[2,distribution]),{code:'42501'});
+ }finally{await db.close();}
+});
