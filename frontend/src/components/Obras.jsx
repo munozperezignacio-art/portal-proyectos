@@ -5408,7 +5408,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                         <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 rounded-t-lg transition"></div>
                                       </div>
                                     </div>
-                                    <span className="text-[10.5px] font-bold text-slate-700 font-mono">{d.date.substring(5)}</span>
+                                    <span className="text-[10.5px] font-bold text-slate-700 font-mono">{d.date.slice(8, 10)}-{d.date.slice(5, 7)}</span>
                                     <span className="text-[9px] text-slate-500 font-semibold">{d.count} reportes</span>
                                   </div>
                                 );
@@ -5806,7 +5806,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
                                 const ptAC = actualCostRecords.filter(c => c.fecha <= ptDate).reduce((sum,c) => sum+c.monto,0);
 
-                                return { dateStr: ptDate.substring(5), ev: ptEV, pv: ptPV, ac: ptAC };
+                                return { dateStr: `${ptDate.slice(8, 10)}-${ptDate.slice(5, 7)}`, ev: ptEV, pv: ptPV, ac: ptAC };
                               });
 
                               const maxY = Math.max(1, BAC, ...timePoints.map(p => Math.max(p.ev, p.pv, p.ac))) * 1.1;
