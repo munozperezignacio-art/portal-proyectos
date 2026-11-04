@@ -4,7 +4,7 @@ const pesos = new Intl.NumberFormat('es-CL',{style:'currency',currency:'CLP',max
 export default function CostTaxDetail({cost}){
   if(cost.monto==='' || cost.monto==null)return null;
   const net=Number(cost.monto);
-  const imported=Boolean(cost.factura_documento_id);
+  const imported=Boolean(cost.factura_documento_id) || (cost.origen==='iconstruye_oc' && cost.monto_iva!=null && cost.monto_total!=null);
   const invoice=cost.asociar_factura===true || cost.asociar_factura==='SI';
   if(!imported&&!invoice)return <small className="block text-slate-500">IVA no informado</small>;
   const iva=imported?Number(cost.monto_iva):Math.round(net*19/100);

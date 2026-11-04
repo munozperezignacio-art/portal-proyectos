@@ -1,0 +1,7 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module">
+import React from 'react';import{createRoot}from'react-dom/client';import '../../src/index.css';
+import PurchaseOrderImporter from '../../src/components/PurchaseOrderImporter.jsx';import{supabase}from'../../src/supabaseClient.js';
+window.saved=[];
+supabase.from=()=>{let payload;const q={select:()=>q,eq:()=>q,not:()=>q,order:()=>q,range:async()=>({data:window.saved,error:null}),insert:p=>{payload=p;return q},single:async()=>{const row={...payload,id:window.saved.length+1};window.saved.push(row);return{data:row,error:null}}};return q};
+createRoot(document.getElementById('root')).render(React.createElement(PurchaseOrderImporter,{company:'TEST',work:'Obra de prueba',onImported:()=>{}}));
+</script></body></html>

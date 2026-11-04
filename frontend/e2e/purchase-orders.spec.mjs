@@ -1,0 +1,21 @@
+import {test,expect} from '@playwright/test';
+import * as XLSX from 'xlsx';
+test('preview, net VAT and sequential import without duplicates',async({page})=>{
+ const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['N° OC','Nombre OC','Centro de Gestión','Proveedor','Fecha de Creación','Moneda','Monto','Estado'],['820-1','Traslado equipos','820 Obra','Proveedor','27-10-2026','CLP',119000,'OC Aprobada']]),'Órdenes de Compra');
+ const file={name:'oc.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:XLSX.write(wb,{type:'buffer',bookType:'xlsx'})};
+ await page.goto('/e2e/fixtures/purchase-orders.html');
+ await page.getByRole('button',{name:'Importar OC de iConstruye'}).click();
+ await page.locator('input[type=file]').setInputFiles(file);
+ await expect(page.getByText('$100.000',{exact:true})).toBeVisible();
+ await expect(page.getByText('$19.000',{exact:true})).toBeVisible();
+ await page.getByRole('checkbox',{name:'Importar OC 820-1',exact:true}).check();
+ await expect(page.getByRole('button',{name:'Importar OC seleccionadas'})).toBeDisabled();
+ await page.getByRole('checkbox',{name:/Confirmo/}).check();
+ await page.getByRole('button',{name:'Importar OC seleccionadas'}).click();
+ await expect(page.getByRole('status')).toContainText('1 OC importadas');
+ expect(await page.evaluate(()=>window.saved[0])).toMatchObject({num_oc:'820-1',monto:100000,monto_total:119000,asociar_factura:false,imputaciones:[]});
+ await page.locator('input[type=file]').setInputFiles(file);
+ await expect(page.getByText('Ya existe (no se modificará)',{exact:true})).toBeVisible();
+ await expect(page.getByRole('checkbox',{name:'Importar OC 820-1',exact:true})).toBeDisabled();
+ expect(await page.evaluate(()=>window.saved.length)).toBe(1);
+});

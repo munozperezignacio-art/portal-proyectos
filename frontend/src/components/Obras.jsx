@@ -14,6 +14,7 @@ import { formatRut, formatNumberWithDots, parseNumberFromDots } from '../utils/r
 import {costSupplierFields} from '../utils/costSupplier';
 import SupplierIdentityFields from './SupplierIdentityFields';
 import CostTaxDetail from './CostTaxDetail';
+import PurchaseOrderImporter from './PurchaseOrderImporter';
 import { calculateEarnedValue } from '../utils/earnedValue';
 import { registrarEventoBitacora } from '../utils/bitacoraService';
 import FormAnswerDisplay from './FormAnswerDisplay';
@@ -7218,6 +7219,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
               {costosSubTab === 'reales' ? (
                 <>
+                  <PurchaseOrderImporter key={selectedObra?.id} company={user?.empresa} work={selectedObra?.nombre} onImported={cost=>setCostosList(prev=>prev.some(c=>c.id===cost.id)?prev:[cost,...prev])}/>
                   {costosList.length === 0 && !showCostoModal ? (
                     <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-3">
                       <FileSpreadsheet className="w-8 h-8 text-slate-300 mx-auto" />
@@ -7450,6 +7452,10 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   num_factura: costoFormData.asociar_factura === 'SI' ? String(costoFormData.num_factura||'').trim() || null : null,
                   num_oc: String(costoFormData.num_oc || '').trim() || null,
                   monto,
+                  ...(editingCosto?.origen === 'iconstruye_oc' ? {
+                    monto_iva: monto === Number(editingCosto.monto) ? editingCosto.monto_iva : Math.round(monto * 0.19),
+                    monto_total: monto === Number(editingCosto.monto) ? editingCosto.monto_total : monto + Math.round(monto * 0.19)
+                  } : {}),
                   imputaciones
                 };
 
