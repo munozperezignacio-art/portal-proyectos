@@ -53,6 +53,15 @@ begin
   perform public.guardar_regla_sin_asistencia(empresa_test,w,respaldo,'2020-01-02','2020-01-05',array[1,2,3,4,5,6,7],'20:00',true);
   perform public.preparar_imputaciones_personal(empresa_test,'2020-01');
   if exists(select 1 from public.rrhh_imputaciones_diarias where empresa=empresa_test and trabajador_id=w and estado<>'Aprobada') then raise exception 'Actualizar propuestas anuló cargos automáticos'; end if;
+  -- Correcting the worker record must refresh existing attendance without a
+  -- separate approval or prepare RPC. Do not touch no-attendance rule days.
+  update public.maestro_personal set sueldo_base=0 where id=w;
+  if not exists(select 1 from public.rrhh_imputaciones_diarias where id=cargo.id and estado='Pendiente' and costo_total is null) then raise exception 'No detectó sueldo inválido desde ficha'; end if;
+  update public.maestro_personal set sueldo_base=600000 where id=w;
+  if not exists(select 1 from public.rrhh_imputaciones_diarias where id=cargo.id and estado='Aprobada' and costo_total>0) then raise exception 'Corregir ficha no imputó asistencia'; end if;
+  select jsonb_array_length(historial) into antes from public.rrhh_imputaciones_diarias where id=cargo.id;
+  update public.maestro_personal set sueldo_base=600000 where id=w;
+  if (select jsonb_array_length(historial) from public.rrhh_imputaciones_diarias where id=cargo.id)<>antes then raise exception 'Guardar ficha dos veces no es idempotente'; end if;
   insert into public.rrhh_nominas_mensuales(empresa,periodo,estado) values(empresa_test,'2020-01','Cerrada') returning id into n;
   insert into public.rrhh_nomina_items(nomina_id,trabajador_id,trabajador_nombre,calculo) values(n,w,'TEST CARGO AUTOMATICO','{"employerCost":100001}') returning id into ni;
   resultado:=public.distribuir_nomina_a_obras(n);
@@ -60,6 +69,8 @@ begin
   if (select sum(monto_real) from public.rrhh_costos_personal_vigentes where empresa=empresa_test and trabajador_id=w)<>100001 then raise exception 'Duplicó o perdió costo al cerrar nómina'; end if;
   perform public.distribuir_nomina_a_obras(n);
   if (select sum(monto_real) from public.rrhh_costos_personal_vigentes where empresa=empresa_test and trabajador_id=w)<>100001 then raise exception 'Reconciliar dos veces duplicó costo'; end if;
+  update public.maestro_personal set sueldo_base=700000 where id=w;
+  if (select sum(monto_real) from public.rrhh_costos_personal_vigentes where empresa=empresa_test and trabajador_id=w)<>100001 then raise exception 'Corregir ficha alteró nómina conciliada'; end if;
   perform private.rrhh_sincronizar_cargo_dia(empresa_test,w,(now() at time zone 'America/Santiago')::date+1);
   if exists(select 1 from public.rrhh_imputaciones_diarias where empresa=empresa_test and fecha>(now() at time zone 'America/Santiago')::date) then raise exception 'Creó costos futuros'; end if;
   insert into public.maestro_personal(empresa,nombre,rut,sueldo_base) values(empresa_test,'TEST SIN SUELDO','99999990-2',0) returning id into sin_sueldo;
