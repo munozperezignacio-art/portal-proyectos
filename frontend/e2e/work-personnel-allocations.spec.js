@@ -1,0 +1,30 @@
+import {test,expect} from '@playwright/test';
+test('pending approval, budget weights, preserved errors and audit history',async({page})=>{
+ await page.goto('/e2e/fixtures/work-personnel-allocations.html');
+ await page.locator('summary').filter({hasText:'Ana Prueba'}).click();
+ await page.getByRole('button',{name:'Revisar y aprobar'}).click();
+ await page.getByLabel('Pilas',{exact:true}).check();await page.getByLabel('Logística',{exact:true}).check();
+ await page.getByRole('button',{name:'Ponderar según presupuesto'}).click();
+ await expect(page.getByLabel('Porcentaje Pilas')).toHaveValue('75.00');
+ await expect(page.getByLabel('Porcentaje Logística')).toHaveValue('25.00');
+ await page.getByLabel('Motivo de la aprobación o edición').fill('Distribución revisada en terreno');
+ await page.evaluate(()=>{window.failSave=true;});
+ await page.getByRole('button',{name:'Aprobar distribución',exact:true}).click();
+ await expect(page.getByRole('alert')).toContainText('Error controlado');
+ await expect(page.getByLabel('Porcentaje Pilas')).toHaveValue('75.00');
+ await page.evaluate(()=>{window.failSave=false;});
+ await page.getByRole('button',{name:'Aprobar distribución',exact:true}).click();
+ await expect(page.getByRole('status')).toContainText('Distribución guardada');
+ expect(await page.evaluate(()=>window.calls.length)).toBe(1);
+ await page.getByLabel('Estado',{exact:true}).selectOption('Manual');
+  await page.locator('summary').filter({hasText:'Ana Prueba'}).click();
+ await expect(page.getByText('Distribución revisada en terreno',{exact:true})).toBeVisible();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
+test('read only roles see automatic history but cannot edit or approve',async({page})=>{
+ await page.goto('/e2e/fixtures/work-personnel-allocations.html?readonly');
+ await page.locator('summary').filter({hasText:'Luis Prueba'}).click();
+ await page.locator('summary').filter({hasText:'Ana Prueba'}).click();
+ await expect(page.getByRole('button',{name:'Editar imputación'})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'Revisar y aprobar'})).toHaveCount(0);
+});

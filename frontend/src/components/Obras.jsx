@@ -15,6 +15,7 @@ import {costSupplierFields} from '../utils/costSupplier';
 import SupplierIdentityFields from './SupplierIdentityFields';
 import CostTaxDetail from './CostTaxDetail';
 import CostDistributionSummary from './CostDistributionSummary';
+import WorkPersonnelAllocations from './WorkPersonnelAllocations';
 import PurchaseOrderImporter from './PurchaseOrderImporter';
 import { calculateEarnedValue } from '../utils/earnedValue';
 import { registrarEventoBitacora } from '../utils/bitacoraService';
@@ -3727,7 +3728,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           )}
 
           {/* VISTA DEDICADA 2: ASISTENCIA Y LIBRO DIGITAL CON FILTROS AVANZADOS */}
-          {obraActiveSubmodule === 'equipo' && <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4"><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div><p className="text-sm font-black text-emerald-950">Equipo de Obra</p><p className="mt-1 text-xs text-emerald-900">Gestiona asistencia, nómina y cuadrillas desde la misma vista.</p></div><div className="flex flex-wrap gap-2">{[['asistencia', 'Asistencia y libro'], ['personal', 'Personal asignado'], ['cuadrillas', 'Cuadrillas']].map(([id, label]) => <button key={id} onClick={() => setEquipoTab(id)} className={`rounded-xl px-3 py-2 text-xs font-black ${equipoTab === id ? 'bg-emerald-800 text-white' : 'border border-emerald-200 bg-white text-emerald-900'}`}>{label}</button>)}</div></div></div>}
+          {obraActiveSubmodule === 'equipo' && <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4"><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div><p className="text-sm font-black text-emerald-950">Equipo de Obra</p><p className="mt-1 text-xs text-emerald-900">Gestiona asistencia, nómina y cuadrillas desde la misma vista.</p></div><div className="flex flex-wrap gap-2">{[['asistencia', 'Asistencia y libro'], ['personal', 'Personal asignado'], ['cuadrillas', 'Cuadrillas'], ['imputaciones', 'Imputaciones de personal']].map(([id, label]) => <button key={id} onClick={() => setEquipoTab(id)} className={`rounded-xl px-3 py-2 text-xs font-black ${equipoTab === id ? 'bg-emerald-800 text-white' : 'border border-emerald-200 bg-white text-emerald-900'}`}>{label}</button>)}</div></div></div>}
+          {obraActiveSubmodule === 'equipo' && equipoTab === 'imputaciones' && <WorkPersonnelAllocations key={selectedObra.id} obra={selectedObra} user={user} parts={partidasList} onSaved={()=>fetchObraDetails(selectedObra.nombre)} />}
 
           {obraActiveSubmodule === 'equipo' && canObraPersonalView && equipoTab === 'asistencia' && (
             <div className="space-y-4 animate-in fade-in duration-200">

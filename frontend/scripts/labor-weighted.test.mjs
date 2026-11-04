@@ -46,5 +46,34 @@ test('daily budget weighting, crew boundaries, legacy names and exact reconcilia
   await db.exec(`delete from partidas_obra where id=3; insert into rrhh_nomina_items values(5,1,'Ana'); insert into rrhh_nominas_mensuales values(5,'2026-10','Cerrada'); insert into rrhh_costos_centros_aprobados values(5,5,'A',1,'[{"fecha":"2026-10-21","monto":123}]',123)`);
   rows=await get();assert.equal(rows.length,2);assert.equal(Number(rows[0].monto_real),123);assert.equal(rows[0].obra_liquidaciones_partidas.reduce((s,x)=>s+x.monto_imputado,0),123);
   assert.deepEqual(await get(),rows,'re-reading never adds costs');
+  // Isolated authorization/approval fixtures; never impersonates production users.
+  await db.exec(`create role anon;create role authenticated;create schema auth;create schema private;
+   create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
+   create table usuarios(auth_user_id uuid,empresa text,nombre text,rol text,rol_base text,obras text,permisos jsonb);
+   create table roles(empresa text,nombre text,rol_base text,permisos jsonb);
+   create function private.obraxis_actor_can_access_company(c text) returns boolean language sql stable security definer as $$select exists(select 1 from public.usuarios where auth_user_id=auth.uid() and empresa=c)$$;
+   alter table obras add primary key(id);alter table maestro_personal add primary key(id);
+   insert into usuarios values('10000000-0000-0000-0000-000000000001','A','Administradora','Administrador de Empresa','Administrador Empresa','todas','{}'),
+    ('10000000-0000-0000-0000-000000000002','A','Contrato','Administrador de Contratos','Personalizado','Obra','{}'),
+    ('10000000-0000-0000-0000-000000000003','A','Supervisor','Supervisor','Personalizado','todas','{"rrhh.imputaciones.editar":true,"rrhh.imputaciones.aprobar":true}');
+   grant usage on schema auth,private to authenticated;
+   grant select on all tables in schema public to authenticated;
+  `);
+  await db.exec(await readFile(new URL('../../supabase/migrations/20261104144849_aprobar_imputaciones_partidas_personal.sql',import.meta.url),'utf8'));
+  const asUser=async(id,query,params=[])=>db.transaction(async tx=>{await tx.exec(`set local role authenticated;select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-00000000000${id}',true);`);return tx.query(query,params);});
+  const call="select guardar_imputacion_personal_partidas('A',1,'D-2',$1,101,'[{\"partida_id\":1,\"porcentaje\":100}]','Ajuste de distribución revisado')";
+  await assert.rejects(asUser(3,call,[0]),{code:'42501'});
+  await asUser(1,call,[0]);
+  let result=await get();assert.equal(result[1].obra_liquidaciones_partidas[0].monto_imputado,101);assert.equal(result[1].version_imputacion,1);
+  assert.equal(result[1].historial_imputacion[0].responsable,'Administradora');
+  await assert.rejects(asUser(1,call,[0]),/cargo cambió/);
+  await asUser(2,call,[1]);assert.equal((await get())[1].historial_imputacion.length,2);
+  await assert.rejects(asUser(1,"insert into rrhh_partidas_decisiones(empresa,obra_id,trabajador_id,fecha,distribucion,motivo,actualizado_por) values('A',1,1,'2026-10-21','[]','x',auth.uid())"),{code:'42501'});
+  await assert.rejects(asUser(1,"select guardar_imputacion_personal_partidas('B',2,'D-2',0,101,'[]','Intento ajeno')"),{code:'42501'});
+  await db.exec(`update usuarios set obras='Obra no autorizada' where nombre='Contrato'`);
+  await assert.rejects(asUser(2,call,[2]),{code:'42501'});
+  await db.exec(`update usuarios set permisos='{"rrhh.imputaciones.editar":false}' where nombre='Administradora'`);
+  await assert.rejects(asUser(1,call,[2]),{code:'42501'});
+  assert.equal((await get()).reduce((s,r)=>s+Number(r.monto_real),0),224,'approval never duplicates base costs');
  } finally {await db.close();}
 });
