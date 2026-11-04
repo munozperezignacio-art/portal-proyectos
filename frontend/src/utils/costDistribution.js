@@ -26,7 +26,7 @@ export function costDistribution(records, parts, matches, global = true) {
         ? matching.reduce((sum, link) => sum + number(link.monto_imputado), 0)
         : matching.length ? Math.round(number(record.monto_base ?? record.monto) * number(matching[0].porcentaje) / 100) : 0;
       if (value !== 0) {
-        group.rows.push({ ...record, category, allocated: value });
+        group.rows.push({ ...record, category, allocated: value, allocationFactor: labor ? matching[0]?.factor : undefined, allocationReason: labor ? matching[0]?.criterio : undefined });
         group.total += value;
         allocated += value;
       }
