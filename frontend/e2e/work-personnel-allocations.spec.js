@@ -37,12 +37,16 @@ test('pending approval, budget weights, preserved errors and audit history',asyn
  await expect(page.getByRole('status')).toContainText('Distribución guardada');
  expect(await page.evaluate(()=>window.calls.length)).toBe(1);
  await page.getByLabel('Estado',{exact:true}).selectOption('Manual');
+ await page.locator('summary').filter({hasText:'Ver editadas y aprobadas'}).click();
   await page.locator('summary').filter({hasText:'Ana Prueba'}).click();
  await expect(page.getByText('Distribución revisada en terreno',{exact:true})).toBeVisible();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
 test('read only roles see automatic history but cannot edit or approve',async({page})=>{
  await page.goto('/e2e/fixtures/work-personnel-allocations.html?readonly');
+ await expect(page.locator('summary').filter({hasText:'Luis Prueba'})).not.toBeVisible();
+ await expect(page.locator('summary').filter({hasText:'Ana Prueba'})).toBeVisible();
+ await page.locator('summary').filter({hasText:'Ver automáticas'}).click();
  await page.locator('summary').filter({hasText:'Luis Prueba'}).click();
  await page.locator('summary').filter({hasText:'Ana Prueba'}).click();
  await expect(page.getByRole('button',{name:'Editar imputación'})).toHaveCount(0);
