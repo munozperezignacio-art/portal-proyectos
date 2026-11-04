@@ -1,0 +1,7 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="fixture"></div><script type="module">
+import React from 'react';import {createRoot} from 'react-dom/client';import '../../src/index.css';import Panel from '../../src/components/ImportedExpenseAllocations.jsx';import {supabase} from '../../src/supabaseClient.js';
+window.costs=[{id:1,nombre:'Combustible',origen:'iconstruye_rendicion',monto:1000,imputaciones:[]},{id:2,nombre:'Reparación',origen:'iconstruye_oc',monto:2000,imputaciones:[]}];window.calls=[];
+supabase.rpc=async(name,p)=>{if(name.startsWith('permisos'))return {data:{editar:true,aprobar:true}};window.calls.push(p);return {data:window.costs.filter(c=>p.p_costos.some(x=>x.id===c.id)).map(c=>({...c,imputaciones:p.p_partidas}))};};
+function App(){const [costs,setCosts]=React.useState(window.costs);return React.createElement(Panel,{company:'A',workId:1,costs,parts:[{id:1,partida:'Producción',cantidad:3,pu:100},{id:2,partida:'Logística',cantidad:1,pu:100}],onUpdated:rows=>{window.costs=costs.map(c=>rows.find(r=>r.id===c.id)||c);setCosts(window.costs);}});}
+createRoot(document.getElementById('fixture')).render(React.createElement(App));
+</script></body></html>

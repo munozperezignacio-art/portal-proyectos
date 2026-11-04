@@ -4,8 +4,11 @@ import {FileSpreadsheet,X} from 'lucide-react';
 import {supabase} from '../supabaseClient';
 import {COST_TYPES} from '../utils/purchaseOrderImport';
 import {parseExpenseReports,suggestedCategory,expenseKey,expensePayload,normalize} from '../utils/expenseReportImport';
+import ExpensePartSelection from './ExpensePartSelection';
+import {weightedExpenseParts} from '../utils/expenseAllocation';
 const money=v=>'$'+Number(v).toLocaleString('es-CL');
-export default function ExpenseReportImporter({company,work,onImported}){
+export default function ExpenseReportImporter({company,work,parts=[],onImported}){
+ const [partIds,setPartIds]=useState([]);
  const [open,setOpen]=useState(false),[files,setFiles]=useState({}),[parsed,setParsed]=useState(null),[dimension,setDimension]=useState('unit'),[source,setSource]=useState(''),[mapping,setMapping]=useState({}),[selected,setSelected]=useState([]),[results,setResults]=useState({}),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[confirmed,setConfirmed]=useState(false);
  const saving=useRef(false);
  const available=parsed?.rows||[];
@@ -39,9 +42,11 @@ export default function ExpenseReportImporter({company,work,onImported}){
   if(saving.current||!confirmed||!chosen.length)return;saving.current=true;setBusy(true);setMessage('');let count=0;
   try{
    const costs=await existing();
+   const distribution=weightedExpenseParts(parts,partIds);
    for(const row of chosen){
     const conflict=collision(row,costs);if(conflict){setResults(p=>({...p,[row.key]:conflict}));continue;}
     const payload=expensePayload(row,company,work,mapping[row.mapping],row.key);
+    payload.imputaciones=distribution;
     const {data,error}=await supabase.from('costos_reales_obra').insert(payload).select().single();
     if(error){if(error.code==='23505'){setResults(p=>({...p,[row.key]:'Ya importado; no se duplicó'}));continue;}throw error;}
     costs.push(data);count++;setResults(p=>({...p,[row.key]:'Importado'}));onImported(data);
@@ -63,7 +68,9 @@ export default function ExpenseReportImporter({company,work,onImported}){
  <label className="flex gap-2 text-sm font-bold"><input type="checkbox" disabled={busy} checked={visible.some(ready)&&visible.filter(ready).every(r=>selected.includes(r.key))} onChange={e=>{setSelected(e.target.checked?visible.filter(ready).map(r=>r.key):[]);setConfirmed(false);}}/>Seleccionar todos los gastos válidos del origen elegido</label>
  <div className="overflow-x-auto rounded-xl border"><table className="w-full min-w-[950px] text-xs"><thead className="bg-slate-100"><tr>{['Cargar','Rendición / Fecha','Concepto / Responsable','Proveedor / Documento','Categoría Obraxis','Neto','IVA','Total','Revisión'].map(h=><th key={h} className="p-3 text-left">{h}</th>)}</tr></thead><tbody>{visible.map((r,i)=><tr key={`${r.key}:${i}`} className="border-t"><td className="p-3"><input aria-label={`Cargar gasto fila ${r.row}`} type="checkbox" disabled={busy||!ready(r)} checked={selected.includes(r.key)} onChange={e=>{setSelected(p=>e.target.checked?[...p,r.key]:p.filter(k=>k!==r.key));setConfirmed(false);}}/></td><td className="p-3">{r.report}<small className="block">{r.date.split('-').reverse().join('-')}</small></td><td className="p-3">{r.name}<small className="block">{r.owner}</small></td><td className="p-3">{r.provider}<small className="block">{r.docType} · {r.doc||'Sin número'}</small></td><td className="p-3">{mapping[r.mapping]||'Por homologar'}</td><td className="p-3 whitespace-nowrap">{money(r.net)}</td><td className="p-3 whitespace-nowrap">{money(r.vat)}</td><td className="p-3 whitespace-nowrap">{money(r.total)}</td><td className="p-3">{r.errors.join(' ')||results[r.key]||(!mapping[r.mapping]?'Falta categoría':'Listo para revisar')}</td></tr>)}</tbody></table></div>
  <p className="text-sm font-bold">Seleccionados: {chosen.length} · Neto {money(chosen.reduce((s,r)=>s+r.net,0))} · IVA {money(chosen.reduce((s,r)=>s+r.vat,0))} · Total {money(chosen.reduce((s,r)=>s+r.total,0))}</p>
- <label className="flex gap-2 text-sm"><input type="checkbox" disabled={busy} checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>Confirmo que el origen seleccionado corresponde a {work}, las categorías son correctas y todos los montos incluyen IVA del 19%. Revisé que vouchers y facturas no representen el mismo gasto.</label>
+ <ExpensePartSelection parts={parts} ids={partIds} disabled={busy} onChange={ids=>{setPartIds(ids);setConfirmed(false);}}/>
+ <p className="text-xs text-slate-500">La imputación requiere permisos de Administrador de Empresa o de Contratos. Puedes importar sin seleccionar partidas y distribuir posteriormente.</p>
+ <label className="flex gap-2 text-sm"><input type="checkbox" disabled={busy} checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>Confirmo que el origen seleccionado corresponde a {work}, las categorías y partidas son correctas y todos los montos incluyen IVA del 19%. Revisé que vouchers y facturas no representen el mismo gasto.</label>
  <button type="button" disabled={busy||!confirmed||!chosen.length} onClick={save} className="rounded-xl bg-emerald-900 px-4 py-3 font-bold text-white disabled:opacity-40">Importar {chosen.length} gastos seleccionados</button></>}
  </>}{message&&<p role="status" className="rounded-xl bg-slate-100 p-3 text-sm">{message}</p>}
  </div></section></div>,document.body)}</>;

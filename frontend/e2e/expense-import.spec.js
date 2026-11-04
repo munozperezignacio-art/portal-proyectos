@@ -13,10 +13,14 @@ test('selects source work, maps fuel, excludes rejected, imports once with net a
  await expect(page.getByRole('combobox',{name:'Categoría Combustible'})).toHaveValue('Combustible');
  await page.getByRole('button',{name:'Guardar homologación para la empresa'}).click();
  await expect(page.getByRole('status')).toContainText('Homologación guardada');
- await page.getByLabel('Seleccionar todos los gastos válidos').check();await page.getByLabel('Confirmo que el origen seleccionado').check();
+ await page.getByLabel('Seleccionar todos los gastos válidos').check();
+ await page.getByRole('button',{name:'Seleccionar todas las partidas y ponderar'}).click();
+ await expect(page.getByRole('group',{name:'Imputar a partidas según presupuesto'})).toContainText('75.00%');
+ await page.getByLabel('Confirmo que el origen seleccionado').check();
  await page.getByRole('button',{name:'Importar 1 gastos seleccionados'}).click();
  await expect(page.getByRole('status')).toContainText('1 gastos cargados');
  const saved=await page.evaluate(()=>window.costs);expect(saved).toHaveLength(1);expect(saved[0]).toMatchObject({monto:1000,monto_iva:190,monto_total:1190,tipo_costo:'Combustible',obra_nombre:'Obra de prueba'});
+ expect(saved[0].imputaciones.map(p=>p.porcentaje)).toEqual([75,25]);
  await page.getByRole('button',{name:'Cruzar y revisar archivos'}).click();await page.getByLabel('Origen del Excel a cargar').selectOption('820');
  await expect(page.getByRole('cell',{name:'Ya importado en Obra de prueba',exact:true})).toBeVisible();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);

@@ -18,6 +18,7 @@ import CostDistributionSummary from './CostDistributionSummary';
 import WorkPersonnelAllocations from './WorkPersonnelAllocations';
 import PurchaseOrderImporter from './PurchaseOrderImporter';
 import ExpenseReportImporter from './ExpenseReportImporter';
+import ImportedExpenseAllocations from './ImportedExpenseAllocations';
 import { calculateEarnedValue } from '../utils/earnedValue';
 import { registrarEventoBitacora } from '../utils/bitacoraService';
 import WorkCompletionStatus from './WorkCompletionStatus';
@@ -6983,7 +6984,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         <span>Registrar Factura / Compra</span>
                       </button>
                       <PurchaseOrderImporter key={selectedObra?.id} company={user?.empresa} work={selectedObra?.nombre} onImported={cost=>setCostosList(prev=>prev.some(c=>c.id===cost.id)?prev:[cost,...prev])}/>
-                      <ExpenseReportImporter key={`rendiciones-${selectedObra?.id}`} company={user?.empresa} work={selectedObra?.nombre} onImported={cost=>setCostosList(prev=>prev.some(c=>c.id===cost.id)?prev:[cost,...prev])}/>
+                      <ExpenseReportImporter key={`rendiciones-${selectedObra?.id}`} company={user?.empresa} work={selectedObra?.nombre} parts={partidasList} onImported={cost=>setCostosList(prev=>prev.some(c=>c.id===cost.id)?prev:[cost,...prev])}/>
                     </div>
                   ) : (
                     <div className="flex flex-wrap items-center gap-2">
@@ -7028,6 +7029,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 </div>
               </div>
 
+              {costosSubTab === 'reales' && <ImportedExpenseAllocations key={selectedObra?.id} company={user?.empresa} workId={selectedObra?.id} costs={costosList} parts={partidasList} onUpdated={rows=>setCostosList(prev=>prev.map(c=>rows.find(r=>r.id===c.id)||c))}/>}
               {/* KPIs de Control Financiero Adaptativos */}
               {(() => {
                 const totalPres = partidasList.reduce((acc, p) => {
