@@ -26,3 +26,10 @@ test('preserves system categories and negative adjustments',()=>{
  const model=costDistribution([{monto:-20,tipo_costo:'Materiales'}],[],matches);
  assert.equal(model.total,-20);assert.equal(model.groups[0].total,-20);
 });
+test('missing reports remain pending approval without losing or duplicating cost',()=>{
+ const model=costDistribution([{monto:100,categoria_proyeccion:'Mano de obra',estado_imputacion_partidas:'Pendiente de aprobación: sin reporte de avance'}],[],matches);
+ assert.equal(model.total,100);
+ assert.equal(model.groups[0].total,0);
+ assert.match(model.groups[1].name,/pendiente de aprobación/);
+ assert.equal(model.groups[1].total,100);
+});

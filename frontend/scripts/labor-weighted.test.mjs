@@ -23,6 +23,7 @@ test('daily budget weighting, crew boundaries, legacy names and exact reconcilia
    insert into avances_produccion_partidas values(1,'A',1,null,'Pilas',1,'2026-10-21 12:00+00',null,'[]'),(2,'A',1,2,'Logística',1,'2026-10-21 12:00+00',null,'[]'),(3,'A',1,null,'Pilas',2,'2026-10-21 12:00+00',null,'[]');
   `);
   await db.exec(await readFile(new URL('../../supabase/migrations/20261104143348_ponderar_personal_partidas_avanzadas.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('../../supabase/migrations/20261104144150_identificar_personal_sin_reporte_pendiente.sql',import.meta.url),'utf8'));
   const get=async()=> (await db.query('select * from rrhh_costos_personal_vigentes order by trabajador_id')).rows;
   let rows=await get();
   assert.equal(rows.length,2);
@@ -37,6 +38,7 @@ test('daily budget weighting, crew boundaries, legacy names and exact reconcilia
   assert.equal((await get())[0].obra_liquidaciones_partidas.length,0);
   await db.exec(`update partidas_obra set costo_por_dia=100 where id=2; update avances_produccion_partidas set created_at='2026-10-22 12:00+00'`);
   assert.equal((await get())[0].obra_liquidaciones_partidas.length,0);
+  assert.equal((await get())[0].estado_imputacion_partidas,'Pendiente de aprobación: sin reporte de avance');
   await db.exec(`update avances_produccion_partidas set created_at='2026-10-21 12:00+00',cuadrilla_id=null; update avances_produccion_partidas set empresa='B' where id=2`);
   assert.deepEqual((await get())[0].obra_liquidaciones_partidas.map(x=>x.monto_imputado),[101]);
   await db.exec(`update avances_produccion_partidas set empresa='A'; insert into partidas_obra values(3,'A',1,'Pilas',1,1,false,'UND')`);

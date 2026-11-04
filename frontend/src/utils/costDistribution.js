@@ -11,6 +11,7 @@ export function costDistribution(records, parts, matches, global = true) {
   const categories = new Map();
   const groups = parts.filter(p => !p.es_titulo).map(p => ({ name: p.partida, rows: [], total: 0 }));
   const unassigned = { name: 'Sin imputar a partidas', rows: [], total: 0 };
+  const pendingApproval = { name: 'Personal pendiente de aprobación · Sin reporte de avance', rows: [], total: 0 };
   let total = 0;
   for (const record of records) {
     const amount = number(record.monto);
@@ -32,10 +33,12 @@ export function costDistribution(records, parts, matches, global = true) {
       }
     }
     if (global && Math.abs(amount - allocated) > 0.01) {
-      unassigned.rows.push({ ...record, category, allocated: amount - allocated });
-      unassigned.total += amount - allocated;
+      const destination = record.estado_imputacion_partidas === 'Pendiente de aprobación: sin reporte de avance' ? pendingApproval : unassigned;
+      destination.rows.push({ ...record, category, allocated: amount - allocated });
+      destination.total += amount - allocated;
     }
   }
   if (global) groups.push(unassigned);
+  if (global && pendingApproval.rows.length) groups.push(pendingApproval);
   return { total, categories: [...categories].map(([name, value]) => ({ name, value })).filter(c => c.value !== 0).sort((a,b) => b.value-a.value), groups };
 }
