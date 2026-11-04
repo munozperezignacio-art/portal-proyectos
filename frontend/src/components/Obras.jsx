@@ -223,20 +223,21 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const loadMachineryCharges=async obra=>{
     const request=++machineryLoadId.current;
     const all=async factory=>{let data=[];for(let from=0;from<100000;from+=1000){const page=await factory().range(from,from+999);if(page.error)return page;data.push(...page.data);if(page.data.length<1000)return {data};}return {error:new Error('Demasiados registros para consolidar sin paginación adicional')};};
-    const [reports,periods,decisions,work,allocations]=await Promise.all([
+    const [reports,periods,decisions,work,allocations,chargePeriods]=await Promise.all([
       all(()=>supabase.from('maquinaria_uso_diario').select('id,empresa,equipo_id,fecha,obra_nombre,obra_cargo_diario,cargo_obra_id,tarifa_diaria_aplicada,cargo_decidido_at,equipo_tipo,equipo_patente,created_at').eq('empresa',user.empresa).order('id')),
       all(()=>supabase.from('maquinaria_periodos_costo').select('*').eq('empresa',user.empresa).order('id')),
       all(()=>supabase.from('maquinaria_decisiones_costo').select('*').eq('empresa',user.empresa).order('fecha').order('equipo_id')),
       supabase.from('obras').select('id').eq('empresa',user.empresa).eq('nombre',obra).single(),
-      all(()=>supabase.from('maquinaria_partidas_decisiones').select('*').eq('empresa',user.empresa).order('obra_id').order('fecha').order('equipo_id'))
+      all(()=>supabase.from('maquinaria_partidas_decisiones').select('*').eq('empresa',user.empresa).order('obra_id').order('fecha').order('equipo_id')),
+      all(()=>supabase.from('obra_periodo_cargos').select('*').eq('empresa',user.empresa).order('obra_id'))
     ]);
     if(request!==machineryLoadId.current)return;
-    if(reports.error||periods.error||decisions.error||work.error||allocations.error){setMachineryCharges([]);setMachineryPeriods([]);setMachineryDecisions([]);setMachineryChargeError('No se pudieron cargar todos los cargos de maquinaria. El costo de control está incompleto.');return;}
+    if(reports.error||periods.error||decisions.error||work.error||allocations.error||chargePeriods.error){setMachineryCharges([]);setMachineryPeriods([]);setMachineryDecisions([]);setMachineryChargeError('No se pudieron cargar todos los cargos de maquinaria. El costo de control está incompleto.');return;}
     const today=new Date().toLocaleDateString('en-CA',{timeZone:'America/Santiago'});
     const end=`${Number(today.slice(0,4))+3}-12-31`;
     setMachineryPeriods(periods.data||[]);
     setMachineryDecisions(decisions.data||[]);
-    setMachineryCharges(applyMachineryAllocations(machineryCostControl({periods:periods.data,reports:reports.data,decisions:decisions.data,holidays:CHILEAN_HOLIDAYS,end,cutoff:today,obraId:work.data.id,obraName:obra}),allocations.data.filter(d=>String(d.obra_id)===String(work.data.id))));
+    setMachineryCharges(applyMachineryAllocations(machineryCostControl({periods:periods.data,reports:reports.data,decisions:decisions.data,holidays:CHILEAN_HOLIDAYS,end,cutoff:today,obraId:work.data.id,obraName:obra,chargePeriod:chargePeriods.data.find(p=>String(p.obra_id)===String(work.data.id))||{}}),allocations.data.filter(d=>String(d.obra_id)===String(work.data.id))));
     setMachineryChargeError('');
   };
   const { permissions: userPermissions, loading: permissionsLoading } = useUserPermissions(user);

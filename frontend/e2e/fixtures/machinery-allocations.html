@@ -3,8 +3,11 @@ import React,{useState,useMemo} from 'react';import {createRoot} from 'react-dom
 import Panel from '../../src/components/MachineryCostControl.jsx';import {supabase} from '../../src/supabaseClient.js';
 import {applyMachineryAllocations} from '../../src/utils/costControl.js';
 const readonly=location.search.includes('readonly');window.calls=[];window.decisions=[];window.excluded=[];
+window.period=null;
+supabase.from=()=>{const q={select:()=>q,eq:()=>q,maybeSingle:()=>Promise.resolve({data:window.period})};return q;};
 const base=[{equipo_id:10,fecha:'2026-10-21',monto:101,equipo_tipo:'Excavadora',equipo_patente:'EX-01',estado_costo:'pendiente'}, {equipo_id:11,fecha:'2026-10-21',monto:203,equipo_tipo:'Martillo',equipo_patente:'MV-01',estado_costo:'confirmado'}];
 supabase.rpc=async(name,args)=>{if(name==='permisos_imputaciones_personal_obra')return {data:{ver:true,editar:!readonly,aprobar:!readonly}};
+ if(name==='guardar_periodo_cargos_obra'){window.period={desde:args.p_desde,hasta:args.p_hasta,version:args.p_version+1};return{data:{guardado:true}};}
  if(name==='excluir_cargo_maquinaria_obra'){window.calls.push(args);window.excluded.push(args.p_cargo);return{data:{guardado:true,excluido:true}};}
  if(name!=='guardar_imputacion_maquinaria_partidas')throw Error('RPC inesperada');
  window.calls.push(args);const [equipo_id,fecha]=args.p_cargo.split(':');const previous=window.decisions.find(d=>String(d.equipo_id)===equipo_id);

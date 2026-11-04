@@ -1,6 +1,11 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {pendingMachineryAllocations,applyMachineryAllocations} from '../src/utils/costControl.js';
+import {pendingMachineryAllocations,applyMachineryAllocations,machineryCostControl} from '../src/utils/costControl.js';
+test('charge window includes both endpoints and preserves explicit historical costs',()=>{
+ const rows=machineryCostControl({periods:[{id:1,equipo_id:10,obra_id:1,desde:'2026-10-19',tarifa:100}],reports:[{id:1,equipo_id:10,fecha:'2026-10-22',cargo_obra_id:1,tarifa_diaria_aplicada:120}],decisions:[{equipo_id:10,obra_id:1,fecha:'2026-10-23',tipo:'confirmar',monto:150}],chargePeriod:{desde:'2026-10-20',hasta:'2026-10-21'},end:'2026-10-30',cutoff:'2026-10-30',obraId:1});
+ assert.deepEqual(rows.map(r=>r.fecha),['2026-10-23','2026-10-22','2026-10-21','2026-10-20']);
+ assert.deepEqual(rows.map(r=>r.monto),[150,120,100,100]);
+});
 import {costDistribution} from '../src/utils/costDistribution.js';
 test('allocated machinery reconciles with statistics and recalculated costs',()=>{
  const decisions=[{equipo_id:1,fecha:'2026-11-01',version:1,distribucion:[{partida_id:1,partida:'A',porcentaje:33.33},{partida_id:2,partida:'B',porcentaje:66.67}]}];

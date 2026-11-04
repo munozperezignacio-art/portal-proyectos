@@ -1,9 +1,10 @@
 import React, {useCallback,useEffect,useRef,useState} from 'react';
 import {supabase} from '../supabaseClient';
+import {outsideChargePeriod} from '../utils/costControl';
 const money=n=>'$'+Math.round(Number(n)||0).toLocaleString('es-CL');
 const today=()=>new Date().toLocaleDateString('en-CA',{timeZone:'America/Santiago'});
 const initialFrom=()=>{const d=new Date();d.setDate(d.getDate()-90);return d.toISOString().slice(0,10);};
-const status=r=>Number(r.version_imputacion)>0?'Manual':r.obra_liquidaciones_partidas?.length?'Automática':'Pendiente';
+const status=r=>r.fuera_periodo?'Fuera de período':Number(r.version_imputacion)>0?'Manual':r.obra_liquidaciones_partidas?.length?'Automática':'Pendiente';
 
 export default function WorkPersonnelAllocations({obra,user,parts,onSaved,machinery=false,suppliedRows}) {
  const company=obra.empresa||user.empresa;
@@ -11,6 +12,7 @@ export default function WorkPersonnelAllocations({obra,user,parts,onSaved,machin
  const [rows,setRows]=useState([]),[permissions,setPermissions]=useState({}),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [editing,setEditing]=useState(null),[selection,setSelection]=useState({}),[reason,setReason]=useState(''),[saving,setSaving]=useState(false);
  const [workers,setWorkers]=useState([]),[batch,setBatch]=useState([]);
+ const [period,setPeriod]=useState({}),[periodFrom,setPeriodFrom]=useState(''),[periodUntil,setPeriodUntil]=useState(''),[periodReason,setPeriodReason]=useState('');
  const [action,setAction]=useState('distribute'),[focusRequest,setFocusRequest]=useState(0);
  const editorRef=useRef(null);
  useEffect(()=>{if(!focusRequest)return;const frame=requestAnimationFrame(()=>{editorRef.current?.focus({preventScroll:true});editorRef.current?.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});});return()=>cancelAnimationFrame(frame);},[focusRequest]);
@@ -22,13 +24,15 @@ export default function WorkPersonnelAllocations({obra,user,parts,onSaved,machin
    const rights=await supabase.rpc('permisos_imputaciones_personal_obra',{p_empresa:company,p_obra:obra.id});
    if(rights.error)throw rights.error;
    if(!rights.data?.ver)throw new Error('No tienes acceso a las imputaciones de esta obra.');
+   const limits=await supabase.from('obra_periodo_cargos').select('*').eq('empresa',company).eq('obra_id',obra.id).maybeSingle();
+   if(limits.error)throw limits.error;
    const all=[];
    if(machinery)all.push(...(suppliedRows||[]).filter(r=>r.fecha>=from&&r.fecha<=through&&r.fecha<=today()).map(r=>({...r,id:`${r.equipo_id}:${r.fecha}`,trabajador:`${r.equipo_tipo||''} ${r.equipo_patente||r.equipo_id}`,monto_real:r.monto,fuente:r.origen_costo,estado_imputacion_partidas:r.version_imputacion?'Aprobada manualmente':'Pendiente de aprobación'})));
    else for(let offset=0;;offset+=1000){
     const result=await supabase.from('rrhh_costos_personal_vigentes').select('*').eq('empresa',company).eq('obra_id',obra.id).gte('fecha',from).lte('fecha',through).order('fecha',{ascending:false}).order('id').range(offset,offset+999);
     if(result.error)throw result.error;all.push(...result.data);if(result.data.length<1000)break;
    }
-   if(serial===request.current){setRows(all);setPermissions(rights.data);}
+   if(serial===request.current){setRows(all.map(r=>({...r,fuera_periodo:outsideChargePeriod(r.fecha,limits.data)})));setPermissions(rights.data);setPeriod(limits.data||{});setPeriodFrom(limits.data?.desde||'');setPeriodUntil(limits.data?.hasta||'');}
   }catch(e){if(serial===request.current){setRows([]);setPermissions({});setError(e.message);}}
   finally{if(serial===request.current)setBusy(false);}
  },[company,obra.id,from,through,machinery,suppliedRows]);
@@ -51,6 +55,17 @@ export default function WorkPersonnelAllocations({obra,user,parts,onSaved,machin
   if(ids.size)weight(Object.fromEntries([...ids].map(id=>[id,''])));
   else setSelection({});
  };
+ const savePeriod=async()=>{
+  if(inFlight.current)return;
+  if(periodFrom&&periodUntil&&periodFrom>periodUntil){setError('El cierre no puede ser anterior al inicio.');return;}
+  if(periodReason.trim().length<5){setError('Indica el motivo del cambio de período.');return;}
+  inFlight.current=true;setSaving(true);setError('');
+  try{
+   const result=await supabase.rpc('guardar_periodo_cargos_obra',{p_empresa:company,p_obra:obra.id,p_desde:periodFrom||null,p_hasta:periodUntil||null,p_version:period.version||0,p_motivo:periodReason.trim()});
+   if(result.error)throw result.error;
+   setPeriodReason('');setEditing(null);setWorkers([]);await load();await onSaved?.();setNotice('Período de cargos actualizado para personal y maquinaria. El historial se conserva.');
+  }catch(e){setError(e.message);}finally{setSaving(false);inFlight.current=false;}
+ };
  const save=async()=>{
   if(inFlight.current||!editing)return;
   if(machinery&&(batch.length?batch:[editing]).some(r=>r.monto_real==null||!(Number(r.monto_real)>0))){setError('Corrige la tarifa del equipo antes de imputar.');return;}
@@ -69,11 +84,12 @@ export default function WorkPersonnelAllocations({obra,user,parts,onSaved,machin
   finally{inFlight.current=false;setSaving(false);}
  };
  return <section className="space-y-4" aria-label={machinery?"Imputaciones de maquinaria":"Imputaciones de personal"}>
+  <details className="rounded-xl border-2 border-indigo-200 bg-indigo-50 p-4"><summary className="cursor-pointer font-bold text-sm">Período de cargos de la obra · Personal y maquinaria · {period.desde||'Sin inicio definido'} → {period.hasta||'Sin cierre definido'}</summary><p className="my-3 text-xs">Fechas inclusivas, compartidas por ambos módulos. Desde el día siguiente al cierre no se generan cargos automáticos de maquinaria ni nuevos cargos automáticos de personal para esta obra. El historial, los reportes reales, las confirmaciones y las nóminas existentes no se borran: fuera del período se muestran separados, sin pendientes de revisión. No modifica contratos de arriendo ni remuneraciones. Dejar una fecha vacía elimina ese límite.</p><fieldset disabled={saving||!permissions.editar||!permissions.aprobar} className="flex flex-wrap items-end gap-3 text-xs"><label>Inicio de cargos<input type="date" value={periodFrom} onChange={e=>setPeriodFrom(e.target.value)} className="block rounded-lg border p-2"/></label><label>Cierre de cargos (último día)<input type="date" value={periodUntil} onChange={e=>setPeriodUntil(e.target.value)} className="block rounded-lg border p-2"/></label><label>Motivo del cambio de período<input maxLength={1000} value={periodReason} onChange={e=>setPeriodReason(e.target.value)} className="block rounded-lg border p-2"/></label><button type="button" onClick={savePeriod} className="rounded-lg bg-indigo-900 px-3 py-2 text-white">Guardar período de cargos</button></fieldset>{period.historial?.length>0&&<details className="mt-3"><summary>Historial de períodos</summary>{period.historial.map((h,i)=><p key={i} className="mt-2 text-xs">{new Date(h.fecha).toLocaleString('es-CL')} · {h.desde||'Sin inicio'} → {h.hasta||'Sin cierre'} · {h.motivo}</p>)}</details>}</details>
   <div className="rounded-2xl border border-emerald-200 bg-white p-4"><h3 className="font-black text-emerald-950">{machinery?"Imputaciones de maquinaria":"Imputaciones de personal"}</h3><p className="mt-1 text-xs text-slate-600">{machinery?"Selecciona equipos por día y las partidas a imputar. Pondera por presupuesto y aprueba la distribución. No modifica el costo ni confirma el uso del equipo.":"Historial de costos por persona y día. Las automáticas siguen los avances y el presupuesto; los días sin reporte requieren aprobación. Editar cambia la distribución entre partidas, no el sueldo ni el costo total."}</p></div>
   <div className="flex flex-wrap gap-3 rounded-xl border bg-white p-3 text-xs">
    <label>Desde<input aria-label="Imputaciones desde" type="date" value={from} onChange={e=>setFrom(e.target.value)} className="block rounded-lg border p-2"/></label>
    <label>Hasta<input aria-label="Imputaciones hasta" type="date" value={through} onChange={e=>setThrough(e.target.value)} className="block rounded-lg border p-2"/></label>
-   <label>Estado<select aria-label="Estado" value={filter} onChange={e=>setFilter(e.target.value)} className="block rounded-lg border p-2">{['Todas','Automática','Pendiente','Manual'].map(v=><option key={v}>{v}</option>)}</select></label>
+   <label>Estado<select aria-label="Estado" value={filter} onChange={e=>setFilter(e.target.value)} className="block rounded-lg border p-2">{['Todas','Automática','Pendiente','Manual','Fuera de período'].map(v=><option key={v}>{v}</option>)}</select></label>
    <label>{machinery?"Equipo":"Trabajador"}<input value={search} onChange={e=>setSearch(e.target.value)} className="block rounded-lg border p-2" placeholder="Buscar por nombre"/></label>
    <button type="button" onClick={()=>machinery?onSaved?.():load()} disabled={busy||saving} className="self-end rounded-lg border px-3 py-2">Actualizar</button>
   </div>
@@ -88,15 +104,15 @@ export default function WorkPersonnelAllocations({obra,user,parts,onSaved,machin
    <label className="block text-xs">Motivo de la aprobación o edición<textarea maxLength={1000} value={reason} onChange={e=>setReason(e.target.value)} className="mt-1 block w-full rounded-lg border p-2"/></label>
    <div className="flex gap-2"><button type="button" onClick={save} className="rounded-lg bg-indigo-900 px-4 py-2 text-sm font-bold text-white">{saving?'Guardando…':action==='exclude'?'Confirmar no cargar a obra':status(editing)==='Pendiente'?'Aprobar distribución':'Guardar cambios'}</button><button type="button" onClick={()=>setEditing(null)} className="rounded-lg border px-4 py-2 text-sm">Cancelar</button></div></fieldset>
   </div>}
-  {busy?<p role="status">Cargando imputaciones…</p>:<div className="space-y-6">{['Pendiente','Automática','Manual'].map(kind=>{
+  {busy?<p role="status">Cargando imputaciones…</p>:<div className="space-y-6">{['Pendiente','Automática','Manual','Fuera de período'].map(kind=>{
    const section=filtered.filter(r=>status(r)===kind);if(!section.length)return null;
    const days=[...new Set(section.map(r=>r.fecha))].sort().reverse();
-   const allowed=kind==='Pendiente'?permissions.aprobar:permissions.editar;
-   return <section key={kind} aria-label={kind==='Pendiente'?'Pendientes':kind==='Automática'?'Automáticas':'Editadas y aprobadas'} className={`rounded-2xl border-2 p-4 ${kind==='Pendiente'?'border-amber-300 bg-amber-50':kind==='Automática'?'border-emerald-200 bg-emerald-50':'border-slate-200 bg-slate-50'}`}><details open={kind==='Pendiente'}><summary className="cursor-pointer text-sm font-bold"><span className={kind==='Pendiente'?'text-amber-950':kind==='Automática'?'text-emerald-950':'text-slate-800'}>{kind==='Pendiente'?'Pendientes de aprobación · Requieren revisión':kind==='Automática'?'Ver automáticas · Ya distribuidas':'Ver editadas y aprobadas'} · {section.length} cargos · {money(section.reduce((s,r)=>s+Number(r.monto_real),0))}</span></summary><div className="mt-4 space-y-3">{days.map(day=>{
+   const allowed=kind!=='Fuera de período'&&(kind==='Pendiente'?permissions.aprobar:permissions.editar);
+   return <section key={kind} aria-label={kind==='Pendiente'?'Pendientes':kind==='Automática'?'Automáticas':kind==='Fuera de período'?'Fuera de período':'Editadas y aprobadas'} className={`rounded-2xl border-2 p-4 ${kind==='Pendiente'?'border-amber-300 bg-amber-50':kind==='Automática'?'border-emerald-200 bg-emerald-50':'border-slate-200 bg-slate-50'}`}><details open={kind==='Pendiente'}><summary className="cursor-pointer text-sm font-bold"><span className={kind==='Pendiente'?'text-amber-950':kind==='Automática'?'text-emerald-950':'text-slate-800'}>{kind==='Pendiente'?'Pendientes de aprobación · Requieren revisión':kind==='Automática'?'Ver automáticas · Ya distribuidas':kind==='Fuera de período'?'Ver historial fuera del período · No requiere revisión':'Ver editadas y aprobadas'} · {section.length} cargos · {money(section.reduce((s,r)=>s+Number(r.monto_real),0))}</span></summary><div className="mt-4 space-y-3">{days.map(day=>{
     const daily=section.filter(r=>r.fecha===day),chosen=daily.filter(r=>workers.includes(r.id));
     return <div key={day} className="rounded-xl border bg-white p-3 space-y-2"><h5 className="font-bold">{day} · {daily.length} {machinery?"equipos":"trabajadores"} · {money(daily.reduce((s,r)=>s+Number(r.monto_real),0))}</h5>{allowed&&<div className="flex flex-wrap items-center gap-3 text-sm"><label><input type="checkbox" aria-label={`Seleccionar todos ${kind} ${day}`} disabled={saving} checked={chosen.length===daily.length} onChange={e=>{setWorkers(old=>e.target.checked?[...new Set([...old,...daily.map(r=>r.id)])]:old.filter(id=>!daily.some(r=>r.id===id)));if(e.target.checked)beginBatch(daily);else {setEditing(null);setBatch([]);}}}/> Seleccionar todos los {machinery?"equipos":"trabajadores"} del día</label><button type="button" disabled={!chosen.length||saving} onClick={()=>beginBatch(chosen)} className="rounded-lg border px-3 py-2 font-bold text-indigo-900">Distribuir seleccionados ({chosen.length})</button>{machinery&&<button type="button" disabled={!chosen.length||saving} onClick={()=>{beginBatch(chosen);setAction('exclude');}} className="rounded-lg border border-rose-300 px-3 py-2 font-bold text-rose-900">No cargar seleccionados a obra</button>}</div>}
     {daily.map(r=><div key={r.id} className="flex items-start gap-2">{allowed&&<input className="mt-4" type="checkbox" aria-label={`Seleccionar ${r.trabajador} ${r.fecha}`} disabled={saving} checked={workers.includes(r.id)} onChange={e=>{setEditing(null);setBatch([]);setWorkers(old=>e.target.checked?[...old,r.id]:old.filter(id=>id!==r.id));}}/>}<details className="min-w-0 flex-1 rounded-xl border bg-white p-3"><summary className="cursor-pointer text-sm"><strong>{r.fecha} · {r.trabajador}</strong><span className="ml-3 inline-block">{money(r.monto_real)} · {status(r)}</span></summary><div className="mt-3 space-y-2 text-xs"><p>{r.estado_imputacion_partidas}</p>{(r.obra_liquidaciones_partidas||[]).map(p=><p key={p.partida_id} className="rounded-lg bg-slate-50 p-2">{p.partida} · {money(p.monto_imputado)} · {(Number(p.factor ?? p.monto_imputado/r.monto_real)*100).toFixed(2)}%</p>)}
-   {(status(r)==='Pendiente'?permissions.aprobar:permissions.editar)&&<button type="button" onClick={()=>begin(r)} disabled={saving} className="rounded-lg border border-indigo-200 px-3 py-2 font-bold text-indigo-900">{status(r)==='Pendiente'?'Revisar y aprobar':'Editar imputación'}</button>}
+   {(status(r)!=='Fuera de período'&&(status(r)==='Pendiente'?permissions.aprobar:permissions.editar))&&<button type="button" onClick={()=>begin(r)} disabled={saving} className="rounded-lg border border-indigo-200 px-3 py-2 font-bold text-indigo-900">{status(r)==='Pendiente'?'Revisar y aprobar':'Editar imputación'}</button>}
    <h5 className="font-bold">Historial</h5><p>Origen: {r.fuente}. {Number(r.version_imputacion)>0?'Distribución manual vigente.':'Cálculo automático vigente según los reportes y presupuesto.'}</p>{(r.historial_imputacion||[]).map((h,i)=><div key={i} className="rounded-lg border p-2"><p>{new Date(h.fecha).toLocaleString('es-CL',{timeZone:'America/Santiago'})} · {h.responsable||'Usuario autorizado'} · {h.accion}</p><p>{h.motivo}</p><p>Anterior: {(h.anterior||[]).map(p=>`${p.partida} (${p.porcentaje ?? (Number(p.factor)||0)*100}%)`).join(' · ')||'Sin distribución'}</p><p>Nueva: {(h.nueva||[]).map(p=>`${p.partida} (${p.porcentaje}%)`).join(' · ')}</p></div>)}</div></details></div>)}</div>;
    })}</div></details></section>;
   })}{!filtered.length&&<p className="rounded-xl border bg-white p-4 text-sm">No hay cargos para este rango y filtro.</p>}</div>}

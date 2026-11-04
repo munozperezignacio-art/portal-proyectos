@@ -23,7 +23,8 @@ export function pendingMachineryAllocations(rows, cutoff) {
   return {...r,monto_sin_imputar:amount==null?null:Math.max(0,amount*(1-Math.min(100,percent)/100))};
  }).filter(r=>r.monto_sin_imputar==null||r.monto_sin_imputar>0.01);
 }
-export function machineryCostControl({periods=[],reports=[],decisions=[],holidays=[],end,cutoff,obraId,obraName}) {
+export const outsideChargePeriod=(date,period={})=>Boolean((period?.desde&&date<period.desde)||(period?.hasta&&date>period.hasta));
+export function machineryCostControl({periods=[],reports=[],decisions=[],holidays=[],end,cutoff,obraId,obraName,chargePeriod={}}) {
  const result=new Map(),holidaySet=new Set(holidays);
  const key=(id,date)=>`${id}:${date}`;
  const working=date=>![0,6].includes(new Date(`${date}T12:00:00Z`).getUTCDay())&&!holidaySet.has(date);
@@ -34,6 +35,7 @@ export function machineryCostControl({periods=[],reports=[],decisions=[],holiday
    for(let time=Date.parse(`${p.desde}T12:00:00Z`),last=Date.parse(`${end}T12:00:00Z`);time<=last;time+=86400000) {
      const date=new Date(time).toISOString().slice(0,10);
      if(stop&&date>=stop)break;
+     if(outsideChargePeriod(date,chargePeriod)&&!decisions.some(d=>String(d.equipo_id)===String(p.equipo_id)&&d.fecha===date&&d.tipo==='confirmar'))continue;
      if(!working(date))continue;
      result.set(key(p.equipo_id,date),{...p,periodo_id:p.id,equipo_id:String(p.equipo_id),fecha:date,monto:p.tarifa,estado_costo:'pendiente',origen_costo:'Asignación vigente',reporte_id:key(p.equipo_id,date)});
    }

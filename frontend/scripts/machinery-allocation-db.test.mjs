@@ -52,5 +52,23 @@ test('machinery allocation permissions, audit, stale edits and unchanged costs',
  assert.equal(decision.actualizado_por,'10000000-0000-0000-0000-000000000001');
  await assert.rejects(asUser(1,exclude),/ya no está vigente/);
  assert.equal((await db.query('select count(*) from maquinaria_partidas_decisiones')).rows[0].count,1);
+ await db.exec(`alter table obras add column centro_gestion_id integer;update obras set centro_gestion_id=id;
+ create table generated_cost_days(fecha date);
+ create function private.rrhh_sincronizar_cargo_dia(p_empresa text,p_trabajador integer,p_fecha date) returns void language plpgsql as $$
+ declare centro integer:=1;v_evidencia jsonb;
+ begin
+  v_evidencia:=jsonb_build_object('test',true);
+ insert into generated_cost_days values(p_fecha);
+ end $$;`);
+ await db.exec(await readFile(new URL('../../supabase/migrations/20261104171226_periodo_cargos_obra.sql',import.meta.url),'utf8'));
+ const setPeriod=`select guardar_periodo_cargos_obra('A',1,'2026-10-20','2026-10-21',0,'Cierre revisado de la obra')`;
+ await assert.rejects(asUser(3,setPeriod),{code:'42501'});
+ await assert.rejects(asUser(1,setPeriod.replace("'2026-10-20'","'2026-10-22'")),/anterior/);
+ await db.exec(`insert into generated_cost_days values('2026-10-23')`);
+ await asUser(1,setPeriod);
+ await assert.rejects(asUser(1,setPeriod),/período cambió/);
+ await db.exec(`select private.rrhh_sincronizar_cargo_dia('A',1,d::date) from generate_series('2026-10-19'::date,'2026-10-22'::date,'1 day') d;`);
+ assert.deepEqual((await db.query('select fecha::text from generated_cost_days order by fecha')).rows.map(r=>r.fecha),['2026-10-20','2026-10-21','2026-10-23']);
+ await assert.rejects(asUser(1,'delete from obra_periodo_cargos'),{code:'42501'});
  }finally{await db.close();}
 });

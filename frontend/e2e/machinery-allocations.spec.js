@@ -1,4 +1,22 @@
 import {test,expect} from '@playwright/test';
+test('shared charge period validates dates and separates historical exceptions',async({page})=>{
+ await page.goto('/e2e/fixtures/machinery-allocations.html');
+ await page.locator('summary').filter({hasText:'Control de costos de maquinaria'}).click();
+ await page.locator('summary').filter({hasText:'Período de cargos de la obra'}).click();
+ await page.getByLabel('Inicio de cargos',{exact:true}).fill('2026-10-22');
+ await page.getByLabel('Cierre de cargos (último día)',{exact:true}).fill('2026-10-20');
+ await page.getByLabel('Motivo del cambio de período',{exact:true}).fill('Cierre de obra revisado');
+ await page.getByRole('button',{name:'Guardar período de cargos',exact:true}).click();
+ await expect(page.getByRole('alert')).toContainText('anterior');
+ await page.getByLabel('Inicio de cargos',{exact:true}).fill('2026-10-01');
+ await page.getByRole('button',{name:'Guardar período de cargos',exact:true}).click();
+ await expect(page.getByRole('status')).toContainText('Período de cargos actualizado');
+ await expect(page.getByRole('region',{name:'Pendientes',exact:true})).toHaveCount(0);
+ await expect(page.locator('summary').filter({hasText:'2026-10-21 · Excavadora'})).not.toBeVisible();
+ await page.locator('summary').filter({hasText:'Ver historial fuera del período'}).click();
+ await expect(page.locator('summary').filter({hasText:'2026-10-21 · Excavadora'})).toBeVisible();
+ expect(await page.evaluate(()=>window.period.hasta)).toBe('2026-10-20');
+});
 test('selected equipment scrolls to approval and can be excluded without selecting parts',async({page})=>{
  await page.goto('/e2e/fixtures/machinery-allocations.html');
  await page.locator('summary').filter({hasText:'Control de costos de maquinaria'}).click();
