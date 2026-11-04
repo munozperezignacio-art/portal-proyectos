@@ -69,7 +69,7 @@ begin
   centro:=case when marcas.obras=1 then marcas.centro when marcas.total=0 then p.centro_gestion_defecto_id else null end;
   v_origen:=case when marcas.obras>1 then 'Múltiples obras' when marcas.obras=1 then 'Asistencia' else 'Sin asistencia' end;
   actor:=auth.uid();
-  if marcas.total=1 and marcas.presentes=1 and marcas.manuales=1 then automatico:=true; end if;
+  if marcas.total=1 and marcas.presentes=1 then automatico:=true; end if;
   if marcas.total=0 and regla.activa and vigente and p_fecha>=regla.fecha_desde and p_fecha<=coalesce(regla.fecha_hasta,p_fecha)
     and extract(isodow from p_fecha)::integer=any(regla.dias_semana)
     and (p_fecha<hoy or (now() at time zone 'America/Santiago')::time>=regla.hora_cierre) then

@@ -44,7 +44,7 @@ begin
     values(empresa_test,obra,'Obra cargo automático prueba','99999990-1','TEST CARGO AUTOMATICO','2020-01-05','AUSENTE',false) returning id into marca;
   if (select estado from public.rrhh_imputaciones_diarias where id=cargo.id)<>'Pendiente' then raise exception 'Confundió ausencia informada con falta de marcaje'; end if;
   update public.asistencia_personal set asistencia='PRESENTE',verificado_qr=true where id=marca;
-  if (select estado from public.rrhh_imputaciones_diarias where id=cargo.id)<>'Pendiente' then raise exception 'El QR se autoaprobó'; end if;
+  if (select estado from public.rrhh_imputaciones_diarias where id=cargo.id)<>'Aprobada' then raise exception 'El QR requiere aprobación manual'; end if;
   update public.asistencia_personal set verificado_qr=false where id=marca;
   perform private.rrhh_sincronizar_cargo_dia(empresa_test,w,'2020-01-02');
   perform public.guardar_regla_sin_asistencia(empresa_test,w,centro,'2020-01-02','2020-01-05',array[1,2,3,4,5,6,7],'20:00',false);
