@@ -16,4 +16,12 @@ test('cost chart uses allocations and payroll without requiring overrun alerts',
   await expect(page.getByText(/Venta: \$90.000 \| Costo: \$800/)).toBeVisible();
   await expect(page.getByText('Costos de obra sin imputar a partidas: $400',{exact:true})).toBeVisible();
   await expect(page.getByText(/Costo: \$999.999/)).toHaveCount(0);
+  const distribution=page.getByRole('region',{name:'Distribución y detalle de costos'});
+  await expect(distribution.getByRole('img')).toHaveAttribute('aria-label',/Personal \$200/);
+  await distribution.locator('summary').filter({hasText:'Ingeniería, suministro'}).click();
+  await expect(distribution.getByRole('cell',{name:'$600',exact:true})).toBeVisible();
+  await expect(distribution.getByRole('cell',{name:'$200',exact:true})).toBeVisible();
+  await distribution.locator('summary').filter({hasText:'Sin imputar'}).click();
+  await expect(distribution.getByRole('cell',{name:'$400',exact:true})).toBeVisible();
+  await expect(distribution.getByText('$999.999',{exact:true})).toHaveCount(0);
 });

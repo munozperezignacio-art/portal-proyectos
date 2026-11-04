@@ -1,0 +1,10 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="fixture"></div><script type="module">
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import '../../src/index.css';
+import Summary from '../../src/components/CostDistributionSummary.jsx';
+createRoot(document.getElementById('fixture')).render(React.createElement('main',{className:'max-w-5xl mx-auto p-4'},React.createElement(Summary,{
+ records:[{id:1,fecha:'2026-11-01',nombre:'Almuerzos de cuadrilla',num_oc:'820-134',tipo_costo:'Alimentación',monto:100000,imputaciones:[{partida:'Pilas de grava',porcentaje:60}]},{id:2,fecha:'2026-11-01',nombre:'Personal de obra',categoria_proyeccion:'Mano de obra',monto:300000},{id:3,fecha:'2026-11-01',nombre:'Excavadora',categoria_proyeccion:'Uso diario de maquinaria',monto:500000}],
+ parts:[{partida:'Pilas de grava'},{partida:'Logística'}],matches:(a,b)=>a===b,global:true,sale:1200000,expectedTotal:900000,cutoff:'2026-11-04'
+})));
+</script></body></html>

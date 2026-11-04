@@ -14,6 +14,7 @@ import { formatRut, formatNumberWithDots, parseNumberFromDots } from '../utils/r
 import {costSupplierFields} from '../utils/costSupplier';
 import SupplierIdentityFields from './SupplierIdentityFields';
 import CostTaxDetail from './CostTaxDetail';
+import CostDistributionSummary from './CostDistributionSummary';
 import PurchaseOrderImporter from './PurchaseOrderImporter';
 import { calculateEarnedValue } from '../utils/earnedValue';
 import { registrarEventoBitacora } from '../utils/bitacoraService';
@@ -5042,7 +5043,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 const SPI = evm.spi;
                 const CV = CPI !== null ? earnedCost - AC : null;
                 const actualCostRecords = [
-                  ...(costosList || []).filter(c => getCostDate(c) <= fCorteStr).map(c => ({ ...c,fecha:getCostDate(c),monto:isGlobalStats ? Number(c.monto)||0 : (c.imputaciones || []).filter(i => targetPartidas.some(p => isMatchPartidaName(i.partida,p.partida))).reduce((sum,i)=>sum+Math.round((Number(c.monto)||0)*(Number(i.porcentaje)||0)/100),0) })),
+                  ...(costosList || []).filter(c => getCostDate(c) <= fCorteStr).map(c => ({ ...c,monto_base:Number(c.monto)||0,fecha:getCostDate(c),monto:isGlobalStats ? Number(c.monto)||0 : (c.imputaciones || []).filter(i => targetPartidas.some(p => isMatchPartidaName(i.partida,p.partida))).reduce((sum,i)=>sum+Math.round((Number(c.monto)||0)*(Number(i.porcentaje)||0)/100),0) })),
                   ...(liquidacionesList || []).filter(c => (c.fecha || String(c.created_at || '').slice(0,10)) <= fCorteStr).map(c => ({ ...c,categoria_proyeccion:'Mano de obra',fecha:c.fecha || String(c.created_at || '').slice(0,10),monto:isGlobalStats ? Number(c.monto_real)||0 : (c.obra_liquidaciones_partidas || []).filter(i => targetPartidas.some(p => isMatchPartidaName(i.partida,p.partida))).reduce((sum,i)=>sum+(Number(i.monto_imputado)||0),0) })),
                   ...(isGlobalStats ? filteredMantenciones : []).map(c => ({ ...c,categoria_proyeccion:'Mantenciones de equipos',monto:Number(c.costo)||0 })),
                   ...(isGlobalStats?dailyMachineryCharges:[]).map(c=>({...c,id:`maquinaria-dia-${c.equipo_id}-${c.fecha}`,nombre:`${c.equipo_tipo} ${c.equipo_patente}`,categoria_proyeccion:'Uso diario de maquinaria',monto:Number(c.monto)||0}))
@@ -5896,6 +5897,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                             </div>
                           </div>
                         </div>
+
+                        <CostDistributionSummary records={actualCostRecords} parts={targetPartidas} matches={isMatchPartidaName} global={isGlobalStats} sale={EV} cutoff={fCorteStr} expectedTotal={AC} issue={laborCostError || machineryChargeError || costLoadIssue} />
 
                         {/* KPIS DE VALOR GANADO (EVM - EARNED VALUE MANAGEMENT) */}
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
