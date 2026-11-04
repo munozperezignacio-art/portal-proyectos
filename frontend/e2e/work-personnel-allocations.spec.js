@@ -1,4 +1,24 @@
 import {test,expect} from '@playwright/test';
+test('daily selection separates states and weights a batch without duplicate charges',async({page})=>{
+ await page.goto('/e2e/fixtures/work-personnel-allocations.html');
+ await page.evaluate(()=>window.rows.push({...window.rows[0],id:'D-3',trabajador:'Pedro Prueba',monto_real:50000}));
+ await page.getByRole('button',{name:'Actualizar',exact:true}).click();
+ const pending=page.getByRole('region',{name:'Pendientes',exact:true});
+ await expect(pending.getByText('Luis Prueba',{exact:false})).toHaveCount(0);
+ await page.getByLabel('Seleccionar todos Pendiente 2026-10-21',{exact:true}).check();
+ await expect(page.getByText(/Distribución para 2 trabajadores/)).toBeVisible();
+ await page.getByRole('button',{name:'Seleccionar todas las partidas y ponderar'}).click();
+ await expect(page.getByLabel('Porcentaje Pilas')).toHaveValue('75.00');
+ await expect(page.getByLabel('Porcentaje Logística')).toHaveValue('25.00');
+ await page.getByLabel('Motivo de la aprobación o edición').fill('Día sin reporte revisado');
+ await page.getByRole('button',{name:'Aprobar distribución',exact:true}).click();
+ await expect(page.getByRole('status')).toContainText('Distribución guardada');
+ const calls=await page.evaluate(()=>window.calls);
+ expect(calls.map(c=>c.p_cargo)).toEqual(['D-1','D-3']);
+ expect(calls.map(c=>c.p_monto)).toEqual([100000,50000]);
+ expect(calls.every(c=>c.p_distribucion.reduce((s,p)=>s+p.porcentaje,0)===100)).toBe(true);
+ await expect(page.getByRole('region',{name:'Automáticas',exact:true})).toContainText('Luis Prueba');
+});
 test('pending approval, budget weights, preserved errors and audit history',async({page})=>{
  await page.goto('/e2e/fixtures/work-personnel-allocations.html');
  await page.locator('summary').filter({hasText:'Ana Prueba'}).click();
