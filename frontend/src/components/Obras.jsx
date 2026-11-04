@@ -5192,7 +5192,12 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
                 return (
                   <div className="space-y-6">
-
+                    {['resumen','costos'].includes(estadisticasTab) && <section aria-label="Costos registrados en estadísticas" className="rounded-2xl border border-emerald-100 bg-white p-4 space-y-3">
+                      <div className="flex flex-wrap justify-between gap-2"><h4 className="text-xs font-extrabold text-emerald-950">Costos incurridos al {fCorteStr} · {isGlobalStats?'Toda la obra':'Alcance seleccionado'}</h4><span className="text-[11px] text-slate-500">Importes netos · Confirmados y pendientes</span></div>
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                        {[['OC, facturas y otros gastos',AC_facturas],['Personal',AC_personal],['Maquinaria y mantenciones',AC_maquinaria],['Total costo incurrido',AC]].map(([label,value])=><div key={label} className="rounded-xl bg-slate-50 px-3 py-3"><span className="block text-[10px] font-bold text-slate-500 uppercase">{label}</span><strong className="block mt-1 text-lg text-emerald-950">${Math.round(value).toLocaleString('es-CL')}</strong></div>)}
+                      </div><p className="text-xs text-slate-600">{isGlobalStats?'Los gastos sin imputación están incluidos en este total, aunque no aparezcan en las barras de una partida.':'Esta vista solo incluye costos imputados al alcance seleccionado. Selecciona Toda la obra para ver también los gastos sin distribuir.'}</p>
+                    </section>}
                     {estadisticasTab === 'prioridades' && (
                       <SpecializedAssistanceInbox
                         user={user}
@@ -6950,6 +6955,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         <Plus className="w-3.5 h-3.5" />
                         <span>Registrar Factura / Compra</span>
                       </button>
+                      <PurchaseOrderImporter key={selectedObra?.id} company={user?.empresa} work={selectedObra?.nombre} onImported={cost=>setCostosList(prev=>prev.some(c=>c.id===cost.id)?prev:[cost,...prev])}/>
                     </div>
                   ) : (
                     <div className="flex flex-wrap items-center gap-2">
@@ -7219,7 +7225,6 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
               {costosSubTab === 'reales' ? (
                 <>
-                  <PurchaseOrderImporter key={selectedObra?.id} company={user?.empresa} work={selectedObra?.nombre} onImported={cost=>setCostosList(prev=>prev.some(c=>c.id===cost.id)?prev:[cost,...prev])}/>
                   {costosList.length === 0 && !showCostoModal ? (
                     <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-3">
                       <FileSpreadsheet className="w-8 h-8 text-slate-300 mx-auto" />

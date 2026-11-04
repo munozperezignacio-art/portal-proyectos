@@ -35,6 +35,7 @@ const chartToday=new Date().toLocaleDateString('en-CA',{timeZone:'America/Santia
 const chartFuture=new Date(Date.now()+86400000*30).toLocaleDateString('en-CA',{timeZone:'America/Santiago'});
 if(chartCosts)window.costRows=[{id:7,monto:1000,fecha_costo:chartToday,imputaciones:[{partida:budgetRows[1].partida,porcentaje:60}]},{id:8,monto:999999,fecha_costo:chartFuture,imputaciones:[{partida:budgetRows[1].partida,porcentaje:100}]}];
 window.rentalRows=[];window.rentalSaves=[];
+if(new URLSearchParams(location.search).has('importedOC')){budgetRows[1].rendimiento_meta=1000;window.costRows=[{id:77,num_oc:'820-135',origen:'iconstruye_oc',nombre:'Traslado',estado_costo:'pendiente',fecha_costo:chartToday,monto:15700000,monto_iva:2983000,monto_total:18683000,imputaciones:[]}];}
 const attendanceFixture=new URLSearchParams(location.search).has('attendance');
 window.attendanceSaves=[];window.attendanceRows=attendanceFixture?[{id:91,empresa:'TEST',obra_id:123,obra_nombre:work.nombre,trabajador:'Persona principal',rut:'2-7',fecha_marcacion:'2026-10-01',asistencia:'PRESENTE',ingreso:'08:00',salida:'19:00',colacion:'SI',otras_horas:1.25,horas_extras_auto:1,verificado_qr:false}]:[];
 Object.defineProperty(supabase,'functions',{value:{invoke:async()=>({data:{ok:true},error:null})}});
