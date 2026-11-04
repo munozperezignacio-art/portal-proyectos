@@ -17,6 +17,7 @@ import CostTaxDetail from './CostTaxDetail';
 import CostDistributionSummary from './CostDistributionSummary';
 import WorkPersonnelAllocations from './WorkPersonnelAllocations';
 import PurchaseOrderImporter from './PurchaseOrderImporter';
+import ExpenseReportImporter from './ExpenseReportImporter';
 import { calculateEarnedValue } from '../utils/earnedValue';
 import { registrarEventoBitacora } from '../utils/bitacoraService';
 import WorkCompletionStatus from './WorkCompletionStatus';
@@ -6982,6 +6983,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         <span>Registrar Factura / Compra</span>
                       </button>
                       <PurchaseOrderImporter key={selectedObra?.id} company={user?.empresa} work={selectedObra?.nombre} onImported={cost=>setCostosList(prev=>prev.some(c=>c.id===cost.id)?prev:[cost,...prev])}/>
+                      <ExpenseReportImporter key={`rendiciones-${selectedObra?.id}`} company={user?.empresa} work={selectedObra?.nombre} onImported={cost=>setCostosList(prev=>prev.some(c=>c.id===cost.id)?prev:[cost,...prev])}/>
                     </div>
                   ) : (
                     <div className="flex flex-wrap items-center gap-2">
@@ -7310,7 +7312,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     <option value="Mano de Obra">Mano de Obra</option>
                     <option value="Maquinaria & Equipos">Maquinaria & Equipos</option>
                     <option value="Subcontratos">Subcontratos</option>
-                    {['Alimentación', 'Alojamiento', 'Traslado de equipos', 'Instalación de faenas', 'Elementos de protección personal', 'Costos financieros', 'Traslado de personal', 'Reparaciones'].map(tipo => <option key={tipo} value={tipo}>{tipo}</option>)}
+                    {['Alimentación', 'Alojamiento', 'Combustible', 'Traslado de equipos', 'Instalación de faenas', 'Elementos de protección personal', 'Costos financieros', 'Traslado de personal', 'Reparaciones'].map(tipo => <option key={tipo} value={tipo}>{tipo}</option>)}
                     <option value="Gastos Generales / Varios">Gastos Generales / Varios</option>
                   </select></td>
 <td className="p-2 align-top min-w-[150px]">                <div>
@@ -7543,6 +7545,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                 <td className="p-2.5 font-mono text-slate-700">
                                   {c.asociar_factura === true || c.asociar_factura === 'SI' ? (c.num_factura || 'Factura N/A') : 'Sin Factura'}
                                   {c.num_oc && <span className="block mt-1 font-semibold text-indigo-800">OC: {c.num_oc}</span>}
+                                  {c.importacion_datos?.rendicion && <span className="block mt-1 text-indigo-800">Rendición: {c.importacion_datos.rendicion}<small className="block">{c.importacion_datos.documento_tipo} {c.importacion_datos.documento_numero} · {c.importacion_datos.responsable}</small></span>}
                                 </td>
                                 <td className="p-2.5 font-mono font-bold text-emerald-900">
                                   ${(parseFloat(c.monto) || 0).toLocaleString('es-CL')}

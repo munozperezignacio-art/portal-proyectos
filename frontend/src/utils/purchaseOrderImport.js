@@ -1,7 +1,7 @@
 const text = value => String(value ?? '').trim();
 const normalize = value => text(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/º/g,'°').toUpperCase();
 export const ocKey = value => normalize(value).replace(/\s/g, '');
-export const COST_TYPES = ['Materiales', 'Mano de Obra', 'Maquinaria & Equipos', 'Subcontratos', 'Alimentación', 'Alojamiento', 'Traslado de equipos', 'Instalación de faenas', 'Elementos de protección personal', 'Costos financieros', 'Traslado de personal', 'Reparaciones', 'Gastos Generales / Varios'];
+export const COST_TYPES = ['Materiales', 'Mano de Obra', 'Maquinaria & Equipos', 'Subcontratos', 'Alimentación', 'Alojamiento', 'Combustible', 'Traslado de equipos', 'Instalación de faenas', 'Elementos de protección personal', 'Costos financieros', 'Traslado de personal', 'Reparaciones', 'Gastos Generales / Varios'];
 function date(value) {
   if (typeof value === 'number') value = new Date(Date.UTC(1899,11,30) + Math.floor(value)*86400000).toISOString().slice(0,10);
   const match = text(value).match(/^(\d{2})-(\d{2})-(\d{4})$/);

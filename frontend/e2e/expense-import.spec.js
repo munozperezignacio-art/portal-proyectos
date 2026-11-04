@@ -1,0 +1,23 @@
+import {test,expect} from '@playwright/test';import * as XLSX from 'xlsx';
+const file=(name,sheet,matrix)=>{const w=XLSX.utils.book_new();XLSX.utils.book_append_sheet(w,XLSX.utils.aoa_to_sheet(matrix),sheet);return {name,mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from(XLSX.write(w,{type:'buffer',bookType:'xlsx'}))};};
+test('selects source work, maps fuel, excludes rejected, imports once with net and IVA',async({page})=>{
+ const headers=['Propietario del Gasto','Nombre del Gasto','Estado del Gasto','Tipo de Documento','Numero de Documento','Fecha de Emisión','Rut Proveedor','Nombre Proveedor','Monto Aprobado','Código Unidad de Rendición','Nombre Unidad de Rendición','Código Centro de Costo','Nombre Centro de Costo','Categoría','Subcategoría','Nº Rendición Asociada','Unidad/Unidades de Rendición cargada y porcentaje de distribución'];
+ const row=['Persona','Petroleo','Aprobada','Boleta','1','04-11-2026','123-K','Proveedor',1190,'820','Coquimbo','','','Combustible','','820-1','Coquimbo@820: 100.00%'];
+ const rejected=[...row];rejected[2]='Rechazada';rejected[4]='2';const other=[...row];other[9]='829';other[10]='Otra';other[15]='829-1';other[16]='Otra@829: 100.00%';
+ await page.goto('/e2e/fixtures/expense-import.html');await page.getByRole('button',{name:'Importar rendiciones de iConstruye'}).click();
+ await page.getByLabel('Excel de rendiciones',{exact:true}).setInputFiles(file('rendiciones.xlsx','Rendiciones',[['Correlativo','Estado','Gastos','Monto Aprobado'],['820-1','Contabilizada',2,1190],['829-1','Contabilizada',1,1190]]));
+ await page.getByLabel('Excel de gastos asociados',{exact:true}).setInputFiles(file('gastos.xlsx','ReporteGastos',[headers,row,rejected,other]));
+ await page.getByRole('button',{name:'Cruzar y revisar archivos'}).click();
+ await expect(page.getByRole('dialog')).toContainText('1 rechazados excluidos');
+ await page.getByLabel('Origen del Excel a cargar').selectOption('820');
+ await expect(page.getByRole('combobox',{name:'Categoría Combustible'})).toHaveValue('Combustible');
+ await page.getByRole('button',{name:'Guardar homologación para la empresa'}).click();
+ await expect(page.getByRole('status')).toContainText('Homologación guardada');
+ await page.getByLabel('Seleccionar todos los gastos válidos').check();await page.getByLabel('Confirmo que el origen seleccionado').check();
+ await page.getByRole('button',{name:'Importar 1 gastos seleccionados'}).click();
+ await expect(page.getByRole('status')).toContainText('1 gastos cargados');
+ const saved=await page.evaluate(()=>window.costs);expect(saved).toHaveLength(1);expect(saved[0]).toMatchObject({monto:1000,monto_iva:190,monto_total:1190,tipo_costo:'Combustible',obra_nombre:'Obra de prueba'});
+ await page.getByRole('button',{name:'Cruzar y revisar archivos'}).click();await page.getByLabel('Origen del Excel a cargar').selectOption('820');
+ await expect(page.getByRole('cell',{name:'Ya importado en Obra de prueba',exact:true})).toBeVisible();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});

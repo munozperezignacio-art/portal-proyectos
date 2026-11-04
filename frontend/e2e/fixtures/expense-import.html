@@ -1,0 +1,6 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="fixture"></div><script type="module">
+import React from 'react';import {createRoot} from 'react-dom/client';import '../../src/index.css';import Panel from '../../src/components/ExpenseReportImporter.jsx';import {supabase} from '../../src/supabaseClient.js';
+window.costs=[];window.mappings=[];
+supabase.from=table=>{let payload;const q={select:()=>q,eq:()=>q,order:()=>q,range:()=>Promise.resolve({data:window.costs}),insert:p=>{payload=p;return q;},single:()=>{const row={id:window.costs.length+1,...payload};window.costs.push(row);return Promise.resolve({data:row});},upsert:p=>{window.mappings=p;return Promise.resolve({data:p});},then:resolve=>resolve({data:table==='iconstruye_homologacion_gastos'?window.mappings:window.costs})};return q;};
+createRoot(document.getElementById('fixture')).render(React.createElement(Panel,{company:'A',work:'Obra de prueba',onImported:()=>{}}));
+</script></body></html>
