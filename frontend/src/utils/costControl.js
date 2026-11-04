@@ -1,6 +1,14 @@
 export const costDate=c=>String(c.fecha_costo||c.fecha||c.created_at||'').slice(0,10);
 export const costState=(c,cutoff)=>costDate(c)>cutoff?'proyectado':['pendiente','proyectado'].includes(c.estado_costo)?'pendiente':'confirmado';
 export const costStateLabel={confirmado:'Confirmado',pendiente:'Incurrido · pendiente de confirmar',proyectado:'Futuro proyectado'};
+// Cost confirmation and assignment to budget items are independent states.
+export function pendingMachineryAllocations(rows, cutoff) {
+ return rows.filter(r=>r.fecha<=cutoff).map(r=>{
+  const amount=r.monto==null?null:Number(r.monto);
+  const percent=(r.imputaciones||[]).reduce((sum,p)=>sum+(Number(p.porcentaje)||0),0);
+  return {...r,monto_sin_imputar:amount==null?null:Math.max(0,amount*(1-Math.min(100,percent)/100))};
+ }).filter(r=>r.monto_sin_imputar==null||r.monto_sin_imputar>0.01);
+}
 export function machineryCostControl({periods=[],reports=[],decisions=[],holidays=[],end,cutoff,obraId,obraName}) {
  const result=new Map(),holidaySet=new Set(holidays);
  const key=(id,date)=>`${id}:${date}`;
