@@ -1,0 +1,6 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="fixture"></div><script type="module">
+import React from 'react';import {createRoot} from 'react-dom/client';import '../../src/index.css';
+import Panel from '../../src/components/WorkCompletionStatus.jsx';
+const review=location.search.includes('review');
+createRoot(document.getElementById('fixture')).render(React.createElement(Panel,{completion:{estado:review?'revisar':'completada',fecha_termino:'2026-10-30',partidas_total:3,partidas_completas:review?2:3},plannedEnd:'2026-11-10'}));
+</script></body></html>

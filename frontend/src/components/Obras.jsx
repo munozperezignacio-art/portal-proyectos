@@ -19,6 +19,7 @@ import WorkPersonnelAllocations from './WorkPersonnelAllocations';
 import PurchaseOrderImporter from './PurchaseOrderImporter';
 import { calculateEarnedValue } from '../utils/earnedValue';
 import { registrarEventoBitacora } from '../utils/bitacoraService';
+import WorkCompletionStatus from './WorkCompletionStatus';
 import FormAnswerDisplay from './FormAnswerDisplay';
 import Solicitudes from './Solicitudes';
 import useUserPermissions from '../utils/useUserPermissions';
@@ -382,6 +383,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const openObraDetails = () => {
     setErrorMsg('');
     setObraDetailsForm({ nombre: selectedObra?.nombre || '', especialidad: selectedObra?.tipo || '', cliente: selectedObra?.cliente || '', cliente_email: selectedObra?.cliente_email || '', cliente_telefono: selectedObra?.cliente_telefono || '', ubicacion: selectedObra?.ubicacion || '', admin_contrato: selectedObra?.admin_contrato || '', oficina_tecnica: selectedObra?.oficina_tecnica || '', prevencionista: selectedObra?.prevencionista || '', estado: selectedObra?.estado || 'Activa', fecha_termino_real: toDateKey(selectedObra?.fecha_termino_real), motivo_cierre: selectedObra?.motivo_cierre || '' });
+    if(workCompletion?.obra_id===selectedObra?.id&&workCompletion.fecha_termino) setObraDetailsForm(prev=>({...prev,fecha_termino_real:workCompletion.fecha_termino}));
     setShowObraDetails(true);
   };
   const saveObraDetails = async (event) => {
@@ -701,6 +703,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const [, setRdisBitacoraList] = useState([]);
   const [, setEstadosPagoBitacoraList] = useState([]);
   const [eventosBitacoraList, setEventosBitacoraList] = useState([]);
+  const [workCompletion, setWorkCompletion] = useState(null);
+  const [workChargePeriod, setWorkChargePeriod] = useState(null);
+  const [completionError, setCompletionError] = useState('');
   const [libroObraBitacoraList, setLibroObraBitacoraList] = useState([]);
   const [prevencionBitacoraList, setPrevencionBitacoraList] = useState([]);
 
@@ -1575,6 +1580,16 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   };
 
   const fetchObraDetails = async (obraNombre) => {
+    setWorkCompletion(null);setWorkChargePeriod(null);setCompletionError('');
+    if(selectedObra?.id) {
+      const company=selectedObra.empresa||user.empresa;
+      const [completion,period]=await Promise.all([
+        supabase.from('obra_termino_trabajos').select('*').eq('empresa',company).eq('obra_id',selectedObra.id).maybeSingle(),
+        supabase.from('obra_periodo_cargos').select('*').eq('empresa',company).eq('obra_id',selectedObra.id).maybeSingle()
+      ]);
+      setWorkCompletion(completion.data);setWorkChargePeriod(period.data);
+      setCompletionError(completion.error?.message||period.error?.message||'');
+    }
     machineryLoadId.current++;
     setMachineryPeriods([]);setMachineryDecisions([]);
     setLaborCostError('Cargando costos de personal');
@@ -2338,6 +2353,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       if (error) throw error;
       if (!data?.length) throw new Error('El reporte no se eliminó. Revisa tus permisos y actualiza la obra.');
       setReportesAvanceList(prev => prev.filter(r => r.id !== reportId));
+      await fetchObraDetails(selectedObra.nombre);
       alert('Reporte de avance eliminado con éxito.');
     } catch(err) {
       alert('Error al eliminar el reporte: ' + err.message);
@@ -2638,7 +2654,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       });
     });
     (eventosBitacoraList || []).forEach((item) => {
-      const filter = item.categoria === 'Estados de Pago' ? 'estados_pago' : item.categoria === 'Prevención' ? 'prevencion' : item.categoria === 'Libro de Obra' ? 'libro_obra' : 'calidad';
+      const filter = item.categoria === 'Avance de obra' ? 'avances' : item.categoria === 'Estados de Pago' ? 'estados_pago' : item.categoria === 'Prevención' ? 'prevencion' : item.categoria === 'Libro de Obra' ? 'libro_obra' : 'calidad';
       addEvent({ filter, date: item.fecha || item.created_at, title: `${item.categoria} · ${item.accion}`, description: item.detalle || 'Evento registrado en el módulo de obra.', author: item.actor || 'Sistema', badge: item.categoria });
     });
     events.sort((a, b) => String(a.dateStr).localeCompare(String(b.dateStr)));
@@ -2977,6 +2993,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       ) : (
         // ================= VISTA CENTRO DE OBRA (DASHBOARD OBRA) =================
         <div className="space-y-6">
+          <WorkCompletionStatus completion={workCompletion?.obra_id===selectedObra.id?workCompletion:null} period={workChargePeriod?.obra_id===selectedObra.id?workChargePeriod:null} plannedEnd={fechaTerminoEstimada} error={completionError} />
           
           {/* Cabecera */}
           <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-start border-b border-slate-200 pb-4">
@@ -4598,7 +4615,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     });
 
                     (eventosBitacoraList || []).forEach(evento => {
-                      const filterId = evento.categoria === 'Estados de Pago' ? 'estados_pago' : evento.categoria === 'Prevención' ? 'prevencion' : evento.categoria === 'Libro de Obra' ? 'libro_obra' : 'calidad';
+                      const filterId = evento.categoria === 'Avance de obra' ? 'avances' : evento.categoria === 'Estados de Pago' ? 'estados_pago' : evento.categoria === 'Prevención' ? 'prevencion' : evento.categoria === 'Libro de Obra' ? 'libro_obra' : 'calidad';
                       if (bitacoraFilters.includes('todos') || bitacoraFilters.includes(filterId)) {
                         const rawDt = evento.fecha || (evento.created_at ? String(evento.created_at).substring(0, 10) : fechaInicioReal);
                       const color = evento.categoria === 'Estados de Pago' || evento.categoria === 'Libro de Obra' ? 'blue' : evento.categoria === 'Prevención' ? 'rose' : 'amber';
@@ -5116,6 +5133,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 const plannedGlobalPct = totalVentaPresupuestada > 0 ? (PV / totalVentaPresupuestada) * 100 : 0;
                 const scheduleGapGlobal = Number(pctAvanceGlobal) - plannedGlobalPct;
                 const contractualFinish = fechaTerminoEstimada ? String(fechaTerminoEstimada).substring(0, 10) : '';
+                const actualFinishAtCutoff = isGlobalStats && workCompletion?.obra_id===selectedObra.id && workCompletion.estado==='completada' && workCompletion.fecha_termino<=fCorteStr ? workCompletion.fecha_termino : null;
                 const workOffset = date => date && fInicioObraDefault ? calendarTimeline(fInicioObraDefault,date).filter(d=>d.dateStr<date && ![0,6].includes(new Date(d.dateStr+'T12:00:00Z').getUTCDay()) && !CHILEAN_HOLIDAYS.includes(d.dateStr)).length : NaN;
                 const pathAnalysis = scheduleDelay(partidaExecutiveStats.map(p=>({...p,name:p.partida,start:workOffset(p.startDate),delay:p.scheduleDays===null?NaN:Math.max(0,-p.scheduleDays),started:p.hasProgress,complete:p.actualPct>=100})));
                 const scheduleDaysGlobal = isGlobalStats && pathAnalysis.delay !== null ? -pathAnalysis.delay : null;
@@ -5243,7 +5261,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Avance real vs. plan</span><p className="text-2xl font-black text-blue-950">{pctAvanceGlobal}% <span className="text-xs text-slate-400 font-bold">/ {plannedGlobalPct.toFixed(1)}%</span></p><p className={`text-[10px] font-bold ${scheduleGapGlobal >= 0 ? 'text-emerald-700' : 'text-amber-700'}`}>{scheduleGapGlobal >= 0 ? '+' : ''}{scheduleGapGlobal.toFixed(1)}% contra programación</p></div>
-                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Impacto de la red programada</span><p className={`text-2xl font-black ${scheduleDaysGlobal === null || scheduleDaysGlobal >= 0 ? 'text-emerald-700' : 'text-amber-700'}`}>{scheduleDaysGlobal === null ? 'Sin base' : scheduleDaysGlobal === 0 ? 'En plazo' : `${Math.abs(scheduleDaysGlobal).toLocaleString('es-CL',{maximumFractionDigits:2})} días ${scheduleDaysGlobal > 0 ? 'ganados' : 'perdidos'}`}</p><p className="text-[10px] text-slate-500 font-semibold">{projectedFinish ? `Término proyectado ${projectedFinish}` : (pathAnalysis.issue || 'Seleccione la obra completa para evaluar la ruta crítica')}</p></div>
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{actualFinishAtCutoff?'Término real de trabajos':'Impacto de la red programada'}</span><p className={`text-2xl font-black ${scheduleDaysGlobal === null || scheduleDaysGlobal >= 0 ? 'text-emerald-700' : 'text-amber-700'}`}>{actualFinishAtCutoff || (scheduleDaysGlobal === null ? 'Sin base' : scheduleDaysGlobal === 0 ? 'En plazo' : `${Math.abs(scheduleDaysGlobal).toLocaleString('es-CL',{maximumFractionDigits:2})} días ${scheduleDaysGlobal > 0 ? 'ganados' : 'perdidos'}`)}</p><p className="text-[10px] text-slate-500 font-semibold">{actualFinishAtCutoff ? `100% del alcance · Programado: ${contractualFinish||'Sin fecha'} · Costos finales independientes` : projectedFinish ? `Término proyectado ${projectedFinish}` : (pathAnalysis.issue || 'Seleccione la obra completa para evaluar la ruta crítica')}</p></div>
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Índice de plazo (SPI)</span><p className={`text-2xl font-black ${SPI >= 1 ? 'text-emerald-700' : 'text-amber-700'}`}>{SPI?.toFixed(2) ?? 'N/D'}</p><p className="text-[10px] text-slate-500 font-semibold">{partidasAtrasadas} partida(s) con atraso relevante</p></div>
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{costIndexLabel}</span><p className={`text-2xl font-black ${CPI >= 1 ? 'text-emerald-700' : 'text-rose-700'}`}>{displayedCostIndex?.toFixed(2) ?? 'N/D'}</p><p className="text-[10px] text-slate-500 font-semibold">EAC: {EAC == null ? 'Sin información suficiente' : `${EAC.toLocaleString('es-CL')}`}</p></div>
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Capacidad y seguridad</span><p className="text-2xl font-black text-slate-800">{avgDailyWorkers} <span className="text-xs text-slate-400 font-bold">pers./día</span></p><p className={`text-[10px] font-semibold ${countCTP > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{countCTP > 0 ? `${countCTP} accidente(s) CTP` : 'Sin accidentes con tiempo perdido'}</p></div>
@@ -9843,7 +9861,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           <NotificationMaster user={user} obras={obras} work={selectedObra} />
         </div>
       </div>}
-      {showObraDetails && selectedObra && <ProjectProfileModal form={obraDetailsForm} onChange={setObraDetailsForm} onSave={saveObraDetails} onClose={() => setShowObraDetails(false)} canEdit={canObraFichaEdit} busy={modalLoading} error={errorMsg} />}
+      {showObraDetails && selectedObra && <ProjectProfileModal form={obraDetailsForm} onChange={setObraDetailsForm} onSave={saveObraDetails} onClose={() => setShowObraDetails(false)} canEdit={canObraFichaEdit} busy={modalLoading} error={errorMsg} completion={workCompletion?.obra_id===selectedObra.id?workCompletion:null} chargePeriod={workChargePeriod} plannedEnd={fechaTerminoEstimada} />}
 
       {/* MODAL ENRIQUECIDO: CREAR NUEVA OBRA */}
       {showCreateObraModal && (
@@ -10405,6 +10423,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   }
 
                   setShowPartidaModal(false);
+                  await fetchObraDetails(selectedObra.nombre);
                   alert('Partida guardada con éxito en la obra.');
                 } catch (err) {
                   alert('Error al guardar partida: ' + err.message);
