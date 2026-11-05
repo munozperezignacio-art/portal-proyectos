@@ -264,7 +264,7 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
 
       const { data: dataObras, error: errObras } = await supabase
         .from('obras')
-        .select('nombre')
+        .select('id,nombre')
         .eq('empresa', user.empresa)
         .order('nombre', { ascending: true });
       if (errObras) throw errObras;
