@@ -219,6 +219,7 @@ function ObraGpsMapPicker({ lat, lng, radius, onChange, canEdit }) {
 function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChange, oxDestination, onOXDestinationHandled, onProjectRenamed }) {
   const machineryCharge=useMachineryCharge();
   const [machineryCharges,setMachineryCharges]=useState([]);
+  const [sharedEquipmentDays,setSharedEquipmentDays]=useState([]);
   const [machineryChargeError,setMachineryChargeError]=useState('');
   const [machineryPeriods,setMachineryPeriods]=useState([]);
   const [machineryDecisions,setMachineryDecisions]=useState([]);
@@ -240,7 +241,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     const end=`${Number(today.slice(0,4))+3}-12-31`;
     setMachineryPeriods(periods.data||[]);
     setMachineryDecisions(decisions.data||[]);
-    setMachineryCharges(applyMachineryAllocations(machineryCostControl({periods:periods.data,reports:reports.data,decisions:decisions.data,holidays:CHILEAN_HOLIDAYS,end,cutoff:today,obraId:work.data.id,obraName:obra,chargePeriod:chargePeriods.data.find(p=>String(p.obra_id)===String(work.data.id))||{}}),allocations.data.filter(d=>String(d.obra_id)===String(work.data.id))));
+    const days=machineryCostControl({periods:periods.data,reports:reports.data,decisions:decisions.data,holidays:CHILEAN_HOLIDAYS,end,cutoff:today,obraId:work.data.id,obraName:obra,chargePeriod:chargePeriods.data.find(p=>String(p.obra_id)===String(work.data.id))||{}});
+    setSharedEquipmentDays(days.filter(d=>d.pendiente_obra&&d.fecha<=today));setMachineryCharges(applyMachineryAllocations(days.filter(d=>!d.pendiente_obra),allocations.data.filter(d=>String(d.obra_id)===String(work.data.id))));
     setMachineryChargeError('');
   };
   const { permissions: userPermissions, loading: permissionsLoading } = useUserPermissions(user);
@@ -4234,7 +4236,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 )}
               </div>
 
-              {maqSubTab === 'costos' && canObraGestionView && <MachineryCostControl parts={partidasList} user={user} rows={machineryCharges} periods={machineryPeriods} decisions={machineryDecisions} obra={selectedObra} company={user.empresa} canEdit={canEquipmentEdit||can(user,userPermissions,'obras.gestion.configurar')} onSaved={()=>loadMachineryCharges(selectedObra.nombre)}/>}
+              {maqSubTab === 'costos' && canObraGestionView && <MachineryCostControl sharedDays={sharedEquipmentDays} parts={partidasList} user={user} rows={machineryCharges} periods={machineryPeriods} decisions={machineryDecisions} obra={selectedObra} company={user.empresa} canEdit={canEquipmentEdit||can(user,userPermissions,'obras.gestion.configurar')} onSaved={()=>loadMachineryCharges(selectedObra.nombre)}/>}
 
               {/* CONTENIDO PESTAÑA 1: ASIGNACIONES DE EMPRESA */}
               {maqSubTab === 'asignaciones' && (

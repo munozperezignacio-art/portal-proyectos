@@ -29,7 +29,7 @@ export default function EquipmentAssignments({ equipment, works, reservations, r
   const save = async event => {
     event.preventDefault(); if (!canEdit || busy || !targets.length || !company) return;
     setMessage('');
-    if(historical && (!destination||!start||!end||end<start||end>today())){setMessage('Selecciona la obra e indica inicio y término, hasta hoy inclusive.');return;}
+    if(historical && (!destination||!start||(end&&(end<start||end>today())))){setMessage('Selecciona una obra y una fecha válida. El término es opcional.');return;}
     if (!start || start>today() || (destination && end && end < start)) { setMessage('Indica una fecha efectiva hasta hoy y un término estimado igual o posterior.'); return; }
     if (destination && !works.some(w=>w.nombre===destination)) { setMessage('La obra de destino ya no está disponible.'); return; }
     if (rentalConflicts.length) { setMessage('Hay equipos con arriendo activo en ese período. Resuelve el arriendo antes de asignarlos.'); return; }
@@ -37,9 +37,9 @@ export default function EquipmentAssignments({ equipment, works, reservations, r
     setBusy(true);
     try {
       if(historical){
-        const {data,error}=await supabase.rpc('asignar_equipos_historicos',{p_empresa:company,p_obra:works.find(w=>w.nombre===destination)?.id,p_equipos:targets.map(e=>e.id),p_inicio:start,p_termino:end});
+        const {data,error}=await supabase.rpc('asignar_equipos_historicos',{p_empresa:company,p_obra:works.find(w=>w.nombre===destination)?.id,p_equipos:targets.map(e=>e.id),p_inicio:start,p_termino:end||null});
         if(error)throw error;
-        setTargets([]);setSelected([]);setMessage(`Historial guardado: ${data} equipo(s) en ${destination}, del ${dateLabel(start)} al ${dateLabel(end)}. La obra actual no cambió.`);await onSaved();return;
+        setTargets([]);setSelected([]);setMessage(`Historial guardado: ${data} equipo(s) en ${destination}, del ${dateLabel(start)} · ${end?'hasta '+dateLabel(end):'sin término'}. La obra actual no cambió.`);await onSaved();return;
       }
       const { data, error } = await supabase.from('inventario_maquinaria')
         .update({ fecha_cambio_asignacion:start, obra_nombre: destination || null, fecha_asig: destination ? start : null, fecha_hasta_estimada: destination ? end || null : null })
@@ -73,8 +73,8 @@ export default function EquipmentAssignments({ equipment, works, reservations, r
       <h3 className="text-lg font-black">Asignar {targets.length} equipo{targets.length!==1?'s':''}</h3><p className="text-xs text-slate-500">{targets.map(e=>e.patente).join(', ')}</p>
       <label className="block text-xs font-bold">Destino<select className={`${fieldClass} block w-full mt-1`} value={destination} onChange={e=>setDestination(e.target.value)}><option value="">Bodega central / Sin asignar</option>{works.map(w=><option key={w.nombre}>{w.nombre}</option>)}</select></label>
       <label className="block text-xs font-bold">Tipo de asignación<select disabled={busy} className={`${fieldClass} block w-full mt-1`} value={historical?'historica':'actual'} onChange={e=>{setHistorical(e.target.value==='historica');setEnd('');setMessage('');}}><option value="actual">Cambiar asignación actual</option><option value="historica">Registrar asignación histórica</option></select></label>
-      <div className="grid grid-cols-2 gap-3"><label className="text-xs font-bold">{historical?'Fecha de inicio *':'Fecha efectiva del cambio / retiro *'}<input required max={today()} type="date" className={`${fieldClass} block w-full mt-1`} value={start} onChange={e=>setStart(e.target.value)}/></label><label className="text-xs font-bold">{historical?'Fecha de término *':'Hasta estimada'}<input required={historical} max={historical?today():undefined} type="date" min={start} className={`${fieldClass} block w-full mt-1`} value={end} onChange={e=>setEnd(e.target.value)}/></label></div>
-      <p className="text-xs text-slate-500">{historical?'Ambas fechas están incluidas. Solo se registra el historial; no cambia la obra actual. Si algún equipo tiene una asignación en esas fechas, no se guarda ninguno.':'Cambia la asignación actual. Para planificar una asignación futura, utiliza Reservas.'}</p>
+      <div className="grid grid-cols-2 gap-3"><label className="text-xs font-bold">{historical?'Fecha de inicio *':'Fecha efectiva del cambio / retiro *'}<input required max={today()} type="date" className={`${fieldClass} block w-full mt-1`} value={start} onChange={e=>setStart(e.target.value)}/></label><label className="text-xs font-bold">{historical?'Fecha de término (opcional)':'Hasta estimada'}<input  max={historical?today():undefined} type="date" min={start} className={`${fieldClass} block w-full mt-1`} value={end} onChange={e=>setEnd(e.target.value)}/></label></div>
+      <p className="text-xs text-slate-500">{historical?'Deja el término vacío para mantener la asignación abierta. Se conservan los tramos ya registrados en esta obra. El equipo puede compartir fechas con otra obra sin duplicar el cargo diario.':'Cambia la asignación actual. Para planificar una asignación futura, utiliza Reservas.'}</p>
       {conflicts.length>0 && <p role="alert" className="rounded-lg bg-amber-50 text-amber-900 p-3 text-xs">Reservas coincidentes: {conflicts.map(r=>`${equipment.find(e=>String(e.id)===String(r.equipo_id))?.patente} (${dateLabel(r.fecha_inicio)} a ${dateLabel(r.fecha_fin)})`).join(', ')}.</p>}
       {rentalConflicts.length>0 && <p role="alert" className="text-xs text-red-700">Hay arriendos activos que coinciden con este período.</p>}
       {message && <p role="alert" className="rounded-lg bg-red-50 p-3 text-xs text-red-800">{message}</p>}

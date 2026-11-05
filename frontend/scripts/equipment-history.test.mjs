@@ -22,5 +22,16 @@ test('intervalo inclusivo, lote atómico y asignación actual intacta',async()=>
  const result=await db.query("select count(*)::int n from maquinaria_periodos_costo where hasta='2025-10-21'");
  assert.equal(result.rows[0].n,2);
  assert.equal((await db.query("select count(*)::int n from inventario_maquinaria where obra_nombre='Actual'")).rows[0].n,2);
+ await db.exec(`alter table obras add column nombre text;alter table inventario_maquinaria add column fecha_asig date,add column fecha_hasta_estimada date,add column fecha_cambio_asignacion date;
+ create function private.obraxis_permission(text,text) returns boolean language sql as $$select false$$;
+ create function private.obraxis_actor_can_access_company(text) returns boolean language sql as $$select $1='A'$$;
+ create table maquinaria_decisiones_costo(tipo text,obra_id int);
+ insert into obras values(2,'A','Otra');`);
+ await db.exec(await readFile(new URL('../../supabase/migrations/20261105020015_obras_equipos_compartidos.sql',import.meta.url),'utf8'));
+ const shared=()=>db.query("select public.asignar_equipos_historicos('A',2,array[1,2],date '2025-09-28',null)");
+ await shared();await shared();
+ assert.equal((await db.query("select count(*)::int n from maquinaria_periodos_costo where obra_id=2 and hasta='infinity'")).rows[0].n,2);
+ await db.exec("select public.baja_equipo_obra('A',2,(select id from maquinaria_periodos_costo where obra_id=2 and equipo_id=1),'2025-10-05')");
+ assert.equal((await db.query("select count(*)::int n from maquinaria_periodos_costo where obra_id=2 and hasta='2025-10-05'")).rows[0].n,1);
  }finally{await db.close();}
 });

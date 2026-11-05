@@ -3,10 +3,16 @@ import {supabase} from '../supabaseClient';
 import {costStateLabel,costTotals} from '../utils/costControl';
 import WorkPersonnelAllocations from './WorkPersonnelAllocations';
 const money=n=>n==null?'Tarifa pendiente':Number(n).toLocaleString('es-CL',{style:'currency',currency:'CLP',maximumFractionDigits:0});
-export default function MachineryCostControl({rows,periods,decisions=[],obra,company,canEdit,onSaved,parts=[],user}){
+export default function MachineryCostControl({rows,periods,sharedDays=[],decisions=[],obra,company,canEdit,onSaved,parts=[],user}){
  const today=new Date().toLocaleDateString('en-CA',{timeZone:'America/Santiago'});
  const [month,setMonth]=useState(today.slice(0,7)),[edit,setEdit]=useState(null),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
  const visible=rows.filter(r=>r.fecha.startsWith(month)),totals=costTotals(visible,today);
+ const [offDate,setOffDate]=useState(today),[offPeriod,setOffPeriod]=useState('');
+ const assignments=periods.filter(p=>String(p.obra_id)===String(obra.id)&&p.desde<=offDate&&(!p.hasta||p.hasta>offDate));
+ async function endAssignment(){
+  if(busy||!canEdit||!assignments.some(p=>String(p.id)===offPeriod)||!window.confirm('¿Cerrar esta asignación desde la fecha indicada? No se eliminará el equipo ni sus otras asignaciones.'))return;
+  setBusy(true);try{const {error}=await supabase.rpc('baja_equipo_obra',{p_empresa:company,p_obra:obra.id,p_periodo:Number(offPeriod),p_fecha:offDate});if(error)throw error;await onSaved();setOffPeriod('');setMessage('Asignación cerrada en esta obra. Se conservó el historial.');}catch(e){setMessage(e.message);}finally{setBusy(false);}
+ }
  const save=async e=>{e.preventDefault();if(!canEdit||busy)return;setBusy(true);setMessage('');try{
    const payload={empresa:company,equipo_id:Number(edit.equipo_id),obra_id:obra.id,fecha:edit.fecha,tipo:edit.tipo,periodo_id:edit.periodo_id||null,motivo:edit.motivo,monto:edit.tipo==='confirmar'?Number(edit.monto):null};
    const {error}=await supabase.from('maquinaria_decisiones_costo').upsert(payload,{onConflict:'empresa,equipo_id,fecha'});if(error)throw error;
@@ -16,6 +22,11 @@ export default function MachineryCostControl({rows,periods,decisions=[],obra,com
  return <details className="rounded-xl border bg-white p-4 text-xs"><summary className="cursor-pointer font-bold">Control de costos de maquinaria · confirmar, no uso y retiro</summary>
  <p className="my-3 text-slate-600">Laborales: cargo automático por asignación. Sábado, domingo o feriado: solo con reporte. Un cargo por equipo y día. El retiro detiene el cargo automático desde la fecha indicada; un reporte de uso conserva su cargo. Los períodos anteriores no se borran.</p>
  <label>Mes <input aria-label="Mes de costos de maquinaria" type="month" value={month} onChange={e=>setMonth(e.target.value)} className="rounded border p-2"/></label>
+ {canEdit&&<details className="my-3 rounded border p-3"><summary className="cursor-pointer font-bold">Dar de baja un equipo de esta obra</summary><p className="my-2">La fecha de baja es el primer día sin asignación. No elimina reportes ni cargos ya confirmados.</p>
+ <label>Fecha de baja <input type="date" max={today} value={offDate} onChange={e=>{setOffDate(e.target.value);setOffPeriod('');}}/></label>
+ <label> Equipo <select value={offPeriod} onChange={e=>setOffPeriod(e.target.value)}><option value="">Seleccionar…</option>{assignments.map(p=><option key={p.id} value={p.id}>{p.equipo_patente} · {p.equipo_tipo}</option>)}</select></label>
+ <button disabled={busy||!offPeriod||offDate>today} onClick={endAssignment} className="ml-2 rounded border px-3 py-2">Dar de baja en esta obra</button></details>}
+ <details className="my-3 rounded border border-amber-300 p-3"><summary className="cursor-pointer font-bold">Equipos compartidos · pendientes de elegir obra ({sharedDays.filter(r=>String(r.obra_id)===String(obra.id)&&r.fecha.startsWith(month)).length})</summary><p className="my-2">Estos días no suman en ninguna obra hasta que se resuelva el cargo.</p>{sharedDays.filter(r=>String(r.obra_id)===String(obra.id)&&r.fecha.startsWith(month)).map(r=><div key={r.equipo_id+':'+r.fecha} className="flex items-center gap-3 border-t p-2"><span>{r.fecha} · {r.equipo_patente} · {money(r.monto_candidato)}</span>{canEdit&&<button className="rounded border p-2" onClick={()=>choose({...r,monto:r.monto_candidato},'confirmar')}>Confirmar en esta obra</button>}</div>)}</details>
  <p className="mt-2 text-slate-500">Calendario laboral: lunes a viernes, excluidos los feriados cargados de la obra. Revisa el calendario si proyectas a un año sin feriados cargados.</p>
  {decisions.filter(d=>String(d.obra_id)===String(obra.id)&&['no_uso','retiro'].includes(d.tipo)).map(d=><div key={`${d.equipo_id}:${d.fecha}`} className="my-2 rounded bg-amber-50 p-2">{d.fecha} · Equipo {d.equipo_id} · {d.tipo==='retiro'?'Retiro':'No cargar a obra / no uso'} · {d.motivo}{canEdit&&<button className="ml-3 underline" onClick={()=>setEdit({...d,tipo:'restablecer',motivo:'Reactivar cargo automático',equipo_patente:d.equipo_id})}>Reactivar cargo</button>}</div>)}
  <div className="my-3 flex flex-wrap gap-4">{Object.keys(costStateLabel).map(k=><p key={k}>{costStateLabel[k]}: <b>{money(totals[k])}</b></p>)}</div>

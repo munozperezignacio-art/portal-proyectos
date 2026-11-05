@@ -25,7 +25,7 @@ export function pendingMachineryAllocations(rows, cutoff) {
 }
 export const outsideChargePeriod=(date,period={})=>Boolean((period?.desde&&date<period.desde)||(period?.hasta&&date>period.hasta));
 export function machineryCostControl({periods=[],reports=[],decisions=[],holidays=[],end,cutoff,obraId,obraName,chargePeriod={}}) {
- const result=new Map(),holidaySet=new Set(holidays);
+ const result=new Map(),holidaySet=new Set(holidays),candidates=new Map(),reported=new Map();
  const key=(id,date)=>`${id}:${date}`;
  const working=date=>![0,6].includes(new Date(`${date}T12:00:00Z`).getUTCDay())&&!holidaySet.has(date);
  const retirements=decisions.filter(d=>d.tipo==='retiro');
@@ -37,19 +37,33 @@ export function machineryCostControl({periods=[],reports=[],decisions=[],holiday
      if(stop&&date>=stop)break;
      if(outsideChargePeriod(date,chargePeriod)&&!decisions.some(d=>String(d.equipo_id)===String(p.equipo_id)&&d.fecha===date&&d.tipo==='confirmar'))continue;
      if(!working(date))continue;
+     const k=key(p.equipo_id,date);if(!candidates.has(k))candidates.set(k,new Map());candidates.get(k).set(String(p.obra_id),p);
      result.set(key(p.equipo_id,date),{...p,periodo_id:p.id,equipo_id:String(p.equipo_id),fecha:date,monto:p.tarifa,estado_costo:'pendiente',origen_costo:'Asignación vigente',reporte_id:key(p.equipo_id,date)});
    }
  }
  // Resolve company-wide reports before filtering a work: a report in another
  // work replaces that day's default assignment charge, never adds to it.
  for(const r of [...reports].sort((a,b)=>String(a.cargo_decidido_at||a.created_at||'').localeCompare(String(b.cargo_decidido_at||b.created_at||''))||Number(a.id||0)-Number(b.id||0)))if(r.fecha<=end){
-   const p=periods.find(p=>String(p.equipo_id)===String(r.equipo_id)&&p.desde<=r.fecha&&(!p.hasta||r.fecha<p.hasta));
+   const k=key(r.equipo_id,r.fecha);if(!reported.has(k))reported.set(k,new Set());reported.get(k).add(r.obra_cargo_diario||r.obra_nombre||String(r.cargo_obra_id));
+   const p=periods.find(p=>String(p.equipo_id)===String(r.equipo_id)&&p.desde<=r.fecha&&(!p.hasta||r.fecha<p.hasta)&&(!r.cargo_obra_id||String(p.obra_id)===String(r.cargo_obra_id)));
    result.set(key(r.equipo_id,r.fecha),{...r,obra_id:r.cargo_obra_id||null,obra_nombre:r.obra_cargo_diario||r.obra_nombre,monto:r.tarifa_diaria_aplicada??r.monto??p?.tarifa??null,estado_costo:'pendiente',origen_costo:'Reporte de uso'});
+ }
+ const confirmed=new Map(decisions.filter(d=>d.tipo==='confirmar').map(d=>[key(d.equipo_id,d.fecha),d]));
+ for(const [k,choices] of candidates){
+   if(choices.size<2)continue;
+   const d=confirmed.get(k),here=choices.get(String(obraId));
+   if(d){const winner=choices.get(String(d.obra_id));if(winner)result.set(k,{...winner,fecha:d.fecha,periodo_id:winner.id,monto:d.monto,origen_costo:'Confirmación de obra'});continue;}
+   if(reported.get(k)?.size===1)continue;
+   if(!here){result.delete(k);continue;}
+   result.set(k,{...here,periodo_id:here.id,fecha:k.split(':')[1],monto:0,monto_candidato:here.tarifa,pendiente_obra:true,origen_costo:'Pendiente de elegir obra'});
  }
  for(const d of decisions){
    const k=key(d.equipo_id,d.fecha),row=result.get(k);
    if(d.tipo==='no_uso'&&row&&(String(row.obra_id)===String(d.obra_id)||(!row.obra_id&&row.obra_nombre===obraName&&String(d.obra_id)===String(obraId))))result.delete(k);
-   if(d.tipo==='confirmar'&&row&&(String(row.obra_id)===String(d.obra_id)||(!row.obra_id&&row.obra_nombre===obraName&&String(d.obra_id)===String(obraId))))result.set(k,{...row,monto:d.monto,estado_costo:'confirmado',confirmado_at:d.actualizado_at});
+   if(d.tipo==='confirmar'&&d.fecha<=end){
+     const p=periods.find(p=>String(p.id)===String(d.periodo_id));
+     result.set(k,{...row,...p,obra_id:d.obra_id,equipo_id:d.equipo_id,fecha:d.fecha,pendiente_obra:false,monto:d.monto,estado_costo:'confirmado',origen_costo:'Confirmación de obra',confirmado_at:d.actualizado_at});
+   }
  }
  return [...result.values()].filter(r=>r.obra_id?String(r.obra_id)===String(obraId):r.obra_nombre===obraName).map(r=>({...r,estado_costo:costState(r,cutoff)})).sort((a,b)=>b.fecha.localeCompare(a.fecha)||String(a.equipo_id).localeCompare(String(b.equipo_id)));
 }
