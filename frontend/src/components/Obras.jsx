@@ -9866,7 +9866,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           <NotificationMaster user={user} obras={obras} work={selectedObra} />
         </div>
       </div>}
-      {showObraDetails && selectedObra && <ProjectProfileModal form={obraDetailsForm} onChange={setObraDetailsForm} onSave={saveObraDetails} onClose={() => setShowObraDetails(false)} canEdit={canObraFichaEdit} busy={modalLoading} error={errorMsg} completion={workCompletion?.obra_id===selectedObra.id?workCompletion:null} chargePeriod={workChargePeriod} plannedEnd={fechaTerminoEstimada} />}
+      {showObraDetails && selectedObra && <ProjectProfileModal obra={selectedObra} form={obraDetailsForm} onChange={setObraDetailsForm} onSave={saveObraDetails} onClose={() => setShowObraDetails(false)} canEdit={canObraFichaEdit} busy={modalLoading} error={errorMsg} completion={workCompletion?.obra_id===selectedObra.id?workCompletion:null} chargePeriod={workChargePeriod} plannedEnd={fechaTerminoEstimada} />}
 
       {/* MODAL ENRIQUECIDO: CREAR NUEVA OBRA */}
       {showCreateObraModal && (
