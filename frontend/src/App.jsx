@@ -308,6 +308,7 @@ function App() {
 
   const openNotificationDestination = (notification) => {
     const code = String(notification?.evento_codigo || '').toLowerCase();
+    if(code==='maquinaria_termino_obra'){setSelectedObraName(notification.obra_nombre);setCurrentModule('obras');setOxDestination('maquinaria');navigateTo('/dashboard');return;}
     if (code.startsWith('solicitudes_')) { setNotificationRequestId(notification?.payload?.solicitud_id || null); setCurrentModule('solicitudes'); navigateTo('/dashboard'); return; }
     const module = code.startsWith('maquinaria_') || code.startsWith('mantenimiento_') ? 'maquinaria'
       : code.startsWith('rrhh_') || code.startsWith('personal_') ? 'rrhh'

@@ -22,6 +22,7 @@ import ImportedExpenseAllocations from './ImportedExpenseAllocations';
 import { calculateEarnedValue } from '../utils/earnedValue';
 import { registrarEventoBitacora } from '../utils/bitacoraService';
 import WorkCompletionStatus from './WorkCompletionStatus';
+import WorkEquipmentCompletion from './WorkEquipmentCompletion';
 import FormAnswerDisplay from './FormAnswerDisplay';
 import Solicitudes from './Solicitudes';
 import useUserPermissions from '../utils/useUserPermissions';
@@ -4189,6 +4190,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           {/* VISTA DEDICADA 5: EQUIPOS & MAQUINARIAS */}
           {obraActiveSubmodule === 'maquinaria' && canObraMaquinariaView && (
             <div className="space-y-4 animate-in fade-in duration-200">
+              <WorkEquipmentCompletion key={selectedObra.id} completion={workCompletion?.obra_id===selectedObra.id?workCompletion:null} periods={machineryPeriods} company={user.empresa} obra={selectedObra} onSaved={()=>loadMachineryCharges(selectedObra.nombre)}/>
               
               {/* BARRA DE PESTAÑAS (ARRIBA DE TODO A ANCHO COMPLETO) */}
               <div className="flex flex-wrap justify-between items-center gap-3 bg-white p-3 border border-slate-200 rounded-2xl shadow-2xs">
