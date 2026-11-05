@@ -19,3 +19,27 @@ test('rounding reconciles every peso and required columns are checked',()=>{
  const r=[...row];r[9]=100;const [p]=parsePurchaseOrders([headers,r]);assert.equal(p.monto,84);assert.equal(p.monto_iva,16);
  assert.throws(()=>parsePurchaseOrders([['N° OC'],['1']]),/Falta/);
 });
+
+test('fractional CLP from iConstruye is importable with editable categories and reconciled amounts',()=>{
+ for(const [value,total,net,vat] of [[1648066.7,1648067,1384930,263137],[493106.25,493106,414375,78731],['$1.648.066,70',1648067,1384930,263137],['493.106,25',493106,414375,78731]]){
+  const input=[...row];input[9]=value;
+  const [parsed]=parsePurchaseOrders([headers,input]);
+  assert.deepEqual(parsed.errors,[]);
+  for(const category of ['Reparaciones','Maquinaria & Equipos']){
+   const payload=purchaseOrderPayload(parsed,'EMINSG','Obra',category,'confirmado');
+   assert.equal(payload.tipo_costo,category);
+   assert.equal(payload.monto_total,total);assert.equal(payload.monto,net);assert.equal(payload.monto_iva,vat);
+   assert.equal(payload.monto+payload.monto_iva,payload.monto_total);
+  }
+  assert.match(parsePurchaseOrders([headers,input,input])[1].errors.join(' '),/repetida/);
+ }
+});
+
+test('invalid amounts remain blocked after rounding',()=>{
+ for(const value of [null,'',NaN,Infinity,-1,0,0.1,Number.MAX_SAFE_INTEGER+1,'no es monto']){
+  const input=[...row];input[9]=value;
+  const [parsed]=parsePurchaseOrders([headers,input]);
+  assert.ok(parsed.errors.includes('Monto CLP inválido.'));
+  assert.throws(()=>purchaseOrderPayload(parsed,'EMINSG','Obra','Reparaciones','confirmado'));
+ }
+});

@@ -19,12 +19,14 @@ export function parsePurchaseOrders(matrix) {
   return matrix.slice(headerIndex+1).filter(row=>row.some(cell=>text(cell))).map((row,index)=>{
     const get = name => row[headers.indexOf(name)];
     const totalValue = get('MONTO');
-    const total = typeof totalValue === 'number' ? totalValue : Number(text(totalValue).replace(/\$/g,'').replace(/\./g,'').replace(',','.'));
+    const sourceTotal = typeof totalValue === 'number' ? totalValue : Number(text(totalValue).replace(/\$/g,'').replace(/\./g,'').replace(',','.'));
+    // iConstruye can export fractional pesos. Persist whole CLP and reconcile VAT by difference.
+    const total = Math.round(sourceTotal);
     const result = {row:index+headerIndex+2, num_oc:text(get('N° OC')), nombre:text(get('NOMBRE OC')), proveedor_nombre:text(get('PROVEEDOR')), centro:text(get('CENTRO DE GESTION')), fecha_costo:date(get('FECHA DE CREACION')), estado: text(get('ESTADO')), moneda:normalize(get('MONEDA')), monto_total:total, errors:[]};
     if (!result.num_oc || !result.nombre || !result.proveedor_nombre || !result.centro) result.errors.push('Faltan OC, concepto, proveedor o centro.');
     if (!result.fecha_costo) result.errors.push('Fecha de creación inválida.');
     if (result.moneda !== 'CLP') result.errors.push('Esta importación requiere montos CLP; no convierte UF ni USD.');
-    if (!Number.isSafeInteger(total) || total <= 0) result.errors.push('Monto CLP inválido.');
+    if (!Number.isFinite(sourceTotal) || sourceTotal <= 0 || !Number.isSafeInteger(total) || total <= 0) result.errors.push('Monto CLP inválido.');
     if (normalize(result.estado) !== 'OC APROBADA') result.errors.push('Solo se importan OC aprobadas.');
     if (seen.has(ocKey(result.num_oc))) result.errors.push('OC repetida dentro del archivo.');
     seen.add(ocKey(result.num_oc));
