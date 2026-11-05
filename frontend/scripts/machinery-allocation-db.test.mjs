@@ -43,15 +43,26 @@ test('machinery allocation permissions, audit, stale edits and unchanged costs',
  await assert.rejects(asUser(2,call,[2,distribution]),{code:'42501'});
  await db.exec(`alter table maquinaria_decisiones_costo add primary key(empresa,equipo_id,fecha);alter table maquinaria_decisiones_costo add column motivo text,add column actualizado_por uuid,add column actualizado_at timestamptz;`);
  await db.exec(await readFile(new URL('../../supabase/migrations/20261104155637_excluir_cargos_maquinaria_obra.sql',import.meta.url),'utf8'));
+ await db.exec(await readFile(new URL('../../supabase/migrations/20261105163727_aceptar_tarifa_cero_maquinaria.sql',import.meta.url),'utf8'));
+ await db.exec(`insert into maquinaria_periodos_costo values(2,'A',11,1,'2026-10-01',null,0,2)`);
+ const zeroCall=`select guardar_imputacion_maquinaria_partidas('A',1,'11:2026-10-21',0,0,'[{"partida_id":1,"porcentaje":100}]','Tarifa cero válida')`;
+ for(const invalid of ['null','-1',"'NaN'::numeric","'Infinity'::numeric"]){
+  await db.exec(`update maquinaria_periodos_costo set tarifa=${invalid} where equipo_id=11`);
+  await assert.rejects(asUser(1,zeroCall),/costo válido/);
+ }
+ await db.exec(`update maquinaria_periodos_costo set tarifa=0 where equipo_id=11`);
+ await asUser(1,zeroCall);
+ await asUser(1,`select excluir_cargo_maquinaria_obra('A',1,'11:2026-10-21',1,0,'Equipo sin cargo a obra')`);
+ assert.equal((await db.query(`select tipo from maquinaria_decisiones_costo where equipo_id=11`)).rows[0].tipo,'no_uso');
  const exclude=`select excluir_cargo_maquinaria_obra('A',1,'10:2026-10-21',2,102,'No corresponde a esta obra')`;
  await assert.rejects(asUser(3,exclude),{code:'42501'});
  await assert.rejects(asUser(1,exclude.replace(',102,',',101,')),/cargo cambió/);
  await asUser(1,exclude);
- const decision=(await db.query('select * from maquinaria_decisiones_costo')).rows[0];
+ const decision=(await db.query('select * from maquinaria_decisiones_costo where equipo_id=10')).rows[0];
  assert.equal(decision.tipo,'no_uso');assert.equal(decision.motivo,'No corresponde a esta obra');
  assert.equal(decision.actualizado_por,'10000000-0000-0000-0000-000000000001');
  await assert.rejects(asUser(1,exclude),/ya no está vigente/);
- assert.equal((await db.query('select count(*) from maquinaria_partidas_decisiones')).rows[0].count,1);
+ assert.equal((await db.query('select count(*) from maquinaria_partidas_decisiones')).rows[0].count,2);
  await db.exec(`alter table obras add column centro_gestion_id integer;update obras set centro_gestion_id=id;
  create table generated_cost_days(fecha date);
  create function private.rrhh_sincronizar_cargo_dia(p_empresa text,p_trabajador integer,p_fecha date) returns void language plpgsql as $$

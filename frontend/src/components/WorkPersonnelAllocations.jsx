@@ -68,7 +68,7 @@ export default function WorkPersonnelAllocations({obra,user,parts,onSaved,machin
  };
  const save=async()=>{
   if(inFlight.current||!editing)return;
-  if(machinery&&(batch.length?batch:[editing]).some(r=>r.monto_real==null||!(Number(r.monto_real)>0))){setError('Corrige la tarifa del equipo antes de imputar.');return;}
+  if(machinery&&(batch.length?batch:[editing]).some(r=>r.monto_real==null||String(r.monto_real).trim()===''||!Number.isFinite(Number(r.monto_real))||Number(r.monto_real)<0)){setError('Falta una tarifa válida en algún equipo. Una tarifa de $0 sí está permitida.');return;}
   if(action!=='exclude'&&(Math.abs(total-100)>0.000001||!Object.keys(selection).length||Object.values(selection).some(v=>!(Number(v)>0)))){setError('Los porcentajes deben ser positivos y sumar 100%.');return;}
   if(reason.trim().length<5){setError('Indica un motivo de al menos 5 caracteres.');return;}
   inFlight.current=true;setSaving(true);setError('');
