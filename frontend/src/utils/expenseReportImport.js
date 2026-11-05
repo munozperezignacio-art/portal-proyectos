@@ -33,11 +33,14 @@ export function parseExpenseReports(summaryMatrix,expenseMatrix){
  const all=rows(expenseMatrix,['PROPIETARIO DEL GASTO','NOMBRE DEL GASTO','ESTADO DEL GASTO','TIPO DE DOCUMENTO','NUMERO DE DOCUMENTO','FECHA DE EMISION','RUT PROVEEDOR','NOMBRE PROVEEDOR','MONTO APROBADO','CODIGO UNIDAD DE RENDICION','NOMBRE UNIDAD DE RENDICION','CODIGO CENTRO DE COSTO','NOMBRE CENTRO DE COSTO','CATEGORIA','SUBCATEGORIA','N° RENDICION ASOCIADA']);
  const result=[];let unmatched=0,rejected=0;
  for(const r of all){
-  const report=reports.get(text(r.get('N° RENDICION ASOCIADA')));if(!report){unmatched++;continue;}
+  const id=text(r.get('N° RENDICION ASOCIADA')),matched=reports.has(id);
+  const report=reports.get(id)??{id};if(!matched)unmatched++;
   const state=normalize(r.get('ESTADO DEL GASTO'));
   const g={row:r.row,report:report.id,state,name:text(r.get('NOMBRE DEL GASTO')),owner:text(r.get('PROPIETARIO DEL GASTO')),date:day(r.get('FECHA DE EMISION')),docType:text(r.get('TIPO DE DOCUMENTO')),doc:text(r.get('NUMERO DE DOCUMENTO')),rut:text(r.get('RUT PROVEEDOR')),provider:text(r.get('NOMBRE PROVEEDOR')),total:amount(r.get('MONTO APROBADO')),unit:text(r.get('CODIGO UNIDAD DE RENDICION')),unitName:text(r.get('NOMBRE UNIDAD DE RENDICION')),center:text(r.get('CODIGO CENTRO DE COSTO')),centerName:text(r.get('NOMBRE CENTRO DE COSTO')),category:text(r.get('CATEGORIA')),subcategory:text(r.get('SUBCATEGORIA')),distribution:text(r.get('UNIDAD/UNIDADES DE RENDICION CARGADA Y PORCENTAJE DE DISTRIBUCION')),errors:[]};
   if(state==='RECHAZADA'){rejected++;}else if(state!=='APROBADA')g.errors.push('Gasto no aprobado.');
-  if(report.state!=='CONTABILIZADA')g.errors.push('Rendición no contabilizada.');
+  g.withoutSummary=!matched;
+  if(!id)g.errors.push('Falta el número de rendición asociada.');
+  if(matched&&report.state!=='CONTABILIZADA')g.errors.push('Rendición no contabilizada.');
   if(!g.date||!g.name||!g.unit)g.errors.push('Falta fecha válida, concepto o unidad.');
   if(!Number.isSafeInteger(g.total)||g.total<=0)g.errors.push('Monto aprobado CLP inválido.');
   if(!g.distribution||!new RegExp(`@${g.unit.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}:\\s*100(?:[.,]0+)?%$`).test(g.distribution)|| (g.distribution.match(/%/g)||[]).length!==1)g.errors.push('Distribución compartida o ausente: requiere revisión; no se carga el 100% a una sola obra.');
