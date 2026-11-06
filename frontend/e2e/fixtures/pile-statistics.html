@@ -1,0 +1,9 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><main id="fixture"></main><script type="module">
+import React from 'react';import {createRoot} from 'react-dom/client';
+import '../../src/index.css';
+import SpecialtyProgressDiagram from '../../src/components/SpecialtyProgressDiagram.jsx';
+import {supabase} from '../../src/supabaseClient.js';
+supabase.rpc=async(name,payload)=>{const r=await fetch('/__pile-state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,payload})});return r.json();};
+function Harness(){const [cutoff,setCutoff]=React.useState('2026-11-06');const [part,setPart]=React.useState('all');const parts=[{id:160,partida:'Pilas de Grava IMPACT'},{id:161,partida:'Pilas de grava adicionales EJE T'}];return React.createElement('div',{className:'p-4 bg-slate-50'},React.createElement('h1',null,'Estadísticas → Avance'),React.createElement('input',{type:'date','aria-label':'Fecha de corte',value:cutoff,onChange:e=>setCutoff(e.target.value)}),React.createElement('select',{'aria-label':'Partida',value:part,onChange:e=>setPart(e.target.value)},React.createElement('option',{value:'all'},'Todas'),...parts.map(p=>React.createElement('option',{key:p.id,value:p.id},p.partida))),React.createElement(SpecialtyProgressDiagram,{workId:32,parts:parts.filter(p=>part==='all'||String(p.id)===part),cutoff}));}
+createRoot(document.getElementById('fixture')).render(React.createElement(Harness));
+</script></body></html>

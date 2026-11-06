@@ -1,0 +1,24 @@
+import {test,expect} from '@playwright/test';
+import {readFile} from 'node:fs/promises';
+test('real persisted history renders and filters by cutoff and partida',async({page})=>{
+ test.skip(!process.env.PILE_STATE,'Provide the verified database response fixture');
+ const state=JSON.parse(await readFile(process.env.PILE_STATE,'utf8'));
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.route('**/__pile-state',async route=>{expect(route.request().postDataJSON()).toEqual({name:'specialty_progress_state',payload:{p_work:32}});await route.fulfill({json:{data:state,error:null}});});
+ await page.route('https://**',route=>route.abort());
+ await page.goto('/e2e/fixtures/pile-statistics.html');
+ await expect(page.getByText('● Ejecutadas: 381')).toBeVisible();
+ await expect(page.getByText('○ Pendientes: 102')).toBeVisible();
+ await expect(page.locator('svg g[role="button"]')).toHaveCount(483);
+ await page.locator('svg g[role="button"]').first().click();
+ await expect(page.getByRole('status')).toContainText('Norte:');
+ await page.getByLabel('Fecha de corte').fill('2026-11-05');
+ await expect(page.getByText('● Ejecutadas: 361')).toBeVisible();
+ await page.getByLabel('Partida',{exact:true}).selectOption('161');
+ await expect(page.locator('svg g[role="button"]')).toHaveCount(20);
+ await expect(page.getByText('● Ejecutadas: 20')).toBeVisible();
+ await page.getByLabel('Partida',{exact:true}).selectOption('all');
+ await page.getByLabel('Fecha de corte').fill('2026-11-06');
+ await page.screenshot({path:test.info().outputPath('pile-diagram.png'),fullPage:true});
+ expect(errors).toEqual([]);
+});

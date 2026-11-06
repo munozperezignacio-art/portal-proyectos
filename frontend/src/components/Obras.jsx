@@ -71,6 +71,7 @@ import { buildAdvanceEmailSummary, renderAdvanceSummaryHtml, advanceCurveAttachm
 const ContextualEmailConfigModal = React.lazy(() => import('./ContextualEmailConfigModal'));
 const LastPlannerLookahead = React.lazy(() => import('./LastPlannerLookahead'));
 const CalidadObras = React.lazy(() => import('./CalidadObras'));
+const SpecialtyProgressDiagram = React.lazy(() => import('./SpecialtyProgressDiagram'));
 const LibroObrasDigital = React.lazy(() => import('./LibroObrasDigital'));
 const EstadosPagoObra = React.lazy(() => import('./EstadosPagoObra'));
 const SubcontratosObra = React.lazy(() => import('./SubcontratosObra'));
@@ -5356,6 +5357,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     {/* PESTAÑA 1: 📈 AVANCE FÍSICO Y EJECUCIÓN */}
                     {estadisticasTab === 'avance' && (
                       <div className="space-y-6">
+                        <React.Suspense fallback={<p>Cargando esquema de pilas…</p>}>
+                          <SpecialtyProgressDiagram workId={selectedObra.id} parts={targetPartidas} cutoff={fCorteStr}/>
+                        </React.Suspense>
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Avance Real al Corte</span>
