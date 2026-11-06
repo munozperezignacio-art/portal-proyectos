@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import WorkBudgetMargin from './WorkBudgetMargin';
+import {marginIndicators,validBudgetMargin} from '../utils/budgetMargin';
 import { supabase } from '../supabaseClient';
 import { MATERIAL_UNITS, materialMovement } from '../utils/materialMovement';
 import {useMachineryCharge} from '../utils/useMachineryCharge';
@@ -5065,9 +5067,11 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 const BAC = totalVentaPresupuestada; // Presupuesto Total Venta
                 const evm = calculateEarnedValue({ earnedValue: EV, plannedValue: PV, actualCost: AC, budgetAtCompletion: BAC });
                 // La interfaz conserva valores neutros cuando aún no existe base suficiente para un índice.
-                const costBudget = isGlobalStats ? Number(selectedObra?.presupuesto_costo_control) || 0 : 0;
-                const earnedCost = costBudget * Number(pctAvanceGlobal) / 100;
-                const CPI = costBudget > 0 && AC > 0 && !laborCostError && !machineryChargeError && !dailyMachineryCharges.some(c=>c.monto==null) ? earnedCost / AC : null;
+                const budgetMargin=selectedObra?.margen_presupuestado_pct;
+                const marginMetrics=marginIndicators({margin:budgetMargin,sale:BAC,earnedSale:EV,actualCost:AC,costError:laborCostError||machineryChargeError||dailyMachineryCharges.some(c=>c.monto==null)});
+                const costBudget = marginMetrics.costBudget;
+                const earnedCost = marginMetrics.earnedCost;
+                const CPI = marginMetrics.cpi;
                 const SPI = evm.spi;
                 const CV = CPI !== null ? earnedCost - AC : null;
                 const actualCostRecords = [
@@ -5090,9 +5094,10 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   // Imputaciones reales a esta partida
                   const costoImputadoReal = getCostoImputadoPartida(p.partida);
 
-                  const esSobrecosto = costoImputadoReal > 0 && costoImputadoReal > ventaAvance;
-                  const variacionMonto = costoImputadoReal - ventaAvance;
-                  const pctSobrecosto = ventaAvance > 0 ? ((variacionMonto / ventaAvance) * 100).toFixed(1) : "0.0";
+                  const objetivoCosto = validBudgetMargin(budgetMargin)?ventaAvance*(1-Number(budgetMargin)/100):null;
+                  const esSobrecosto = objetivoCosto!=null && costoImputadoReal > objetivoCosto;
+                  const variacionMonto = objetivoCosto!=null?costoImputadoReal-objetivoCosto:0;
+                  const pctSobrecosto = objetivoCosto>0 ? ((variacionMonto / objetivoCosto) * 100).toFixed(1) : "0.0";
 
                   return {
                     partida: p.partida,
@@ -5126,7 +5131,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   const scheduledFinish = p.fecha_termino || (startP && Number.isFinite(duracion) ? addChileanBusinessDays(startP, duracion) : '');
                   const costo = getCostoImputadoPartida(p.partida);
                   const ventaAvance = Math.round(Math.min(cantTotal, cantAv) * pu);
-                  const costGap = costo - ventaAvance;
+                  const costGap = validBudgetMargin(budgetMargin) ? costo - ventaAvance*(1-Number(budgetMargin)/100) : 0;
                   const hasProgress = pReps.length > 0;
                   const status = costGap > 0 ? 'cost' : scheduleGap <= -10 ? 'schedule' : !hasProgress && plannedPct > 0 ? 'no-progress' : 'healthy';
                   return { id:p.id, predecessor:p.predecesora, relation:p.tipo_relacion || 'FS', lag:Number(p.desfase_dias)||0, startDate:startP, duration:duracion, rate, difference:comparison.difference, partida: p.partida, actualPct, plannedPct, scheduleGap, scheduleDays, scheduledFinish, costo, ventaAvance, costGap, hasProgress, status };
@@ -5155,11 +5160,12 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   ...scheduledProjectedCosts({items:proyeccionesList,parts:productionParts,cutoff:fCorteStr,baselineFinish:contractualFinish,holidays:CHILEAN_HOLIDAYS})
                 ] : [];
                 const costLoadIssue = proyeccionesError || laborCostError || machineryChargeError || (dailyMachineryCharges.some(c=>c.monto==null)?'Faltan tarifas de maquinaria':'');
-                const operationalForecast = forecastModel({cutoff:fCorteStr,baselineFinish:contractualFinish,actualProgress:pctAvanceGlobal,plannedProgress:plannedGlobalPct,actualCost:AC,costBudget,holidays:CHILEAN_HOLIDAYS,costError:costLoadIssue,productionParts,reports:filteredAvances,futureCosts:futureControlCosts,machineryActual:dailyMachineryCharges.reduce((s,c)=>s+(Number(c.monto)||0),0)});
+                const operationalForecast = forecastModel({cutoff:fCorteStr,baselineFinish:contractualFinish,actualProgress:BAC>0?EV/BAC*100:0,plannedProgress:plannedGlobalPct,actualCost:AC,costBudget,holidays:CHILEAN_HOLIDAYS,costError:costLoadIssue,productionParts,reports:filteredAvances,futureCosts:futureControlCosts,machineryActual:dailyMachineryCharges.reduce((s,c)=>s+(Number(c.monto)||0),0)});
                 const EAC = operationalForecast.baseCost;
                 // A sale/cost ratio is useful without a cost baseline, but is NOT CPI.
-                const displayedCostIndex = CPI ?? (!costLoadIssue && AC>0 ? EV/AC : null);
-                const costIndexLabel = CPI!==null ? 'CPI · base de costo' : 'Venta ganada / costo · estimado';
+                const displayedCostIndex = CPI;
+                const costIndexLabel = 'CPI · margen presupuestado';
+                const marginForecast=marginIndicators({margin:budgetMargin,sale:BAC,earnedSale:EV,actualCost:AC,estimatedCost:EAC,costError:costLoadIssue});
                 const daysToFinish = fechaTerminoEstimada
                   ? Math.max(0, countChileanBusinessDays(fCorteStr, String(fechaTerminoEstimada).substring(0, 10)))
                   : null;
@@ -5283,11 +5289,12 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                               return <div key={`exec-partida-${idx}`} className="border border-slate-200 rounded-xl p-3 bg-slate-50/70 space-y-2"><div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5"><span className="font-bold text-xs text-slate-800 truncate" title={partida.partida}>{partida.partida}</span><span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border ${statusStyle}`}>{statusLabel}</span></div><div className="space-y-1"><div className="h-2.5 bg-slate-200 rounded-full overflow-hidden relative"><div className="h-full bg-emerald-500/80 rounded-full absolute left-0 top-0" style={{ width: `${Math.min(100, partida.plannedPct)}%` }}></div><div className="h-full bg-blue-900 rounded-full absolute left-0 top-0 opacity-90" style={{ width: `${Math.min(100, partida.actualPct)}%` }}></div></div><div className="flex justify-between text-[10px] font-semibold"><span className="text-blue-950">Real {partida.actualPct.toFixed(1)}%</span><span className="text-emerald-700">Plan {partida.plannedPct.toFixed(1)}%</span><span className={partida.scheduleDays >= 0 ? 'text-emerald-700' : 'text-amber-700'}>{partida.scheduleDays === null ? 'Sin rendimiento' : partida.scheduleDays === 0 ? 'En plazo' : `${Math.abs(partida.scheduleDays).toLocaleString('es-CL',{maximumFractionDigits:2})} d ${partida.scheduleDays > 0 ? 'ganados' : 'perdidos'}`}</span></div></div><div className="flex flex-wrap gap-x-3 gap-y-1 text-[9.5px] text-slate-500 font-medium"><span>{(() => {const path=pathAnalysis.rows.find(p=>p.name===partida.partida);return !path ? pathAnalysis.issue : `${path.critical?'Ruta crítica':'Partida con holgura'} · holgura ${path.float.toLocaleString('es-CL',{maximumFractionDigits:2})} d · impacto ${path.impact.toLocaleString('es-CL',{maximumFractionDigits:2})} d`;})()}</span><span>Brecha: {partida.difference?.toLocaleString('es-CL',{maximumFractionDigits:2}) ?? 'N/D'} unidades / {partida.rate.toLocaleString('es-CL',{maximumFractionDigits:2})} por día</span><span>Término plan: <b className="text-slate-700">{partida.scheduledFinish || 'Sin fecha'}</b></span><span>Venta ganada: <b className="text-slate-700">${partida.ventaAvance.toLocaleString('es-CL')}</b></span><span>Costo imputado: <b className={partida.costGap > 0 ? 'text-rose-700' : 'text-slate-700'}>${partida.costo.toLocaleString('es-CL')}</b></span></div></div>;
                             })}</div>}
                           </div>
-                          <div className="space-y-4"><div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs space-y-3"><h4 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5"><AlertTriangle className="w-4 h-4 text-amber-700" />Prioridades de intervención</h4>{criticalPartidas.length === 0 ? <p className="text-xs text-emerald-700 font-semibold bg-emerald-50 border border-emerald-200 rounded-xl p-3">No hay desviaciones relevantes en el alcance y fecha de corte actuales.</p> : <div className="space-y-2 max-h-64 overflow-y-auto pr-1">{criticalPartidas.slice(0, 6).map((partida, idx) => <div key={`alert-partida-${idx}`} className={`p-2.5 rounded-xl border ${partida.status === 'cost' ? 'bg-rose-50 border-rose-200' : 'bg-amber-50 border-amber-200'}`}><p className="text-[10px] font-black text-slate-800 truncate">{partida.partida}</p><p className="text-[10px] mt-0.5 font-semibold text-slate-600">{partida.status === 'cost' ? `Costo supera venta ganada por $${Math.abs(partida.costGap).toLocaleString('es-CL')}` : partida.status === 'no-progress' ? 'Tiene avance planificado, pero no registra producción' : `Atraso de ${Math.abs(partida.scheduleGap).toFixed(1)}% frente al plan`}</p></div>)}</div>}</div><div className="bg-white p-5 border border-blue-200 rounded-2xl shadow-xs space-y-3"><div className="flex items-center justify-between"><h4 className="font-extrabold text-blue-950 text-xs uppercase tracking-wider flex items-center gap-1.5"><CalendarDays className="w-4 h-4 text-blue-800" />Partidas prontas a iniciar</h4><span className="text-[9px] font-black bg-blue-100 text-blue-900 px-2 py-0.5 rounded-full">Próx. 14 días</span></div>{upcomingPartidas.length === 0 ? <p className="text-xs text-slate-500 italic bg-slate-50 rounded-xl p-3">No hay partidas programadas para iniciar en los próximos 14 días.</p> : <div className="space-y-2 max-h-52 overflow-y-auto pr-1">{upcomingPartidas.slice(0, 6).map((partida, idx) => <div key={`upcoming-partida-${idx}`} className="p-2.5 rounded-xl border border-blue-100 bg-blue-50/60"><p className="text-[10px] font-black text-slate-800 truncate">{partida.partida}</p><div className="flex justify-between gap-2 mt-1 text-[10px] font-semibold"><span className="text-blue-800">Inicio: {partida.startDate}</span><span className="text-slate-600">{partida.daysUntil === 0 ? 'Hoy' : `en ${partida.daysUntil} día(s) hábiles`}</span></div></div>)}</div>}</div><div className="bg-slate-900 text-white p-5 rounded-2xl shadow-xs space-y-2"><span className="text-[10px] uppercase tracking-wider font-black text-slate-300">Próximo foco de gestión</span><p className="text-sm font-black">{criticalPartidas.length > 0 ? 'Revisar partidas críticas y acordar un plan de recuperación.' : upcomingPartidas.length > 0 ? 'Preparar recursos, cuadrillas y suministros para los próximos inicios.' : 'Mantener control de producción y calidad del registro diario.'}</p><p className="text-[10px] text-slate-300">{partidasSinAvance > 0 ? `${partidasSinAvance} partida(s) planificada(s) aún sin reporte de avance.` : daysToFinish !== null ? `${daysToFinish} día(s) hábiles estimados hasta el término configurado.` : 'Configura fecha de término para habilitar el horizonte de cierre.'}</p></div></div>
+                          <div className="space-y-4"><div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs space-y-3"><h4 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5"><AlertTriangle className="w-4 h-4 text-amber-700" />Prioridades de intervención</h4>{criticalPartidas.length === 0 ? <p className="text-xs text-emerald-700 font-semibold bg-emerald-50 border border-emerald-200 rounded-xl p-3">No hay desviaciones relevantes en el alcance y fecha de corte actuales.</p> : <div className="space-y-2 max-h-64 overflow-y-auto pr-1">{criticalPartidas.slice(0, 6).map((partida, idx) => <div key={`alert-partida-${idx}`} className={`p-2.5 rounded-xl border ${partida.status === 'cost' ? 'bg-rose-50 border-rose-200' : 'bg-amber-50 border-amber-200'}`}><p className="text-[10px] font-black text-slate-800 truncate">{partida.partida}</p><p className="text-[10px] mt-0.5 font-semibold text-slate-600">{partida.status === 'cost' ? `Costo supera objetivo del avance por $${Math.abs(partida.costGap).toLocaleString('es-CL')}` : partida.status === 'no-progress' ? 'Tiene avance planificado, pero no registra producción' : `Atraso de ${Math.abs(partida.scheduleGap).toFixed(1)}% frente al plan`}</p></div>)}</div>}</div><div className="bg-white p-5 border border-blue-200 rounded-2xl shadow-xs space-y-3"><div className="flex items-center justify-between"><h4 className="font-extrabold text-blue-950 text-xs uppercase tracking-wider flex items-center gap-1.5"><CalendarDays className="w-4 h-4 text-blue-800" />Partidas prontas a iniciar</h4><span className="text-[9px] font-black bg-blue-100 text-blue-900 px-2 py-0.5 rounded-full">Próx. 14 días</span></div>{upcomingPartidas.length === 0 ? <p className="text-xs text-slate-500 italic bg-slate-50 rounded-xl p-3">No hay partidas programadas para iniciar en los próximos 14 días.</p> : <div className="space-y-2 max-h-52 overflow-y-auto pr-1">{upcomingPartidas.slice(0, 6).map((partida, idx) => <div key={`upcoming-partida-${idx}`} className="p-2.5 rounded-xl border border-blue-100 bg-blue-50/60"><p className="text-[10px] font-black text-slate-800 truncate">{partida.partida}</p><div className="flex justify-between gap-2 mt-1 text-[10px] font-semibold"><span className="text-blue-800">Inicio: {partida.startDate}</span><span className="text-slate-600">{partida.daysUntil === 0 ? 'Hoy' : `en ${partida.daysUntil} día(s) hábiles`}</span></div></div>)}</div>}</div><div className="bg-slate-900 text-white p-5 rounded-2xl shadow-xs space-y-2"><span className="text-[10px] uppercase tracking-wider font-black text-slate-300">Próximo foco de gestión</span><p className="text-sm font-black">{criticalPartidas.length > 0 ? 'Revisar partidas críticas y acordar un plan de recuperación.' : upcomingPartidas.length > 0 ? 'Preparar recursos, cuadrillas y suministros para los próximos inicios.' : 'Mantener control de producción y calidad del registro diario.'}</p><p className="text-[10px] text-slate-300">{partidasSinAvance > 0 ? `${partidasSinAvance} partida(s) planificada(s) aún sin reporte de avance.` : daysToFinish !== null ? `${daysToFinish} día(s) hábiles estimados hasta el término configurado.` : 'Configura fecha de término para habilitar el horizonte de cierre.'}</p></div></div>
                         </div>
                       </div>
                     )}
 
+                    {['prediccion','costos','resumen'].includes(estadisticasTab) && <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-xs space-y-2"><p>Margen presupuestado: <b>{validBudgetMargin(budgetMargin)?`${budgetMargin}%`:'Pendiente · configurar en Presupuesto de obra'}</b></p><p>Margen al corte: <b>{marginMetrics.actualMargin?.toFixed(2)??'N/D'}%</b> · Margen proyectado al término: <b>{marginForecast.projectedMargin?.toFixed(2)??'N/D'}%</b></p><p>Diferencia contra el margen objetivo al término: <b>{marginForecast.projectedVariance==null?'Pendiente':`${Math.round(marginForecast.projectedVariance).toLocaleString('es-CL')}`}</b> · Positivo: mayor margen; negativo: consumo del margen.</p></div>}
                     {estadisticasTab === 'prediccion' && (
                       <PredictiveScenarioPanel
                         obra={selectedObra}
@@ -5301,11 +5308,10 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         costError={proyeccionesError||laborCostError||machineryChargeError||(dailyMachineryCharges.some(c=>c.monto==null)?'Faltan tarifas diarias de maquinaria':'')}
                         holidays={CHILEAN_HOLIDAYS}
                         canConfigure={can(user,userPermissions,'obras.gestion.configurar')}
-                        onBudgetSaved={value => setSelectedObra(prev => ({ ...prev,presupuesto_costo_control:value }))}
                         eac={EAC}
                         spi={SPI}
                         cpi={CPI}
-                        actualProgress={pctAvanceGlobal}
+                        actualProgress={BAC>0?EV/BAC*100:0}
                         plannedProgress={plannedGlobalPct}
                         advances={filteredAvances}
                         costs={actualCostRecords}
@@ -5756,7 +5762,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                           <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-2xl flex items-center justify-between">
                             <span className="text-xs font-bold text-emerald-950 flex items-center gap-2">
                               <CheckCircle2 className="w-4 h-4 text-emerald-700" />
-                              <span>{laborCostError ? `No se pudo cargar el costo de personal: ${laborCostError}` : AC <= 0 ? 'Sin costos registrados o aprobados al corte. No es posible concluir que la obra esté bajo presupuesto.' : 'No se detectaron costos superiores a la venta de avance. Esto no certifica que todos los costos estén registrados.'}</span>
+                              <span>{laborCostError ? `No se pudo cargar el costo de personal: ${laborCostError}` : !validBudgetMargin(budgetMargin) ? 'Margen presupuestado pendiente: configúralo en Presupuesto de obra para comparar costos.' : AC <= 0 ? 'Sin costos registrados al corte. No es posible concluir que la obra esté bajo presupuesto.' : CPI!=null&&CPI<1 ? 'El costo global supera el objetivo del avance y consume margen presupuestado. Revisa también los costos sin imputar.' : 'Revisa el CPI y la cobertura de costos. No se detectaron partidas por encima del costo objetivo; esto no certifica que todos los costos estén registrados.'}</span>
                             </span>
                             <span className="text-[10px] bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded font-extrabold">Revisar cobertura de costos</span>
                           </div>
@@ -5894,7 +5900,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                   const ventaAvance = Math.round(Math.min(parseFloat(p.cantidad) || 0, cantAv) * pu);
 
                                   const costoImputadoReal = getCostoImputadoPartida(p.partida);
-                                  const esSobrecosto = costoImputadoReal > ventaAvance;
+                                  const esSobrecosto = validBudgetMargin(budgetMargin) && costoImputadoReal > ventaAvance*(1-Number(budgetMargin)/100);
                                   return { partida: p.partida, ventaAvance, costoImputadoReal, esSobrecosto };
                                 }).sort((a, b) => b.ventaAvance - a.ventaAvance).slice(0, 5);
 
@@ -5946,7 +5952,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{costIndexLabel}</span>
                             <p className={`text-2xl font-black ${CPI >= 1.0 ? 'text-emerald-700' : 'text-rose-700'}`}>{displayedCostIndex?.toFixed(2) ?? 'N/D'}</p>
-                            <p className="text-[10px] font-bold">{CPI == null ? (costLoadIssue || 'Referencia venta/costo, no CPI técnico. Incluye costos incurridos pendientes de confirmar.') : CPI >= 1.0 ? '🟢 Dentro del presupuesto de costo' : '🔴 Sobre presupuesto de costo'}</p>
+                            <p className="text-[10px] font-bold">{CPI == null ? (costLoadIssue || (!validBudgetMargin(budgetMargin)?'Margen presupuestado pendiente':'Sin costo positivo comparable al corte')) : CPI >= 1.0 ? '🟢 Dentro del presupuesto de costo' : '🔴 Sobre presupuesto de costo'}</p>
                           </div>
 
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
@@ -5975,7 +5981,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                               <p className={`text-base font-black ${CV >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                                 {CV == null ? 'N/D' : CV >= 0 ? `+${CV.toLocaleString('es-CL')}` : `-${Math.abs(CV).toLocaleString('es-CL')}`}
                               </p>
-                              <p className="text-[9.5px] text-slate-500">{CV == null ? 'Falta presupuesto de costos o costos aprobados' : 'Diferencia contra costo presupuestado del avance'}</p>
+                              <p className="text-[9.5px] text-slate-500">{CV == null ? 'Falta margen presupuestado o costos válidos' : 'Diferencia contra costo presupuestado del avance'}</p>
                             </div>
                           </div>
                         </div>
@@ -6111,6 +6117,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
           {obraActiveSubmodule === 'gestion_obra' && canObraGestionView && gestionObraTab === 'presupuesto' && (
             <div className="space-y-6 animate-in fade-in duration-200">
+              <WorkBudgetMargin key={selectedObra.id} obra={selectedObra} canConfigure={can(user,userPermissions,'obras.gestion.configurar')} onSaved={value=>{setSelectedObra(prev=>({...prev,margen_presupuestado_pct:value}));setObras(prev=>prev.map(o=>o.id===selectedObra.id?{...o,margen_presupuestado_pct:value}:o));}}/>
 
 
               <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs flex justify-between items-center">

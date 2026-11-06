@@ -1,7 +1,8 @@
 import {calendarTimeline} from './sCurveTimeline.js';
 import {recentProductionForecast} from './recentProductionForecast.js';
 import {validSimulationDate} from './projectSimulator.js';
-export function targetProjection({parts=[],reports=[],cutoff,date,baselineFinish,targets={},budgets={},holidays=[],actualCost,costError='',futureCosts=[],extraCost=0,coverage=false,costBudget=0,machineryActual=0,estimateRemaining=false}){
+import {validBudgetMargin} from './budgetMargin.js';
+export function targetProjection({parts=[],reports=[],cutoff,date,baselineFinish,targets={},budgets={},holidays=[],actualCost,costError='',futureCosts=[],extraCost=0,coverage=false,costBudget=0,machineryActual=0,estimateRemaining=false,budgetMargin}){
  if(!validSimulationDate(date)||date<=cutoff)throw Error('La fecha objetivo debe ser posterior al corte real.');
  if((Date.parse(date)-Date.parse(cutoff))/86400000>1096)throw Error('El escenario admite un máximo de tres años desde el corte.');
  if(!Number.isFinite(Number(extraCost))||Number(extraCost)<0)throw Error('El costo adicional debe ser mayor o igual a cero.');
@@ -19,7 +20,8 @@ export function targetProjection({parts=[],reports=[],cutoff,date,baselineFinish
   const raw=budgets[key],budget=raw!==''&&raw!=null&&Number.isFinite(Number(raw))&&Number(raw)>=0?Number(raw):null;
   const price=p.unitPrice??p.pu??p.costo_por_dia;
   const sale=price!==''&&price!=null&&Number.isFinite(Number(price))&&Number(price)>=0?r.quantity*Number(price):null;
-  return {...r,key,pct:Number(pct),target,pending,days,required,planned,budget,sale,increase:r.pace>0&&required!=null?(required/r.pace-1)*100:null};
+  const objective=budgetMargin===undefined?budget:validBudgetMargin(budgetMargin)&&sale!=null?sale*(1-Number(budgetMargin)/100):null;
+  return {...r,key,pct:Number(pct),target,pending,days,required,planned,budget:objective,sale,increase:r.pace>0&&required!=null?(required/r.pace-1)*100:null};
  });
  const validBudgets=rows.length>0&&rows.every(r=>r.budget!=null&&r.quantity>0);
  const bac=validBudgets?rows.reduce((s,r)=>s+r.budget,0):null;

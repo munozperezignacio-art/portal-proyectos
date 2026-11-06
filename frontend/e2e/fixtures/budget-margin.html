@@ -1,0 +1,7 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="fixture"></div><script type="module">
+import React,{useState} from 'react';import {createRoot} from 'react-dom/client';import '../../src/index.css';
+import Panel from '../../src/components/WorkBudgetMargin.jsx';import {supabase} from '../../src/supabaseClient';import {marginIndicators} from '../../src/utils/budgetMargin.js';
+supabase.from=()=>{let value;const q={update(v){value=v;return q},eq(){return q},is(){return q},select(){return q},async single(){return {data:value,error:null}}};return q;};
+function App(){const [obra,setObra]=useState({id:1,empresa:'A',margen_presupuestado_pct:null});const m=marginIndicators({margin:obra.margen_presupuestado_pct,sale:100000000,earnedSale:100000000,actualCost:80000000});return React.createElement('main',{className:'p-4'},React.createElement(Panel,{obra,canConfigure:!location.search.includes('readonly'),onSaved:value=>setObra({...obra,margen_presupuestado_pct:value})}),React.createElement('p',{'data-testid':'cpi'},m.cpi==null?'Pendiente':m.cpi.toFixed(2)));}
+createRoot(document.getElementById('fixture')).render(React.createElement(App));
+</script></body></html>
