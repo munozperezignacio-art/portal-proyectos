@@ -5264,7 +5264,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                               <p className="text-xs text-blue-100 mt-1">Producción, plazo, costo, recursos y seguridad para decidir dónde actuar primero.</p>
                             </div>
                             <div className="flex flex-wrap gap-2 text-xs font-bold">
-                              <span className={`px-3 py-1.5 rounded-xl border ${SPI >= 1 ? 'bg-emerald-500/20 border-emerald-300/40 text-emerald-100' : 'bg-amber-500/20 border-amber-300/40 text-amber-100'}`}>Plazo: {SPI >= 1 ? 'En línea / adelantado' : 'Requiere recuperación'}</span>
+                              <span className={`px-3 py-1.5 rounded-xl border ${actualFinishAtCutoff || SPI >= 1 ? 'bg-emerald-500/20 border-emerald-300/40 text-emerald-100' : 'bg-amber-500/20 border-amber-300/40 text-amber-100'}`}>Plazo: {actualFinishAtCutoff ? 'Terminado' : SPI >= 1 ? 'En línea / adelantado' : 'Requiere recuperación'}</span>
                               <span className={`px-3 py-1.5 rounded-xl border ${CPI >= 1 ? 'bg-emerald-500/20 border-emerald-300/40 text-emerald-100' : 'bg-rose-500/20 border-rose-300/40 text-rose-100'}`}>Costo: {displayedCostIndex == null ? 'Revisar datos de costo' : CPI === null ? 'Control aproximado' : CPI >= 1 ? 'Controlado' : 'En desviación'}</span>
                               <span className="px-3 py-1.5 rounded-xl border border-blue-300/40 bg-blue-500/20 text-blue-100">{activeWorkerCount} personas | {totalEquiposFlota} equipos</span>
                             </div>
