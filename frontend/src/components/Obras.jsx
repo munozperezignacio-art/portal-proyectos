@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import WorkBudgetMargin from './WorkBudgetMargin';
 import {marginIndicators,validBudgetMargin} from '../utils/budgetMargin';
+import {scheduleClosing} from '../utils/scheduleClosing';
 import { supabase } from '../supabaseClient';
 import { MATERIAL_UNITS, materialMovement } from '../utils/materialMovement';
 import {useMachineryCharge} from '../utils/useMachineryCharge';
@@ -5065,14 +5066,20 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 const AC = AC_facturas + AC_personal + AC_maquinaria; // Costo Real Actual Total
 
                 const BAC = totalVentaPresupuestada; // Presupuesto Total Venta
-                const evm = calculateEarnedValue({ earnedValue: EV, plannedValue: PV, actualCost: AC, budgetAtCompletion: BAC });
                 // La interfaz conserva valores neutros cuando aún no existe base suficiente para un índice.
                 const budgetMargin=selectedObra?.margen_presupuestado_pct;
                 const marginMetrics=marginIndicators({margin:budgetMargin,sale:BAC,earnedSale:EV,actualCost:AC,costError:laborCostError||machineryChargeError||dailyMachineryCharges.some(c=>c.monto==null)});
                 const costBudget = marginMetrics.costBudget;
                 const earnedCost = marginMetrics.earnedCost;
                 const CPI = marginMetrics.cpi;
-                const SPI = evm.spi;
+                const scheduleClose = scheduleClosing({ cutoff: fCorteStr, workId: selectedObra.id, completion: workCompletion, plannedAt: getPlannedValueAt,
+                  earnedAt: date => targetPartidas.reduce((sum,p) => {
+                    const quantity = (reportesAvanceList || []).filter(r => (r.fecha || r.fecha_avance || String(r.created_at || '').slice(0,10)) <= date && isMatchPartidaName(r.partida,p.partida)).reduce((s,r)=>s+(parseFloat(r.cantidad)||0),0);
+                    const price = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (parseFloat(p.pu)||0);
+                    return sum + Math.round(Math.min(parseFloat(p.cantidad)||0,quantity)*price);
+                  },0)
+                });
+                const SPI = scheduleClose.spi;
                 const CV = CPI !== null ? earnedCost - AC : null;
                 const actualCostRecords = [
                   ...(costosList || []).filter(c => getCostDate(c) <= fCorteStr).map(c => ({ ...c,monto_base:Number(c.monto)||0,fecha:getCostDate(c),monto:isGlobalStats ? Number(c.monto)||0 : (c.imputaciones || []).filter(i => targetPartidas.some(p => isMatchPartidaName(i.partida,p.partida))).reduce((sum,i)=>sum+Math.round((Number(c.monto)||0)*(Number(i.porcentaje)||0)/100),0) })),
@@ -5274,7 +5281,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Avance real vs. plan</span><p className="text-2xl font-black text-blue-950">{pctAvanceGlobal}% <span className="text-xs text-slate-400 font-bold">/ {plannedGlobalPct.toFixed(1)}%</span></p><p className={`text-[10px] font-bold ${scheduleGapGlobal >= 0 ? 'text-emerald-700' : 'text-amber-700'}`}>{scheduleGapGlobal >= 0 ? '+' : ''}{scheduleGapGlobal.toFixed(1)}% contra programación</p></div>
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{actualFinishAtCutoff?'Término real de trabajos':'Impacto de la red programada'}</span><p className={`text-2xl font-black ${scheduleDaysGlobal === null || scheduleDaysGlobal >= 0 ? 'text-emerald-700' : 'text-amber-700'}`}>{actualFinishAtCutoff || (scheduleDaysGlobal === null ? 'Sin base' : scheduleDaysGlobal === 0 ? 'En plazo' : `${Math.abs(scheduleDaysGlobal).toLocaleString('es-CL',{maximumFractionDigits:2})} días ${scheduleDaysGlobal > 0 ? 'ganados' : 'perdidos'}`)}</p><p className="text-[10px] text-slate-500 font-semibold">{actualFinishAtCutoff ? `100% del alcance · Programado: ${contractualFinish||'Sin fecha'} · Costos finales independientes` : projectedFinish ? `Término proyectado ${projectedFinish}` : (pathAnalysis.issue || 'Seleccione la obra completa para evaluar la ruta crítica')}</p></div>
-                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Índice de plazo (SPI)</span><p className={`text-2xl font-black ${SPI >= 1 ? 'text-emerald-700' : 'text-amber-700'}`}>{SPI?.toFixed(2) ?? 'N/D'}</p><p className="text-[10px] text-slate-500 font-semibold">{partidasAtrasadas} partida(s) con atraso relevante</p></div>
+                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{scheduleClose.closed ? 'SPI de cierre' : 'Índice de plazo (SPI)'}</span><p className={`text-2xl font-black ${SPI >= 1 ? 'text-emerald-700' : 'text-amber-700'}`}>{SPI?.toFixed(2) ?? 'N/D'}</p><p className="text-[10px] text-slate-500 font-semibold">{scheduleClose.closed ? `Fijado al ${scheduleClose.date.split('-').reverse().join('-')} · Término al 100%` : `${partidasAtrasadas} partida(s) con atraso relevante`}</p></div>
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{costIndexLabel}</span><p className={`text-2xl font-black ${CPI >= 1 ? 'text-emerald-700' : 'text-rose-700'}`}>{displayedCostIndex?.toFixed(2) ?? 'N/D'}</p><p className="text-[10px] text-slate-500 font-semibold">EAC: {EAC == null ? 'Sin información suficiente' : `${EAC.toLocaleString('es-CL')}`}</p></div>
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Capacidad y seguridad</span><p className="text-2xl font-black text-slate-800">{avgDailyWorkers} <span className="text-xs text-slate-400 font-bold">pers./día</span></p><p className={`text-[10px] font-semibold ${countCTP > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{countCTP > 0 ? `${countCTP} accidente(s) CTP` : 'Sin accidentes con tiempo perdido'}</p></div>
                         </div>
@@ -5958,7 +5965,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">SPI (Índice Eficiencia Cronograma)</span>
                             <p className={`text-2xl font-black ${SPI >= 1.0 ? 'text-emerald-700' : 'text-amber-700'}`}>{SPI?.toFixed(2) ?? 'N/D'}</p>
-                            <p className="text-[10px] font-bold">{SPI >= 1.0 ? '🟢 Adelantado según Carta Gantt' : '⚠️ Atrasado según Carta Gantt'}</p>
+                            <p className="text-[10px] font-bold">{scheduleClose.closed ? `SPI de cierre · ${scheduleClose.date.split('-').reverse().join('-')}. Costos y CPI siguen al corte consultado.` : SPI == null ? 'Sin base programada' : SPI >= 1.0 ? '🟢 Adelantado según Carta Gantt' : '⚠️ Atrasado según Carta Gantt'}</p>
                           </div>
                         </div>
 
