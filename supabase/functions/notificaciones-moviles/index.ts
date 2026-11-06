@@ -1,29 +1,9 @@
+import { notificationRecipient } from "../_shared/notificationRecipients.mjs";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
-const list = (value: unknown) => Array.isArray(value) ? value.map(String) : [];
-const works = (value: unknown) => Array.isArray(value) ? value.map(String) : String(value || "").split(",").map(x => x.trim()).filter(Boolean);
-
-function isRecipient(delivery: any, profile: any) {
-  const rule = delivery.notificaciones_reglas;
-  const target = String(delivery.destinatario || "").toLowerCase();
-  const identifiers = [profile.id, profile.usuario, profile.correo].filter(Boolean).map((x: unknown) => String(x).toLowerCase());
-  if (identifiers.includes(target)) return true;
-  if (!rule) return false;
-  const users = list(rule.destinatarios_usuarios).map(x => x.toLowerCase());
-  const roles = list(rule.destinatarios_roles).map(x => x.toLowerCase());
-  const role = String(profile.rol || profile.rol_base || "").toLowerCase();
-  const explicitlyAssigned = users.includes(String(profile.id).toLowerCase()) || roles.includes(role);
-  if (!explicitlyAssigned) return false;
-  const scope = rule.condiciones?.alcance_tipo || (rule.obra_nombre ? "seleccionadas" : "todas");
-  if (scope === "todas") return true;
-  const assigned = works(profile.obras).map(x => x.toLowerCase());
-  const work = String(delivery.obra_nombre || "").toLowerCase();
-  if (scope === "asignadas") return assigned.includes("todas") || assigned.includes(work);
-  const selected = list(rule.condiciones?.obras_seleccionadas).map(x => x.toLowerCase());
-  return selected.includes(work) || String(rule.obra_nombre || "").toLowerCase() === work;
-}
+const isRecipient = notificationRecipient;
 
 Deno.serve(async req => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -35,7 +15,7 @@ Deno.serve(async req => {
     const { data: auth, error: authError } = await db.auth.getUser(token);
     if (authError || !auth.user) return reply({ error: "Sesion no valida" }, 401);
     const body = await req.json();
-    const { data: profile } = await db.from("usuarios").select("id,usuario,nombre,correo,empresa,rol,rol_base,obras").eq("auth_user_id", auth.user.id).eq("id", body.perfil_id).maybeSingle();
+    const { data: profile } = await db.from("usuarios").select("id,auth_user_id,usuario,nombre,correo,empresa,rol,rol_base,obras").eq("auth_user_id", auth.user.id).eq("id", body.perfil_id).maybeSingle();
     if (!profile) return reply({ error: "Perfil no autorizado" }, 403);
 
     if (body.action === "register") {
@@ -52,11 +32,16 @@ Deno.serve(async req => {
       await db.from("notificaciones_dispositivos").update({ activo: false, updated_at: new Date().toISOString() }).eq("auth_user_id", auth.user.id).eq("perfil_id", String(profile.id)).eq("dispositivo_id", String(body.dispositivo_id || ""));
       return reply({ ok: true });
     }
-    if (body.action === "read") {
+    if (body.action === "read" || body.action === "detail") {
       const deliveryId = Number(body.entrega_id);
       const { data: delivery } = await db.from("notificaciones_entregas").select("*,notificaciones_reglas(*)").eq("id", deliveryId).eq("empresa", profile.empresa).maybeSingle();
       if (!delivery || !isRecipient(delivery, profile)) return reply({ error: "Notificacion no autorizada" }, 403);
-      await db.from("notificaciones_lecturas").upsert({ entrega_id: deliveryId, auth_user_id: auth.user.id, leida_at: new Date().toISOString() });
+      if (body.action === "detail") {
+        const { notificaciones_reglas: _rule, ...detail } = delivery;
+        return reply({ data: detail });
+      }
+      const { error: readError } = await db.from("notificaciones_lecturas").upsert({ entrega_id: deliveryId, auth_user_id: auth.user.id, leida_at: new Date().toISOString() });
+      if (readError) throw readError;
       return reply({ ok: true });
     }
     if (body.action === "inbox") {

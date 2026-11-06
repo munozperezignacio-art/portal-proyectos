@@ -51,8 +51,17 @@ export async function markNotificationRead(profileId: string | number, deliveryI
 }
 
 export function openNotification(data?: Record<string, unknown>) {
-  const route = typeof data?.route === 'string' ? data.route : '/notificaciones';
+  const delivery = Number(data?.entregaId);
+  const candidate = typeof data?.route === 'string' ? data.route : '';
+  const route = Number.isSafeInteger(delivery) && delivery > 0 ? `/notificacion/${delivery}`
+    : /^\/(maquinaria|personal|formularios|obras|solicitudes)(\?|$)/.test(candidate) ? candidate : '/notificaciones';
   router.push(route as never);
+}
+
+export async function fetchNotificationDetail(profileId: string | number, deliveryId: number) {
+  const { data, error } = await supabase.functions.invoke('notificaciones-moviles', { body: { action: 'detail', perfil_id: profileId, entrega_id: deliveryId } });
+  if (error || data?.error) throw new Error(data?.error || error?.message || 'No fue posible abrir el aviso.');
+  return data.data as MobileNotification;
 }
 
 export async function scheduleMaintenanceSummary(count:number) {

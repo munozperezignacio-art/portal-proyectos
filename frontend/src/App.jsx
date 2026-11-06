@@ -130,6 +130,7 @@ function App() {
   const [selectedObraName, setSelectedObraName] = useState(null);
   const [oxObra, setOxObra] = useState(null);
   const [oxDestination, setOxDestination] = useState(null);
+  const [notificationDetail, setNotificationDetail] = useState(null);
 
   const baseUserContext = useMemo(() => user
     ? (selectedCompanyOverride ? { ...user, empresa: selectedCompanyOverride } : user)
@@ -308,6 +309,13 @@ function App() {
 
   const openNotificationDestination = (notification) => {
     const code = String(notification?.evento_codigo || '').toLowerCase();
+    if (notification?.payload?.operational_event) {
+      setSelectedObraName(notification.obra_nombre);
+      setCurrentModule('obras');
+      setNotificationDetail(notification);
+      setOxDestination(code.startsWith('obra_alerta_') ? 'estadisticas:costos' : code==='obra_reporte_maquinaria' ? 'maquinaria' : 'estadisticas:resumen');
+      navigateTo('/dashboard'); return;
+    }
     if(code==='maquinaria_termino_obra'){setSelectedObraName(notification.obra_nombre);setCurrentModule('obras');setOxDestination('maquinaria');navigateTo('/dashboard');return;}
     if (code.startsWith('solicitudes_')) { setNotificationRequestId(notification?.payload?.solicitud_id || null); setCurrentModule('solicitudes'); navigateTo('/dashboard'); return; }
     const module = code.startsWith('maquinaria_') || code.startsWith('mantenimiento_') ? 'maquinaria'
@@ -558,6 +566,7 @@ function App() {
 
   return (
     <div className="min-h-screen flex bg-slate-50 text-slate-800 font-sans">
+      {notificationDetail && <div role="dialog" aria-modal="true" aria-label="Detalle del aviso" className="fixed inset-0 z-[10001] bg-slate-950/50 flex items-center justify-center p-4" onClick={()=>setNotificationDetail(null)}><section className="bg-white rounded-2xl p-6 max-w-xl w-full shadow-xl" onClick={e=>e.stopPropagation()}><h2 className="font-bold text-lg">{notificationDetail.asunto}</h2><p className="text-sm text-slate-500 mt-2">{notificationDetail.obra_nombre} · {new Date(notificationDetail.created_at).toLocaleString('es-CL')}</p><p className="whitespace-pre-wrap text-sm leading-6 my-5">{String(notificationDetail.payload?.detalle||'')}</p><p className="text-xs text-slate-500 mb-4">Información al momento del aviso. En la obra puedes consultar el estado actualizado.</p><button autoFocus className="rounded-xl bg-indigo-900 text-white font-bold px-4 py-2" onClick={()=>setNotificationDetail(null)}>Ver obra</button></section></div>}
       
       {/* SIDEBAR NAVIGATION (Desktop) */}
       <aside className={`hidden md:flex flex-col bg-white border-r border-slate-200 fixed inset-y-0 left-0 z-40 transition-all duration-300 ${

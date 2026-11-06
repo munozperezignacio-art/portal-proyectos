@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import WorkBudgetMargin from './WorkBudgetMargin';
+import ProjectAlertNotifications from './ProjectAlertNotifications';
 import {marginIndicators,validBudgetMargin} from '../utils/budgetMargin';
 import {scheduleClosing} from '../utils/scheduleClosing';
 import { supabase } from '../supabaseClient';
@@ -504,6 +505,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
   // Modal y CRUD de Costos Reales de Obra
   const [costosList, setCostosList] = useState([]);
+  const [notificationDataWork, setNotificationDataWork] = useState(null);
   const [costosSubTab, setCostosSubTab] = useState('reales'); // 'reales' | 'proyectados'
   const [proyeccionesList, setProyeccionesList] = useState([]);
   const [proyeccionesError,setProyeccionesError]=useState('');
@@ -1588,6 +1590,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   };
 
   const fetchObraDetails = async (obraNombre) => {
+    setNotificationDataWork(null);
+    let notificationSourcesValid = true;
     setWorkCompletion(null);setWorkChargePeriod(null);setCompletionError('');
     if(selectedObra?.id) {
       const company=selectedObra.empresa||user.empresa;
@@ -1852,6 +1856,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       setPartidasList(normalizedListPart);
     } catch (e) {
       console.warn('Aviso partidas:', e);
+      notificationSourcesValid = false;
     }
 
     // 4. Asistencias de personal
@@ -1875,7 +1880,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       if (avancesError) throw avancesError;
       fullAvances = av1 || [];
       setReportesAvanceList(fullAvances);
-    } catch {}
+    } catch { notificationSourcesValid = false; }
 
     // 6. Bitácora
     try {
@@ -1956,6 +1961,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
 
     setRecentLogs(combined);
+    if (notificationSourcesValid) setNotificationDataWork(obraNombre);
   };
 
   const notifyWorkRecord=(event,summary)=>sendWorkRecordNotification({company:user.empresa,work:selectedObra.nombre,workId:selectedObra.id,event,summary});
@@ -5235,6 +5241,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
                 return (
                   <div className="space-y-6">
+                    <ProjectAlertNotifications company={user.empresa} workId={selectedObra.id} cutoff={fCorteStr}
+                      enabled={isGlobalStats && notificationDataWork===selectedObra.nombre && !costLoadIssue && fCorteStr===new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()) && /administrador.*(empresa|contrato)/i.test(user.rol_base||user.rol||'')}
+                      alerts={criticalPartidas.map(p=>({partida:p.partida,tipo:p.status==='cost'?'sobrecosto':p.status==='no-progress'?'sin_avance':'plazo',detalle:p.status==='cost'?`${p.partida}: costo supera el objetivo del avance por $${Math.round(Math.abs(p.costGap)).toLocaleString('es-CL')}. Corte ${fCorteStr}.`:p.status==='no-progress'?`${p.partida}: tiene avance programado, pero no registra producción. Corte ${fCorteStr}.`:`${p.partida}: atraso de ${Math.abs(p.scheduleGap).toFixed(1)}% frente al programa. Corte ${fCorteStr}.`}))}/>
                     {['resumen','costos'].includes(estadisticasTab) && <section aria-label="Costos registrados en estadísticas" className="rounded-2xl border border-emerald-100 bg-white p-4 space-y-3">
                       <div className="flex flex-wrap justify-between gap-2"><h4 className="text-xs font-extrabold text-emerald-950">Costos incurridos al {fCorteStr} · {isGlobalStats?'Toda la obra':'Alcance seleccionado'}</h4><span className="text-[11px] text-slate-500">Importes netos · Confirmados y pendientes</span></div>
                       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

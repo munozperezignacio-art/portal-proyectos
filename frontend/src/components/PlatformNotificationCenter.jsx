@@ -54,7 +54,9 @@ export default function PlatformNotificationCenter({ user, onNavigate, compact =
   useEffect(() => {
     load();
     const timer = window.setInterval(() => load(true), 60000);
-    return () => window.clearInterval(timer);
+    const refresh = () => load(true);
+    window.addEventListener('obraxis:notifications', refresh);
+    return () => { window.clearInterval(timer); window.removeEventListener('obraxis:notifications', refresh); };
   }, [load]);
 
   useEffect(() => { if (open) load(true); }, [load, open]);
