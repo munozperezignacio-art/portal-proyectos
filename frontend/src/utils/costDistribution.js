@@ -1,4 +1,11 @@
 const number = value => Number(value) || 0;
+export function filterCostGroups(groups, category) {
+  if (!category) return groups;
+  return groups.map(group => {
+    const rows = group.rows.filter(row => row.category === category);
+    return { ...group, rows, total: rows.reduce((sum, row) => sum + row.allocated, 0) };
+  }).filter(group => group.rows.length > 0);
+}
 export function costCategory(row) {
   const label = row.categoria_proyeccion || row.tipo_costo || 'Otros gastos';
   if (/mano de obra|personal/i.test(label)) return 'Personal';

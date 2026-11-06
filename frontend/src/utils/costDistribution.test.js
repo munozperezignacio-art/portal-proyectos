@@ -1,7 +1,21 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {costDistribution,costCategory} from './costDistribution.js';
+import {costDistribution,costCategory,filterCostGroups} from './costDistribution.js';
 const matches=(a,b)=>a===b;
+test('category drilldown filters each part and unassigned without duplicating costs',()=>{
+ const model=costDistribution([
+  {monto:100,tipo_costo:'Alimentación',imputaciones:[{partida:'A',porcentaje:60}]},
+  {monto:-10,tipo_costo:'Alimentación'},
+  {monto:50,tipo_costo:'Personal',imputaciones:[{partida:'B',porcentaje:100}]}
+ ],[{partida:'A'},{partida:'B'}],matches);
+ const filtered=filterCostGroups(model.groups,'Alimentación');
+ assert.deepEqual(filtered.map(g=>g.name),['A','Sin imputar a partidas']);
+ assert.equal(filtered.reduce((sum,g)=>sum+g.total,0),90);
+ assert.ok(filtered.every(g=>g.rows.every(r=>r.category==='Alimentación')));
+ assert.equal(filterCostGroups(model.groups,null),model.groups);
+ assert.equal(model.groups[1].total,50);
+ assert.deepEqual(filterCostGroups(model.groups,'Inexistente'),[]);
+});
 test('categories and allocations reconcile with all costs including unassigned',()=>{
  const model=costDistribution([
   {monto:100,tipo_costo:'Alimentación',imputaciones:[{partida:'A',porcentaje:60}]},
