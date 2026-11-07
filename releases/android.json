@@ -2,15 +2,16 @@
   "schema": 1,
   "platform": "android",
   "packageName": "cl.obraxis.terreno",
-  "version": "1.0.11",
-  "build": 17,
-  "apkUrl": "https://expo.dev/artifacts/eas/d4-PlLCqw5evBu9RvflDdbhsZ0QL1OPVa3JnS5B_w2M.apk",
-  "sha256": "e1374b8e8243c95db6c6f687faba26f00535e0265ff47e465255ed42d426041c",
-  "commit": "92d6cc83699a6b54ec32d638a2a57c9c383ddc76",
-  "sourceHash": "a19d8322ae376fefeb31b8a539297d1059c598ddc91c45480f54e392bc7f3cd1",
-  "publishedAt": "2026-10-26T23:53:43.602Z",
+  "version": "1.0.14",
+  "build": 21,
+  "apkUrl": "https://expo.dev/artifacts/eas/0oTkW5Hz34zVSdk_gBORhk1gLbQOQt4p75Qfx40CkvM.apk",
+  "sha256": "dc6d9d2282a662402fef71fd2d5429ee42a135d1ac96f8036dd59d68bc921c3f",
+  "commit": "e28882c399f746f4df71f156359e05b281b03166",
+  "sourceHash": "ee3647613b52850858c22b3e251a2338a881cae6eea2e3ca1d14767b2ace4ef9",
+  "publishedAt": "2026-11-07T01:07:17.536Z",
   "notes": [
-    "Mis solicitudes ahora está junto a la campana, en un botón rectangular compacto de la misma altura.",
-    "Se elimina la tarjeta grande de Inicio para dar más espacio a los accesos de trabajo."
+    "Jornadas por especialidad: registro de pilas, guardado sin conexión y cierre sin duplicar avances.",
+    "Topografía independiente y consulta del estado de protocolos de Calidad.",
+    "Acceso desde los avisos a la obra y su jornada."
   ]
 }

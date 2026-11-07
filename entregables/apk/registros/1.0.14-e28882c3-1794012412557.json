@@ -1,0 +1,413 @@
+{
+  "schema": 1,
+  "status": "FINISHED",
+  "verifiedEmbeddedRelease": true,
+  "appBuildVersion": "21",
+  "artifactUrl": "https://expo.dev/artifacts/eas/0oTkW5Hz34zVSdk_gBORhk1gLbQOQt4p75Qfx40CkvM.apk",
+  "apkSha256": "dc6d9d2282a662402fef71fd2d5429ee42a135d1ac96f8036dd59d68bc921c3f",
+  "commit": "e28882c399f746f4df71f156359e05b281b03166",
+  "version": "1.0.14",
+  "createdAt": "2026-11-07T00:45:32.746Z",
+  "sourceHash": "ee3647613b52850858c22b3e251a2338a881cae6eea2e3ca1d14767b2ace4ef9",
+  "files": [
+    {
+      "path": ".easignore",
+      "sha256": "713e80a9320a21e4c7e63cced450752c114784f4486f7a48466a1c2a366bf8f4"
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "f46c5bfd9b08e3711865cdc4e24e9536db4a351543e574f717dc88f4d4d30a9f"
+    },
+    {
+      "path": "app.config.js",
+      "sha256": "299e61f904d4808b0f2d8fd2348550ebc51ea78c04b1264d21718ce96557fd21"
+    },
+    {
+      "path": "app.json",
+      "sha256": "a2eb61a0e414cbf8776748900260b04a18e7a4474d16f58886efec454537ec3e"
+    },
+    {
+      "path": "assets/images/android-icon-foreground.png",
+      "sha256": "bcec70ee7111827eefc6eb0d347769159276ac4a6ab1af5eb18d1fd133a0198f"
+    },
+    {
+      "path": "assets/images/favicon.png",
+      "sha256": "bcec70ee7111827eefc6eb0d347769159276ac4a6ab1af5eb18d1fd133a0198f"
+    },
+    {
+      "path": "assets/images/icon.png",
+      "sha256": "bcec70ee7111827eefc6eb0d347769159276ac4a6ab1af5eb18d1fd133a0198f"
+    },
+    {
+      "path": "assets/images/obraxis-primary.png",
+      "sha256": "2e4865cadc9d7d56f96e21bfab2e3019aafb99b7313d1ced814fcf5d4cc6ac44"
+    },
+    {
+      "path": "assets/images/splash-icon.png",
+      "sha256": "bcec70ee7111827eefc6eb0d347769159276ac4a6ab1af5eb18d1fd133a0198f"
+    },
+    {
+      "path": "assets/manuales/impact/foto-paso-02.png",
+      "sha256": "46f7d834a84e7b5f59f8b8072ba3089cbe7e506e870461ef779a49b794e2431d"
+    },
+    {
+      "path": "assets/manuales/impact/foto-paso-03.png",
+      "sha256": "cf24753336585979f725fa9c76fc6bf1cfe520790b3e7b3404d4d6f653f457bd"
+    },
+    {
+      "path": "assets/manuales/impact/foto-paso-04.png",
+      "sha256": "a1f30f9f4f1b5109e598cfbdbeb4bf394c486570a09a77c6ad7173ead34301a9"
+    },
+    {
+      "path": "assets/manuales/impact/foto-paso-05.png",
+      "sha256": "4a85e8a3700eecb6ad994ef3c933ad21ccece39e6206ae0295134b2ce01afdf4"
+    },
+    {
+      "path": "assets/manuales/impact/foto-paso-06.png",
+      "sha256": "94edbd75776d47525d19292eebf64f4f3974dca057b8e92fc956b66324c6c766"
+    },
+    {
+      "path": "assets/manuales/impact/foto-paso-07.png",
+      "sha256": "3ce0bad5cec866139d029d16cf142cad5c5dbb63abd834e457ac38afdd008570"
+    },
+    {
+      "path": "assets/manuales/impact/foto-paso-08.png",
+      "sha256": "4f0bc73ff8ca6706c9e91c8a4386e475c2d93e9135421b04ee25ce81cb359559"
+    },
+    {
+      "path": "assets/manuales/impact/foto-paso-09.png",
+      "sha256": "e098222ce03e12eeb0df605d227c9740d4eeca683ca185adb40b4fae8d9afd08"
+    },
+    {
+      "path": "assets/manuales/impact/foto-paso-11.png",
+      "sha256": "1bf78351a70993b0e43fc9573062dbe03f939d620dcd8ae7438f761582a1262d"
+    },
+    {
+      "path": "assets/manuales/impact/foto-paso-12.png",
+      "sha256": "6d344eb4f45c027346a3e35d442d1be1b1291ba6851a99ae0c7543f7cebcfa31"
+    },
+    {
+      "path": "assets/manuales/impact/foto-paso-16.png",
+      "sha256": "38fe932e10abcec8c3bd90dbdb9e720260e0155b7645b2d11bd20b83d499d98d"
+    },
+    {
+      "path": "eas.json",
+      "sha256": "70a062ce1d24ec628b232dadc49d5e289f371a0d487a5f738ecc6f1bb823b1fb"
+    },
+    {
+      "path": "eslint.config.js",
+      "sha256": "004c40359c95463b96d1c342a40bb4d436055b8bcf75a8890440907ec4227cf0"
+    },
+    {
+      "path": "google-services.json",
+      "sha256": "2192554ea6451dff665d66225cee5b0020aa2db8eed825595825916f92a1e2aa"
+    },
+    {
+      "path": "modules/obraxis-updater/README.md",
+      "sha256": "a6248d1a1f2032293a4f8319db645dd6b132eb2ab656d8397027eebf48ee495b"
+    },
+    {
+      "path": "modules/obraxis-updater/android/build.gradle",
+      "sha256": "e5ce4dc264ca5c61de488b7f5ff4276e927ac6437ec5c7a8c6e2c762be29257d"
+    },
+    {
+      "path": "modules/obraxis-updater/android/src/main/AndroidManifest.xml",
+      "sha256": "8370f01905559ef00b462196849728026aaf07e5e15983aa5d3b87649357fb01"
+    },
+    {
+      "path": "modules/obraxis-updater/android/src/main/java/cl/obraxis/updater/ObraxisUpdaterModule.kt",
+      "sha256": "2d4ae4813761baf7aeacb81bfc4f0d9d27b4b35d3bc35494034a0c7345e413ad"
+    },
+    {
+      "path": "modules/obraxis-updater/android/src/main/res/xml/obraxis_update_paths.xml",
+      "sha256": "8a4fd0efd107642c820ed41eaa87bd87a11c3eb50bcde46a6156930c7c846f57"
+    },
+    {
+      "path": "modules/obraxis-updater/expo-module.config.json",
+      "sha256": "95b0c8055376c71d40892a77449e6cfd61bdeb43c7efa1817e707d55c602b1ac"
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "d99d687e1e188a0ea1e86727c14486a9aad62caf6bf14592639a579d736aa40a"
+    },
+    {
+      "path": "package.json",
+      "sha256": "c841177c29116e5081d3f5bc558a5950f19b4430261a10d8c5b9c33a4f2bf6b4"
+    },
+    {
+      "path": "scripts/publish-apk.cjs",
+      "sha256": "4be39542e09d4e9402c7a11a14e4bdf06d4d37f522e8314175c9df13ba49d6a5"
+    },
+    {
+      "path": "scripts/release-apk.mjs",
+      "sha256": "12bc6da107350b8730402e4240ef5ca004fb73611e8ace7f0c97578560fda10c"
+    },
+    {
+      "path": "scripts/release-policy.cjs",
+      "sha256": "12b57d8d3bba719334f8e65ad184c015c0e9a02fbef31f164d928bad668256b4"
+    },
+    {
+      "path": "scripts/test.cjs",
+      "sha256": "0f666c1c7778f0c56d0f55ec80f84579b1e1057fd82729d59eaffca49eb7dfb6"
+    },
+    {
+      "path": "scripts/verify-release.cjs",
+      "sha256": "6db5beaa9458f0b2b6e0bf2971567e1b51ac681e956d2aa46e3eb860e6a2f362"
+    },
+    {
+      "path": "src/app/(tabs)/_layout.tsx",
+      "sha256": "d61dbf337c75ef926501a0f1f6eda028d94d6d08a864fdc87a88b38d195c95ae"
+    },
+    {
+      "path": "src/app/(tabs)/formularios.tsx",
+      "sha256": "214d4892390bf795048db02138fd5209b88d2c5a81a42c552da25483a20e2d69"
+    },
+    {
+      "path": "src/app/(tabs)/inicio.tsx",
+      "sha256": "687d83df3cb97ac197bbf473bd48934e84e1c9bf532add42af1265c1cb746790"
+    },
+    {
+      "path": "src/app/(tabs)/maquinaria.tsx",
+      "sha256": "c0cbc2d4a28c81e2dc385fd06edea9b034656884d6db98266559fb263982fd18"
+    },
+    {
+      "path": "src/app/(tabs)/obras.tsx",
+      "sha256": "cd85eaf3bb265d9399efa9b82b6727e2a77c9956f9b4bf8e2555f5b80823928b"
+    },
+    {
+      "path": "src/app/(tabs)/personal.tsx",
+      "sha256": "05aafa4e3c6ca158d0d940d284f1bd5da42087bb6d6427ae7f56117d9e6cdcc2"
+    },
+    {
+      "path": "src/app/_layout.tsx",
+      "sha256": "cc893be73e9804096069ff77315417c353ab27719ce4338d815a3c829a077fbd"
+    },
+    {
+      "path": "src/app/equipo/[id].tsx",
+      "sha256": "7cbead6feb0077724e300403337940154e0f1f2374a0a60441b8f9e8837a49d7"
+    },
+    {
+      "path": "src/app/formulario/[id].tsx",
+      "sha256": "c0901365c5efb613d0ac56927d5c52d582d873f10c5bce5c0adcaa90f13b4cba"
+    },
+    {
+      "path": "src/app/index.tsx",
+      "sha256": "a56024927f9850857853054348847447158b3580894227f89af90fb5f85a8612"
+    },
+    {
+      "path": "src/app/login.tsx",
+      "sha256": "206068fddadd242051a73f3b3234a3667f09cfcb77e9770b5ed9da864d29b22a"
+    },
+    {
+      "path": "src/app/notificacion/[id].tsx",
+      "sha256": "9c580c4af150e00d2b979fc10f265de196c586cc0c20e37bb0380dd15fc6b0ad"
+    },
+    {
+      "path": "src/app/notificaciones.tsx",
+      "sha256": "a56c777586408c97746c9de2ab9ce187f1b891758d4be1b0a07e2dc1e34cb794"
+    },
+    {
+      "path": "src/app/obra/[id].tsx",
+      "sha256": "c27138c128f163b4f209d3c2a64f0e47d59f79d11c7978af56a011ca3a8c556f"
+    },
+    {
+      "path": "src/app/procedimiento/impact.tsx",
+      "sha256": "d4cbc2be3b878d6f78852417fdfec97db1b468b05ac9766359b87b1784a90359"
+    },
+    {
+      "path": "src/app/registro/[id].tsx",
+      "sha256": "17335e154099995c0de2b1e1e7b445f99c0eb9dfddb3ced40717b694f270604f"
+    },
+    {
+      "path": "src/app/solicitudes.tsx",
+      "sha256": "cb6a686b73c22471306fcb937abedb87426c75b2a76770aef6137421a818a2a9"
+    },
+    {
+      "path": "src/app/subcontrato/[id].tsx",
+      "sha256": "475ad39706ddeada28dfc0dfb3e5e3a2a7de55d23957e64794c9408dbf92234c"
+    },
+    {
+      "path": "src/app/trabajador/[id].tsx",
+      "sha256": "d258f91cea5d6d5be34640b8371f8579d1a624ad2657b232db5fa22e2e9783c9"
+    },
+    {
+      "path": "src/auth/AuthProvider.tsx",
+      "sha256": "0c96f6d2cb83b94c9620a5015929b078291cf84c3a22126ad967082e02b21c7b"
+    },
+    {
+      "path": "src/components/AppUpdates.tsx",
+      "sha256": "852daf9232830f7f23c1f9b8ebd46a2bf1b2f84a325e4294a8b66b7f494ee369"
+    },
+    {
+      "path": "src/components/AppearanceSettings.tsx",
+      "sha256": "edeca4eb3f280cb96fe8cc81ad7d5ba504ea875d8f8017990ff239dd0bea9d4a"
+    },
+    {
+      "path": "src/components/BiometricGate.tsx",
+      "sha256": "b910cf113f299f0e52686945640f74a41aabfcba871a4ed35cb168b88ccf07d6"
+    },
+    {
+      "path": "src/components/BuildVersion.tsx",
+      "sha256": "5b078683a402d95a844b3761454e77d58d2ddb3a5d7610d507f51e07777dcc4c"
+    },
+    {
+      "path": "src/components/DateField.tsx",
+      "sha256": "c4389c392c0c40fb16dd2c89873ab38233c3962284a9d6088163767fccb60bde"
+    },
+    {
+      "path": "src/components/EquipmentManagementActions.tsx",
+      "sha256": "ba4ddfe20d5e65fdde2e300fd2355d3b39408d195ab4d22c1389a1a2693123ca"
+    },
+    {
+      "path": "src/components/MachineryActions.tsx",
+      "sha256": "bf9fc2828642bb10caab70c120215ccaef292be4a653f253339dd67019dc1f2d"
+    },
+    {
+      "path": "src/components/MachineryReportCard.tsx",
+      "sha256": "3eee989c6d802d3a85532c377f1633db003808e2f70ca82219700a1ed9d7d42a"
+    },
+    {
+      "path": "src/components/MachineryUsageForm.tsx",
+      "sha256": "b353d25d5bb386f6f73275df113df8e7a50d9636fbccdb4c9245bc0c0b50dac2"
+    },
+    {
+      "path": "src/components/ManualAttendance.tsx",
+      "sha256": "7540286fad2d1cd3177f97a0f8c8bf8b4ae1ef5777de5310e7545c27ca11f909"
+    },
+    {
+      "path": "src/components/NotificationSetup.tsx",
+      "sha256": "b5b9ed0eba8557b5ee453b8399f53a553c4de13b3c8ec85aa86b9731da4b121d"
+    },
+    {
+      "path": "src/components/OfflineSync.tsx",
+      "sha256": "c09fce9c7a8547a20bfd6a9dd309a785b2fd9b1b7022edf0dd975f3ca5231caf"
+    },
+    {
+      "path": "src/components/SimpleBars.tsx",
+      "sha256": "4720cf47afb1ba38607425958fd94f09f5f820f6a212afa7c62b7dc05c8810e1"
+    },
+    {
+      "path": "src/components/SpecialtyJournal.tsx",
+      "sha256": "2e3bd497b0b30b6423a92bae9be2e17c702a070225823414e0e183089ba817b3"
+    },
+    {
+      "path": "src/components/WorkEntryActions.tsx",
+      "sha256": "f691a2646a885c06c5eaa0a1aacdc473a04850f9ff2a846ec24668f732f57561"
+    },
+    {
+      "path": "src/components/WorkPartReports.tsx",
+      "sha256": "24930e53326efc32e729966ffb688903e2facf4522d0068949e1d41596cbb05a"
+    },
+    {
+      "path": "src/components/WorkStatistics.tsx",
+      "sha256": "9d696678c5d4869fe92a528b05904c276d669ad6df37a69bc360adc864170e37"
+    },
+    {
+      "path": "src/components/ui.tsx",
+      "sha256": "35ab1d97a0300c6894481bcd40645a46d07553215e3dd0eb22c49e8400d41a10"
+    },
+    {
+      "path": "src/data/impactImages.ts",
+      "sha256": "b2d30035c8f16fce506cd0bd514fa8250f936ef27bd815880b5a8b2d835720e5"
+    },
+    {
+      "path": "src/data/impactManual.json",
+      "sha256": "d95a3bf8663fcee55503c68b5205ab41120ce4214f055adbed5811e756213900"
+    },
+    {
+      "path": "src/hooks/useSupabaseList.ts",
+      "sha256": "8bb2559b0355ed12e98b28f9499304f9a12d625cbc21716fbd66ebfe167346e8"
+    },
+    {
+      "path": "src/lib/appUpdates.ts",
+      "sha256": "943a8542845ad17b16b011f9636ed87f1ca24d35505b07677af2f0486296be35"
+    },
+    {
+      "path": "src/lib/attendanceBatch.ts",
+      "sha256": "a45f7e11eb752a35cbd5a00a6438af806821009d7e3c13fe5162b2a4683ae048"
+    },
+    {
+      "path": "src/lib/attendanceHours.ts",
+      "sha256": "d172f7db24a89704231cfa6ab49a5108639af3b4d258808246ba402db33f622a"
+    },
+    {
+      "path": "src/lib/dateInput.ts",
+      "sha256": "a193a63d82818889c633317d01ba47f8ed7a73a722a6c2035c9c389034f440db"
+    },
+    {
+      "path": "src/lib/nativeUpdater.ts",
+      "sha256": "3251b05904ced65723047b8accd425d0e6d1c755d5d3f0b8fa4f1de9a67cc036"
+    },
+    {
+      "path": "src/lib/notifications.ts",
+      "sha256": "57d44485c87a719f4a261cb3ecbce638bd987322c2e62ca3c1c74f76ce55fa4d"
+    },
+    {
+      "path": "src/lib/offlineQueue.ts",
+      "sha256": "63dd19f4167f0ff48978f51f6f41c7c841528397ed1d0a06671d8c1adc5c462a"
+    },
+    {
+      "path": "src/lib/specialtyJournal.d.mts",
+      "sha256": "4d27024b227e6ea2d49aefd4e926bb1933d4a27c75097ccf64dd2989307f7969"
+    },
+    {
+      "path": "src/lib/specialtyJournal.mjs",
+      "sha256": "8971072111519f4dcfff280a2543f9d6cc00f619be0e79b63f5a041333957391"
+    },
+    {
+      "path": "src/lib/statisticsDashboard.ts",
+      "sha256": "3e39d7f147c8e20f6780c2ac16759d81fb669c9a00b2d6c02f4554afd2d8ce7e"
+    },
+    {
+      "path": "src/lib/supabase.ts",
+      "sha256": "a1dbb7d660c39cc43b2d8e4bf019ff8b3776b10010012cabe3f9a4738bda036e"
+    },
+    {
+      "path": "src/lib/theme.ts",
+      "sha256": "d9568619ee5dcdd840ee848c875c73e53d767bac5fc049af8471e278129f54c5"
+    },
+    {
+      "path": "src/lib/themePreference.ts",
+      "sha256": "8029d2174fed8eda5acdab690b7bd654cc90c59a3d7ee6921665b7ac051e2569"
+    },
+    {
+      "path": "src/lib/types.ts",
+      "sha256": "da7fd15d7676a7f032071e00fb9ddb75c20fade3ffd00404b4f0e3e82a6d01b0"
+    },
+    {
+      "path": "src/lib/useAppUpdates.ts",
+      "sha256": "81ddf91d444eb04c5018c4744210115627eecd45e95eef58bb0bd861d0fd668f"
+    },
+    {
+      "path": "src/lib/weeklyWorkSchedule.ts",
+      "sha256": "58e2c9b81bb9819e0761b6cafc1d2360c156f50c29439b3e995a784ef59cfa26"
+    },
+    {
+      "path": "src/lib/workPersonnel.ts",
+      "sha256": "d0526faa1fb60396437996172fee76b871d8dbdfd47fd57096a79650cd198ce9"
+    },
+    {
+      "path": "src/lib/workPresentation.ts",
+      "sha256": "435fef4c945d190f0873d2a2ad69f7b3eba95accd44ecf5a42061026fd50c775"
+    },
+    {
+      "path": "src/lib/workStatistics.ts",
+      "sha256": "85f08ca63fff533526b1045fc9f26a42a4720643b0e8fe34ae60d29adb780f47"
+    },
+    {
+      "path": "src/theme/ThemeProvider.tsx",
+      "sha256": "04f27c41a3f0ead2f04400a879845ea1c140aae9fa57deae7b568948255a2e4b"
+    },
+    {
+      "path": "tsconfig.json",
+      "sha256": "09570b139a14ee71947b40b6ef8d639323603fd031bf253d32f449a77d3ab58e"
+    }
+  ],
+  "builds": [
+    {
+      "id": "e5894e64-9065-4755-91bc-ba84b7cffdaa",
+      "status": "FINISHED",
+      "platform": "ANDROID"
+    }
+  ]
+}
