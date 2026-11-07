@@ -1,5 +1,6 @@
 import type { Session } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { createContext, PropsWithChildren, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -13,13 +14,22 @@ const BIOMETRIC_KEY = 'obraxis_biometric_enabled';
 const BIOMETRIC_ASKED_KEY = 'obraxis_biometric_asked';
 
 async function loadProfile(session: Session, company?: string) {
+  const cacheKey=`obraxis:offline-profile:${session.user.id}`;
+  const network=await NetInfo.fetch();
+  if(network.isConnected===false||network.isInternetReachable===false){
+    const cached=await AsyncStorage.getItem(cacheKey);
+    if(cached){const saved=JSON.parse(cached) as Profile;if(saved.auth_user_id===session.user.id&&(!company||saved.empresa.toLowerCase()===company.trim().toLowerCase()))return saved;}
+    throw new Error('Inicia sesión con conexión una vez antes de trabajar sin conexión.');
+  }
   let query = supabase.from('usuarios').select(fields).eq('auth_user_id', session.user.id).limit(1);
   if (company) query = query.ilike('empresa', company.trim());
   const { data, error } = await query.maybeSingle();
   if (error) throw error;
   if (!data) throw new Error('Tu cuenta no tiene un perfil activo para esta empresa.');
   const { data: role } = await supabase.from('roles').select('permisos').eq('empresa', data.empresa).eq('nombre', data.rol || data.rol_base || '').maybeSingle();
-  return { ...data, permisos: { ...(role?.permisos || {}), ...(data.permisos || {}) } } as Profile;
+  const loaded={ ...data, permisos: { ...(role?.permisos || {}), ...(data.permisos || {}) } } as Profile;
+  await AsyncStorage.setItem(cacheKey,JSON.stringify(loaded));
+  return loaded;
 }
 
 export function AuthProvider({ children }: PropsWithChildren) {

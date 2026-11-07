@@ -1,0 +1,2 @@
+export function createJournalStore(options:{storage:{getItem:(key:string)=>Promise<string|null>;setItem:(key:string,value:string)=>Promise<any>};send:(action:string,data:any)=>Promise<any>;uuid:()=>string;scope:string}):{read:()=>Promise<any>;edit:(session:any)=>Promise<void>;close:()=>Promise<void>;sync:()=>Promise<any>};
+export function pileDiagram(elements:any[],selectedIds?:string[],completedIds?:string[]):any[];

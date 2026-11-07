@@ -10,6 +10,7 @@ import { can } from '../utils/permissionsCatalog';
 import { canConfigureWork, canConfigureResponsibility } from '../utils/workConfigurationAccess';
 
 const CATALOG = [
+  { code: 'especialidad_jornada_abierta', module: 'Obras', name: 'Jornada de especialidad sin cerrar', description: 'Recuerda el cierre al responsable designado y a los destinatarios configurados, en días laborales. Hora sugerida: 20:00 de Chile.', frequency: 'Diaria' },
   { code: 'avance_registrado', module: 'Obras', name: 'Avance registrado', description: 'Informa cada nuevo reporte de avance físico.', frequency: 'Inmediata' },
   { code: 'avance_reporte_pendiente', module: 'Obras', name: 'Reporte de avance diario pendiente', description: 'Avisa las obras activas que no han enviado su reporte diario. Un reporte con avance 0 se considera correctamente informado.', frequency: 'Diaria' },
   { code: 'reportes_diarios_pendientes', module: 'Obras', name: 'Resumen diario de informes pendientes', description: 'Consolida cada día las obras que aún deben informar avance o uso de maquinaria.', frequency: 'Diaria' },
@@ -122,7 +123,7 @@ export default function NotificationMaster({ user, obras = [], roles = [], work 
 
   const selectTemplate = (code) => {
     const item = CATALOG.find(t => t.code === code) || CATALOG[0];
-    setForm(prev => ({ ...prev, template_code: item.code, nombre: item.name, modulo: item.module, descripcion: item.description, frecuencia: item.frequency }));
+    setForm(prev => ({ ...prev, template_code: item.code, nombre: item.name, modulo: item.module, descripcion: item.description, frecuencia: item.frequency, ...(item.code==='especialidad_jornada_abierta'?{hora_envio:'20:00'}:{}) }));
   };
 
   const openNew = () => {
@@ -144,7 +145,7 @@ export default function NotificationMaster({ user, obras = [], roles = [], work 
       obra_nombre: rule.obra_nombre || '', alcance_tipo: scope, obras_seleccionadas: selectedWorks, roles: normalizeArray(rule.destinatarios_roles),
       usuarios: normalizeArray(rule.destinatarios_usuarios), correos: normalizeArray(rule.correos_adicionales).length ? rule.correos_adicionales : [''],
       canal_email: rule.canal_email, canal_plataforma: rule.canal_plataforma, canal_push: Boolean(rule.canal_push), frecuencia: rule.frecuencia,
-      hora_envio: String(rule.hora_envio || '18:00').slice(0, 5), dias_anticipacion: rule.dias_anticipacion || 7, activa: rule.activa
+      hora_envio: String(rule.hora_envio || '18:00').slice(0, 5), dias_anticipacion: rule.dias_anticipacion || 7, activa: rule.activa, dias_no_laborales:(rule.condiciones?.dias_no_laborales||[]).join(', ')
     });
     setMessage('');
     setModal(true);
@@ -159,7 +160,7 @@ export default function NotificationMaster({ user, obras = [], roles = [], work 
     if (form.alcance_tipo === 'seleccionadas' && !form.obras_seleccionadas.length) {
       setMessage('Selecciona al menos una obra para este alcance.'); return;
     }
-    if (form.template_code !== 'prevencion_cumplimiento_pendiente' && !form.roles.length && !form.usuarios.length && !form.correos.some(Boolean)) {
+    if (!['prevencion_cumplimiento_pendiente','especialidad_jornada_abierta'].includes(form.template_code) && !form.roles.length && !form.usuarios.length && !form.correos.some(Boolean)) {
       setMessage('Selecciona al menos un rol, usuario o correo adicional.'); return;
     }
     const payload = {
@@ -168,7 +169,7 @@ export default function NotificationMaster({ user, obras = [], roles = [], work 
       destinatarios_usuarios: form.usuarios, correos_adicionales: form.correos.map(x => x.trim()).filter(Boolean),
       canal_email: form.canal_email, canal_plataforma: form.canal_plataforma || form.canal_push, canal_push: form.canal_push, frecuencia: form.frecuencia,
       hora_envio: form.hora_envio || null, dias_anticipacion: form.frecuencia === 'Anticipada' ? Number(form.dias_anticipacion || 7) : null,
-      condiciones: { alcance_tipo: form.alcance_tipo, obras_seleccionadas: form.alcance_tipo === 'seleccionadas' ? form.obras_seleccionadas : [] },
+      condiciones: { alcance_tipo: form.alcance_tipo, obras_seleccionadas: form.alcance_tipo === 'seleccionadas' ? form.obras_seleccionadas : [], ...(form.template_code==='especialidad_jornada_abierta'?{dias_no_laborales:String(form.dias_no_laborales||'').split(',').map(s=>s.trim()).filter(s=>/^\d{4}-\d{2}-\d{2}$/.test(s))}:{}) },
       activa: form.activa, creado_por: user.correo || user.usuario || null, updated_at: new Date().toISOString()
     };
     setSaving(true);
@@ -202,7 +203,7 @@ export default function NotificationMaster({ user, obras = [], roles = [], work 
     const rows = CATALOG.filter(t => !existing.has(`${t.code}|`)).map(t => ({
       empresa: user.empresa, nombre: t.name, evento_codigo: t.code, modulo: t.module, descripcion: t.description,
       destinatarios_roles: [], destinatarios_usuarios: [], correos_adicionales: [], canal_email: true,
-      canal_plataforma: true, canal_push: false, frecuencia: t.frequency, hora_envio: '18:00', dias_anticipacion: t.frequency === 'Anticipada' ? 7 : null,
+      canal_plataforma: true, canal_push: false, frecuencia: t.frequency, hora_envio: t.code==='especialidad_jornada_abierta'?'20:00':'18:00', dias_anticipacion: t.frequency === 'Anticipada' ? 7 : null,
       condiciones: { alcance_tipo: 'todas', obras_seleccionadas: [] },
       activa: false, creado_por: user.correo || user.usuario || null
     }));
@@ -291,6 +292,7 @@ export default function NotificationMaster({ user, obras = [], roles = [], work 
           <div className="md:col-span-2"><span className="text-[10px] font-black uppercase text-slate-500">Canales</span><div className="mt-2 flex flex-wrap gap-4"><label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={form.canal_email} onChange={e => setForm({ ...form, canal_email: e.target.checked })} /> Correo</label><label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={form.canal_plataforma} onChange={e => setForm({ ...form, canal_plataforma: e.target.checked })} /> Plataforma</label><label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={form.canal_push} onChange={e => setForm({ ...form, canal_push: e.target.checked, canal_plataforma: e.target.checked ? true : form.canal_plataforma })} /> Push móvil</label></div><p className="mt-2 text-[10px] text-slate-400">El push también conserva el aviso en la bandeja de la app.</p></div>
           <label><span className="text-[10px] font-black uppercase text-slate-500">Frecuencia</span><select value={form.frecuencia} onChange={e => setForm({ ...form, frecuencia: e.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 p-3 text-xs"><option>Inmediata</option><option>Diaria</option><option>Semanal</option><option>Anticipada</option></select></label>
           {form.frecuencia !== 'Inmediata' && <label><span className="text-[10px] font-black uppercase text-slate-500">Hora de envío</span><input type="time" value={form.hora_envio} onChange={e => setForm({ ...form, hora_envio: e.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 p-3 text-xs" /></label>}
+          {form.template_code==='especialidad_jornada_abierta'&&<label className="md:col-span-2 text-xs">Días no laborales adicionales (AAAA-MM-DD separados por coma). Sábados y domingos siempre se excluyen.<input className="mt-1 w-full rounded-xl border p-3" value={form.dias_no_laborales||''} onChange={e=>setForm({...form,dias_no_laborales:e.target.value})}/></label>}
           {form.frecuencia === 'Anticipada' && <label><span className="text-[10px] font-black uppercase text-slate-500">Días de anticipación</span><input type="number" min="1" value={form.dias_anticipacion} onChange={e => setForm({ ...form, dias_anticipacion: e.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 p-3 text-xs" /></label>}
         </div>
         <div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setModal(false)} className="rounded-xl bg-slate-100 px-4 py-3 text-xs font-bold text-slate-700">Cancelar</button><button disabled={saving} type="submit" className="flex items-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-xs font-black text-white"><Send className="h-4 w-4" /> {saving ? 'Guardando…' : 'Guardar responsabilidad'}</button></div>

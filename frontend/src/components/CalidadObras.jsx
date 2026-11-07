@@ -5,6 +5,7 @@ import { registrarEventoBitacora } from '../utils/bitacoraService';
 import { appendAudit, auditActor } from '../utils/documentAudit';
 import DocumentAuditTrail from './DocumentAuditTrail';
 import ModuleHeader from './ModuleHeader';
+import SpecialtyReports from './SpecialtyReports';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
 import { canTransitionNonConformity, nextNonConformityState } from '../utils/workflowRules';
@@ -119,8 +120,8 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
       if (!obraNombre && target) setObraNombre(target);
       if (!target) { setPacs([]); setRdis([]); setNcs([]); setRecepciones([]); setReceptionControls([]); setPartidas([]); return; }
       const partidasQuery = targetWork?.id
-        ? supabase.from('partidas_obra').select('partida, unidad').eq('empresa', empresa).eq('obra_id', targetWork.id)
-        : supabase.from('partidas_obra').select('partida, unidad').eq('empresa', empresa).eq('obra_nombre', target);
+        ? supabase.from('partidas_obra').select('id, partida, unidad, es_titulo').eq('empresa', empresa).eq('obra_id', targetWork.id)
+        : supabase.from('partidas_obra').select('id, partida, unidad, es_titulo').eq('empresa', empresa).eq('obra_nombre', target);
       const [partidasRes, pacRes, rdiRes, ncRes, receptionRes, controlsRes] = await Promise.all([
         partidasQuery,
         supabase.from('calidad_pac').select('*').eq('empresa', empresa).eq('obra_nombre', target).order('created_at', { ascending: false }),
@@ -333,6 +334,7 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
   if (!canView) return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center text-sm font-bold text-amber-900">Tu perfil no tiene permiso para ver Calidad de Obra.</div>;
 
   return <div className="space-y-5">
+    {(obraPerfil?.id||obras.find(o=>o.nombre===obraNombre)?.id)&&<details className="rounded-xl border bg-white p-4"><summary className="font-bold cursor-pointer">Protocolos por especialidad · Ejecución y topografía</summary><SpecialtyReports quality user={user} work={obraPerfil?.id?obraPerfil:obras.find(o=>o.nombre===obraNombre)} parts={partidasEjecutables}/></details>}
     <ModuleHeader title={embedded ? `Calidad · ${obraInicial}` : 'Control Corporativo de Calidad'} subtitle="PAC, solicitudes RDI, recepción de partidas y no conformidades con trazabilidad." Icon={ShieldCheck} onBack={onBack} actions={<>{!embedded && <select value={obraNombre} onChange={e => setObraNombre(e.target.value)} className="min-w-52 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold"><option value="">Selecciona una obra</option>{obras.map(o => <option key={o.nombre} value={o.nombre}>{o.nombre}</option>)}</select>}<button onClick={load} className="flex items-center gap-1 rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"><RefreshCw className="h-3.5 w-3.5" />Actualizar</button></>} />
     {message && <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-900">{message}</div>}
     {!canCreate && <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-600">Acceso de consulta. La creación de PAC, RDI, recepciones y no conformidades está restringida por tu rol.</div>}

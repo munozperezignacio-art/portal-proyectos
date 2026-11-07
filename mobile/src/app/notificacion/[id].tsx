@@ -29,7 +29,7 @@ export default function NotificationDetail() {
     <ErrorBox text={error} />{!item && !error ? <Loading /> : null}
     {item ? <Card><Text style={{ color: colors.ink, lineHeight: 24 }}>{String(item.payload?.detalle || 'Revisa la información de este aviso en la obra.')}</Text>
       <Text style={{ color: colors.muted, marginTop: 12 }}>{new Date(item.created_at).toLocaleString('es-CL')}</Text>
-      {Number.isSafeInteger(workId) && workId > 0 ? <Pressable onPress={() => router.push({ pathname: '/obra/[id]', params: { id: String(workId), nombre: item.obra_nombre || '' } })} style={{ paddingVertical: 18 }}><Text style={{ color: colors.ink, fontWeight: '700' }}>Abrir obra →</Text></Pressable> : null}
+      {Number.isSafeInteger(workId) && workId > 0 ? <Pressable onPress={() => router.push({ pathname: '/obra/[id]', params: { id: String(workId), nombre: item.obra_nombre || '', especialidad:item.payload?.sesion_id?'1':undefined } })} style={{ paddingVertical: 18 }}><Text style={{ color: colors.ink, fontWeight: '700' }}>Abrir obra →</Text></Pressable> : null}
     </Card> : null}
   </Screen>;
 }

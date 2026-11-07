@@ -313,7 +313,7 @@ function App() {
       setSelectedObraName(notification.obra_nombre);
       setCurrentModule('obras');
       setNotificationDetail(notification);
-      setOxDestination(code.startsWith('obra_alerta_') ? 'estadisticas:costos' : code==='obra_reporte_maquinaria' ? 'maquinaria' : 'estadisticas:resumen');
+      setOxDestination(notification.payload.sesion_id ? 'avance' : code.startsWith('obra_alerta_') ? 'estadisticas:costos' : code==='obra_reporte_maquinaria' ? 'maquinaria' : 'estadisticas:resumen');
       navigateTo('/dashboard'); return;
     }
     if(code==='maquinaria_termino_obra'){setSelectedObraName(notification.obra_nombre);setCurrentModule('obras');setOxDestination('maquinaria');navigateTo('/dashboard');return;}

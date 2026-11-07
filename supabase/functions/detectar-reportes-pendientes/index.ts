@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { responsibleRecipients } from "./recipients.js";
+import {processSpecialtyNotifications} from './specialty.ts';
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const EVENTS = ['avance_reporte_pendiente', 'maquinaria_reporte_pendiente', 'reportes_diarios_pendientes', 'prevencion_cumplimiento_pendiente'];
@@ -19,13 +20,15 @@ Deno.serve(async (req) => {
   const suppliedSecret = req.headers.get('x-cron-secret') || '';
   const { data: cronAuthorized, error: cronAuthError } = await db.rpc('verify_internal_cron_secret', { p_secret: suppliedSecret });
   if (cronAuthError || cronAuthorized !== true) return json({ error: 'No autorizado' }, 401);
+  let specialtyResult: unknown;
+  try { specialtyResult=await processSpecialtyNotifications(db); } catch { specialtyResult={specialtyError:'No se pudo procesar especialidad; revisar el registro del servicio.'}; }
   const now = new Date();
   const local = localParts(now);
   const lookback = new Date(now.getTime() - 36 * 60 * 60 * 1000).toISOString();
   const { data: rules, error: ruleError } = await db.from('notificaciones_reglas').select('*').in('evento_codigo', EVENTS).eq('activa', true);
   if (ruleError) return json({ error: ruleError.message }, 500);
   const dueRules = (rules || []).filter((rule: any) => rule.evento_codigo === 'prevencion_cumplimiento_pendiente' || String(rule.hora_envio || '18:00').slice(0, 5) <= local.time);
-  const results: any[] = [];
+  const results: any[] = [specialtyResult];
 
   for (const rule of dueRules) {
     try {

@@ -1,0 +1,57 @@
+import {useCallback,useEffect,useMemo,useState} from 'react';
+import {Alert,AppState,Pressable,Text,TextInput,View} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
+import {randomUUID} from 'expo-crypto';
+import {supabase} from '@/lib/supabase';
+import {createJournalStore} from '@/lib/specialtyJournal.mjs';
+import {useTheme} from '@/theme/ThemeProvider';
+import type {Profile} from '@/lib/types';
+type Row=Record<string,any>;
+const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+export function SpecialtyJournal({profile,workId,parts,onSaved,initialOpen=false}:{profile:Profile;workId:number;parts:Row[];onSaved:()=>void;initialOpen?:boolean}){
+ const {colors}=useTheme();
+ const [open,setOpen]=useState(initialOpen),[state,setState]=useState<Row>({settings:[],elements:[],sessions:[],protocols:[]}),[partId,setPartId]=useState(0),[draft,setDraft]=useState<Row|null>(null),[message,setMessage]=useState(''),[search,setSearch]=useState(''),[tab,setTab]=useState('journal');
+ const cache=`obraxis:specialty:catalog:${profile.empresa}:${profile.auth_user_id||profile.id}:${workId}`;
+ const call=useCallback(async(action:string,data:Row={})=>{const result=await supabase.rpc('specialty_api',{p_work:workId,p_action:action,p_data:data});if(result.error)throw result.error;return result.data;},[workId]);
+ const load=useCallback(async()=>{try{const network=await NetInfo.fetch();if(network.isConnected===false||network.isInternetReachable===false){const saved=await AsyncStorage.getItem(cache);if(!saved)throw new Error('Abre esta especialidad con conexión para descargar su catálogo primero.');setState(JSON.parse(saved));setMessage('Sin conexión: catálogo guardado en este teléfono.');return;}const next=await call('state');await AsyncStorage.setItem(cache,JSON.stringify(next));setState(next);}catch(e:any){setMessage(e.message);}},[cache,call]);
+ useEffect(()=>{if(open)load();},[open,load]);
+ useEffect(()=>{if(!partId&&state.settings.length)setPartId(state.settings[0].partida_id);},[state,partId]);
+ const journal=useMemo(()=>createJournalStore({storage:AsyncStorage,send:call,uuid:randomUUID,scope:`${profile.empresa}:${profile.auth_user_id||profile.id}:${workId}:${partId}`}),[call,profile.empresa,profile.auth_user_id,profile.id,workId,partId]);
+ useEffect(()=>{let alive=true;journal.read().then(s=>{if(alive)setDraft(s.draft||null);});return()=>{alive=false;};},[journal]);
+ const sync=useCallback(async()=>{try{const response=await journal.sync();const local=await journal.read();setDraft(local.draft||null);if(response){setMessage(local.draft?'Jornada sincronizada':'Cierre sincronizado. Avance registrado una sola vez.');if(!local.draft){await load();onSaved();}}}catch(e:any){setDraft((await journal.read()).draft||null);setMessage(`Guardado en el teléfono. Pendiente de sincronización: ${e.message}`);}},[journal,load,onSaved]);
+ useEffect(()=>{if(!open)return;const timer=setInterval(sync,8000);const network=NetInfo.addEventListener(s=>{if(s.isConnected)sync();});const app=AppState.addEventListener('change',s=>{if(s==='active')sync();});return()=>{clearInterval(timer);network();app.remove();};},[open,sync]);
+ const edit=async(next:Row)=>{setDraft(next);try{await journal.edit(next);setMessage('Guardado en el teléfono');}catch(e:any){setMessage(`No se pudo guardar localmente: ${e.message}`);}};
+ const cfg=state.settings.find((s:Row)=>s.partida_id===partId),elements=state.elements.filter((e:Row)=>e.partida_id===partId),rows:Row[]=draft?.datos?.pilas||[];
+ const canExecute=cfg?.ejecucion===state.actor,canTopo=cfg?.topografia===state.actor;
+ const box={borderWidth:1,borderColor:colors.line,borderRadius:12,padding:12,gap:10} as const;
+ const input={borderWidth:1,borderColor:colors.line,borderRadius:9,padding:10,color:colors.ink,backgroundColor:colors.surface} as const;
+ const button=(label:string,fn:()=>void,disabled=false)=><Pressable accessibilityRole="button" disabled={disabled} onPress={fn} style={{padding:12,borderRadius:10,backgroundColor:disabled?colors.soft:colors.primary}}><Text style={{color:disabled?colors.muted:colors.onPrimary,fontWeight:'700'}}>{label}</Text></Pressable>;
+ return <View style={box}>{button(open?'Cerrar vista de especialidad':'Reportes por especialidad · Pilas de grava',()=>setOpen(!open))}{open&&<>
+  <Text style={{color:colors.muted}}>Responsables y avisos configurados desde Obraxis. Calidad no bloquea el cierre de ejecución.</Text>
+  {message?<Text accessibilityRole="alert" style={{color:colors.ink}}>{message}</Text>:null}
+  <View style={{flexDirection:'row',flexWrap:'wrap',gap:8}}>{state.settings.map((s:Row)=><View key={s.partida_id}>{button(parts.find(p=>p.id===s.partida_id)?.partida||String(s.partida_id),()=>setPartId(s.partida_id))}</View>)}</View>
+  {!cfg?<Text style={{color:colors.muted}}>No hay especialidad configurada para esta obra. Configura la partida, el catálogo y los responsables desde la web antes de trabajar sin conexión.</Text>:<>
+  <View style={{flexDirection:'row',gap:8}}>{['journal','topography','quality'].map(t=><Pressable key={t} onPress={()=>setTab(t)}><Text style={{color:tab===t?colors.primary:colors.muted,fontWeight:'700'}}>{t==='journal'?'Jornada':t==='topography'?'Topografía':'Calidad'}</Text></Pressable>)}</View>
+  {tab==='journal'&&(!canExecute?<Text style={{color:colors.muted}}>No eres el responsable de ejecución designado.</Text>:!draft?button('Iniciar / continuar jornada',()=>{const active=state.sessions.find((s:Row)=>s.partida_id===partId&&s.estado==='abierta');edit(active||{id:randomUUID(),partida_id:partId,fecha:today(),revision:0,datos:{pilas:[],observaciones:''}});}):<>
+   <Text style={{color:colors.ink,fontWeight:'700'}}>{draft.fecha} · {rows.filter(r=>r.terminada).length} pilas terminadas</Text>
+   <TextInput accessibilityLabel="Buscar pila" style={input} placeholder="Buscar número de pila" placeholderTextColor={colors.muted} value={search} onChangeText={setSearch}/>
+   {!draft.closeRequested&&search&&elements.filter((e:Row)=>e.numero.includes(search)&&!e.sesion_id&&!rows.some(r=>r.element_id===e.id)).slice(0,15).map((e:Row)=><View key={e.id}>{button(`Agregar ${e.etapa} · Pila ${e.numero}`,()=>{edit({...draft,datos:{...draft.datos,pilas:[...rows,{element_id:e.id,equipo:'',paladas:'',volumen:'',longitud:'',terminada:false}]}});setSearch('');})}</View>)}
+   {rows.map(r=><View key={r.element_id} style={box}><Text style={{color:colors.ink,fontWeight:'700'}}>Pila {elements.find((e:Row)=>e.id===r.element_id)?.numero}</Text>{[['equipo','Equipo'],['paladas','Paladas'],['volumen','Volumen total m³'],['longitud','Longitud ejecutada m'],['volumen_cuchara','Volumen cuchara m³'],['longitud_perforacion','Longitud perforación m'],['diametro','Diámetro m'],['profundidad','Profundidad m']].map(([k,label])=><View key={k}><Text style={{color:colors.muted}}>{label}</Text><TextInput accessibilityLabel={label} style={input} editable={!draft.closeRequested} keyboardType={k==='equipo'?'default':'decimal-pad'} value={String(r[k]??'')} onChangeText={value=>edit({...draft,datos:{...draft.datos,pilas:rows.map(p=>p.element_id===r.element_id?{...p,[k]:k==='equipo'?value:value.replace(',','.')}:p)}})}/></View>)}{button(r.terminada?'Terminada ✓':'Marcar terminada',()=>edit({...draft,datos:{...draft.datos,pilas:rows.map(p=>p.element_id===r.element_id?{...p,terminada:!p.terminada}:p)}}),!!draft.closeRequested)}</View>)}
+   <TextInput accessibilityLabel="Observaciones de jornada" multiline editable={!draft.closeRequested} style={input} value={draft.datos.observaciones||''} placeholder="Observaciones de jornada" placeholderTextColor={colors.muted} onChangeText={observaciones=>edit({...draft,datos:{...draft.datos,observaciones}})}/>
+   {button('Sincronizar',sync)}{button(draft.closeRequested?'Cierre pendiente de sincronización':'Cerrar jornada',()=>Alert.alert('Cerrar jornada','Se sumarán únicamente las pilas terminadas. Calidad continuará por separado.',[{text:'Cancelar',style:'cancel'},{text:'Cerrar',onPress:async()=>{await journal.close();setDraft((await journal.read()).draft);await sync();await sync();}}]),!!draft.closeRequested)}
+  </>)}
+  {tab==='topography'&&<><TextInput style={input} placeholder="Buscar pila para topografía" placeholderTextColor={colors.muted} value={search} onChangeText={setSearch}/>{search&&elements.filter((e:Row)=>e.numero===search).map((e:Row)=><MobileTopo key={e.id} element={e} disabled={!canTopo} call={call} scope={`${cache}:topography:${e.id}`} partId={partId}/>)}</>}
+  {tab==='quality'&&<><Text style={{color:colors.muted}}>Construye y descarga protocolos desde Calidad en la plataforma web. Aquí puedes revisar su estado.</Text>{state.protocols.filter((p:Row)=>state.sessions.some((s:Row)=>s.partida_id===partId&&s.id===p.sesion_id)).map((p:Row)=><View key={p.id} style={box}><Text style={{color:colors.ink}}>{p.correlativo} · {p.fecha} · {p.estado}</Text><Text style={{color:colors.muted}}>{p.snapshot.pilas.map((e:Row)=>e.numero).join(', ')}</Text></View>)}</>}
+  </>}
+ </>}</View>;
+}
+function MobileTopo({element,disabled,call,scope,partId}:{element:Row;disabled:boolean;call:(action:string,data:Row)=>Promise<any>;scope:string;partId:number}){
+ const {colors}=useTheme();const [data,setData]=useState<Row>(element.topografia||{}),[status,setStatus]=useState('');
+ const store=useMemo(()=>createJournalStore({storage:AsyncStorage,uuid:randomUUID,scope,send:(_,p)=>call('topography',{...p,element_id:element.id,partida_id:partId,datos:p.datos})}),[scope,call,element.id,partId]);
+ useEffect(()=>{store.read().then(s=>{if(s.draft)setData(s.draft.datos);});},[store]);
+ const sync=useCallback(async()=>{if(disabled)return;try{const r=await store.sync();if(r)setStatus('Topografía sincronizada');}catch(e:any){setStatus(`Borrador conservado: ${e.message}`);}},[store,disabled]);
+ useEffect(()=>{const timer=setInterval(sync,8000);const unsubscribe=NetInfo.addEventListener(s=>{if(s.isConnected)sync();});return()=>{clearInterval(timer);unsubscribe();};},[sync]);
+ const change=async(k:string,v:string)=>{const next={...data,[k]:['referencia','observaciones'].includes(k)?v:v.replace(',','.')};setData(next);try{await store.edit({id:element.id,revision:element.revision_topografia,datos:next});setStatus('Guardado en el teléfono; sincroniza al tener conexión');}catch(e:any){setStatus(e.message);}};
+ return <View style={{gap:8}}><Text style={{color:colors.ink}}>Pila {element.numero}</Text><Text style={{color:colors.muted}}>{status}</Text>{['cota_inicial','cota_final','norte_real','este_real','cota_real','cota_diseno','deformacion','cst','bst','profundidad_control','referencia','observaciones'].map(k=><View key={k}><Text style={{color:colors.muted}}>{k.replaceAll('_',' ')}</Text><TextInput editable={!disabled} style={{borderWidth:1,borderColor:colors.line,padding:10,color:colors.ink}} value={String(data[k]??'')} onChangeText={v=>change(k,v)}/></View>)}<Pressable disabled={disabled} onPress={sync}><Text style={{color:colors.primary}}>Sincronizar topografía</Text></Pressable></View>;
+}

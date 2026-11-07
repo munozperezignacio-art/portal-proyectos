@@ -1,0 +1,7 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><main id="fixture"></main><script type="module">
+import React from 'react';import {createRoot} from 'react-dom/client';import '../../src/index.css';
+import SpecialtyReports from '../../src/components/SpecialtyReports.jsx';import {supabase} from '../../src/supabaseClient.js';
+let actor='1';supabase.rpc=async(name,payload)=>{const r=await fetch('/__specialty-test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,payload,actor})});return r.json();};
+function Harness(){const [role,setRole]=React.useState('1'),[quality,setQuality]=React.useState(false);actor=role;return React.createElement('div',{className:'p-4 bg-slate-50'},React.createElement('label',null,'Usuario de prueba',React.createElement('select',{'aria-label':'Usuario de prueba',value:role,onChange:e=>setRole(e.target.value)},...['Administrador','Ejecución','Topografía','Calidad'].map((v,i)=>React.createElement('option',{key:i,value:String(i+1)},v)))),React.createElement('button',{onClick:()=>setQuality(!quality)},quality?'Ir a avance':'Ir a Calidad'),React.createElement(SpecialtyReports,{key:role+quality,work:{id:1,nombre:'Obra A'},user:{id:Number(role),auth_user_id:`00000000-0000-4000-8000-00000000000${role}`,empresa:'A'},parts:[{id:1,partida:'Pilas',unidad:'UND'}],quality}));}
+createRoot(document.getElementById('fixture')).render(React.createElement(Harness));
+</script></body></html>

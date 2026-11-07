@@ -71,6 +71,7 @@ import { buildAdvanceEmailSummary, renderAdvanceSummaryHtml, advanceCurveAttachm
 const ContextualEmailConfigModal = React.lazy(() => import('./ContextualEmailConfigModal'));
 const LastPlannerLookahead = React.lazy(() => import('./LastPlannerLookahead'));
 const CalidadObras = React.lazy(() => import('./CalidadObras'));
+const SpecialtyReports = React.lazy(() => import('./SpecialtyReports'));
 const SpecialtyProgressDiagram = React.lazy(() => import('./SpecialtyProgressDiagram'));
 const LibroObrasDigital = React.lazy(() => import('./LibroObrasDigital'));
 const EstadosPagoObra = React.lazy(() => import('./EstadosPagoObra'));
@@ -3422,6 +3423,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           {/* VISTA DEDICADA 1: REPORTE DE AVANCE & VISOR DE AVANCE */}
           {obraActiveSubmodule === 'avance' && canObraAvancesView && (
             <div className="space-y-6 animate-in fade-in duration-200">
+              <React.Suspense fallback={<p>Cargando especialidades…</p>}><SpecialtyReports key={selectedObra.id} work={selectedObra} user={user} parts={partidasList} onSaved={()=>fetchObraDetails(selectedObra.nombre)}/></React.Suspense>
               
               {/* Header con boton de ingreso y sub-pestañas */}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">

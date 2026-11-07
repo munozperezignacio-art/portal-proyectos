@@ -8,6 +8,8 @@ import { useAuth } from '@/auth/AuthProvider';
 import { Badge, Card, Empty, ErrorBox, Header, Loading, Screen, SearchField } from '@/components/ui';
 import { useSupabaseList } from '@/hooks/useSupabaseList';
 import { supabase } from '@/lib/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
 
 import { canAccessWork, type Work } from '@/lib/types';
 import { workDescription, workStatus } from '@/lib/workPresentation';
@@ -19,9 +21,13 @@ export default function Works() {
   const { profile } = useAuth();
   const [search,setSearch] = useState('');
   const state = useSupabaseList<Work>(async () => {
+    const cacheKey=`obraxis:offline-works:${profile!.empresa}:${profile!.auth_user_id||profile!.id}`;
+    const network=await NetInfo.fetch();
+    if(network.isConnected===false||network.isInternetReachable===false)return (JSON.parse(await AsyncStorage.getItem(cacheKey)||'[]') as Work[]).filter(work=>canAccessWork(profile,work.nombre));
     const { data, error } = await supabase.from('obras').select('id,nombre,estado,cliente,tipo,area,empresa').eq('empresa', profile!.empresa).order('nombre');
     if (error) throw error;
-    return (data || []).filter(work => canAccessWork(profile, work.nombre));
+    const available=(data || []).filter(work => canAccessWork(profile, work.nombre));
+    await AsyncStorage.setItem(cacheKey,JSON.stringify(available));return available;
   }, `${profile?.empresa}-${profile?.obras}`);
   const works = useMemo(()=>state.data.filter(work=>`${work.nombre} ${work.cliente || ''} ${work.tipo || ''}`.toLocaleLowerCase('es-CL').includes(search.toLocaleLowerCase('es-CL'))),[state.data,search]);
   return <Screen refreshing={state.loading} onRefresh={state.refresh}>
