@@ -72,6 +72,7 @@ const ContextualEmailConfigModal = React.lazy(() => import('./ContextualEmailCon
 const LastPlannerLookahead = React.lazy(() => import('./LastPlannerLookahead'));
 const CalidadObras = React.lazy(() => import('./CalidadObras'));
 const SpecialtyReports = React.lazy(() => import('./SpecialtyReports'));
+const SpecialtySettingsEntry = React.lazy(() => import('./SpecialtyReports').then(module=>({default:module.SpecialtySettingsEntry})));
 const SpecialtyProgressDiagram = React.lazy(() => import('./SpecialtyProgressDiagram'));
 const LibroObrasDigital = React.lazy(() => import('./LibroObrasDigital'));
 const EstadosPagoObra = React.lazy(() => import('./EstadosPagoObra'));
@@ -266,6 +267,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const canEquipmentActions = canEquipmentEdit || canEquipmentDelete;
   const canResponsibilities = recordPermission('ficha', 'configurar');
   const [showResponsibilities, setShowResponsibilities] = useState(false);
+  const [specialtySettingsRevision,setSpecialtySettingsRevision]=useState(0);
   const canPrevView = can(user, userPermissions, 'obras.prevencion.ver');
   const canPrevCreate = can(user, userPermissions, 'obras.prevencion.crear');
   const canPrevEdit = can(user, userPermissions, 'obras.prevencion.editar');
@@ -3423,7 +3425,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           {/* VISTA DEDICADA 1: REPORTE DE AVANCE & VISOR DE AVANCE */}
           {obraActiveSubmodule === 'avance' && canObraAvancesView && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <React.Suspense fallback={<p>Cargando especialidades…</p>}><SpecialtyReports key={selectedObra.id} work={selectedObra} user={user} parts={partidasList} onSaved={()=>fetchObraDetails(selectedObra.nombre)}/></React.Suspense>
+              <React.Suspense fallback={<p>Cargando especialidades…</p>}><SpecialtyReports key={selectedObra.id} work={selectedObra} user={user} parts={partidasList} settingsRevision={specialtySettingsRevision} onSaved={()=>fetchObraDetails(selectedObra.nombre)}/></React.Suspense>
               
               {/* Header con boton de ingreso y sub-pestañas */}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
@@ -9896,6 +9898,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         <div className="w-full max-w-6xl max-h-[94dvh] overflow-y-auto rounded-2xl bg-white p-4">
           <div className="flex justify-between items-center mb-3"><h3 className="font-bold">Responsables y avisos · {selectedObra.nombre}</h3><button onClick={() => setShowResponsibilities(false)} aria-label="Cerrar responsables" className="p-2">✕</button></div>
           <button onClick={() => {setShowResponsibilities(false);setShowContextualEmailModal(true);}} className="mb-3 text-xs text-blue-800 underline">Destinatarios de correos al guardar registros de esta obra</button>
+          <React.Suspense fallback={<p>Cargando opciones de especialidad…</p>}><SpecialtySettingsEntry key={selectedObra.id} work={selectedObra} user={user} parts={partidasList} onSaved={()=>setSpecialtySettingsRevision(n=>n+1)}/></React.Suspense>
           <NotificationMaster user={user} obras={obras} work={selectedObra} />
         </div>
       </div>}

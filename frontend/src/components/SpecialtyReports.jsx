@@ -10,20 +10,24 @@ const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago',yea
 const storage={getItem:async k=>localStorage.getItem(k),setItem:async(k,v)=>localStorage.setItem(k,v)};
 const empty={settings:[],elements:[],sessions:[],protocols:[],users:[]};
 const executionFields=[['equipo','Equipo'],['paladas','Paladas'],['volumen','Volumen m³'],['longitud','Longitud m'],['volumen_cuchara','Cuchara m³'],['longitud_perforacion','Perforación m'],['diametro','Diámetro m'],['profundidad','Profundidad m']];
-export default function SpecialtyReports({work,user,parts=[],quality=false,onSaved=()=>{}}){
+export function SpecialtySettingsEntry(props){
+ const [open,setOpen]=useState(false);
+ return <div className="mb-4"><button type="button" aria-expanded={open} className={button} onClick={()=>setOpen(v=>!v)}>Configurar especialidad</button>{open&&<div className="mt-2"><SpecialtyReports {...props} settingsOnly/></div>}</div>;
+}
+export default function SpecialtyReports({work,user,parts=[],quality=false,settingsOnly=false,onSaved=()=>{},settingsRevision=0}){
  const [state,setState]=useState(empty),[partId,setPartId]=useState(''),[draft,setDraft]=useState(null),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
- const [tab,setTab]=useState(quality?'protocols':'journal'),[config,setConfig]=useState({}),[selected,setSelected]=useState(''),[search,setSearch]=useState('');
+ const [tab,setTab]=useState(settingsOnly?'settings':quality?'protocols':'journal'),[config,setConfig]=useState({}),[selected,setSelected]=useState(''),[search,setSearch]=useState('');
  const call=useCallback(async(action,data={})=>{const r=await supabase.rpc('specialty_api',{p_work:work.id,p_action:action,p_data:data});if(r.error)throw r.error;return r.data;},[work.id]);
  const refresh=useCallback(async()=>{try{const next=await call('state');setState(next);setNotice('');}catch(e){setNotice(e.message);}},[call]);
- useEffect(()=>{refresh();},[refresh]);
+ useEffect(()=>{refresh();},[refresh,settingsRevision]);
  useEffect(()=>{if(!partId&&parts.length&&state.actor)setPartId(String(parts.find(p=>state.settings.some(s=>s.partida_id===p.id))?.id||parts.find(p=>!p.es_titulo)?.id||''));},[parts,partId,state.settings,state.actor]);
  const cfg=state.settings.find(s=>String(s.partida_id)===partId);
  useEffect(()=>{setConfig(cfg||{activa_desde:today()});},[cfg]);
  const journal=useMemo(()=>createJournalStore({storage,send:call,uuid:()=>crypto.randomUUID(),scope:`${user.empresa}:${user.auth_user_id||user.id}:${work.id}:${partId}`}),[call,user.empresa,user.auth_user_id,user.id,work.id,partId]);
- useEffect(()=>{let active=true;journal.read().then(s=>{if(active)setDraft(s.draft||null);});return()=>{active=false;};},[journal]);
+ useEffect(()=>{if(settingsOnly||quality)return;let active=true;journal.read().then(s=>{if(active)setDraft(s.draft||null);});return()=>{active=false;};},[journal,settingsOnly,quality]);
  const sync=useCallback(async()=>{try{const response=await journal.sync();const local=await journal.read();setDraft(local.draft||null);if(response){setNotice(local.draft?'Guardado y sincronizado':'Jornada cerrada. Avance consolidado una sola vez.');if(!local.draft){await refresh();onSaved();}}}catch(e){setDraft((await journal.read()).draft||null);setNotice(`Borrador conservado en este dispositivo. ${e.message}`);}},[journal,refresh,onSaved]);
  useEffect(()=>{if(!draft)return;const timer=setInterval(sync,5000);return()=>clearInterval(timer);},[draft,sync]);
- const action=async fn=>{setBusy(true);try{await fn();await refresh();}catch(e){setNotice(e.message);}finally{setBusy(false);}};
+ const action=async fn=>{setBusy(true);try{await fn();await refresh();if(settingsOnly)onSaved();}catch(e){setNotice(e.message);}finally{setBusy(false);}};
  const edit=async next=>{setDraft(next);try{await journal.edit(next);setNotice('Guardado en este dispositivo');}catch(e){setNotice(`No se pudo guardar localmente: ${e.message}`);}};
  const elements=state.elements.filter(e=>String(e.partida_id)===partId);
  const sessions=state.sessions.filter(s=>String(s.partida_id)===partId);
@@ -33,14 +37,15 @@ export default function SpecialtyReports({work,user,parts=[],quality=false,onSav
  const rows=draft?.datos?.pilas||[];
  const updatePile=(id,key,value)=>edit({...draft,datos:{...draft.datos,pilas:rows.map(p=>p.element_id===id?{...p,[key]:value}:p)}});
  const diagram=pileDiagram(elements,rows.filter(p=>p.terminada).map(p=>p.element_id));
+ if(settingsOnly&&!state.can_configure)return <p role="status">{notice||(!state.actor?'Cargando configuración…':'No tienes permiso para configurar esta especialidad.')}</p>;
  return <section className="rounded-2xl border border-indigo-200 bg-white p-5 space-y-4">
-  <div><h3 className="text-lg font-bold text-indigo-950">{quality?'Protocolos por especialidad':'Reportes por especialidad'}</h3><p className="text-sm text-slate-500">Pilas de grava · Ejecución diaria, topografía y Calidad con responsables independientes.</p></div>
+  <div><h3 className="text-lg font-bold text-indigo-950">{settingsOnly?'Configuración por partida':quality?'Protocolos por especialidad':'Reportes por especialidad'}</h3><p className="text-sm text-slate-500">Pilas de grava · Ejecución diaria, topografía y Calidad con responsables independientes.</p></div>
   <label className="block text-sm font-bold">Partida<select className={field} value={partId} onChange={e=>setPartId(e.target.value)}>{parts.filter(p=>!p.es_titulo).map(p=><option key={p.id} value={p.id}>{p.partida} · {p.unidad}</option>)}</select></label>
-  <nav className="flex flex-wrap gap-2">{(quality?[['protocols','Protocolos']]:[['journal','Jornada'],['topography','Topografía'],['history','Historial y esquema'],...(state.can_configure?[['settings','Configurar especialidad']]:[])]).map(([key,label])=><button key={key} className={`${button} ${tab===key?'bg-indigo-100':''}`} onClick={()=>setTab(key)}>{label}</button>)}</nav>
+  {!settingsOnly&&<nav className="flex flex-wrap gap-2">{(quality?[['protocols','Protocolos']]:[['journal','Jornada'],['topography','Topografía'],['history','Historial y esquema']]).map(([key,label])=><button key={key} className={`${button} ${tab===key?'bg-indigo-100':''}`} onClick={()=>setTab(key)}>{label}</button>)}</nav>}
   {notice&&<p role="status" className="rounded-lg bg-amber-50 p-3 text-sm">{notice}</p>}
-  {!cfg&&tab!=='settings'&&<p>Esta partida todavía usa el registro por unidades. Administración debe configurar la especialidad y asignar sus responsables.</p>}
+  {!cfg&&tab!=='settings'&&<p>Esta partida todavía usa el registro por unidades. Administración puede configurarla en Responsables y avisos → Configurar especialidad.</p>}
   {tab==='settings'&&state.can_configure&&<div className="space-y-4">
-   <p className="text-sm">Tú designas a cada responsable. Los avisos se administran en el apartado de Notificaciones existente.</p>
+   <p className="text-sm">Selecciona la partida y designa a sus responsables. Las reglas de avisos se administran por separado.</p>
    <div className="grid gap-3 md:grid-cols-3">{[['ejecucion','Ejecución y cierre'],['topografia','Topografía de terreno'],['calidad','Construcción y revisión de protocolos']].map(([key,label])=><label key={key}>{label}<select className={field} value={config[key]||''} onChange={e=>setConfig({...config,[key]:e.target.value})}><option value="">Sin asignar</option>{state.users.map(u=><option key={u.id} value={u.id}>{u.nombre}</option>)}</select></label>)}</div>
    <label className="block">Inicio del registro por especialidad<input disabled={sessions.some(s=>s.estado!=='historica')} type="date" className={field} value={config.activa_desde||''} onChange={e=>setConfig({...config,activa_desde:e.target.value})}/></label>
    <p className="text-xs text-slate-500">Los días anteriores se concilian con sus reportes existentes; no vuelven a sumarse.</p>
