@@ -41,7 +41,7 @@ export default function SpecialtyReports({work,user,parts=[],quality=false,setti
  return <section className="rounded-2xl border border-indigo-200 bg-white p-5 space-y-4">
   <div><h3 className="text-lg font-bold text-indigo-950">{settingsOnly?'Configuración por partida':quality?'Protocolos por especialidad':'Reportes por especialidad'}</h3><p className="text-sm text-slate-500">Pilas de grava · Ejecución diaria, topografía y Calidad con responsables independientes.</p></div>
   <label className="block text-sm font-bold">Partida<select className={field} value={partId} onChange={e=>setPartId(e.target.value)}>{parts.filter(p=>!p.es_titulo).map(p=><option key={p.id} value={p.id}>{p.partida} · {p.unidad}</option>)}</select></label>
-  {!settingsOnly&&<nav className="flex flex-wrap gap-2">{(quality?[['protocols','Protocolos']]:[['journal','Jornada'],['topography','Topografía']]).map(([key,label])=><button key={key} className={`${button} ${tab===key?'bg-indigo-100':''}`} onClick={()=>setTab(key)}>{label}</button>)}</nav>}
+  {!settingsOnly&&<nav className="flex flex-wrap gap-2">{(quality?[['protocols','Protocolos'],...(state.can_configure?[['reconciliation','Conciliaciones pendientes']]:[])]:[['journal','Jornada'],['topography','Topografía']]).map(([key,label])=><button key={key} className={`${button} ${tab===key?'bg-indigo-100':''}`} onClick={()=>setTab(key)}>{label}</button>)}</nav>}
   {notice&&<p role="status" className="rounded-lg bg-amber-50 p-3 text-sm">{notice}</p>}
   {!cfg&&tab!=='settings'&&<p>Esta partida todavía usa el registro por unidades. Administración puede configurarla en Responsables y avisos → Configurar especialidad.</p>}
   {tab==='settings'&&state.can_configure&&<div className="space-y-4">
@@ -50,8 +50,13 @@ export default function SpecialtyReports({work,user,parts=[],quality=false,setti
    <label className="block">Inicio del registro por especialidad<input disabled={sessions.some(s=>s.estado!=='historica')} type="date" className={field} value={config.activa_desde||''} onChange={e=>setConfig({...config,activa_desde:e.target.value})}/></label>
    <p className="text-xs text-slate-500">Los días anteriores se concilian con sus reportes existentes; no vuelven a sumarse.</p>
    <button className={button} disabled={busy} onClick={()=>action(()=>call('configure',{...config,partida_id:Number(partId),request_id:crypto.randomUUID()}))}>Guardar especialidad y responsables</button>
-   {cfg&&<SpecialtyWorkbookImport work={work} partId={Number(partId)} state={state} call={call} onSaved={refresh}/>}
+   {cfg&&<p className="text-sm">El catálogo y la conciliación histórica se gestionan en Calidad → Protocolos por especialidad → Conciliaciones pendientes.</p>}
   </div>}
+  {quality&&cfg&&tab==='reconciliation'&&state.can_configure&&<section className="space-y-3">
+   <h4 className="font-bold">Reportes históricos pendientes de vincular</h4>
+   <PendingReports reports={state.reports} sessions={sessions} config={cfg}/>
+   <SpecialtyWorkbookImport key={partId} work={work} partId={Number(partId)} state={state} call={call} onSaved={refresh}/>
+  </section>}
   {cfg&&tab==='journal'&&<div className="space-y-4">
    {!canExecute?<p>Tu rol no tiene permiso para registrar avances en esta obra.</p>:!draft?<button className={button} onClick={start}>{activeSession?'Continuar jornada abierta':'Iniciar jornada de trabajo'}</button>:<>
     <div className="flex flex-wrap gap-3 items-center"><strong>Jornada {draft.fecha.split('-').reverse().join('-')}</strong><span>{rows.filter(p=>p.terminada).length} pilas terminadas</span><button className={button} onClick={sync}>Sincronizar ahora</button></div>
@@ -68,6 +73,12 @@ export default function SpecialtyReports({work,user,parts=[],quality=false,setti
  </section>;
 }
 
+function PendingReports({reports=[],sessions,config}){
+ const linked=new Set(sessions.flatMap(session=>(session.report_ids||[]).map(String)));
+ const pending=reports.filter(r=>String(r.partida_id)===String(config.partida_id)&&r.fecha&&r.fecha<config.activa_desde&&!linked.has(String(r.id))).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+ if(!pending.length)return <p className="text-sm">No hay reportes históricos pendientes de vincular en esta partida.</p>;
+ return <ul className="divide-y text-sm">{pending.map(r=><li key={r.id} className="py-2">{r.fecha.split('-').reverse().join('-')} · Reporte #{r.id} · Cantidad: {r.cantidad}</li>)}</ul>;
+}
 function TopoRow({element,disabled,onSave}){
  const [data,setData]=useState(element.topografia||{});
  return <details className="rounded-xl border p-3"><summary>{element.etapa} · Pila {element.numero}</summary><div className="grid gap-2 md:grid-cols-3 mt-3">{['cota_inicial','cota_final','norte_real','este_real','cota_real','cota_diseno','deformacion','cst','bst','profundidad_control','referencia','observaciones'].map(k=><label key={k} className="text-xs">{k.replaceAll('_',' ')}<input className={field} disabled={disabled} value={data[k]??''} onChange={e=>setData({...data,[k]:['referencia','observaciones'].includes(k)?e.target.value:e.target.value.replace(',','.')})}/></label>)}</div><button disabled={disabled} className={`${button} mt-2`} onClick={()=>onSave(data)}>Guardar topografía</button></details>;
