@@ -268,6 +268,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const canResponsibilities = recordPermission('ficha', 'configurar');
   const [showResponsibilities, setShowResponsibilities] = useState(false);
   const [specialtySettingsRevision,setSpecialtySettingsRevision]=useState(0);
+  const [specialtyHistory,setSpecialtyHistory]=useState(null);
   const canPrevView = can(user, userPermissions, 'obras.prevencion.ver');
   const canPrevCreate = can(user, userPermissions, 'obras.prevencion.crear');
   const canPrevEdit = can(user, userPermissions, 'obras.prevencion.editar');
@@ -3425,7 +3426,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           {/* VISTA DEDICADA 1: REPORTE DE AVANCE & VISOR DE AVANCE */}
           {obraActiveSubmodule === 'avance' && canObraAvancesView && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <React.Suspense fallback={<p>Cargando especialidades…</p>}><SpecialtyReports key={selectedObra.id} work={selectedObra} user={user} parts={partidasList} settingsRevision={specialtySettingsRevision} onSaved={()=>fetchObraDetails(selectedObra.nombre)}/></React.Suspense>
+              <React.Suspense fallback={<p>Cargando especialidades…</p>}><SpecialtyReports key={selectedObra.id} work={selectedObra} user={user} parts={partidasList} settingsRevision={specialtySettingsRevision} onHistory={setSpecialtyHistory} onSaved={()=>fetchObraDetails(selectedObra.nombre)}/></React.Suspense>
               
               {/* Header con boton de ingreso y sub-pestañas */}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
@@ -3646,12 +3647,18 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                           {!visibleAdvanceReports.length && <tr><td colSpan={canAdvanceActions?7:6} className="p-6 text-center text-slate-500">No hay reportes de avance para la fecha seleccionada. Puedes limpiar la fecha para ver todos.</td></tr>}
                           {visibleAdvanceReports.map((r) => {
                             const fechaStr = advanceReportDateLabel(r);
+                            const jornada = specialtyHistory?.workId===selectedObra.id && specialtyHistory.sessions.find(s=>s.report_ids?.includes(r.id));
                             return (
                               <tr key={r.id} className="hover:bg-slate-50">
                                 <td className="p-2.5 font-mono font-bold text-slate-700">{fechaStr}</td>
                                 <td className="p-2.5 font-semibold text-slate-800">{r.supervisor || 'Supervisor'}</td>
                                 <td className="p-2.5 font-medium text-slate-600">{r.frente || 'Frente Principal'}</td>
-                                <td className="p-2.5 font-bold text-blue-950">{r.partida}</td>
+                                <td className="p-2.5 font-bold text-blue-950">{r.partida}
+                                  {jornada && <details className="mt-1 font-normal"><summary className="cursor-pointer">Detalle de la jornada</summary>
+                                    <p>Pilas terminadas: {jornada.datos.pilas.filter(p=>p.terminada).map(p=>specialtyHistory.elements.find(e=>e.id===p.element_id)?.numero).filter(Boolean).join(', ') || 'Sin pilas terminadas'}</p>
+                                    {jornada.datos.observaciones && jornada.datos.observaciones!==r.observaciones && <p>Comentarios generales: {jornada.datos.observaciones}</p>}
+                                  </details>}
+                                </td>
                                 <td className="p-2.5 font-mono font-bold text-emerald-700">{r.cantidad} {r.unidad || 'UND'}</td>
                                 <td className="p-2.5 text-slate-700 italic">{r.observaciones || 'Sin comentarios'}</td>
                                 {canAdvanceActions && (

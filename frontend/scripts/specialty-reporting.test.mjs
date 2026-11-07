@@ -13,6 +13,7 @@ test('jornadas: permisos, cierre único, repetición, conflictos y aislamiento',
  create table notificaciones_reglas(id uuid,empresa text,activa boolean,evento_codigo text,hora_envio time,canal_push boolean,condiciones jsonb,obra_nombre text);
  create table avances_produccion_partidas(id serial primary key,empresa text,obra_id integer,obra_nombre text,supervisor text,partida_id integer,partida text,unidad text,cantidad numeric,observaciones text,created_at timestamptz);
  create function private.rrhh_partidas_permiso(text,integer,text) returns boolean language sql as $$select exists(select 1 from public.usuarios u join public.obras o on o.id=$2 where u.auth_user_id=auth.uid() and u.empresa=$1 and o.empresa=$1)$$;
+ create function private.obraxis_permission(text,text) returns boolean language sql as $$select current_setting('test.can_create',true)='yes'$$;
  insert into obras values(1,'A','Obra A'),(2,'B','Obra B');
  insert into partidas_obra values(1,1,'A','Pilas','UND',false),(2,2,'B','Pilas','UND',false);
  insert into usuarios values(1,'00000000-0000-4000-8000-000000000001','A','Admin','a','Administrador de Empresa',null,'Todas'),(2,'00000000-0000-4000-8000-000000000002','A','Ejecutor','e','Supervisor',null,'Todas');
@@ -23,14 +24,17 @@ test('jornadas: permisos, cierre único, repetición, conflictos y aislamiento',
  await call('catalog',{partida_id:1,rows:[{etapa:'1',numero:'1',norte:1,este:2,longitud_diseno:6}]});
  const state=await call('state',{}),element_id=state.elements[0].id;
  const payload={id:'10000000-0000-4000-8000-000000000001',partida_id:1,fecha:'2026-01-01',revision:0,datos:{pilas:[{element_id,terminada:true,equipo:'Equipo prueba',paladas:4,volumen:1.2,longitud:6}]}};
- await assert.rejects(call('save',payload),/responsable de ejecución/);
+ await assert.rejects(call('save',payload),/permiso para registrar/);
  await db.exec("set test.uid='00000000-0000-4000-8000-000000000002'");
+ await db.exec("set test.can_create='yes'");
  const save={...payload,request_id:'20000000-0000-4000-8000-000000000001'};
  assert.equal((await call('save',save)).revision,1);
  assert.equal((await call('save',save)).revision,1,'lost response retry does not change revision');
  await assert.rejects(call('save',{...save,fecha:'2026-01-02'}),/reutilizado/);
  await assert.rejects(call('save',payload),/Conflicto/);
+ await db.exec("set test.uid='00000000-0000-4000-8000-000000000001'");
  await call('close',{...payload,revision:1});
+ await db.exec("set test.uid='00000000-0000-4000-8000-000000000002'");
  await call('close',{...payload,revision:1});
  assert.equal((await db.query('select count(*)::int n,sum(cantidad) total from avances_produccion_partidas')).rows[0].n,1);
  await assert.rejects(call('close',{...payload,id:'10000000-0000-4000-8000-000000000002',fecha:'2026-01-02'}),/ya ejecutada/);

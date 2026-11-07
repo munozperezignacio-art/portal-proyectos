@@ -66,7 +66,7 @@ begin
    'elements',coalesce((select jsonb_agg(to_jsonb(t) order by etapa,numero) from private.specialty_elements t where obra_id=p_work),'[]'),
    'sessions',coalesce((select jsonb_agg(to_jsonb(t) order by fecha desc) from private.specialty_sessions t where obra_id=p_work),'[]'),
    'protocols',coalesce((select jsonb_agg(to_jsonb(t) order by fecha desc) from private.specialty_protocols t where obra_id=p_work),'[]'),
-   'can_configure',adm,'actor',uid,
+   'can_execute',coalesce(private.obraxis_permission(w.empresa,'obras.avances.crear'),false),'can_configure',adm,'actor',uid,
    'reminders',coalesce((select jsonb_agg(jsonb_build_object('id',r.id,'hora',coalesce(r.hora_envio,time '20:00'),'push',r.canal_push,'dias_no_laborales',coalesce(r.condiciones->'dias_no_laborales','[]'::jsonb))) from public.notificaciones_reglas r where r.empresa=w.empresa and r.activa and r.evento_codigo='especialidad_jornada_abierta' and (coalesce(r.condiciones->>'alcance_tipo',case when r.obra_nombre is null then 'todas' else 'seleccionadas' end)<>'seleccionadas' or r.obra_nombre=w.nombre or coalesce(r.condiciones->'obras_seleccionadas','[]'::jsonb)?w.nombre)),'[]'),
    'reports',case when adm then coalesce((select jsonb_agg(jsonb_build_object('id',a.id,'partida_id',a.partida_id,'partida',a.partida,'cantidad',a.cantidad,'fecha',(a.created_at at time zone 'America/Santiago')::date)) from public.avances_produccion_partidas a where a.obra_id=p_work),'[]') else '[]'::jsonb end,
    'users',case when adm then coalesce((select jsonb_agg(jsonb_build_object('id',u.auth_user_id,'nombre',coalesce(u.nombre,u.usuario))) from public.usuarios u where u.empresa=w.empresa and u.auth_user_id is not null and exists(select 1 from unnest(string_to_array(u.obras,',')) v where lower(trim(v)) in ('todas',lower(w.nombre)))),'[]') else '[]'::jsonb end);
@@ -115,13 +115,13 @@ begin
    end if;
   end loop;
  elsif p_action in ('save','close','reconcile') then
-  if uid is distinct from cfg.ejecucion and not (adm and p_action='reconcile') then raise exception 'Solo el responsable de ejecución designado puede guardar o cerrar';end if;
+  if (p_action='reconcile' and not adm) or (p_action<>'reconcile' and not coalesce(private.obraxis_permission(w.empresa,'obras.avances.crear'),false)) then raise exception 'Falta permiso para registrar avances de obra';end if;
   if s.id is not null and s.estado<>'abierta' then
    if p_action in ('close','reconcile') then return to_jsonb(s);end if;
    raise exception 'Jornada cerrada: no se puede sobrescribir';
   end if;
   if s.id is not null and s.revision<>coalesce((p_data->>'revision')::integer,-1) then raise exception 'Conflicto de sincronización: conserva tu borrador y actualiza';end if;
-  if s.id is not null and ((p_data->>'fecha')::date<>s.fecha or s.responsable<>uid and p_action<>'reconcile') then raise exception 'No se puede cambiar la fecha ni el autor de una jornada';end if;
+  if s.id is not null and (p_data->>'fecha')::date is distinct from s.fecha then raise exception 'No se puede cambiar la fecha ni el autor de una jornada';end if;
   if s.id is null and coalesce((p_data->>'revision')::integer,0)<>0 then raise exception 'Jornada no encontrada';end if;
   if p_action<>'reconcile' and (p_data->>'fecha')::date<cfg.activa_desde then raise exception 'El historial anterior debe conciliarse, no cargarse nuevamente';end if;
   if (p_data->>'fecha')::date>(now() at time zone 'America/Santiago')::date then raise exception 'No se permite ejecutar en fecha futura';end if;

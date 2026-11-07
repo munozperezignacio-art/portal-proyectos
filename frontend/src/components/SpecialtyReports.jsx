@@ -14,11 +14,11 @@ export function SpecialtySettingsEntry(props){
  const [open,setOpen]=useState(false);
  return <div className="mb-4"><button type="button" aria-expanded={open} className={button} onClick={()=>setOpen(v=>!v)}>Configurar especialidad</button>{open&&<div className="mt-2"><SpecialtyReports {...props} settingsOnly/></div>}</div>;
 }
-export default function SpecialtyReports({work,user,parts=[],quality=false,settingsOnly=false,onSaved=()=>{},settingsRevision=0}){
+export default function SpecialtyReports({work,user,parts=[],quality=false,settingsOnly=false,onSaved=()=>{},settingsRevision=0,onHistory}){
  const [state,setState]=useState(empty),[partId,setPartId]=useState(''),[draft,setDraft]=useState(null),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
  const [tab,setTab]=useState(settingsOnly?'settings':quality?'protocols':'journal'),[config,setConfig]=useState({}),[selected,setSelected]=useState(''),[search,setSearch]=useState('');
  const call=useCallback(async(action,data={})=>{const r=await supabase.rpc('specialty_api',{p_work:work.id,p_action:action,p_data:data});if(r.error)throw r.error;return r.data;},[work.id]);
- const refresh=useCallback(async()=>{try{const next=await call('state');setState(next);setNotice('');}catch(e){setNotice(e.message);}},[call]);
+ const refresh=useCallback(async()=>{try{const next=await call('state');setState(next);onHistory?.({workId:work.id,sessions:next.sessions,elements:next.elements});setNotice('');}catch(e){setNotice(e.message);}},[call,onHistory,work.id]);
  useEffect(()=>{refresh();},[refresh,settingsRevision]);
  useEffect(()=>{if(!partId&&parts.length&&state.actor)setPartId(String(parts.find(p=>state.settings.some(s=>s.partida_id===p.id))?.id||parts.find(p=>!p.es_titulo)?.id||''));},[parts,partId,state.settings,state.actor]);
  const cfg=state.settings.find(s=>String(s.partida_id)===partId);
@@ -33,7 +33,7 @@ export default function SpecialtyReports({work,user,parts=[],quality=false,setti
  const sessions=state.sessions.filter(s=>String(s.partida_id)===partId);
  const activeSession=sessions.find(s=>s.estado==='abierta');
  const start=async()=>{const next=activeSession||{id:crypto.randomUUID(),partida_id:Number(partId),fecha:today(),revision:0,datos:{pilas:[],observaciones:''}};await edit(next);};
- const canExecute=cfg?.ejecucion===state.actor,canTopo=cfg?.topografia===state.actor,canQuality=cfg?.calidad===state.actor;
+ const canExecute=state.can_execute===true,canTopo=cfg?.topografia===state.actor,canQuality=cfg?.calidad===state.actor;
  const rows=draft?.datos?.pilas||[];
  const updatePile=(id,key,value)=>edit({...draft,datos:{...draft.datos,pilas:rows.map(p=>p.element_id===id?{...p,[key]:value}:p)}});
  const diagram=pileDiagram(elements,rows.filter(p=>p.terminada).map(p=>p.element_id));
@@ -41,7 +41,7 @@ export default function SpecialtyReports({work,user,parts=[],quality=false,setti
  return <section className="rounded-2xl border border-indigo-200 bg-white p-5 space-y-4">
   <div><h3 className="text-lg font-bold text-indigo-950">{settingsOnly?'Configuración por partida':quality?'Protocolos por especialidad':'Reportes por especialidad'}</h3><p className="text-sm text-slate-500">Pilas de grava · Ejecución diaria, topografía y Calidad con responsables independientes.</p></div>
   <label className="block text-sm font-bold">Partida<select className={field} value={partId} onChange={e=>setPartId(e.target.value)}>{parts.filter(p=>!p.es_titulo).map(p=><option key={p.id} value={p.id}>{p.partida} · {p.unidad}</option>)}</select></label>
-  {!settingsOnly&&<nav className="flex flex-wrap gap-2">{(quality?[['protocols','Protocolos']]:[['journal','Jornada'],['topography','Topografía'],['history','Historial y esquema']]).map(([key,label])=><button key={key} className={`${button} ${tab===key?'bg-indigo-100':''}`} onClick={()=>setTab(key)}>{label}</button>)}</nav>}
+  {!settingsOnly&&<nav className="flex flex-wrap gap-2">{(quality?[['protocols','Protocolos']]:[['journal','Jornada'],['topography','Topografía']]).map(([key,label])=><button key={key} className={`${button} ${tab===key?'bg-indigo-100':''}`} onClick={()=>setTab(key)}>{label}</button>)}</nav>}
   {notice&&<p role="status" className="rounded-lg bg-amber-50 p-3 text-sm">{notice}</p>}
   {!cfg&&tab!=='settings'&&<p>Esta partida todavía usa el registro por unidades. Administración puede configurarla en Responsables y avisos → Configurar especialidad.</p>}
   {tab==='settings'&&state.can_configure&&<div className="space-y-4">
@@ -53,12 +53,12 @@ export default function SpecialtyReports({work,user,parts=[],quality=false,setti
    {cfg&&<SpecialtyWorkbookImport work={work} partId={Number(partId)} state={state} call={call} onSaved={refresh}/>}
   </div>}
   {cfg&&tab==='journal'&&<div className="space-y-4">
-   {!canExecute?<p>Solo el responsable de ejecución designado puede registrar esta jornada.</p>:!draft?<button className={button} onClick={start}>{activeSession?'Continuar jornada abierta':'Iniciar jornada de trabajo'}</button>:<>
+   {!canExecute?<p>Tu rol no tiene permiso para registrar avances en esta obra.</p>:!draft?<button className={button} onClick={start}>{activeSession?'Continuar jornada abierta':'Iniciar jornada de trabajo'}</button>:<>
     <div className="flex flex-wrap gap-3 items-center"><strong>Jornada {draft.fecha.split('-').reverse().join('-')}</strong><span>{rows.filter(p=>p.terminada).length} pilas terminadas</span><button className={button} onClick={sync}>Sincronizar ahora</button></div>
     <p className="text-xs">Autoguardado en este dispositivo. No borres los datos del navegador antes de sincronizar. Un conflicto conserva tu borrador para revisión.</p>
     <div className="flex gap-2"><select disabled={draft.closeRequested} className={field} value={selected} onChange={e=>setSelected(e.target.value)}><option value="">Seleccionar pila</option>{elements.filter(e=>!e.sesion_id&&!rows.some(r=>r.element_id===e.id)).map(e=><option key={e.id} value={e.id}>{e.etapa} · Pila {e.numero}</option>)}</select><button className={button} disabled={!selected||draft.closeRequested} onClick={()=>{edit({...draft,datos:{...draft.datos,pilas:[...rows,{element_id:selected,paladas:'',volumen:'',longitud:'',equipo:'',terminada:false}]}});setSelected('');}}>Agregar</button></div>
     <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr>{['Pila',...executionFields.map(f=>f[1]),'Terminada'].map(x=><th className="p-2 text-left" key={x}>{x}</th>)}</tr></thead><tbody>{rows.map(r=><tr key={r.element_id}><td className="p-2">{elements.find(e=>e.id===r.element_id)?.numero}</td>{executionFields.map(([k])=><td className="p-1" key={k}><input aria-label={`${k} pila ${elements.find(e=>e.id===r.element_id)?.numero}`} disabled={draft.closeRequested} className={`${field} min-w-24`} type={k==='equipo'?'text':'number'} min="0" step="any" value={r[k]??''} onChange={e=>updatePile(r.element_id,k,e.target.value)}/></td>)}<td className="p-2"><input aria-label="Pila terminada" type="checkbox" disabled={draft.closeRequested} checked={!!r.terminada} onChange={e=>updatePile(r.element_id,'terminada',e.target.checked)}/></td></tr>)}</tbody></table></div>
-    <label className="block">Observaciones de la jornada<textarea className={field} disabled={draft.closeRequested} value={draft.datos.observaciones||''} onChange={e=>edit({...draft,datos:{...draft.datos,observaciones:e.target.value}})}/></label>
+    <label className="block">Comentarios generales del reporte<textarea className={field} disabled={draft.closeRequested} value={draft.datos.observaciones||''} onChange={e=>edit({...draft,datos:{...draft.datos,observaciones:e.target.value}})}/></label>
     <button className={`${button} bg-indigo-900 text-white`} disabled={draft.closeRequested} onClick={async()=>{if(!window.confirm('¿Cerrar la jornada? Solo las pilas terminadas se sumarán al avance. Calidad continuará por separado.'))return;await journal.close();setDraft((await journal.read()).draft);await sync();await sync();}}>{draft.closeRequested?'Cierre pendiente de sincronización':'Cerrar jornada y consolidar avance'}</button>
    </>}
   </div>}
