@@ -66,6 +66,7 @@ begin
    'elements',coalesce((select jsonb_agg(to_jsonb(t) order by etapa,numero) from private.specialty_elements t where obra_id=p_work),'[]'),
    'sessions',coalesce((select jsonb_agg(to_jsonb(t) order by fecha desc) from private.specialty_sessions t where obra_id=p_work),'[]'),
    'protocols',coalesce((select jsonb_agg(to_jsonb(t) order by fecha desc) from private.specialty_protocols t where obra_id=p_work),'[]'),
+   'protocol_create',coalesce(private.obraxis_permission(w.empresa,'obras.calidad.crear'),false),'protocol_edit',coalesce(private.obraxis_permission(w.empresa,'obras.calidad.editar'),false),
    'can_execute',coalesce(private.obraxis_permission(w.empresa,'obras.avances.crear'),false),'can_configure',adm,'actor',uid,
    'reminders',coalesce((select jsonb_agg(jsonb_build_object('id',r.id,'hora',coalesce(r.hora_envio,time '20:00'),'push',r.canal_push,'dias_no_laborales',coalesce(r.condiciones->'dias_no_laborales','[]'::jsonb))) from public.notificaciones_reglas r where r.empresa=w.empresa and r.activa and r.evento_codigo='especialidad_jornada_abierta' and (coalesce(r.condiciones->>'alcance_tipo',case when r.obra_nombre is null then 'todas' else 'seleccionadas' end)<>'seleccionadas' or r.obra_nombre=w.nombre or coalesce(r.condiciones->'obras_seleccionadas','[]'::jsonb)?w.nombre)),'[]'),
    'reports',case when adm then coalesce((select jsonb_agg(jsonb_build_object('id',a.id,'partida_id',a.partida_id,'partida',a.partida,'cantidad',a.cantidad,'fecha',(a.created_at at time zone 'America/Santiago')::date)) from public.avances_produccion_partidas a where a.obra_id=p_work),'[]') else '[]'::jsonb end,
@@ -188,7 +189,8 @@ begin
   update private.specialty_elements set topografia=p_data->'datos',revision_topografia=revision_topografia+1 where id=el.id;
   result:=jsonb_build_object('ok',true,'revision',el.revision_topografia+1);
  elsif p_action='protocol' then
-  if uid is distinct from cfg.calidad and not (p_data->>'tipo'='topografia' and uid=cfg.topografia) then raise exception 'Solo el responsable designado puede construir este protocolo';end if;
+  if not coalesce(uid=cfg.calidad or (p_data->>'tipo'='topografia' and uid=cfg.topografia) or
+   (p_data->>'estado'='borrador' and private.obraxis_permission(w.empresa,case when exists(select 1 from private.specialty_protocols where id=(p_data->>'protocol_id')::uuid) then 'obras.calidad.editar' else 'obras.calidad.crear' end)),false) then raise exception 'Se requiere el permiso de Calidad o el responsable designado';end if;
   if s.id is null or s.estado='abierta' then raise exception 'Selecciona una jornada cerrada';end if;
   if coalesce(jsonb_array_length(p_data->'element_ids'),0)=0 then raise exception 'Selecciona las pilas del protocolo';end if;
   if exists(select 1 from jsonb_array_elements_text(p_data->'element_ids') i where not exists(select 1 from private.specialty_elements e where e.id=i::uuid and e.sesion_id=sid)) then raise exception 'El protocolo contiene pilas de otra jornada';end if;

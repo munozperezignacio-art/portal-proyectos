@@ -13,7 +13,7 @@ test('jornadas: permisos, cierre único, repetición, conflictos y aislamiento',
  create table notificaciones_reglas(id uuid,empresa text,activa boolean,evento_codigo text,hora_envio time,canal_push boolean,condiciones jsonb,obra_nombre text);
  create table avances_produccion_partidas(id serial primary key,empresa text,obra_id integer,obra_nombre text,supervisor text,partida_id integer,partida text,unidad text,cantidad numeric,observaciones text,created_at timestamptz);
  create function private.rrhh_partidas_permiso(text,integer,text) returns boolean language sql as $$select exists(select 1 from public.usuarios u join public.obras o on o.id=$2 where u.auth_user_id=auth.uid() and u.empresa=$1 and o.empresa=$1)$$;
- create function private.obraxis_permission(text,text) returns boolean language sql as $$select current_setting('test.can_create',true)='yes'$$;
+ create function private.obraxis_permission(text,text) returns boolean language sql as $$select case when $2 like 'obras.calidad.%' then current_setting('test.quality_permission',true)=$2 else current_setting('test.can_create',true)='yes' end$$;
  insert into obras values(1,'A','Obra A'),(2,'B','Obra B');
  insert into partidas_obra values(1,1,'A','Pilas','UND',false),(2,2,'B','Pilas','UND',false);
  insert into usuarios values(1,'00000000-0000-4000-8000-000000000001','A','Admin','a','Administrador de Empresa',null,'Todas'),(2,'00000000-0000-4000-8000-000000000002','A','Ejecutor','e','Supervisor',null,'Todas');
@@ -52,6 +52,13 @@ test('jornadas: permisos, cierre único, repetición, conflictos y aislamiento',
  await call('configure',{partida_id:1,revision:1,ejecucion:'00000000-0000-4000-8000-000000000002',topografia:'00000000-0000-4000-8000-000000000003',calidad:'00000000-0000-4000-8000-000000000004',activa_desde:'2026-01-01'});
  const protocol={id:payload.id,protocol_id:'30000000-0000-4000-8000-000000000001',tipo:'ejecucion',correlativo:'QA-001',estado:'borrador',element_ids:[element_id],fijos:{plano:'PL-01',mandante:'Cliente QA'}};
  await assert.rejects(call('protocol',protocol),/responsable designado/);
+ await db.exec("set test.quality_permission='obras.calidad.crear'");
+ const roleDraft={...protocol,protocol_id:'30000000-0000-4000-8000-000000000002',correlativo:'QA-ROL'};
+ await call('protocol',roleDraft);
+ await assert.rejects(call('protocol',{...roleDraft,revision:1}),/responsable designado/);
+ await db.exec("set test.quality_permission='obras.calidad.editar'");
+ await call('protocol',{...roleDraft,revision:1});
+ await db.exec("set test.quality_permission=''");
  await db.exec("set test.uid='00000000-0000-4000-8000-000000000004'");
  await call('protocol_defaults',{partida_id:1,datos_fijos:{plano:'PL-01',mandante:'Cliente QA'}});
  await call('protocol',protocol);
@@ -63,7 +70,7 @@ test('jornadas: permisos, cierre único, repetición, conflictos y aislamiento',
  await db.exec("set test.uid='00000000-0000-4000-8000-000000000004'");
  await call('protocol',{...protocol,revision:1,estado:'aprobado'});
  await assert.rejects(call('protocol',{...protocol,revision:2}),/no se sobrescribió/);
- const approved=(await call('state',{})).protocols[0];
+ const approved=(await call('state',{})).protocols.find(p=>p.id===protocol.protocol_id);
  assert.equal(approved.snapshot.aprobado_por,'Calidad');
  assert.equal(approved.snapshot.pilas[0].topografia.cota_inicial,10);
  assert.equal((await db.query('select count(*)::int n from avances_produccion_partidas')).rows[0].n,2,'protocol approval never duplicates progress');
