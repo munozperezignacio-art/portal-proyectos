@@ -218,6 +218,20 @@ create or replace function public.specialty_api(p_work integer,p_action text,p_d
 returns jsonb language sql security invoker set search_path='' as $$select private.specialty_api(p_work,p_action,p_data)$$;
 revoke all on function public.specialty_api(integer,text,jsonb) from public,anon;
 grant execute on function public.specialty_api(integer,text,jsonb) to authenticated;
+create or replace function public.eliminar_avance_conciliado(p_work integer,p_report integer,p_session uuid,p_revision integer,p_part integer)
+returns integer language plpgsql security invoker set search_path='' as $$
+declare unlinked jsonb; removed integer;
+begin
+ if auth.uid() is null then raise exception 'Sesión requerida'; end if;
+ unlinked:=private.specialty_api(p_work,'undo_reconcile',jsonb_build_object('id',p_session,'revision',p_revision,'partida_id',p_part));
+ if not coalesce((unlinked->'report_ids') @> jsonb_build_array(p_report),false) then raise exception 'El reporte no pertenece a la conciliación seleccionada'; end if;
+ delete from public.avances_produccion_partidas where id=p_report and obra_id=p_work and partida_id=p_part
+ and private.obraxis_permission(empresa,'obras.avances.eliminar') returning id into removed;
+ if removed is null then raise exception 'No se pudo eliminar el reporte. La conciliación se conserva'; end if;
+ return removed;
+end; $$;
+revoke all on function public.eliminar_avance_conciliado(integer,integer,uuid,integer,integer) from public,anon;
+grant execute on function public.eliminar_avance_conciliado(integer,integer,uuid,integer,integer) to authenticated;
 
 create or replace function private.guard_specialty_progress() returns trigger language plpgsql security definer set search_path='' as $$
 begin

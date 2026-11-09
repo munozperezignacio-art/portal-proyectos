@@ -2364,13 +2364,27 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
 
   // 1. Eliminar Reporte de Avance
-  const handleDeleteAvanceReport = async (reportId) => {
+  const handleDeleteAvanceReport = async (reportId, linkedSession) => {
     if (!canAdvanceDelete) return alert('No tienes permisos para eliminar este registro.');
-    if (!window.confirm('¿Estás seguro de que deseas eliminar este reporte de avance de faena?')) return;
     try {
+      if (linkedSession?.estado === 'historica') {
+        const others = linkedSession.report_ids.filter(id => String(id)!==String(reportId));
+        if (!window.confirm(`¿Eliminar el reporte #${reportId} y descontar su avance? Se deshará la conciliación de pilas del ${linkedSession.fecha}.${others.length ? ' Los demás reportes de esa jornada se conservarán y quedarán pendientes de conciliar.' : ''}`)) return;
+        const {error} = await supabase.rpc('eliminar_avance_conciliado',{p_work:selectedObra.id,p_report:reportId,p_session:linkedSession.id,p_revision:linkedSession.revision,p_part:linkedSession.partida_id});
+        if(error) throw error;
+        setSpecialtySettingsRevision(n=>n+1);
+      } else {
+      if (!window.confirm('¿Estás seguro de que deseas eliminar este reporte de avance de faena?')) return;
       const { data, error } = await supabase.from('avances_produccion_partidas').delete().eq('id', reportId).eq('empresa', user.empresa).eq('obra_id', selectedObra.id).select('id');
+      if (error && /conciliado con pilas|vinculado a una jornada/i.test(error.message)) {
+        const refreshed=await supabase.rpc('specialty_api',{p_work:selectedObra.id,p_action:'state',p_data:{}});
+        if(refreshed.error) throw refreshed.error;
+        const session=refreshed.data?.sessions?.find(s=>s.estado==='historica' && s.report_ids?.some(id=>String(id)===String(reportId)));
+        if(session) return handleDeleteAvanceReport(reportId,session);
+      }
       if (error) throw error;
       if (!data?.length) throw new Error('El reporte no se eliminó. Revisa tus permisos y actualiza la obra.');
+      }
       setReportesAvanceList(prev => prev.filter(r => r.id !== reportId));
       await fetchObraDetails(selectedObra.nombre);
       alert('Reporte de avance eliminado con éxito.');
@@ -3672,7 +3686,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                         <Edit className="w-4 h-4" />
                                       </button>}
                                       {canAdvanceDelete && <button
-                                        onClick={() => handleDeleteAvanceReport(r.id)}
+                                        onClick={() => handleDeleteAvanceReport(r.id,jornada)}
                                         className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition cursor-pointer"
                                         title="Eliminar reporte de avance"
                                       >

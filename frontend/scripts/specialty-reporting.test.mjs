@@ -77,5 +77,14 @@ test('jornadas: permisos, cierre único, repetición, conflictos y aislamiento',
  assert.ok(!afterUndo.elements.some(e=>e.sesion_id===historical.id));
  assert.equal(afterUndo.reports.length,2);
  }
+ const restored=await call('reconcile',historical);
+ const remove=(id)=>db.query('select public.eliminar_avance_conciliado(1,$1,$2,$3,1) as id',[id,restored.id,restored.revision]);
+ await assert.rejects(remove(-1),/no pertenece/);
+ await db.exec("set test.can_create='no'");
+ await assert.rejects(remove(historicalReport),/se conserva/);
+ assert.ok((await call('state',{})).sessions.some(s=>s.id===restored.id));
+ await db.exec("set test.can_create='yes'");
+ assert.equal((await remove(historicalReport)).rows[0].id,historicalReport);
+ assert.equal((await call('state',{})).reports.length,1);
  await db.close();
 });
