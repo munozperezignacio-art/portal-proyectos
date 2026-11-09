@@ -67,5 +67,15 @@ test('jornadas: permisos, cierre único, repetición, conflictos y aislamiento',
  assert.equal(approved.snapshot.aprobado_por,'Calidad');
  assert.equal(approved.snapshot.pilas[0].topografia.cota_inicial,10);
  assert.equal((await db.query('select count(*)::int n from avances_produccion_partidas')).rows[0].n,2,'protocol approval never duplicates progress');
+ {
+ const historical=(await call('state',{})).sessions.find(s=>s.estado==='historica');
+ await assert.rejects(call('undo_reconcile',historical),/administración/);
+ await db.exec("set test.uid='00000000-0000-4000-8000-000000000001'");
+ assert.equal((await call('undo_reconcile',historical)).desvinculada,true);
+ const afterUndo=await call('state',{});
+ assert.ok(!afterUndo.sessions.some(s=>s.id===historical.id));
+ assert.ok(!afterUndo.elements.some(e=>e.sesion_id===historical.id));
+ assert.equal(afterUndo.reports.length,2);
+ }
  await db.close();
 });

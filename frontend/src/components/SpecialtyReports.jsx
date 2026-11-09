@@ -55,6 +55,12 @@ export default function SpecialtyReports({work,user,parts=[],quality=false,setti
   {quality&&cfg&&tab==='reconciliation'&&state.can_configure&&<section className="space-y-3">
    <h4 className="font-bold">Reportes históricos pendientes de vincular</h4>
    <PendingReports reports={state.reports} sessions={sessions} config={cfg}/>
+   <details className="rounded-xl border p-3"><summary className="cursor-pointer font-bold">Conciliaciones realizadas ({sessions.filter(s=>s.estado==='historica').length})</summary>
+    {sessions.filter(s=>s.estado==='historica').map(s=><div key={s.id} className="flex flex-wrap items-center justify-between gap-2 border-t py-2">
+     <span>{s.fecha.split('-').reverse().join('-')} · Reportes: {s.report_ids.join(', ')}</span>
+     <button type="button" className={button} disabled={busy||state.protocols.some(p=>p.sesion_id===s.id)} onClick={()=>{if(window.confirm('¿Deshacer la conciliación del '+s.fecha.split('-').reverse().join('-')+'? Las pilas quedarán desvinculadas. Se conservarán los reportes y sus cantidades de avance.'))action(()=>call('undo_reconcile',{id:s.id,partida_id:s.partida_id,revision:s.revision}));}}>{state.protocols.some(p=>p.sesion_id===s.id)?'Protegida por protocolo':'Deshacer conciliación'}</button>
+    </div>)}
+   </details>
    <SpecialtyWorkbookImport key={partId} work={work} partId={Number(partId)} state={state} call={call} onSaved={refresh}/>
   </section>}
   {cfg&&tab==='journal'&&<div className="space-y-4">

@@ -80,6 +80,17 @@ begin
    return req.response;
   end if;
  end if;
+ if p_action='undo_reconcile' then
+  if not adm then raise exception 'Solo administración puede deshacer conciliaciones';end if;
+  select * into s from private.specialty_sessions where id=(p_data->>'id')::uuid and obra_id=p_work and partida_id=(p_data->>'partida_id')::integer for update;
+  if not found or s.estado<>'historica' then raise exception 'No hay una conciliación histórica vigente para esta jornada';end if;
+  if s.revision is distinct from (p_data->>'revision')::integer then raise exception 'La jornada cambió; actualiza antes de continuar';end if;
+  if exists(select 1 from private.specialty_protocols where sesion_id=s.id) then raise exception 'Hay protocolos vinculados. No se modificó la conciliación';end if;
+  insert into private.specialty_audit(obra_id,actor,accion,referencia) values(p_work,uid,p_action,to_jsonb(s)::text);
+  update private.specialty_elements set sesion_id=null where sesion_id=s.id;
+  delete from private.specialty_sessions where id=s.id;
+  return jsonb_build_object('desvinculada',true,'report_ids',s.report_ids);
+ end if;
  pid:=nullif(p_data->>'partida_id','')::integer;
  if p_action in ('save','close','topography','protocol','reconcile') then
   sid:=(p_data->>'id')::uuid;
