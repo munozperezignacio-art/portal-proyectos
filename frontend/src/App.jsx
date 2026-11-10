@@ -4,7 +4,7 @@ import {
   Layers, Handshake, Receipt, Coins, ClipboardCheck, Boxes, BadgeCheck,
   Hammer, ChevronLeft, ChevronRight, Search, Star
 } from 'lucide-react';
-import { supabase } from './supabaseClient';
+import { supabase,setRolePreviewReadOnly } from './supabaseClient';
 import { getAuthenticatedProfile } from './utils/auth';
 import {renameWorkScope} from './utils/projectProfile';
 import {prefetchEconomicIndicators} from './utils/economicIndicatorsCache';
@@ -136,8 +136,13 @@ function App() {
   const baseUserContext = useMemo(() => user
     ? (selectedCompanyOverride ? { ...user, empresa: selectedCompanyOverride } : user)
     : null, [selectedCompanyOverride, user]);
-  const {permissions:modulePermissions,loading:modulePermissionsLoading,navigation}=useUserPermissions(baseUserContext);
-  const activeUserContext=useMemo(()=>baseUserContext?{...baseUserContext,...navigation}:null,[baseUserContext,navigation]);
+  const [roleView,setRoleView]=useState(null);
+  const preview=user&&roleView?.ownerId===user.id&&roleView?.role.empresa===user.empresa?roleView:null;
+  const switchRole=value=>{setRolePreviewReadOnly(!!value);setRoleView(value?{...value,ownerId:user.id}:null);setCurrentModule('dashboard');setSelectedObraName(null);setModuleSearch('');};
+  useEffect(()=>{setRolePreviewReadOnly(!!preview);return ()=>setRolePreviewReadOnly(false);},[!!preview]);
+  const {permissions:actualPermissions,loading:modulePermissionsLoading,navigation}=useUserPermissions(baseUserContext);
+  const modulePermissions=preview?.role.permisos|| (preview?{}:actualPermissions);
+  const activeUserContext=useMemo(()=>!baseUserContext?null:preview?{...baseUserContext,rol:preview.role.nombre,rol_base:preview.role.rol_base||preview.role.nombre,permisos:preview.role.permisos||{},modulos:preview.nav.modulos.join(','),submenus:preview.nav.submenus.join(','),_hereda_accesos_rol:true,_rolePreview:true}:{...baseUserContext,...navigation},[baseUserContext,navigation,preview]);
 
   // Favoritos guardados en localStorage
   const [favorites, setFavorites] = useState(() => {
@@ -161,7 +166,7 @@ function App() {
 
     const clearLocalUser = () => {
       localStorage.removeItem('obraxis_user');
-      if (active) setUser(null);
+      if (active) {setRoleView(null);setUser(null);}
     };
 
     const restoreSession = async () => {
@@ -301,7 +306,7 @@ function App() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    setUser(null);
+    setRoleView(null);setUser(null);
     localStorage.removeItem('obraxis_user');
     setCurrentModule('dashboard');
     setSelectedObraName(null);
@@ -630,11 +635,11 @@ function App() {
             <h4 className="text-xs font-bold text-slate-800 truncate">{user.usuario}</h4>
             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider truncate">{user.rol}</p>
           </div>
-          <React.Suspense fallback={null}><PlatformNotificationCenter user={activeUserContext} onNavigate={openNotificationDestination}/></React.Suspense>
+          {!preview&&<React.Suspense fallback={null}><PlatformNotificationCenter user={activeUserContext} onNavigate={openNotificationDestination}/></React.Suspense>}
         </div>
 
         {/* Menu Navigation Links */}
-        <RoleExplorer key={user.id+':'+user.empresa} user={user}/>
+        <RoleExplorer key={user.id+':'+user.empresa} user={user} name={preview?.role.nombre||''} onChange={switchRole}/>
         <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
           {/* Dashboard/Inicio */}
           <button
@@ -717,7 +722,7 @@ function App() {
             <h1 className="text-sm font-bold text-white uppercase tracking-wider">Obraxis</h1>
           </div>
           <div className="flex items-center gap-2">
-            <React.Suspense fallback={null}><PlatformNotificationCenter compact user={activeUserContext} onNavigate={openNotificationDestination}/></React.Suspense>
+            {!preview&&<React.Suspense fallback={null}><PlatformNotificationCenter compact user={activeUserContext} onNavigate={openNotificationDestination}/></React.Suspense>}
             <span className="text-[10px] font-bold bg-white/15 px-2.5 py-1 rounded-full uppercase">{activeUserContext?.empresa || 'Obraxis'}</span>
           </div>
         </header>
@@ -786,7 +791,7 @@ function App() {
               </div>
 
               {/* Navigation links */}
-              <RoleExplorer key={user.id+':'+user.empresa} user={user}/>
+              <RoleExplorer key={user.id+':'+user.empresa} user={user} name={preview?.role.nombre||''} onChange={switchRole}/>
               <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
                 <button
                   onClick={() => {
@@ -1028,7 +1033,7 @@ function App() {
           )}
           </React.Suspense>
 
-          <FloatingOX
+          {!preview&&<FloatingOX
             user={activeUserContext}
             obra={currentModule === 'obras' ? oxObra : null}
             moduleContext={{
@@ -1040,7 +1045,7 @@ function App() {
               const target = destination === 'inicio' ? 'dashboard' : destination;
               if (allModulesList.some(module => module.id === target) || target === 'dashboard') setCurrentModule(target);
             }}
-          />
+          />}
 
         </main>
       </div>

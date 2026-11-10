@@ -30,6 +30,14 @@ export const setSessionPersistence = remember => {
 
 export const isSessionRemembered = () => localStorage.getItem(REMEMBER_KEY) === 'true';
 
+let rolePreviewReadOnly=false;
+export const setRolePreviewReadOnly=value=>{rolePreviewReadOnly=Boolean(value);};
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  global:{fetch:(input,init)=>{
+    const method=(init?.method||input?.method||'GET').toUpperCase();
+    const path=new URL(typeof input==='string'?input:input.url||String(input),supabaseUrl).pathname;
+    if(rolePreviewReadOnly&&!['GET','HEAD','OPTIONS'].includes(method)&&!['/auth/v1/token','/auth/v1/logout'].includes(path))return Promise.resolve(new Response(JSON.stringify({message:'Vista de rol: vuelve a tu rol para realizar esta acción.'}),{status:403,headers:{'Content-Type':'application/json'}}));
+    return fetch(input,init);
+  }},
   auth: { storage: authStorage, persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
 });

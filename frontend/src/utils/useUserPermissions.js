@@ -25,6 +25,7 @@ export default function useUserPermissions(user) {
   useEffect(() => {
     let active = true;
     const load = async () => {
+      if(user?._rolePreview){setPermissions(user.permisos||{});setNavigation(null);setLoading(false);return;}
       if (!userId) { setPermissions({});setNavigation(null); setLoading(false); return; }
       const identity=JSON.stringify([userId,company,role,baseRole]);
       if(loadedIdentity.current!==identity)setLoading(true);
@@ -56,7 +57,7 @@ export default function useUserPermissions(user) {
     };
     load();
     return () => { active = false; };
-  }, [userId, company, role, baseRole, inheritedPermissions,revision]);
+  }, [userId, company, role, baseRole, inheritedPermissions,revision,user?._rolePreview]);
 
-  return { permissions, loading,navigation };
+  return user?._rolePreview?{permissions:user.permisos||{},loading:false,navigation:null}:{ permissions, loading,navigation };
 }
