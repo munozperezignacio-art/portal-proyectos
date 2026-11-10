@@ -3,13 +3,14 @@
   "platform": "android",
   "packageName": "cl.obraxis.terreno",
   "version": "1.0.15",
-  "build": 24,
-  "apkUrl": "https://expo.dev/artifacts/eas/NuxsCRnZoqascABONVd_WArusllUAD3UNCbamEmgCHA.apk",
-  "sha256": "be854f0dcbf5c37d54bb5f78187196f2bbf1354c3ceb74b9895b2b1c640c1e22",
-  "commit": "89eb97ab6d38c4e6c4d733028f51753fdff8ab65",
-  "sourceHash": "830600e3cdda696b11fd70100a3c756b70a3edb5bc3207e8fd5e9006d4e9133d",
-  "publishedAt": "2026-11-10T15:32:15.781Z",
+  "build": 25,
+  "apkUrl": "https://expo.dev/artifacts/eas/kcjpIlSIpoHko1cnmFWaTPuceM86-p9o_iIcGEzQy-4.apk",
+  "sha256": "29e8c4bd20a711fbd330432f5b7822ab8fabc256674bc1852dc76adf75d91cc9",
+  "commit": "a179f2d07b1f2541fdac52c83cc655985929599b",
+  "sourceHash": "09b8d6b31ec341f76006de8be937ad594dcefe6870475be0ca0ec0d08b3309a1",
+  "publishedAt": "2026-11-10T18:32:28.500Z",
   "notes": [
-    "Compartir el reporte diario con actividades, observaciones y diagrama numerado de pilas."
+    "Diagrama: borde azul para pendientes, amarillo para las pilas del día y azul para las anteriores.",
+    "Botón verde con el logo de WhatsApp para preparar el reporte."
   ]
 }
