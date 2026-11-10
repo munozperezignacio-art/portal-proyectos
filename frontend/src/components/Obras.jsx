@@ -19,6 +19,7 @@ import {costSupplierFields} from '../utils/costSupplier';
 import SupplierIdentityFields from './SupplierIdentityFields';
 import CostTaxDetail from './CostTaxDetail';
 import CostDistributionSummary from './CostDistributionSummary';
+import ReportPileDiagram from './ReportPileDiagram';
 import { allocatedExpenses } from '../utils/costDistribution';
 import WorkPersonnelAllocations from './WorkPersonnelAllocations';
 import PurchaseOrderImporter from './PurchaseOrderImporter';
@@ -3671,6 +3672,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                 <td className="p-2.5 font-medium text-slate-600">{r.frente || 'Frente Principal'}</td>
                                 <td className="p-2.5 font-bold text-blue-950">{r.partida}
                                   {jornada && <details className="mt-1 font-normal"><summary className="cursor-pointer">Detalle de la jornada</summary>
+                                    <ReportPileDiagram history={specialtyHistory} session={jornada}/>
                                     <p>Pilas terminadas: {jornada.datos.pilas.filter(p=>p.terminada).map(p=>specialtyHistory.elements.find(e=>e.id===p.element_id)?.numero).filter(Boolean).join(', ') || 'Sin pilas terminadas'}</p>
                                     {jornada.datos.observaciones && jornada.datos.observaciones!==r.observaciones && <p>Comentarios generales: {jornada.datos.observaciones}</p>}
                                   </details>}

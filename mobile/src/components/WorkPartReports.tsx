@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import {ShareDailyProgress,productionDate} from './ShareDailyProgress';
 import { useMemo, useState } from 'react';
 import { FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,7 +13,7 @@ const reportDate=(r:Row)=>String(r.fecha||r.fecha_avance||r.created_at||'').slic
 const displayDate=(value:string)=>/^\d{4}-\d{2}-\d{2}$/.test(value)?`${value.slice(8,10)}/${value.slice(5,7)}/${value.slice(0,4)}`:'Sin fecha informada';
 const quantity=(value:unknown)=>Number.isFinite(Number(value))?Number(value).toLocaleString('es-CL',{maximumFractionDigits:3}):'—';
 
-export function WorkPartReports({parts,reports,cutoff}:{parts:Row[];reports:Row[];cutoff:string}) {
+export function WorkPartReports({parts,reports,cutoff,workId,workName}:{parts:Row[];reports:Row[];cutoff:string;workId:number;workName:string}) {
   const {colors}=useTheme();const s=useThemedStyles(styles);const insets=useSafeAreaInsets();
   const [selected,setSelected]=useState<string|null>(null);
   const entries=useMemo(()=>parts.map((part,index)=>({key:String(part.id??index),part,history:partReportHistory(part,parts,reports)})),[parts,reports]);
@@ -35,6 +36,7 @@ export function WorkPartReports({parts,reports,cutoff}:{parts:Row[];reports:Row[
             <View style={s.row}><Ionicons name="person-outline" size={15} color={colors.muted}/><Text style={[s.meta,s.flex]}>{item.supervisor||item.responsable||'Sin responsable informado'}</Text></View>
             <Text style={s.note}>{String(item.observaciones||item.observacion||item.comentario||'Sin observaciones.').trim()||'Sin observaciones.'}</Text>
             {reportDate(item)>cutoff&&<Badge tone="amber">Fecha posterior al corte · no suma al avance</Badge>}
+            <ShareDailyProgress date={productionDate(item)} workId={workId} workName={workName} entries={entries}/>
           </View>}/>
         </>}
       </View></View>

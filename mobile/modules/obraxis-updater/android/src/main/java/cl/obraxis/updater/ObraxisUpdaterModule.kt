@@ -34,6 +34,44 @@ class ObraxisUpdaterModule : Module() {
   }
   override fun definition() = ModuleDefinition {
     Name("ObraxisUpdater")
+    AsyncFunction("shareProgress") { message: String, diagrams: String ->
+      val groups=org.json.JSONArray(diagrams)
+      val uris=ArrayList<Uri>()
+      val dir=File(context.cacheDir,"progress_reports").apply { mkdirs() }
+      dir.listFiles()?.filter { it.lastModified()<System.currentTimeMillis()-86400000L }?.forEach { it.delete() }
+      for(i in 0 until groups.length()){
+        val group=groups.getJSONObject(i)
+        val image=android.graphics.Bitmap.createBitmap(2000,1480,android.graphics.Bitmap.Config.ARGB_8888)
+        try {
+          val canvas=android.graphics.Canvas(image)
+          canvas.drawColor(android.graphics.Color.WHITE);canvas.scale(2f,2f)
+          val pen=android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+          pen.textSize=15f;canvas.drawText(group.getString("title"),18f,20f,pen)
+          pen.textSize=12f;canvas.drawText("Verde: pilas del día · Azul: pilas anteriores",18f,41f,pen)
+          canvas.translate(0f,50f);pen.textAlign=android.graphics.Paint.Align.CENTER
+          val points=group.getJSONArray("points")
+          for(j in 0 until points.length()){
+            val p=points.getJSONObject(j);val x=p.getDouble("x").toFloat();val y=p.getDouble("y").toFloat()
+            pen.color=android.graphics.Color.parseColor(if(p.getBoolean("day")) "#087e69" else "#334b88")
+            canvas.drawCircle(x,y,8f,pen);pen.color=android.graphics.Color.WHITE;pen.textSize=7f
+            canvas.drawText(p.getString("label"),x,y-(pen.ascent()+pen.descent())/2,pen)
+          }
+          val target=File.createTempFile("avance-", ".png",dir)
+          target.outputStream().use { check(image.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)) }
+          uris.add(FileProvider.getUriForFile(context,context.packageName+".updates",target))
+        } finally { image.recycle() }
+      }
+      val intent=Intent(if(uris.size>1) Intent.ACTION_SEND_MULTIPLE else Intent.ACTION_SEND)
+      intent.type=if(uris.isEmpty()) "text/plain" else "image/png"
+      intent.putExtra(Intent.EXTRA_TEXT,message)
+      if(uris.isNotEmpty()){
+        if(uris.size==1)intent.putExtra(Intent.EXTRA_STREAM,uris[0]) else intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM,uris)
+        val clip=android.content.ClipData.newUri(context.contentResolver,"Diagrama de pilas",uris[0])
+        uris.drop(1).forEach { clip.addItem(android.content.ClipData.Item(it)) };intent.clipData=clip
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+      }
+      context.startActivity(Intent.createChooser(intent,"Compartir reporte por WhatsApp").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
     AsyncFunction("start") { url: String, hash: String ->
       require(url.matches(Regex("https://expo\\.dev/artifacts/eas/[A-Za-z0-9_-]+\\.apk")))
       val target = file(hash)
