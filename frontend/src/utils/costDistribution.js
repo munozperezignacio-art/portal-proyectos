@@ -1,4 +1,18 @@
 const number = value => Number(value) || 0;
+// Redondear el acumulado, no cada fracción independientemente.
+// Así una distribución completa consume exactamente el monto de origen.
+export function allocatedExpenses(record) {
+  const base = number(record.monto_base ?? record.monto);
+  let percent = 0, previous = 0;
+  return (record.imputaciones || []).map(link => {
+    percent = Math.round((percent + number(link.porcentaje)) * 1e8) / 1e8;
+    const raw = Math.abs(base) * percent / 100;
+    const end = percent === 100 ? base : Math.sign(base) * Math.ceil(raw - Number.EPSILON * raw);
+    const value = end - previous;
+    previous = end;
+    return { ...link, value };
+  });
+}
 export function filterCostGroups(groups, category) {
   if (!category) return groups;
   return groups.map(group => {
@@ -26,13 +40,14 @@ export function costDistribution(records, parts, matches, global = true) {
     total += amount;
     categories.set(category, (categories.get(category) || 0) + amount);
     let allocated = 0;
+    const shares = allocatedExpenses(record);
     for (const group of groups) {
       const labor = Array.isArray(record.obra_liquidaciones_partidas);
-      const links = labor ? record.obra_liquidaciones_partidas : record.imputaciones || [];
+      const links = labor ? record.obra_liquidaciones_partidas : shares;
       const matching = links.filter(link => (!labor || link.partida_id != null) && matches(link.partida, group.name));
       const value = labor
         ? matching.reduce((sum, link) => sum + number(link.monto_imputado), 0)
-        : matching.length ? Math.round(number(record.monto_base ?? record.monto) * number(matching[0].porcentaje) / 100) : 0;
+        : matching.reduce((sum, link) => sum + link.value, 0);
       if (value !== 0) {
         group.rows.push({ ...record, category, allocated: value, allocationFactor: labor ? matching[0]?.factor : undefined, allocationReason: labor ? matching[0]?.criterio : undefined });
         group.total += value;

@@ -2,6 +2,14 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {costDistribution,costCategory,filterCostGroups} from './costDistribution.js';
 const matches=(a,b)=>a===b;
+test('el redondeo acumulado conserva el total y solo deja saldos reales',()=>{
+ for(const [monto,pct,expected] of [[101,[50,50],[51,50,0]],[-101,[50,50],[-51,-50,0]],[101,[50,0],[51,0,50]],[1,[10,90],[1,0,0]],[7,[0,0],[0,0,7]]]){
+   const parts=['A','B'].map(partida=>({partida}));
+   const model=costDistribution([{monto,imputaciones:parts.map((p,i)=>({...p,porcentaje:pct[i]}))}],parts,matches);
+   assert.deepEqual(model.groups.map(g=>g.total),expected);
+   if(expected[2]===0)assert.equal(model.groups[2].rows.length,0);
+ }
+});
 test('category drilldown filters each part and unassigned without duplicating costs',()=>{
  const model=costDistribution([
   {monto:100,tipo_costo:'Alimentación',imputaciones:[{partida:'A',porcentaje:60}]},
