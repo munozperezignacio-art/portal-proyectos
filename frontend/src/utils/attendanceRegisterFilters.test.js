@@ -2,6 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {filterAttendanceRegister} from './attendanceRegisterFilters.js';
 const rows=[{id:1,fecha_marcacion:'2026-10-12',created_at:'2026-10-16T18:00:00Z',trabajador:'FRANCO MUÑOZ',rut:'18.009.385-0'},{id:2,fecha_marcacion:'2026-10-13',trabajador:'Franco Muñoz',rut:'18.009.385-0'},{id:3,fecha_marcacion:'2026-10-13',trabajador:'María Pérez',rut:'20.709.581-8'}];
+test('combina rango inclusivo, estado, horas extra y validación',()=>{
+ const marks=rows.map((r,i)=>({...r,asistencia:i===2?'AUSENTE':'PRESENTE',verificado_qr:i===1,horas_extras_auto:i===1?2:0}));
+ const ids=f=>filterAttendanceRegister(marks,f).map(r=>r.id);
+ assert.deepEqual(ids({from:'2026-10-12',to:'2026-10-13',state:'PRESENTE',extra:'Con horas extra',validation:'QR/GPS'}),[2]);
+ assert.deepEqual(ids({to:'2026-10-12',validation:'Manual',extra:'Sin horas extra'}),[1]);
+ assert.deepEqual(ids({from:'2026-10-13',state:'AUSENTE'}),[3]);
+});
 test('filters date and worker independently or together while retaining newest-first order',()=>{
  assert.deepEqual(filterAttendanceRegister(rows,{person:'FRANCO munoz'}).map(r=>r.id),[2,1]);
  assert.deepEqual(filterAttendanceRegister(rows,{date:'2026-10-13'}).map(r=>r.id),[3,2]);

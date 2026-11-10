@@ -710,8 +710,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const [asistenciaList, setAsistenciaList] = useState([]);
   const [attendanceRegisterDate,setAttendanceRegisterDate]=useState('');
   const [attendanceRegisterPerson,setAttendanceRegisterPerson]=useState('');
-  useEffect(()=>{setAttendanceRegisterDate('');setAttendanceRegisterPerson('');},[selectedObra?.id,selectedObra?.nombre]);
-  const visibleAttendanceRecords=React.useMemo(()=>filterAttendanceRegister(asistenciaList,{date:attendanceRegisterDate,person:attendanceRegisterPerson}),[asistenciaList,attendanceRegisterDate,attendanceRegisterPerson]);
+  const [registerFilters,setRegisterFilters]=useState({});
+  useEffect(()=>{setAttendanceRegisterDate('');setAttendanceRegisterPerson('');setRegisterFilters({});},[selectedObra?.id,selectedObra?.nombre]);
+  const visibleAttendanceRecords=React.useMemo(()=>filterAttendanceRegister(asistenciaList,{...registerFilters,date:attendanceRegisterDate,person:attendanceRegisterPerson}),[asistenciaList,attendanceRegisterDate,attendanceRegisterPerson,registerFilters]);
   const [personalAsignadoList, setPersonalAsignadoList] = useState([]);
   const [reportesAvanceList, setReportesAvanceList] = useState([]);
   const [advanceReportDate,setAdvanceReportDate] = useState('');
@@ -3918,7 +3919,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                       📋 Registros Recientes de Marcaje en Faena ({asistenciaList.length} registros)
                     </h4>
 
-                    <AttendanceRegisterFilters date={attendanceRegisterDate} person={attendanceRegisterPerson} onDateChange={setAttendanceRegisterDate} onPersonChange={setAttendanceRegisterPerson} onClear={()=>{setAttendanceRegisterDate('');setAttendanceRegisterPerson('');}} shown={visibleAttendanceRecords.length} total={asistenciaList.length}/>
+                    <AttendanceRegisterFilters filters={registerFilters} states={[...new Set(asistenciaList.map(a=>a.asistencia).filter(Boolean))].sort()} onFilter={(key,value)=>{if(key==='from'||key==='to')setAttendanceRegisterDate('');setRegisterFilters(f=>({...f,[key]:value}));}} date={attendanceRegisterDate} person={attendanceRegisterPerson} onDateChange={v=>{setRegisterFilters(f=>({...f,from:'',to:''}));setAttendanceRegisterDate(v);}} onPersonChange={setAttendanceRegisterPerson} onClear={()=>{setAttendanceRegisterDate('');setAttendanceRegisterPerson('');setRegisterFilters({});}} shown={visibleAttendanceRecords.length} total={asistenciaList.length}/>
                     {canPersonnelEdit && (attendanceRegisterDate ? <WorkerBatch key={selectedObra.id+':'+attendanceRegisterDate} title="Corregir marcajes del día" workers={visibleAttendanceRecords.filter(a=>a._sourceTable==='asistencia_personal').map(a=>({id:a.id,name:a.trabajador,record:a}))} onApply={async(workers,form)=>{
                       const changes=Object.fromEntries(Object.entries(form).filter(([,v])=>v!==''));
                       if(!Object.keys(changes).length)throw new Error('Completa al menos un campo.');
