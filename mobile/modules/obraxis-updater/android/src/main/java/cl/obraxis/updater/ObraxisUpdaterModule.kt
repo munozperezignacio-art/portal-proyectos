@@ -47,13 +47,17 @@ class ObraxisUpdaterModule : Module() {
           canvas.drawColor(android.graphics.Color.WHITE);canvas.scale(2f,2f)
           val pen=android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
           pen.textSize=15f;canvas.drawText(group.getString("title"),18f,20f,pen)
-          pen.textSize=12f;canvas.drawText("Verde: pilas del día · Azul: pilas anteriores",18f,41f,pen)
+          pen.textSize=12f;canvas.drawText("Amarillo: pilas del día · Azul: anteriores · Borde azul: pendientes",18f,41f,pen)
           canvas.translate(0f,50f);pen.textAlign=android.graphics.Paint.Align.CENTER
           val points=group.getJSONArray("points")
           for(j in 0 until points.length()){
             val p=points.getJSONObject(j);val x=p.getDouble("x").toFloat();val y=p.getDouble("y").toFloat()
-            pen.color=android.graphics.Color.parseColor(if(p.getBoolean("day")) "#087e69" else "#334b88")
-            canvas.drawCircle(x,y,8f,pen);pen.color=android.graphics.Color.WHITE;pen.textSize=7f
+            val day=p.getBoolean("day");val pending=p.optBoolean("pending",false)
+            pen.color=android.graphics.Color.parseColor(if(day) "#facc15" else "#334b88")
+            pen.style=if(pending) android.graphics.Paint.Style.STROKE else android.graphics.Paint.Style.FILL
+            pen.strokeWidth=1.2f;canvas.drawCircle(x,y,8f,pen)
+            pen.style=android.graphics.Paint.Style.FILL
+            pen.color=if(day||pending) android.graphics.Color.parseColor("#172554") else android.graphics.Color.WHITE;pen.textSize=7f
             canvas.drawText(p.getString("label"),x,y-(pen.ascent()+pen.descent())/2,pen)
           }
           val target=File.createTempFile("avance-", ".png",dir)
