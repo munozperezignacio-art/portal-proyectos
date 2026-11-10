@@ -49,20 +49,25 @@ revoke all on private.specialty_settings,private.specialty_sessions,private.spec
 alter table public.avances_produccion_partidas add column if not exists specialty_session_id uuid;
 create unique index if not exists progress_specialty_session on public.avances_produccion_partidas(specialty_session_id) where specialty_session_id is not null;
 
+create table if not exists private.specialty_quality_work(obra_id integer primary key references public.obras(id) on delete cascade, datos jsonb not null);
+alter table private.specialty_quality_work enable row level security;
+revoke all on private.specialty_quality_work from public,anon,authenticated;
 create or replace function private.specialty_api(p_work integer,p_action text,p_data jsonb default '{}')
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare
  w public.obras%rowtype; actor public.usuarios%rowtype; cfg private.specialty_settings%rowtype;
  s private.specialty_sessions%rowtype; el private.specialty_elements%rowtype; proto private.specialty_protocols%rowtype;
  part public.partidas_obra%rowtype; adm boolean; uid uuid:=auth.uid(); x jsonb; result jsonb;
+ original_input jsonb:=p_data; work_defaults jsonb; bucket numeric;
  sid uuid; pid integer; count_piles integer; rid integer; ids integer[]; total numeric; role_uid uuid; req private.specialty_requests%rowtype;
 begin
  select * into w from public.obras where id=p_work;
  if uid is null or w.id is null or not coalesce(private.rrhh_partidas_permiso(w.empresa,w.id,'ver'),false) then raise exception 'No autorizado para esta obra';end if;
  select * into actor from public.usuarios where auth_user_id=uid and empresa=w.empresa order by id limit 1;
  adm:=lower(coalesce(nullif(actor.rol_base,''),actor.rol,'')) in ('administrador de empresa','administrador empresa','administrador de contratos','administrador de contrato');
+ select datos into work_defaults from private.specialty_quality_work where obra_id=p_work;
  if p_action='state' then
-  return jsonb_build_object('settings',coalesce((select jsonb_agg(to_jsonb(t)) from private.specialty_settings t where obra_id=p_work),'[]'),
+  return jsonb_build_object('settings',coalesce((select jsonb_agg(to_jsonb(t)||jsonb_build_object('datos_fijos',coalesce(work_defaults,t.datos_fijos))) from private.specialty_settings t where obra_id=p_work),'[]'),
    'elements',coalesce((select jsonb_agg(to_jsonb(t) order by etapa,numero) from private.specialty_elements t where obra_id=p_work),'[]'),
    'sessions',coalesce((select jsonb_agg(to_jsonb(t) order by fecha desc) from private.specialty_sessions t where obra_id=p_work),'[]'),
    'protocols',coalesce((select jsonb_agg(to_jsonb(t) order by fecha desc) from private.specialty_protocols t where obra_id=p_work),'[]'),
@@ -102,6 +107,7 @@ begin
  select * into part from public.partidas_obra where id=pid and obra_id=p_work and empresa=w.empresa and not coalesce(es_titulo,false);
  if part.id is null then raise exception 'Selecciona una partida válida de la obra';end if;
  select * into cfg from private.specialty_settings where obra_id=p_work and partida_id=pid;
+ cfg.datos_fijos:=coalesce(work_defaults,cfg.datos_fijos);
  if p_action='configure' then
   if not adm then raise exception 'Solo administración puede asignar responsables';end if;
   if upper(part.unidad) not in ('UND','UN','UNIDAD','UNIDADES') then raise exception 'Pilas de grava requiere una partida medida en unidades';end if;
@@ -140,6 +146,11 @@ begin
   if jsonb_typeof(p_data->'datos'->'pilas') is distinct from 'array' then raise exception 'Detalle de pilas inválido';end if;
   if jsonb_array_length(p_data->'datos'->'pilas')>1000 then raise exception 'Demasiadas pilas en una jornada';end if;
   if p_action<>'reconcile' and exists(select 1 from public.avances_produccion_partidas a where a.obra_id=p_work and (a.partida_id=pid or (a.partida_id is null and lower(trim(a.partida))=lower(trim(part.partida)))) and (a.created_at at time zone 'America/Santiago')::date=(p_data->>'fecha')::date and a.specialty_session_id is distinct from sid) then raise exception 'Ya existe avance por unidades en esa fecha. Debe conciliarse antes de abrir una jornada';end if;
+  if p_action in ('save','close') then
+   bucket:=nullif(replace(cfg.datos_fijos->>'volumen_cuchara',',','.'),'')::numeric;
+   if p_action='close' and coalesce(bucket,0)<=0 then raise exception 'Antes de cerrar, configura el volumen del balde en Calidad de esta obra';end if;
+   p_data:=jsonb_set(p_data,'{datos,pilas}',coalesce((select jsonb_agg((j-'equipo'-'volumen'-'volumen_cuchara'-'diametro')||jsonb_build_object('volumen',bucket*nullif(replace(j->>'paladas',',','.'),'')::numeric,'volumen_cuchara',bucket,'diametro',cfg.datos_fijos->>'diametro') order by ord) from jsonb_array_elements(p_data->'datos'->'pilas') with ordinality a(j,ord)),'[]'::jsonb));
+  end if;
   if (select count(*)<>count(distinct value->>'element_id') from jsonb_array_elements(p_data->'datos'->'pilas')) then raise exception 'Pila repetida dentro de la jornada';end if;
   for x in select value from jsonb_array_elements(p_data->'datos'->'pilas') loop
    select * into el from private.specialty_elements where id=(x->>'element_id')::uuid and obra_id=p_work and partida_id=pid;
@@ -148,7 +159,7 @@ begin
    if coalesce((x->>'terminada')::boolean,false) and p_action in ('close','reconcile') then
     if exists(select 1 from jsonb_each_text(x) v where v.key in ('paladas','volumen','longitud','volumen_cuchara','longitud_perforacion','diametro','profundidad') and v.value in ('NaN','Infinity','-Infinity')) then raise exception 'Valores numéricos inválidos';end if;
     if nullif(x->>'paladas','')::numeric is null or (x->>'paladas')::numeric<0 or nullif(x->>'volumen','')::numeric is null or (x->>'volumen')::numeric<0 or nullif(x->>'longitud','')::numeric is null or (x->>'longitud')::numeric<=0 then raise exception 'Completa paladas, volumen y longitud de las pilas terminadas';end if;
-    if p_action='close' and nullif(trim(x->>'equipo'),'') is null then raise exception 'Indica el equipo de cada pila terminada';end if;
+    -- La jornada no requiere equipo por pila.
    end if;
   end loop;
   insert into private.specialty_sessions(id,obra_id,partida_id,fecha,responsable,datos,revision)
@@ -175,9 +186,12 @@ begin
   end if;
   select to_jsonb(t) into result from private.specialty_sessions t where id=sid;
  elsif p_action='protocol_defaults' then
-  if uid is distinct from cfg.calidad then raise exception 'Solo el responsable de Calidad puede guardar datos fijos';end if;
+  if not (adm or uid is not distinct from cfg.calidad or coalesce(private.obraxis_permission(w.empresa,'obras.calidad.editar'),false)) then raise exception 'Sin permiso para guardar antecedentes de Calidad';end if;
   if jsonb_typeof(p_data->'datos_fijos') is distinct from 'object' then raise exception 'Datos fijos inválidos';end if;
-  update private.specialty_settings set datos_fijos=p_data->'datos_fijos',revision=revision+1 where obra_id=p_work and partida_id=pid;
+  for x in select value from jsonb_each(p_data->'datos_fijos') where key in ('volumen_cuchara','diametro') loop
+   if trim(both '"' from x::text)<>'' and (replace(trim(both '"' from x::text),',','.') !~ '^[0-9]+([.][0-9]+)? or replace(trim(both '"' from x::text),',','.')::numeric<=0) then raise exception 'Volumen de balde y diámetro deben ser positivos';end if;
+  end loop;
+  insert into private.specialty_quality_work(obra_id,datos) values(p_work,p_data->'datos_fijos') on conflict(obra_id) do update set datos=excluded.datos;
  elsif p_action='topography' then
   if uid is distinct from cfg.topografia then raise exception 'Solo el topógrafo designado puede completar estos datos';end if;
   select * into el from private.specialty_elements where id=(p_data->>'element_id')::uuid and obra_id=p_work and partida_id=pid;
@@ -211,7 +225,7 @@ begin
  end if;
  insert into private.specialty_audit(obra_id,actor,accion,referencia) values(p_work,uid,p_action,coalesce(sid::text,pid::text));
  result:=coalesce(result,jsonb_build_object('ok',true));
- if p_data ? 'request_id' then insert into private.specialty_requests(id,actor,obra_id,action,payload,response) values((p_data->>'request_id')::uuid,uid,p_work,p_action,p_data,result);end if;
+ if p_data ? 'request_id' then insert into private.specialty_requests(id,actor,obra_id,action,payload,response) values((p_data->>'request_id')::uuid,uid,p_work,p_action,original_input,result);end if;
  return result;
 end $$;
 revoke all on function private.specialty_api(integer,text,jsonb) from public,anon;
