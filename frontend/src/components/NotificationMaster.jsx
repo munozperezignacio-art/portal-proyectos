@@ -10,6 +10,9 @@ import { can } from '../utils/permissionsCatalog';
 import { canConfigureWork, canConfigureResponsibility } from '../utils/workConfigurationAccess';
 
 const CATALOG = [
+  {code:'gastos_imputacion_pendiente',module:'Gastos',name:'Imputaciones pendientes de Gastos',description:'Resumen diario en la campana de los responsables. No cambia los permisos de aprobación.',frequency:'Diaria'},
+  {code:'rrhh_imputacion_pendiente',module:'RRHH',name:'Imputaciones pendientes de RRHH',description:'Resumen diario en la campana de los responsables. No cambia los permisos de aprobación.',frequency:'Diaria'},
+  {code:'maquinaria_imputacion_pendiente',module:'Maquinaria',name:'Imputaciones pendientes de Maquinaria',description:'Resumen diario en la campana de los responsables. No cambia los permisos de aprobación.',frequency:'Diaria'},
   { code: 'especialidad_jornada_abierta', module: 'Obras', name: 'Jornada de especialidad sin cerrar', description: 'Recuerda el cierre al responsable designado y a los destinatarios configurados, en días laborales. Hora sugerida: 20:00 de Chile.', frequency: 'Diaria' },
   { code: 'avance_registrado', module: 'Obras', name: 'Avance registrado', description: 'Informa cada nuevo reporte de avance físico.', frequency: 'Inmediata' },
   { code: 'avance_reporte_pendiente', module: 'Obras', name: 'Reporte de avance diario pendiente', description: 'Avisa las obras activas que no han enviado su reporte diario. Un reporte con avance 0 se considera correctamente informado.', frequency: 'Diaria' },
@@ -122,6 +125,7 @@ export default function NotificationMaster({ user, obras = [], roles = [], work 
   useEffect(() => { load(); }, [load]);
 
   const selectTemplate = (code) => {
+    if(code.endsWith('_imputacion_pendiente'))setForm(prev=>({...prev,canal_email:false,canal_push:false,canal_plataforma:true}));
     const item = CATALOG.find(t => t.code === code) || CATALOG[0];
     setForm(prev => ({ ...prev, template_code: item.code, nombre: item.name, modulo: item.module, descripcion: item.description, frecuencia: item.frequency, ...(item.code==='especialidad_jornada_abierta'?{hora_envio:'20:00'}:{}) }));
   };
@@ -163,6 +167,9 @@ export default function NotificationMaster({ user, obras = [], roles = [], work 
     if (!['prevencion_cumplimiento_pendiente','especialidad_jornada_abierta'].includes(form.template_code) && !form.roles.length && !form.usuarios.length && !form.correos.some(Boolean)) {
       setMessage('Selecciona al menos un rol, usuario o correo adicional.'); return;
     }
+    const allocationRule = form.template_code.endsWith('_imputacion_pendiente');
+    if(allocationRule && (!form.roles.length && !form.usuarios.length)){setMessage('Selecciona una persona o rol responsable.');return;}
+    if(allocationRule && (form.canal_email||form.canal_push||!form.canal_plataforma||form.frecuencia!=='Diaria')){setMessage('Para imputaciones, elige frecuencia Diaria y solo el canal Plataforma (campana).');return;}
     const payload = {
       empresa: user.empresa, nombre: form.nombre.trim(), evento_codigo: form.template_code, modulo: form.modulo,
       descripcion: form.descripcion, obra_nombre: form.alcance_tipo === 'seleccionadas' && form.obras_seleccionadas.length === 1 ? form.obras_seleccionadas[0] : null, destinatarios_roles: form.roles,

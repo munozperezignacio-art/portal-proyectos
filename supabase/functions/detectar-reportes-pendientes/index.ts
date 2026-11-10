@@ -3,7 +3,8 @@ import { responsibleRecipients } from "./recipients.js";
 import {processSpecialtyNotifications} from './specialty.ts';
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const EVENTS = ['avance_reporte_pendiente', 'maquinaria_reporte_pendiente', 'reportes_diarios_pendientes', 'prevencion_cumplimiento_pendiente'];
+import {allocationNotices,types} from './allocations.ts';
+const EVENTS = [...Object.keys(types),'avance_reporte_pendiente', 'maquinaria_reporte_pendiente', 'reportes_diarios_pendientes', 'prevencion_cumplimiento_pendiente'];
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 const localParts = (value = new Date()) => {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(value);
@@ -32,6 +33,7 @@ Deno.serve(async (req) => {
 
   for (const rule of dueRules) {
     try {
+      if(Object.hasOwn(types,rule.evento_codigo)){results.push(await allocationNotices(db,rule,local.date));continue;}
       if (rule.evento_codigo === 'prevencion_cumplimiento_pendiente') {
         results.push(await processCompliancePending(db, rule, local, now));
         continue;
