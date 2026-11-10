@@ -2,16 +2,14 @@
   "schema": 1,
   "platform": "android",
   "packageName": "cl.obraxis.terreno",
-  "version": "1.0.14",
-  "build": 21,
-  "apkUrl": "https://expo.dev/artifacts/eas/0oTkW5Hz34zVSdk_gBORhk1gLbQOQt4p75Qfx40CkvM.apk",
-  "sha256": "dc6d9d2282a662402fef71fd2d5429ee42a135d1ac96f8036dd59d68bc921c3f",
-  "commit": "e28882c399f746f4df71f156359e05b281b03166",
-  "sourceHash": "ee3647613b52850858c22b3e251a2338a881cae6eea2e3ca1d14767b2ace4ef9",
-  "publishedAt": "2026-11-07T01:07:17.536Z",
+  "version": "1.0.15",
+  "build": 23,
+  "apkUrl": "https://expo.dev/artifacts/eas/vsyuLzGCXSDzmEKN7WiKTGj5JJ4gQqMxc8cBdILZltc.apk",
+  "sha256": "93f465a28088cc58cb14d814c319e6f4b2cf2487edf823608836c79549cb5ea8",
+  "commit": "d43ce627eeba006b82e3da51f36644381455cae0",
+  "sourceHash": "4566b7ac7de3cb183cb8bcb71c5fa50292b354c3d9786b923cc1424585b49769",
+  "publishedAt": "2026-11-10T14:03:14.082Z",
   "notes": [
-    "Jornadas por especialidad: registro de pilas, guardado sin conexión y cierre sin duplicar avances.",
-    "Topografía independiente y consulta del estado de protocolos de Calidad.",
-    "Acceso desde los avisos a la obra y su jornada."
+    "En Obra → Avance, Registrar avance y Avance por especialidad aparecen lado a lado."
   ]
 }
