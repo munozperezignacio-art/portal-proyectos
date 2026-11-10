@@ -65,6 +65,7 @@ import AttendanceHoursField from './AttendanceHoursField';
 import AttendanceExtraHours from './AttendanceExtraHours';
 import {parseOtherHours} from '../utils/attendanceOtherHours';
 import AttendanceRegisterFilters from './AttendanceRegisterFilters';
+import WorkerBatch from './WorkerBatch';
 import {filterAttendanceRegister} from '../utils/attendanceRegisterFilters';
 import AdvanceReportDateFilter from './AdvanceReportDateFilter';
 import {filterAdvanceReports,advanceReportDateLabel} from '../utils/advanceReportDates';
@@ -3918,6 +3919,21 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     </h4>
 
                     <AttendanceRegisterFilters date={attendanceRegisterDate} person={attendanceRegisterPerson} onDateChange={setAttendanceRegisterDate} onPersonChange={setAttendanceRegisterPerson} onClear={()=>{setAttendanceRegisterDate('');setAttendanceRegisterPerson('');}} shown={visibleAttendanceRecords.length} total={asistenciaList.length}/>
+                    {canPersonnelEdit && (attendanceRegisterDate ? <WorkerBatch key={selectedObra.id+':'+attendanceRegisterDate} title="Corregir marcajes del día" workers={visibleAttendanceRecords.filter(a=>a._sourceTable==='asistencia_personal').map(a=>({id:a.id,name:a.trabajador,record:a}))} onApply={async(workers,form)=>{
+                      const changes=Object.fromEntries(Object.entries(form).filter(([,v])=>v!==''));
+                      if(!Object.keys(changes).length)throw new Error('Completa al menos un campo.');
+                      let count=0;
+                      try{for(const {record:r} of workers){
+                        const schedule=r.jornada_aplicada||scheduleForDate(selectedObra,attendanceRegisterDate);
+                        const patch={...changes};
+                        if((patch.asistencia||r.asistencia)!=='PRESENTE')Object.assign(patch,{ingreso:null,salida:null,colacion:null,otras_horas:0});
+                        const next={...r,...patch};
+                        if(next.asistencia==='PRESENTE'&&(!next.ingreso||!next.salida))throw new Error('Falta ingreso o salida para '+r.trabajador+'. Guardados: '+count);
+                        const h=calculateScheduledAttendance(next,schedule,r.jornada_ordinaria_horas??(schedule?scheduledDayHours(schedule):9));
+                        const {error}=await supabase.from('asistencia_personal').update({...patch,horas_ordinarias:h.ordinary,horas_extras_auto:h.extra}).eq('empresa',selectedObra.empresa||user.empresa).eq('obra_id',selectedObra.id).eq('fecha_marcacion',attendanceRegisterDate).eq('id',r.id).select('id').single();
+                        if(error)throw new Error('Guardados '+count+' de '+workers.length+'. '+error.message);count++;
+                      }}finally{await fetchObraDetails(selectedObra.nombre);}
+                    }}/> : <p className="text-xs text-blue-900">Selecciona el día del marcaje para corregir varios trabajadores.</p>)}
 
                     {asistenciaList.length === 0 ? (
                       <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl space-y-2">

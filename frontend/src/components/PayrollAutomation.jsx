@@ -3,6 +3,7 @@ import { Building2, CheckCircle2, FileSpreadsheet, Printer, RefreshCw, Save } fr
 import { supabase } from '../supabaseClient';
 import { attendanceSummary, calculatePayroll } from '../utils/payrollChile';
 import {laborCostParameters} from '../utils/laborCostParameters';
+import WorkerBatch from './WorkerBatch';
 
 const afpCommissionRates = { Habitat: 11.27, Capital: 11.44, Cuprum: 11.44, Modelo: 10.58, PlanVital: 11.16, ProVida: 11.45, Uno: 10.49, 'Sin Previsión': 0 };
 
@@ -105,6 +106,12 @@ export default function PayrollAutomation({ user, personal, centrosGestion = [],
   };
 
   return <div className="space-y-4">
+    {!loading&&status!=='Cerrada'&&<WorkerBatch key={period} title="Registrar haberes por día o mes" period={period} workers={calculations.map(r=>({id:r.workerId,name:r.nombre}))} onApply={(workers,f)=>{
+      const name=f.name.trim(), amount=Number(f.amount), date=f.scope==='dia'?f.day:period, type=f.type||'Imponible';
+      if(!name||!Number.isSafeInteger(amount)||amount<=0||!date?.startsWith(period))throw new Error('Revisa el concepto, período y monto.');
+      const key=JSON.stringify([date,type,name.toLocaleLowerCase('es-CL')]);
+      setNovelties(prev=>{const next={...prev};for(const {id} of workers){const n=prev[id]||{};next[id]={...n,haberes_detallados:{...n.haberes_detallados,[key]:{date,type,name,amount}}};}return next;});
+    }}/>}
     <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-emerald-950 to-slate-950 p-5 text-white"><div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div><h4 className="text-base font-black">Cálculo mensual automatizado</h4><p className="mt-1 text-xs text-emerald-100">Ficha contractual + asistencia + horas extra + novedades + parámetros previsionales del período.</p></div><div className="flex flex-wrap gap-2"><input type="month" value={period} onChange={e => setPeriod(e.target.value)} className="rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-900"/><button onClick={load} className="rounded-xl border border-white/20 px-3 py-2 text-xs font-black"><RefreshCw className="mr-1 inline h-4 w-4"/>Actualizar</button><span className={`rounded-xl px-3 py-2 text-xs font-black ${status === 'Cerrada' ? 'bg-emerald-400 text-emerald-950' : 'bg-amber-400 text-amber-950'}`}>{status}</span></div></div></div>
     {message && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-900">{message}</div>}
     {costConfig?.origen==='Automático' && <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs">Costeo preparado automáticamente. {costConfig.reglas?.advertencia} Revise estas particularidades antes de cerrar la nómina definitiva.</p>}

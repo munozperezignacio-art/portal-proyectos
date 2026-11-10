@@ -43,7 +43,8 @@ export const calculatePayroll = (worker, attendance, parameters, novelty = {}) =
   const hourly = baseContract * 7 / (30 * weeklyHours);
   const overtimeHours = num(novelty.horas_extra ?? attendance.overtime);
   const overtime = round(hourly * (parameters.factorHoraExtra || 1.5) * overtimeHours);
-  const bonus = round(novelty.bonos ?? attendance.bonus);
+  const additional = type => Object.values(novelty.haberes_detallados || {}).reduce((sum, h) => sum + (h.type === type ? num(h.amount) : 0), 0);
+  const bonus = round(novelty.bonos ?? attendance.bonus) + additional('Imponible');
   const allowances = allowanceTotals(worker, parameters.periodo || '', paidDays);
   const gratificationBase=base+(parameters.gratificarHaberesVariables ? overtime+bonus+allowances.taxable : 0);
   const gratification = worker.gratificacion === 'Sin Gratificación' ? 0 : Math.min(round(gratificationBase * 0.25), gratificationCap);
@@ -62,7 +63,7 @@ export const calculatePayroll = (worker, attendance, parameters, novelty = {}) =
   const tax = monthlyTax(taxableForTax, parameters.utm);
   const collation = round(num(worker.colacion) * paidDays / 30);
   const transport = round(num(worker.movilizacion) * paidDays / 30);
-  const otherNonTaxable = round(novelty.no_imponibles ?? attendance.nonTaxable);
+  const otherNonTaxable = round(novelty.no_imponibles ?? attendance.nonTaxable) + additional('No imponible');
   const otherDiscounts = round(novelty.otros_descuentos);
   const legalDiscounts = afp + health + afc + tax;
   const totalAssets = taxableGrossRaw + collation + transport + otherNonTaxable + allowances.nonTaxable;
