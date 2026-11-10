@@ -31,8 +31,12 @@ export default function SpecialtyReports({work,user,parts=[],quality=false,setti
  const edit=async next=>{setDraft(next);try{await journal.edit(next);setNotice('Guardado en este dispositivo');}catch(e){setNotice(`No se pudo guardar localmente: ${e.message}`);}};
  const elements=state.elements.filter(e=>String(e.partida_id)===partId);
  const sessions=state.sessions.filter(s=>String(s.partida_id)===partId);
- const activeSession=sessions.find(s=>s.estado==='abierta');
- const start=async()=>{const next=activeSession||{id:crypto.randomUUID(),partida_id:Number(partId),fecha:today(),revision:0,datos:{pilas:[],observaciones:''}};await edit(next);};
+ const [workDate,setWorkDate]=useState(today);
+ const activeSession=sessions.find(s=>s.fecha===workDate);
+ const blocked=!workDate||workDate>today()||workDate<cfg?.activa_desde?'Selecciona una fecha dentro del período de registro.':
+ activeSession&&activeSession.estado!=='abierta'?'Esta jornada ya está registrada. Consulta el historial de reportes.':
+ !activeSession&&(state.reports||[]).some(r=>String(r.partida_id)===partId&&r.fecha===workDate)?'Ya existe un reporte de esta partida para la fecha seleccionada. Revisa el historial.':'';
+ const start=async()=>{if(blocked)return;const next=activeSession||{id:crypto.randomUUID(),partida_id:Number(partId),fecha:workDate,revision:0,datos:{pilas:[],observaciones:''}};await edit(next);};
  const canExecute=state.can_execute===true,canTopo=cfg?.topografia===state.actor,canQuality=cfg?.calidad===state.actor;
  const rows=draft?.datos?.pilas||[];
  const updatePile=(id,key,value)=>edit({...draft,datos:{...draft.datos,pilas:rows.map(p=>p.element_id===id?{...p,[key]:value}:p)}});
@@ -64,7 +68,7 @@ export default function SpecialtyReports({work,user,parts=[],quality=false,setti
    <SpecialtyWorkbookImport key={partId} work={work} partId={Number(partId)} state={state} call={call} onSaved={refresh}/>
   </section>}
   {cfg&&tab==='journal'&&<div className="space-y-4">
-   {!canExecute?<p>Tu rol no tiene permiso para registrar avances en esta obra.</p>:!draft?<button className={button} onClick={start}>{activeSession?'Continuar jornada abierta':'Iniciar jornada de trabajo'}</button>:<>
+   {!canExecute?<p>Tu rol no tiene permiso para registrar avances en esta obra.</p>:!draft?<div className="space-y-2"><label className="block text-sm font-bold">Fecha de la jornada<input className={field} type="date" min={cfg.activa_desde} max={today()} value={workDate} onChange={e=>setWorkDate(e.target.value)}/></label><p className="text-sm">{blocked||'Para registrar producción atrasada, selecciona el día en que se ejecutaron las pilas.'}</p><button type="button" className={button} disabled={!!blocked} onClick={start}>{activeSession?.estado==='abierta'?'Continuar jornada abierta':'Iniciar jornada de trabajo'}</button></div>:<>
     <div className="flex flex-wrap gap-3 items-center"><strong>Jornada {draft.fecha.split('-').reverse().join('-')}</strong><span>{rows.filter(p=>p.terminada).length} pilas terminadas</span><button className={button} onClick={sync}>Sincronizar ahora</button></div>
     <p className="text-xs">Autoguardado en este dispositivo. No borres los datos del navegador antes de sincronizar. Un conflicto conserva tu borrador para revisión.</p>
     <div className="flex gap-2"><select disabled={draft.closeRequested} className={field} value={selected} onChange={e=>setSelected(e.target.value)}><option value="">Seleccionar pila</option>{elements.filter(e=>!e.sesion_id&&!rows.some(r=>r.element_id===e.id)).map(e=><option key={e.id} value={e.id}>{e.etapa} · Pila {e.numero}</option>)}</select><button className={button} disabled={!selected||draft.closeRequested} onClick={()=>{edit({...draft,datos:{...draft.datos,pilas:[...rows,{element_id:selected,paladas:'',volumen:'',longitud:'',equipo:'',terminada:false}]}});setSelected('');}}>Agregar</button></div>
