@@ -9,7 +9,7 @@ import {useTheme} from '@/theme/ThemeProvider';
 import type {Profile} from '@/lib/types';
 type Row=Record<string,any>;
 const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-export function SpecialtyJournal({profile,workId,parts,onSaved,initialOpen=false}:{profile:Profile;workId:number;parts:Row[];onSaved:()=>void;initialOpen?:boolean}){
+export function SpecialtyJournal({profile,workId,parts,onSaved,initialOpen=false,quantityAction}:{profile:Profile;workId:number;parts:Row[];onSaved:()=>void;initialOpen?:boolean;quantityAction?:import('react').ReactNode}){
  const {colors}=useTheme();
  const [open,setOpen]=useState(initialOpen),[state,setState]=useState<Row>({settings:[],elements:[],sessions:[],protocols:[]}),[partId,setPartId]=useState(0),[draft,setDraft]=useState<Row|null>(null),[message,setMessage]=useState(''),[search,setSearch]=useState(''),[tab,setTab]=useState('journal');
  const cache=`obraxis:specialty:catalog:${profile.empresa}:${profile.auth_user_id||profile.id}:${workId}`;
@@ -27,7 +27,7 @@ export function SpecialtyJournal({profile,workId,parts,onSaved,initialOpen=false
  const box={borderWidth:1,borderColor:colors.line,borderRadius:12,padding:12,gap:10} as const;
  const input={borderWidth:1,borderColor:colors.line,borderRadius:9,padding:10,color:colors.ink,backgroundColor:colors.surface} as const;
  const button=(label:string,fn:()=>void,disabled=false)=><Pressable accessibilityRole="button" disabled={disabled} onPress={fn} style={{padding:12,borderRadius:10,backgroundColor:disabled?colors.soft:colors.primary}}><Text style={{color:disabled?colors.muted:colors.onPrimary,fontWeight:'700'}}>{label}</Text></Pressable>;
- return <View style={box}>{button(open?'Cerrar vista de especialidad':'Reportes por especialidad · Pilas de grava',()=>setOpen(!open))}{open&&<>
+ return <View style={{gap:10}}><View style={{flexDirection:'row',gap:8,alignItems:'stretch'}}>{quantityAction&&<View style={{flex:1}}>{quantityAction}</View>}<Pressable accessibilityRole="button" accessibilityState={{expanded:open}} onPress={()=>setOpen(!open)} style={{flex:1,minHeight:48,borderRadius:14,backgroundColor:colors.primary,alignItems:'center',justifyContent:'center',paddingHorizontal:5}}><Text style={{fontSize:13,fontWeight:'700',color:colors.onPrimary,textAlign:'center'}}>Avance por especialidad</Text></Pressable></View>{open&&<>
   <Text style={{color:colors.muted}}>Responsables y avisos configurados desde Obraxis. Calidad no bloquea el cierre de ejecución.</Text>
   {message?<Text accessibilityRole="alert" style={{color:colors.ink}}>{message}</Text>:null}
   <View style={{flexDirection:'row',flexWrap:'wrap',gap:8}}>{state.settings.map((s:Row)=><View key={s.partida_id}>{button(parts.find(p=>p.id===s.partida_id)?.partida||String(s.partida_id),()=>setPartId(s.partida_id))}</View>)}</View>

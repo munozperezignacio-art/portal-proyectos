@@ -3441,7 +3441,6 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           {/* VISTA DEDICADA 1: REPORTE DE AVANCE & VISOR DE AVANCE */}
           {obraActiveSubmodule === 'avance' && canObraAvancesView && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <React.Suspense fallback={<p>Cargando especialidades…</p>}><SpecialtyReports key={selectedObra.id} work={selectedObra} user={user} parts={partidasList} settingsRevision={specialtySettingsRevision} onHistory={setSpecialtyHistory} onSaved={()=>fetchObraDetails(selectedObra.nombre)}/></React.Suspense>
               
               {/* Header con boton de ingreso y sub-pestañas */}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
@@ -3450,7 +3449,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   <p className="text-[11px] text-slate-500">Métricas de producción, avance acumulado por partida y registro de observaciones</p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
                     <button
                       onClick={() => setAvanceSubTab('visor')}
@@ -3474,8 +3473,10 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     <Plus className="w-4 h-4" />
                     <span>Ingresar Reporte de Avance</span>
                   </button>
+                  <button type="button" disabled={!canAdvanceCreate} aria-expanded={avanceSubTab==='especialidad'} onClick={()=>setAvanceSubTab(avanceSubTab==='especialidad'?'registro':'especialidad')} className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition shadow-xs"><Plus className="w-4 h-4"/>Avance por especialidad</button>
                 </div>
               </div>
+              <div hidden={avanceSubTab!=='especialidad'}><React.Suspense fallback={<p>Cargando especialidades…</p>}><SpecialtyReports key={selectedObra.id} work={selectedObra} user={user} parts={partidasList} settingsRevision={specialtySettingsRevision} onHistory={setSpecialtyHistory} onSaved={()=>fetchObraDetails(selectedObra.nombre)}/></React.Suspense></div>
 
               {/* SUB-PESTAÑA 1: VISOR DE AVANCE FÍSICO (BARRAS DE PROGRESO DE PARTIDAS DE LA OBRA) */}
               {avanceSubTab === 'visor' && (

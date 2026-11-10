@@ -96,8 +96,7 @@ export default function WorkDetail() {
     <Pressable onPress={() => router.back()} style={s.back}><Ionicons color={colors.ink} name="arrow-back" size={20} /><Text style={s.backText}>Volver a obras</Text></Pressable>
     <Header title={data.work?.nombre || nombre || 'Obra'} subtitle="Vista operativa en terreno" icon="business-outline" />
     <Segments value={tab} options={tabs.filter(item => item.key === 'avance' ? can(profile,'obras.avances.ver') : item.key === 'equipos' ? can(profile,'obras.maquinaria.ver') : item.key === 'asistencia' ? can(profile,'obras.personal.ver') : item.key === 'subcontratos' ? can(profile,'obras.subcontratos.ver') : true)} onChange={setTab} />
-    {tab === 'avance' && authorized && profile && <SpecialtyJournal initialOpen={especialidad==='1'} profile={profile} workId={Number(id)} parts={data.parts||[]} onSaved={load}/>}
-    {tab === 'avance' && can(profile,'obras.avances.crear') && <WorkEntryActions mode="progress" profile={profile!} workId={Number(id)} workName={data.work?.nombre || nombre || ''} parts={data.parts} onSaved={load} />}
+    {tab === 'avance' && authorized && profile && <SpecialtyJournal initialOpen={especialidad==='1'} profile={profile} workId={Number(id)} parts={data.parts||[]} onSaved={load} quantityAction={can(profile,'obras.avances.crear')?<WorkEntryActions mode="progress" profile={profile} workId={Number(id)} workName={data.work?.nombre || nombre || ''} parts={data.parts} onSaved={load}/>:null}/>}
     {tab === 'asistencia' && data.work && can(profile,'obras.personal.crear') && <ManualAttendance profile={profile!} workId={Number(id)} workName={data.work?.nombre || nombre || ''} work={data.work} onSaved={load} />}
     <ErrorBox text={error} />
     {loading && !data.parts.length ? <Loading /> : <>
