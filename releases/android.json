@@ -3,13 +3,13 @@
   "platform": "android",
   "packageName": "cl.obraxis.terreno",
   "version": "1.0.15",
-  "build": 23,
-  "apkUrl": "https://expo.dev/artifacts/eas/vsyuLzGCXSDzmEKN7WiKTGj5JJ4gQqMxc8cBdILZltc.apk",
-  "sha256": "93f465a28088cc58cb14d814c319e6f4b2cf2487edf823608836c79549cb5ea8",
-  "commit": "d43ce627eeba006b82e3da51f36644381455cae0",
-  "sourceHash": "4566b7ac7de3cb183cb8bcb71c5fa50292b354c3d9786b923cc1424585b49769",
-  "publishedAt": "2026-11-10T14:03:14.082Z",
+  "build": 24,
+  "apkUrl": "https://expo.dev/artifacts/eas/NuxsCRnZoqascABONVd_WArusllUAD3UNCbamEmgCHA.apk",
+  "sha256": "be854f0dcbf5c37d54bb5f78187196f2bbf1354c3ceb74b9895b2b1c640c1e22",
+  "commit": "89eb97ab6d38c4e6c4d733028f51753fdff8ab65",
+  "sourceHash": "830600e3cdda696b11fd70100a3c756b70a3edb5bc3207e8fd5e9006d4e9133d",
+  "publishedAt": "2026-11-10T15:32:15.781Z",
   "notes": [
-    "En Obra → Avance, Registrar avance y Avance por especialidad aparecen lado a lado."
+    "Compartir el reporte diario con actividades, observaciones y diagrama numerado de pilas."
   ]
 }
