@@ -237,12 +237,13 @@ grant execute on function public.eliminar_avance_conciliado(integer,integer,uuid
 
 create or replace function private.guard_specialty_progress() returns trigger language plpgsql security definer set search_path='' as $$
 begin
+ perform pg_catalog.pg_advisory_xact_lock(78231,case when tg_op='DELETE' then old.obra_id else new.obra_id end);
  if tg_op in ('UPDATE','DELETE') and (old.specialty_session_id is not null or exists(select 1 from private.specialty_sessions where old.id=any(report_ids))) then raise exception 'Este avance está vinculado a una jornada por especialidad; no puede editarse como reporte por unidades';end if;
  if tg_op='DELETE' then return old;end if;
  if new.specialty_session_id is not null then
   if current_setting('obraxis.specialty_write',true) is distinct from new.specialty_session_id::text then raise exception 'El avance por especialidad se genera únicamente al cerrar la jornada';end if;
- elsif exists(select 1 from private.specialty_settings c join public.partidas_obra p on p.id=c.partida_id where c.obra_id=new.obra_id and (c.partida_id=new.partida_id or (new.partida_id is null and p.partida=new.partida)) and (new.created_at at time zone 'America/Santiago')::date>=c.activa_desde) then
-  raise exception 'Esta partida usa reportes por especialidad desde la fecha configurada. Registra sus pilas y cierra la jornada para evitar duplicar avance';
+ elsif exists(select 1 from private.specialty_sessions s join public.partidas_obra p on p.id=s.partida_id where s.obra_id=new.obra_id and (s.partida_id=new.partida_id or (new.partida_id is null and lower(trim(p.partida))=lower(trim(new.partida)))) and s.fecha=(new.created_at at time zone 'America/Santiago')::date) then
+  raise exception 'Ya existe una jornada por especialidad o conciliada para esta partida y fecha. Revisa el historial antes de registrar otro avance';
  end if;
  return new;
 end $$;

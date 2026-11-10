@@ -57,8 +57,8 @@ export default function SpecialtyReports({work,user,parts=[],quality=false,setti
    {cfg&&<p className="text-sm">El catálogo y la conciliación histórica se gestionan en Calidad → Protocolos por especialidad → Conciliaciones pendientes.</p>}
   </div>}
   {quality&&cfg&&tab==='reconciliation'&&state.can_configure&&<section className="space-y-3">
-   <h4 className="font-bold">Reportes históricos pendientes de vincular</h4>
-   <PendingReports reports={state.reports} sessions={sessions} config={cfg}/>
+   <h4 className="font-bold">Avances por cantidad pendientes de identificar</h4>
+   <PendingReports key={partId} reports={state.reports} sessions={sessions} config={cfg} elements={elements} call={call} refresh={refresh}/>
    <details className="rounded-xl border p-3"><summary className="cursor-pointer font-bold">Conciliaciones realizadas ({sessions.filter(s=>s.estado==='historica').length})</summary>
     {sessions.filter(s=>s.estado==='historica').map(s=><div key={s.id} className="flex flex-wrap items-center justify-between gap-2 border-t py-2">
      <span>{s.fecha.split('-').reverse().join('-')} · Reportes: {s.report_ids.join(', ')}</span>
@@ -83,11 +83,18 @@ export default function SpecialtyReports({work,user,parts=[],quality=false,setti
  </section>;
 }
 
-function PendingReports({reports=[],sessions,config}){
+function PendingReports({reports=[],sessions,config,elements,call,refresh}){
+ const [date,setDate]=useState(''),[items,setItems]=useState([]),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const linked=new Set(sessions.flatMap(session=>(session.report_ids||[]).map(String)));
- const pending=reports.filter(r=>String(r.partida_id)===String(config.partida_id)&&r.fecha&&r.fecha<config.activa_desde&&!linked.has(String(r.id))).sort((a,b)=>b.fecha.localeCompare(a.fecha));
- if(!pending.length)return <p className="text-sm">No hay reportes históricos pendientes de vincular en esta partida.</p>;
- return <ul className="divide-y text-sm">{pending.map(r=><li key={r.id} className="py-2">{r.fecha.split('-').reverse().join('-')} · Reporte #{r.id} · Cantidad: {r.cantidad}</li>)}</ul>;
+ const pending=reports.filter(r=>String(r.partida_id)===String(config.partida_id)&&r.fecha&&!linked.has(String(r.id)));
+ const days=[...new Set(pending.map(r=>r.fecha))].sort().reverse(),day=pending.filter(r=>r.fecha===date),total=day.reduce((n,r)=>n+Number(r.cantidad),0);
+ const change=(id,k,v)=>setItems(items.map(x=>x.element_id===id?{...x,[k]:v}:x));
+ if(!pending.length)return <p>No hay avances por cantidad pendientes en esta partida.</p>;
+ return <fieldset disabled={busy} className="space-y-2"><label>Fecha del avance<select className={field} value={date} onChange={e=>{setDate(e.target.value);setItems([]);setError('');}}><option value="">Selecciona un día</option>{days.map(d=><option key={d} value={d}>{d.split('-').reverse().join('-')}</option>)}</select></label>{day.length>0&&<>
+ <p>Reportes {day.map(r=>'#'+r.id).join(', ')} · {items.length} de {total} pilas identificadas. Conciliar no modifica la cantidad registrada.</p>
+ <select className={field} aria-label="Agregar pila a conciliación" value="" onChange={e=>{if(e.target.value)setItems([...items,{element_id:e.target.value,terminada:true,paladas:'',volumen:'',longitud:''}]);}}><option value="">Agregar pila por número</option>{elements.filter(e=>!e.sesion_id&&!items.some(i=>i.element_id===e.id)).map(e=><option key={e.id} value={e.id}>{e.etapa} · Pila {e.numero}</option>)}</select>
+ {items.map(i=><div key={i.element_id} className="flex flex-wrap gap-2 items-end"><strong>Pila {elements.find(e=>e.id===i.element_id)?.numero}</strong>{executionFields.filter(([k])=>['paladas','volumen','longitud'].includes(k)).map(([k,label])=><label key={k}>{label}<input className={field} type="number" min="0" step="any" value={i[k]} onChange={e=>change(i.element_id,k,e.target.value)}/></label>)}<button type="button" onClick={()=>setItems(items.filter(x=>x!==i))}>Quitar</button></div>)}
+ <button type="button" className={button} disabled={!items.length||items.length!==total} onClick={async()=>{setBusy(true);setError('');try{await call('reconcile',{id:crypto.randomUUID(),fecha:date,partida_id:config.partida_id,revision:0,report_ids:day.map(r=>r.id),datos:{pilas:items,observaciones:'Conciliación de avance por cantidad en Calidad.'},request_id:crypto.randomUUID()});setItems([]);setDate('');await refresh();}catch(e){setError(e.message);}finally{setBusy(false);}}}>Conciliar sin sumar avance</button>{error&&<p role="alert">{error}</p>}</>}</fieldset>;
 }
 const missing=v=>v==null||String(v).trim()==='';
 const historicalFields=['cota_inicial','cota_final','cst','bst','norte_real','este_real','cota_real','cota_diseno','deformacion','profundidad_control'];
