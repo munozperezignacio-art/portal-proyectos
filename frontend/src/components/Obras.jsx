@@ -768,6 +768,18 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     '2024-01-01', '2024-03-29', '2024-03-30', '2024-05-01', '2024-05-21', '2024-06-20', '2024-06-29', '2024-07-16', '2024-08-15', '2024-09-18', '2024-09-19', '2024-09-20', '2024-10-12', '2024-10-31', '2024-11-01', '2024-12-08', '2024-12-25'
   ];
 
+  const [periodStats,setPeriodStats]=useState(null);
+  const statWork=selectedObra?.id;
+  const statKey=statWork+':'+fCorteEstadisticas;
+  useEffect(()=>{
+    if(!statWork||!fCorteEstadisticas||obraActiveSubmodule!=='estadisticas')return;
+    let current=true;
+    supabase.rpc('estadisticas_jornadas_flota',{p_obra:statWork,p_corte:fCorteEstadisticas,p_feriados:CHILEAN_HOLIDAYS}).then(({data,error})=>{
+      if(current)setPeriodStats({key:statKey,data:error?null:data,error:!!error});
+    });
+    return ()=>{current=false};
+  },[statWork,fCorteEstadisticas,obraActiveSubmodule]);
+  const historicalStats=periodStats?.key===statKey?periodStats.data:null;
   const countChileanBusinessDays = (startStr, endStr) => {
     if (!startStr || !endStr) return 0;
     const start = new Date(startStr + 'T00:00:00');
@@ -5045,15 +5057,14 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 }, 0);
 
                 const activeWorkerCount = (personalList || []).length;
-                const uniqueAsistDays = new Set(filteredAsistencia.map(a => a.fecha || String(a.created_at).substring(0, 10))).size || 1;
-                const avgDailyWorkers = (filteredAsistencia.length / uniqueAsistDays).toFixed(1);
+                const avgDailyWorkers = historicalStats?.dias ? (historicalStats.presentes/historicalStats.dias).toFixed(1) : '—';
 
                 // 5. Maquinaria y Paralizaciones
                 const filteredMantenciones = (mantencionesMaquinariaList || []).filter(m => m.fecha <= fCorteStr);
                 const filteredParalizaciones = (paralizacionesMaquinariaList || []).filter(p => p.fecha_inicio <= fCorteStr);
                 const totalCostoMantencion = filteredMantenciones.reduce((acc, m) => acc + (parseFloat(m.costo) || 0), 0);
                 const totalHorasParada = filteredParalizaciones.reduce((acc, p) => acc + (parseFloat(p.horas_parada) || 0), 0);
-                const totalEquiposFlota = (maquinariaList || []).length + (arriendosList || []).length;
+                const totalEquiposFlota = historicalStats?.historicos ?? null;
 
                 // 6. Prevención de Riesgos y Accidentabilidad
                 const filteredAccidentes = (accidentesPrevencionList || []).filter(a => a.fecha <= fCorteStr);
@@ -5309,7 +5320,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                             <div className="flex flex-wrap gap-2 text-xs font-bold">
                               <span className={`px-3 py-1.5 rounded-xl border ${actualFinishAtCutoff || SPI >= 1 ? 'bg-emerald-500/20 border-emerald-300/40 text-emerald-100' : 'bg-amber-500/20 border-amber-300/40 text-amber-100'}`}>Plazo: {actualFinishAtCutoff ? 'Terminado' : SPI >= 1 ? 'En línea / adelantado' : 'Requiere recuperación'}</span>
                               <span className={`px-3 py-1.5 rounded-xl border ${CPI >= 1 ? 'bg-emerald-500/20 border-emerald-300/40 text-emerald-100' : 'bg-rose-500/20 border-rose-300/40 text-rose-100'}`}>Costo: {displayedCostIndex == null ? 'Revisar datos de costo' : CPI === null ? 'Control aproximado' : CPI >= 1 ? 'Controlado' : 'En desviación'}</span>
-                              <span className="px-3 py-1.5 rounded-xl border border-blue-300/40 bg-blue-500/20 text-blue-100">{activeWorkerCount} personas | {totalEquiposFlota} equipos</span>
+                              <span className="px-3 py-1.5 rounded-xl border border-blue-300/40 bg-blue-500/20 text-blue-100">{activeWorkerCount} personas | {historicalStats?.activos ?? '—'} equipos activos · {totalEquiposFlota ?? '—'} históricos</span>
                             </div>
                           </div>
                         </div>
@@ -5494,15 +5505,15 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Dotación Presente Promedio</span>
                             <p className="text-2xl font-black text-slate-800">{avgDailyWorkers} <span className="text-xs font-normal text-slate-400">trab/día</span></p>
-                            <p className="text-[10px] text-slate-500 font-semibold">De {activeWorkerCount} asignados en la nómina</p>
+                            <p className="text-[10px] text-slate-500 font-semibold">{historicalStats?.dias ? `Período: ${historicalStats.desde?.split('-').reverse().join('-')} al ${historicalStats.hasta?.split('-').reverse().join('-')}` : 'Sin jornadas esperadas al corte'}</p>
                           </div>
 
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Tasa de Asistencia</span>
                             <p className="text-2xl font-black text-emerald-800">
-                              {activeWorkerCount > 0 ? ((avgDailyWorkers / activeWorkerCount) * 100).toFixed(1) : "100"}%
+                              {historicalStats?.esperadas ? (100*historicalStats.presentes/historicalStats.esperadas).toLocaleString('es-CL',{maximumFractionDigits:1})+' %' : historicalStats?'Sin base':'—'}
                             </p>
-                            <p className="text-[10px] text-emerald-600 font-bold">✓ Asistencia registrada en obra</p>
+                            <p className="text-[10px] text-emerald-600 font-bold">{historicalStats ? `${historicalStats.presentes} presentes de ${historicalStats.esperadas} jornadas esperadas · ${historicalStats.ausentes} ausencias registradas · ${historicalStats.esperadas-historicalStats.presentes-historicalStats.ausentes} sin presencia ni ausencia confirmada` : periodStats?.error?'No se pudo consultar el historial':'Consultando historial…'}</p>
                           </div>
 
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
@@ -5573,9 +5584,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Flota de Equipos en Obra</span>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Equipos que participaron hasta el corte</span>
                             <p className="text-2xl font-black text-amber-900">{totalEquiposFlota} <span className="text-xs font-normal text-slate-400">maquinarias</span></p>
-                            <p className="text-[10px] text-slate-500 font-semibold">{maquinariaList.length} propias | {arriendosList.length} arrendadas</p>
+                            <p className="text-[10px] text-slate-500 font-semibold">{historicalStats?.activos ?? '—'} activos al corte</p>
                           </div>
 
                           <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
