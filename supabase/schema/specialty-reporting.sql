@@ -86,6 +86,21 @@ begin
    return req.response;
   end if;
  end if;
+ if p_action in ('save','close') and exists(select 1 from private.specialty_audit where obra_id=p_work and accion='cancel_open' and referencia=p_data->>'id') then raise exception 'Jornada cancelada; no puede volver a sincronizarse';end if;
+ if p_action='cancel_open' then
+  if not coalesce(private.obraxis_permission(w.empresa,'obras.avances.crear'),false) then raise exception 'Sin permiso para cancelar jornadas';end if;
+  sid:=(p_data->>'id')::uuid;
+  select * into s from private.specialty_sessions where id=sid for update;
+  if found then
+   if s.obra_id<>p_work or s.partida_id is distinct from (p_data->>'partida_id')::integer or s.estado<>'abierta' or (s.responsable<>uid and not adm) then raise exception 'Solo se puede cancelar una jornada abierta propia, o administrada en esta obra';end if;
+   if s.revision is distinct from (p_data->>'revision')::integer or cardinality(s.report_ids)>0 then raise exception 'La jornada cambió o ya tiene avance. Actualiza antes de cancelar';end if;
+   delete from private.specialty_sessions where id=sid;
+  elsif coalesce((p_data->>'revision')::integer,0)<>0 then raise exception 'La jornada ya no está disponible';end if;
+  insert into private.specialty_audit(obra_id,actor,accion,referencia) values(p_work,uid,p_action,sid::text);
+  result:=jsonb_build_object('cancelled',true,'id',sid);
+  insert into private.specialty_requests(id,actor,obra_id,action,payload,response) values((p_data->>'request_id')::uuid,uid,p_work,p_action,p_data,result);
+  return result;
+ end if;
  if p_action='undo_reconcile' then
   if not adm then raise exception 'Solo administración puede deshacer conciliaciones';end if;
   select * into s from private.specialty_sessions where id=(p_data->>'id')::uuid and obra_id=p_work and partida_id=(p_data->>'partida_id')::integer for update;

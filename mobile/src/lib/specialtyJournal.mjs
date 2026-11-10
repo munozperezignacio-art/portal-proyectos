@@ -8,6 +8,7 @@ export function createJournalStore({storage,send,uuid,scope}) {
  const write=value=>storage.setItem(key,JSON.stringify(value));
  return {
   read:()=>serial(read),
+  cancel:()=>serial(async()=>{const state=await read();if(!state.draft||state.draft.closeRequested)throw new Error('Jornada no disponible para cancelar');state.draft.cancelRequested=true;state.draft.closeRequested=true;state.draft.localRevision++;await write(state);}),
   edit:session=>serial(async()=>{
    const state=await read();
    if(state.draft?.closeRequested)throw new Error('El cierre está pendiente de sincronización. No se puede modificar.');
@@ -23,7 +24,7 @@ export function createJournalStore({storage,send,uuid,scope}) {
      const state=await read();
      if(!state.draft||(!state.inFlight&&state.ackRevision===state.draft.localRevision))return null;
      if(!state.inFlight){
-      state.inFlight={action:state.draft.closeRequested?'close':'save',localRevision:state.draft.localRevision,
+      state.inFlight={action:state.draft.cancelRequested?'cancel_open':state.draft.closeRequested?'close':'save',localRevision:state.draft.localRevision,
        data:{...state.draft,revision:state.serverRevision??state.draft.revision??0,request_id:uuid()}};
       await write(state);
      }
@@ -35,14 +36,14 @@ export function createJournalStore({storage,send,uuid,scope}) {
     catch(error){
      // A PostgreSQL validation rejection rolled back the transaction. Unlike a
      // timeout, it is safe to unlock the local draft so the user can correct it.
-     if(['P0001','23505','23514','22P02','22007','22003'].includes(error?.code))await serial(async()=>{const state=await read();state.lastRejected={request:state.inFlight,message:error.message};delete state.inFlight;if(state.draft)state.draft.closeRequested=false;await write(state);});
+     if(['P0001','23505','23514','22P02','22007','22003'].includes(error?.code))await serial(async()=>{const state=await read();state.lastRejected={request:state.inFlight,message:error.message};delete state.inFlight;if(state.draft){state.draft.closeRequested=false;delete state.draft.cancelRequested;}await write(state);});
      throw error;
     }
     await serial(async()=>{
      const state=await read();
      state.serverRevision=response.revision;state.ackRevision=flight.localRevision;
      state.draft={...state.draft,revision:response.revision};delete state.inFlight;
-     if(flight.action==='close'){state.lastClosed=response;delete state.draft;delete state.serverRevision;delete state.ackRevision;}
+     if(flight.action==='close'||flight.action==='cancel_open'){if(flight.action==='close')state.lastClosed=response;delete state.draft;delete state.serverRevision;delete state.ackRevision;}
      await write(state);
     });
     return response;
