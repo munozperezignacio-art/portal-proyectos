@@ -10,6 +10,7 @@ import {renameWorkScope} from './utils/projectProfile';
 import {prefetchEconomicIndicators} from './utils/economicIndicatorsCache';
 import { recoverFromStaleChunk } from './utils/staleChunkRecovery';
 import useUserPermissions from './utils/useUserPermissions';
+import RoleExplorer from './components/RoleExplorer';
 import {moduleHasViewAccess} from './utils/companyPermissions';
 
 // Cada módulo operativo se descarga solo cuando el usuario lo abre. Esto acelera el ingreso al portal y al dashboard.
@@ -633,6 +634,7 @@ function App() {
         </div>
 
         {/* Menu Navigation Links */}
+        <RoleExplorer key={user.id+':'+user.empresa} user={user}/>
         <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
           {/* Dashboard/Inicio */}
           <button
@@ -784,6 +786,7 @@ function App() {
               </div>
 
               {/* Navigation links */}
+              <RoleExplorer key={user.id+':'+user.empresa} user={user}/>
               <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
                 <button
                   onClick={() => {
