@@ -19,6 +19,7 @@ import MachineryReportSettings from './MachineryReportSettings';
 import MachineryOperators, { OperatorSelect } from './MachineryOperators';
 import EquipmentQrImage from './EquipmentQrImage';
 import EquipmentBulkImport from './EquipmentBulkImport';
+import MachineryHistoryTrial from './MachineryHistoryTrial';
 import EquipmentAssignments from './EquipmentAssignments';
 import EquipmentInventory from './EquipmentInventory';
 import EquipmentGroups from './EquipmentGroups';
@@ -1143,6 +1144,7 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
             </button>
           </div>
 
+          {canCreate && <MachineryHistoryTrial key={user.empresa} equipment={maquinaria} logs={usoList} />}
           {usoList.length === 0 ? (
             <div className="text-center py-12 text-slate-400">
               <Gauge className="w-12 h-12 mx-auto mb-2 opacity-40" />
