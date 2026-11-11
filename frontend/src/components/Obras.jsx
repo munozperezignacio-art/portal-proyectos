@@ -4262,53 +4262,51 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           {/* VISTA DEDICADA 5: EQUIPOS & MAQUINARIAS */}
           {obraActiveSubmodule === 'maquinaria' && canObraMaquinariaView && (
             <div className="space-y-4 animate-in fade-in duration-200">
-              <WorkEquipmentCompletion key={selectedObra.id} completion={workCompletion?.obra_id===selectedObra.id?workCompletion:null} periods={machineryPeriods} company={user.empresa} obra={selectedObra} onSaved={()=>loadMachineryCharges(selectedObra.nombre)}/>
+
               
               {/* BARRA DE PESTAÑAS (ARRIBA DE TODO A ANCHO COMPLETO) */}
-              <WorkHeaderActions><div className="flex flex-wrap justify-between items-center gap-3 bg-white p-3 border border-slate-200 rounded-2xl shadow-2xs">
-                <div className="flex flex-wrap bg-slate-100 p-1 rounded-xl text-xs font-bold">
+              <nav aria-label="Secciones de maquinaria" className="flex flex-wrap gap-2 rounded-xl bg-slate-100 p-1.5">
                   <button
                     onClick={() => setMaqSubTab('asignaciones')}
-                    className={`px-4 py-2 rounded-xl transition cursor-pointer ${maqSubTab === 'asignaciones' ? 'bg-white text-blue-950 shadow-xs font-extrabold' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`px-3 py-2 rounded-lg text-xs font-bold transition ${maqSubTab === 'asignaciones' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                   >
                     Asignaciones de Empresa (Maquinaria Propia)
                   </button>
                   <button
                     onClick={() => setMaqSubTab('arriendos')}
-                    className={`px-4 py-2 rounded-xl transition cursor-pointer ${maqSubTab === 'arriendos' ? 'bg-white text-blue-950 shadow-xs font-extrabold' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`px-3 py-2 rounded-lg text-xs font-bold transition ${maqSubTab === 'arriendos' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                   >
                     Arriendos Externos (Con Proveedor)
                   </button>
                   <button
                     onClick={() => setMaqSubTab('registros')}
-                    className={`px-4 py-2 rounded-xl transition cursor-pointer ${maqSubTab === 'registros' ? 'bg-white text-blue-950 shadow-xs font-extrabold' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`px-3 py-2 rounded-lg text-xs font-bold transition ${maqSubTab === 'registros' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                   >
                     Registros de uso ({maquinariaUsoObra.length})
                   </button>
                   <button
                     onClick={() => setMaqSubTab('confiabilidad')}
-                    className={`px-4 py-2 rounded-xl transition cursor-pointer ${maqSubTab === 'confiabilidad' ? 'bg-white text-blue-950 shadow-xs font-extrabold' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`px-3 py-2 rounded-lg text-xs font-bold transition ${maqSubTab === 'confiabilidad' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                   >
                     Fallas y mantenciones ({paralizacionesMaquinariaList.length + mantencionesMaquinariaList.length})
                   </button>
                   {canObraGestionView && <button
                     onClick={() => setMaqSubTab('costos')}
-                    className={`px-4 py-2 rounded-xl transition cursor-pointer ${maqSubTab === 'costos' ? 'bg-white text-blue-950 shadow-xs font-extrabold' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`px-3 py-2 rounded-lg text-xs font-bold transition ${maqSubTab === 'costos' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                   >
                     Control de costos
                   </button>}
-                </div>
-
+              </nav>
+              <WorkEquipmentCompletion key={selectedObra.id} completion={workCompletion?.obra_id===selectedObra.id?workCompletion:null} periods={machineryPeriods} company={user.empresa} obra={selectedObra} onSaved={()=>loadMachineryCharges(selectedObra.nombre)}/>
                 {maqSubTab === 'arriendos' && (
-                  <button
+                  <WorkHeaderActions><button
                     onClick={() => setShowArriendoModal(true)}
                     className="bg-indigo-900 hover:bg-indigo-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Registrar Arriendo</span>
-                  </button>
+                  </button></WorkHeaderActions>
                 )}
-              </div></WorkHeaderActions>
 
               {maqSubTab === 'costos' && canObraGestionView && <MachineryCostControl sharedDays={sharedEquipmentDays} parts={partidasList} user={user} rows={machineryCharges} periods={machineryPeriods} decisions={machineryDecisions} obra={selectedObra} company={user.empresa} canEdit={canEquipmentEdit||can(user,userPermissions,'obras.gestion.configurar')} onSaved={()=>loadMachineryCharges(selectedObra.nombre)}/>}
 
@@ -4499,9 +4497,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           {/* VISTA DEDICADA 7: BITÁCORA DE OBRA (LÍNEA DE TIEMPO VERTICAL) */}
           {obraActiveSubmodule === 'bitacora' && canObraFichaView && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <WorkHeaderActions><div><div className="flex flex-wrap items-center gap-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex flex-wrap items-center gap-2">
+              <WorkHeaderActions><div className="flex flex-wrap items-center gap-2">
                       <button
                         onClick={handlePrintBitacora}
                         className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
@@ -4524,10 +4520,10 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         <Plus className="w-4 h-4" />
                         <span>Agregar Nota / Comentario</span>
                       </button>
-                    </div>
+              </div></WorkHeaderActions>
 
                     {/* Filtros de la Línea del Tiempo (Selección Múltiple) */}
-                    <div className="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-xl text-[11px] font-bold">
+                    <div role="group" aria-label="Filtrar eventos de bitácora" className="flex flex-wrap gap-2 rounded-xl bg-slate-100 p-1.5">
                       {[
                         { id: 'todos', label: 'Todos' },
                         { id: 'notas', label: '📝 Notas & Comentarios' },
@@ -4541,7 +4537,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         const isSelected = bitacoraFilters.includes(f.id);
                         return (
                           <button
-                            key={f.id}
+                            key={f.id} aria-pressed={isSelected}
                             onClick={() => {
                               if (f.id === 'todos') {
                                 setBitacoraFilters(['todos']);
@@ -4556,7 +4552,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                 setBitacoraFilters(next);
                               }
                             }}
-                            className={`px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1 ${isSelected ? 'bg-blue-900 text-white shadow-2xs font-extrabold' : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'}`}
+                            className={`px-3 py-2 text-xs font-bold rounded-lg transition cursor-pointer flex items-center gap-1 ${isSelected ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
                           >
                             <span>{f.label}</span>
                             {isSelected && f.id !== 'todos' && <span className="text-[9px] bg-blue-800 text-white px-1.5 rounded-full">✓</span>}
@@ -4564,9 +4560,6 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         );
                       })}
                     </div>
-                  </div>
-                </div>
-              </div></WorkHeaderActions>
 
               {/* LÍNEA DE TIEMPO VERTICAL (PASADO ARRIBA -> PRESENTE ABAJO) */}
               <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-6">
