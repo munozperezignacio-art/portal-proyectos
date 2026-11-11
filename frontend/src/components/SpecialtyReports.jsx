@@ -86,7 +86,20 @@ export default function SpecialtyReports({work,user,parts=[],quality=false,setti
  </section>;
 }
 
+function QuickPilePicker({number,setNumber,elements,items,full,add}){
+ const input=React.useRef(null),q=number.trim().toLowerCase();
+ const available=elements.filter(e=>!e.sesion_id&&!items.some(i=>i.element_id===e.id));
+ const matches=available.filter(e=>String(e.numero).toLowerCase().startsWith(q));
+ const exact=matches.filter(e=>String(e.numero).toLowerCase()===q);
+ const choose=e=>{if(!full&&e){add(e);input.current?.focus();}};
+ return <div className="space-y-2"><label className="block text-sm font-bold">Número de pila
+ <input ref={input} className={field} placeholder="Ej.: 111" value={number} disabled={full} onChange={e=>setNumber(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();if(exact.length===1)choose(exact[0]);}}}/></label>
+ <button type="button" className={button} disabled={full||exact.length!==1} onClick={()=>choose(exact[0])}>Agregar pila</button>
+ <span className="ml-2 text-xs" role="status">{full?'Cantidad del reporte completa.':!matches.length?'No hay pilas disponibles con ese número.':exact.length>1?'Número repetido: selecciona la etapa.':'Escribe el número completo y pulsa Enter.'}</span>
+ <select className={field} disabled={full} aria-label="Agregar pila a conciliación" value="" onChange={e=>choose(matches.find(p=>String(p.id)===e.target.value))}><option value="">Seleccionar pila por etapa y número</option>{matches.map(e=><option key={e.id} value={e.id}>{e.etapa} · Pila {e.numero}</option>)}</select></div>;
+}
 function PendingReports({reports=[],sessions,config,elements,call,refresh}){
+ const [number,setNumber]=useState('');
  const [date,setDate]=useState(''),[items,setItems]=useState([]),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const linked=new Set(sessions.flatMap(session=>(session.report_ids||[]).map(String)));
  const pending=reports.filter(r=>String(r.partida_id)===String(config.partida_id)&&r.fecha&&!linked.has(String(r.id)));
@@ -95,7 +108,7 @@ function PendingReports({reports=[],sessions,config,elements,call,refresh}){
  if(!pending.length)return <p>No hay avances por cantidad pendientes en esta partida.</p>;
  return <fieldset disabled={busy} className="space-y-2"><label>Fecha del avance<select className={field} value={date} onChange={e=>{setDate(e.target.value);setItems([]);setError('');}}><option value="">Selecciona un día</option>{days.map(d=><option key={d} value={d}>{d.split('-').reverse().join('-')}</option>)}</select></label>{day.length>0&&<>
  <p>Reportes {day.map(r=>'#'+r.id).join(', ')} · {items.length} de {total} pilas identificadas. Conciliar no modifica la cantidad registrada.</p>
- <select className={field} aria-label="Agregar pila a conciliación" value="" onChange={e=>{if(e.target.value)setItems([...items,{element_id:e.target.value,terminada:true,paladas:'',volumen:'',longitud:''}]);}}><option value="">Agregar pila por número</option>{elements.filter(e=>!e.sesion_id&&!items.some(i=>i.element_id===e.id)).map(e=><option key={e.id} value={e.id}>{e.etapa} · Pila {e.numero}</option>)}</select>
+ <QuickPilePicker number={number} setNumber={setNumber} elements={elements} items={items} full={items.length>=total} add={e=>{setItems(prev=>prev.length>=total||prev.some(i=>i.element_id===e.id)?prev:[...prev,{element_id:e.id,terminada:true,paladas:'',volumen:'',longitud:''}]);setNumber('');}}/>
  {items.map(i=><div key={i.element_id} className="flex flex-wrap gap-2 items-end"><strong>Pila {elements.find(e=>e.id===i.element_id)?.numero}</strong>{executionFields.filter(([k])=>['paladas','volumen','longitud'].includes(k)).map(([k,label])=><label key={k}>{label}<input className={field} type="number" readOnly={k==='volumen'} min="0" step="any" value={i[k]} onChange={e=>change(i.element_id,k,e.target.value)}/></label>)}<button type="button" onClick={()=>setItems(items.filter(x=>x!==i))}>Quitar</button></div>)}
  <button type="button" className={button} disabled={!items.length||items.length!==total} onClick={async()=>{setBusy(true);setError('');try{await call('reconcile',{id:crypto.randomUUID(),fecha:date,partida_id:config.partida_id,revision:0,report_ids:day.map(r=>r.id),datos:{pilas:items,observaciones:'Conciliación de avance por cantidad en Calidad.'},request_id:crypto.randomUUID()});setItems([]);setDate('');await refresh();}catch(e){setError(e.message);}finally{setBusy(false);}}}>Conciliar sin sumar avance</button>{error&&<p role="alert">{error}</p>}</>}</fieldset>;
 }
