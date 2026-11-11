@@ -369,7 +369,7 @@ export default function LibroObrasDigital({ user, obraNombre, obra }) {
   if (!canView) return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center text-sm font-bold text-amber-900">Tu perfil no tiene permiso para ver el Libro de Obras.</div>;
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
-      <div className="flex justify-end">
+      <WorkHeaderActions><div className="flex justify-end">
         <button
           onClick={load}
           className="flex w-fit items-center gap-1 rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"
@@ -377,7 +377,7 @@ export default function LibroObrasDigital({ user, obraNombre, obra }) {
           <RefreshCw className="h-3.5 w-3.5" />
           Actualizar
         </button>
-      </div>
+      </div></WorkHeaderActions>
       {message && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-900">
           {message}
@@ -660,3 +660,4 @@ export function AuditTrail({ records = [] }) {
     </div>
   );
 }
+import WorkHeaderActions from './WorkHeaderActions';

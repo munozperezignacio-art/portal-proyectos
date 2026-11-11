@@ -3444,10 +3444,12 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
           {/* DENTRO DE UN SUBMÓDULO: BOTÓN PARA VOLVER A LAS TARJETAS */}
           {obraActiveSubmodule !== null && (
-            <header className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-slate-200 bg-white px-3 py-2">
+            <header className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
               <button type="button" onClick={()=>setObraActiveSubmodule(null)} aria-label="Volver a Módulos de Operación" className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-blue-900 hover:bg-slate-100"><ArrowLeft className="h-4 w-4"/> Módulos</button>
-              <h2 className="border-l border-slate-200 pl-3 text-sm font-bold text-slate-900">{{avance:'Reportes de avance',equipo:'Equipo de obra',maquinaria:'Maquinaria',materiales:'Materiales y bodega',bitacora:'Bitácora',libro_obra:'Libro de obras digital',estados_pago:'Estados de pago',subcontratos:'Subcontratos',estadisticas:'Estadísticas',calidad:'Calidad',prevencion:'Prevención de riesgos',gestion_obra:'Plan y control de obra',solicitudes:'Solicitudes'}[obraActiveSubmodule]}</h2>
-              <span className="ml-auto max-w-full break-words text-xs text-slate-600">{selectedObra?.nombre}</span>
+              <div className="flex min-w-0 items-center gap-3"><span className="rounded-xl bg-blue-50 p-2 text-blue-900">{React.createElement(({avance:FileSpreadsheet,equipo:UserCheck,maquinaria:Wrench,materiales:ArrowRightLeft,bitacora:History,libro_obra:BookOpenCheck,estados_pago:ReceiptText,subcontratos:Building2,estadisticas:BarChart3,calidad:ClipboardCheck,prevencion:ShieldCheck,gestion_obra:DollarSign,solicitudes:Send})[obraActiveSubmodule]||Building2,{className:'h-6 w-6','aria-hidden':true})}</span><div>
+              <h2 className="text-xl font-extrabold leading-tight sm:text-2xl text-slate-900">{{avance:'Reportes de avance',equipo:'Equipo de obra',maquinaria:'Maquinaria',materiales:'Materiales y bodega',bitacora:'Bitácora',libro_obra:'Libro de obras digital',estados_pago:'Estados de pago',subcontratos:'Subcontratos',estadisticas:'Estadísticas',calidad:'Calidad',prevencion:'Prevención de riesgos',gestion_obra:'Plan y control de obra',solicitudes:'Solicitudes'}[obraActiveSubmodule]}</h2>
+              <p className="text-xs text-slate-600">{selectedObra?.nombre}</p></div></div>
+              <div id="obra-module-actions" className="ml-auto flex max-w-full flex-wrap items-center gap-2 [&_button]:whitespace-normal [&_div]:max-w-full [&_div.flex]:flex-wrap"/>
             </header>
           )}
 
@@ -3458,7 +3460,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
             <div className="space-y-6 animate-in fade-in duration-200">
               
               {/* Header con boton de ingreso y sub-pestañas */}
-              <div className="flex flex-wrap items-center gap-2">
+              <WorkHeaderActions><div className="flex flex-wrap items-center gap-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
                     <button
@@ -3485,7 +3487,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   </button>
                   <button type="button" disabled={!canAdvanceCreate} aria-expanded={avanceSubTab==='especialidad'} onClick={()=>setAvanceSubTab(avanceSubTab==='especialidad'?'registro':'especialidad')} className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition shadow-xs"><Plus className="w-4 h-4"/>Avance por especialidad</button>
                 </div>
-              </div>
+              </div></WorkHeaderActions>
               <div hidden={avanceSubTab!=='especialidad'}><React.Suspense fallback={<p>Cargando especialidades…</p>}><SpecialtyReports key={selectedObra.id} work={selectedObra} user={user} parts={partidasList} settingsRevision={specialtySettingsRevision} onHistory={setSpecialtyHistory} onSaved={()=>fetchObraDetails(selectedObra.nombre)}/></React.Suspense></div>
 
               {/* SUB-PESTAÑA 1: VISOR DE AVANCE FÍSICO (BARRAS DE PROGRESO DE PARTIDAS DE LA OBRA) */}
@@ -3801,7 +3803,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           )}
 
           {/* VISTA DEDICADA 2: ASISTENCIA Y LIBRO DIGITAL CON FILTROS AVANZADOS */}
-          {obraActiveSubmodule === 'equipo' && <div className="flex flex-wrap gap-2">{[['asistencia', 'Asistencia y libro'], ['personal', 'Personal asignado'], ['cuadrillas', 'Cuadrillas'], ['imputaciones', 'Imputaciones de personal']].map(([id, label]) => <button key={id} onClick={() => setEquipoTab(id)} className={`rounded-xl px-3 py-2 text-xs font-black ${equipoTab === id ? 'bg-emerald-800 text-white' : 'border border-emerald-200 bg-white text-emerald-900'}`}>{label}</button>)}</div>}
+          {obraActiveSubmodule === 'equipo' && <WorkHeaderActions><div className="flex flex-wrap gap-2">{[['asistencia', 'Asistencia y libro'], ['personal', 'Personal asignado'], ['cuadrillas', 'Cuadrillas'], ['imputaciones', 'Imputaciones de personal']].map(([id, label]) => <button key={id} onClick={() => setEquipoTab(id)} className={`rounded-xl px-3 py-2 text-xs font-black ${equipoTab === id ? 'bg-emerald-800 text-white' : 'border border-emerald-200 bg-white text-emerald-900'}`}>{label}</button>)}</div></WorkHeaderActions>}
           {obraActiveSubmodule === 'equipo' && equipoTab === 'imputaciones' && <WorkPersonnelAllocations key={selectedObra.id} obra={selectedObra} user={user} parts={partidasList} onSaved={()=>fetchObraDetails(selectedObra.nombre)} />}
 
           {obraActiveSubmodule === 'equipo' && canObraPersonalView && equipoTab === 'asistencia' && (
@@ -4263,7 +4265,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
               <WorkEquipmentCompletion key={selectedObra.id} completion={workCompletion?.obra_id===selectedObra.id?workCompletion:null} periods={machineryPeriods} company={user.empresa} obra={selectedObra} onSaved={()=>loadMachineryCharges(selectedObra.nombre)}/>
               
               {/* BARRA DE PESTAÑAS (ARRIBA DE TODO A ANCHO COMPLETO) */}
-              <div className="flex flex-wrap justify-between items-center gap-3 bg-white p-3 border border-slate-200 rounded-2xl shadow-2xs">
+              <WorkHeaderActions><div className="flex flex-wrap justify-between items-center gap-3 bg-white p-3 border border-slate-200 rounded-2xl shadow-2xs">
                 <div className="flex flex-wrap bg-slate-100 p-1 rounded-xl text-xs font-bold">
                   <button
                     onClick={() => setMaqSubTab('asignaciones')}
@@ -4306,7 +4308,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     <span>Registrar Arriendo</span>
                   </button>
                 )}
-              </div>
+              </div></WorkHeaderActions>
 
               {maqSubTab === 'costos' && canObraGestionView && <MachineryCostControl sharedDays={sharedEquipmentDays} parts={partidasList} user={user} rows={machineryCharges} periods={machineryPeriods} decisions={machineryDecisions} obra={selectedObra} company={user.empresa} canEdit={canEquipmentEdit||can(user,userPermissions,'obras.gestion.configurar')} onSaved={()=>loadMachineryCharges(selectedObra.nombre)}/>}
 
@@ -4482,7 +4484,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           {/* VISTA DEDICADA 6: CONTROL MATERIALES */}
           {obraActiveSubmodule === 'materiales' && canObraFichaView && (
             <div className="space-y-4 animate-in fade-in duration-200">
-              <div className="flex flex-wrap items-center gap-2">
+              <WorkHeaderActions><div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={() => { setActiveModal('materiales'); setSuccessMsg(''); setErrorMsg(''); }}
                   className="bg-cyan-900 hover:bg-cyan-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
@@ -4490,14 +4492,14 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   <Plus className="w-4 h-4" />
                   <span>Registrar Guía / Movimiento</span>
                 </button>
-              </div>
+              </div></WorkHeaderActions>
             </div>
           )}
 
           {/* VISTA DEDICADA 7: BITÁCORA DE OBRA (LÍNEA DE TIEMPO VERTICAL) */}
           {obraActiveSubmodule === 'bitacora' && canObraFichaView && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <div><div className="flex flex-wrap items-center gap-2">
+              <WorkHeaderActions><div><div className="flex flex-wrap items-center gap-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <button
@@ -4564,7 +4566,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     </div>
                   </div>
                 </div>
-              </div>
+              </div></WorkHeaderActions>
 
               {/* LÍNEA DE TIEMPO VERTICAL (PASADO ARRIBA -> PRESENTE ABAJO) */}
               <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-6">
@@ -4792,7 +4794,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
               <div className="space-y-6 animate-in fade-in duration-200">
                 {/* CABECERA PRINCIPAL Y BARRA DE FILTROS Y ACCIONES */}
                 <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs space-y-4">
-                  <div className="flex flex-wrap items-center gap-2">
+                  <WorkHeaderActions><div className="flex flex-wrap items-center gap-2">
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => window.print()}
@@ -4811,7 +4813,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         <span>Enviar Reporte</span>
                       </button>
                     </div>
-                  </div>
+                  </div></WorkHeaderActions>
 
                   {/* FILTROS DE FECHA DE CORTE Y ALCANCE DE PARTIDA/GRUPO */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
@@ -6080,7 +6082,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           )}
           {obraActiveSubmodule === 'prevencion' && canPrevView && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <div><div className="flex flex-wrap items-center gap-2">
+              <WorkHeaderActions><div><div className="flex flex-wrap items-center gap-2">
 
                   <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
                     <button
@@ -6103,7 +6105,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     </button>
                   </div>
                 </div>
-              </div>
+              </div></WorkHeaderActions>
 
               {/* SUB-PESTAÑA 1: REGISTROS E INSPECCIONES */}
               {prevObraSubTab === 'inspecciones' && (
@@ -6161,7 +6163,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           )}
 
           {/* VISTA DEDICADA 11: PRESUPUESTO DE OBRA */}
-          {obraActiveSubmodule === 'gestion_obra' && <div className="flex flex-wrap gap-2">{[['presupuesto', 'Presupuesto'], ['planificacion', 'Programación'], ['costos', 'Control de costos'], ['flujo_caja', 'Flujo de caja']].map(([id, label]) => <button key={id} onClick={() => setGestionObraTab(id)} className={`rounded-xl px-3 py-2 text-xs font-black ${gestionObraTab === id ? 'bg-indigo-800 text-white' : 'border border-indigo-200 bg-white text-indigo-900'}`}>{label}</button>)}</div>}
+          {obraActiveSubmodule === 'gestion_obra' && <WorkHeaderActions><div className="flex flex-wrap gap-2">{[['presupuesto', 'Presupuesto'], ['planificacion', 'Programación'], ['costos', 'Control de costos'], ['flujo_caja', 'Flujo de caja']].map(([id, label]) => <button key={id} onClick={() => setGestionObraTab(id)} className={`rounded-xl px-3 py-2 text-xs font-black ${gestionObraTab === id ? 'bg-indigo-800 text-white' : 'border border-indigo-200 bg-white text-indigo-900'}`}>{label}</button>)}</div></WorkHeaderActions>}
 
           {obraActiveSubmodule === 'gestion_obra' && canObraGestionView && gestionObraTab === 'presupuesto' && (
             <div className="space-y-6 animate-in fade-in duration-200">
@@ -12004,3 +12006,4 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 }
 
 export default Obras;
+import WorkHeaderActions from './WorkHeaderActions';

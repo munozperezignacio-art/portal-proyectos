@@ -139,7 +139,7 @@ export default function SubcontratosObra({ obra, user }) {
   const portal = subcontract => `${window.location.origin}/?acreditacion_subcontrato=${encodeURIComponent(subcontract.empresa_nombre)}&token=${encodeURIComponent(subcontract.token_acceso)}`;
 
   return <div className="space-y-4">
-    <div className="flex flex-wrap gap-2">{[['contratos','Contratos y partidas'],['resumen','Resumen'],['avances','Avances'],['asistencia','Asistencia'],['pagos','Estados de pago']].map(([id,label]) => <button key={id} onClick={() => setTab(id)} className={`rounded-xl px-3 py-2 text-xs font-black ${tab === id ? 'bg-slate-950 text-white' : 'bg-slate-100'}`}>{label}</button>)}</div>
+    <WorkHeaderActions><div className="flex flex-wrap gap-2">{[['contratos','Contratos y partidas'],['resumen','Resumen'],['avances','Avances'],['asistencia','Asistencia'],['pagos','Estados de pago']].map(([id,label]) => <button key={id} onClick={() => setTab(id)} className={`rounded-xl px-3 py-2 text-xs font-black ${tab === id ? 'bg-slate-950 text-white' : 'bg-slate-100'}`}>{label}</button>)}</div></WorkHeaderActions>
     {msg && <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs font-bold text-blue-900">{msg}</div>}
     {tab === 'contratos' && <div className="space-y-4">
       <SubcontractContractManager obra={obra} user={user} subcontracts={subs}/>
@@ -166,3 +166,4 @@ function DocumentDossier({ ep, requisitos, documentos, busy, mayReview, onClose,
 }
 
 function Table({ heads, rows }) { return <div className="overflow-x-auto rounded-2xl border bg-white"><table className="w-full min-w-[760px] text-left text-xs"><thead className="bg-slate-100"><tr>{heads.map(head => <th key={head} className="p-3">{head}</th>)}</tr></thead><tbody className="divide-y">{rows.map((row, index) => <tr key={index}>{row.map((cell, cellIndex) => <td key={cellIndex} className="p-3">{cell}</td>)}</tr>)}</tbody></table>{!rows.length && <p className="p-8 text-center text-slate-500">Aún no existen registros.</p>}</div>; }
+import WorkHeaderActions from './WorkHeaderActions';
