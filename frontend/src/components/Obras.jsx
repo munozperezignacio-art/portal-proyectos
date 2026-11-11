@@ -67,6 +67,7 @@ import {parseOtherHours} from '../utils/attendanceOtherHours';
 import AttendanceRegisterFilters from './AttendanceRegisterFilters';
 import WorkerBatch from './WorkerBatch';
 import AttendanceAction from './AttendanceAction';
+import WorkEarnings from './WorkEarnings';
 import {filterAttendanceRegister} from '../utils/attendanceRegisterFilters';
 import AdvanceReportDateFilter from './AdvanceReportDateFilter';
 import {filterAdvanceReports,advanceReportDateLabel} from '../utils/advanceReportDates';
@@ -3942,6 +3943,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         if(error)throw new Error('Guardados '+count+' de '+workers.length+'. '+error.message);count++;
                       }}finally{await fetchObraDetails(selectedObra.nombre);}
                     }}/>}</AttendanceAction>}
+                    {canPersonnelEdit&&/administrador.*(empresa|contrato)/i.test([user.rol,user.rol_base].join(' '))&&<WorkEarnings key={selectedObra.id} obra={selectedObra} workers={personalList}/>}
                     <span className="text-xs text-slate-600">{visibleAttendanceRecords.length} de {asistenciaList.length} marcajes</span></div>
 
                     {asistenciaList.length === 0 ? (

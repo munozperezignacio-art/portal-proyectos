@@ -1,12 +1,12 @@
 import React,{useState} from 'react';
 
-export default function WorkerBatch({title,workers,onApply,period,inline=false}) {
+export default function WorkerBatch({title,workers,onApply,period,inline=false,savedMessage}) {
  const [ids,pick]=useState([]),[form,set]=useState({}),[busy,wait]=useState(false),[msg,say]=useState('');
  const field=(k,v)=>set(f=>({...f,[k]:v}));
  const selected=workers.filter(w=>ids.includes(w.id));
  const Wrapper=inline?'section':'details';
  return <Wrapper className={inline?'space-y-2 [&_select]:rounded-lg [&_select]:border [&_select]:p-2 [&_input:not([type=checkbox])]:rounded-lg [&_input:not([type=checkbox])]:border [&_input:not([type=checkbox])]:p-2':'my-3 rounded-xl border bg-white p-3'}>{inline?<h4 className="text-sm font-bold text-blue-900">{title}</h4>:<summary className="cursor-pointer font-bold text-blue-900">{title}</summary>}
- <form className="grid gap-3 p-2 text-sm" onSubmit={async e=>{e.preventDefault();if(busy||!selected.length)return;wait(true);say('');try{await onApply(selected,form);pick([]);say(period?'Agregado al borrador. Guarda la nómina para conservarlo.':'Correcciones guardadas.');}catch(err){say(err.message)}finally{wait(false)}}}>
+ <form className="grid gap-3 p-2 text-sm" onSubmit={async e=>{e.preventDefault();if(busy||!selected.length)return;wait(true);say('');try{await onApply(selected,form);pick([]);say(savedMessage || (period?'Agregado al borrador. Guarda la nómina para conservarlo.':'Correcciones guardadas.'));}catch(err){say(err.message)}finally{wait(false)}}}>
  <label><input type="checkbox" disabled={!workers.length} checked={!!workers.length&&selected.length===workers.length} onChange={e=>pick(e.target.checked?workers.map(w=>w.id):[])}/> Seleccionar todos ({workers.length})</label>
  <div className="grid max-h-48 gap-1 overflow-auto sm:grid-cols-2">{workers.map(w=><label key={w.id}><input type="checkbox" checked={ids.includes(w.id)} onChange={e=>pick(e.target.checked?[...ids,w.id]:ids.filter(i=>i!==w.id))}/> {w.name}</label>)}</div>
  {period?<><label>Aplicar a <select onChange={e=>field('scope',e.target.value)}><option value="mes">Mes de la nómina</option><option value="dia">Día específico</option></select></label>

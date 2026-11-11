@@ -14,6 +14,7 @@ export default function PayrollAutomation({ user, personal, centrosGestion = [],
   const [period, setPeriod] = useState(currentPeriod());
   const [attendance, setAttendance] = useState([]);
   const [approvedDays, setApprovedDays] = useState([]);
+  const [workEarnings,setWorkEarnings]=useState(null);
   const [costConfig, setCostConfig] = useState(null);
   const [novelties, setNovelties] = useState({});
   const [savedItems, setSavedItems] = useState([]);
@@ -24,7 +25,7 @@ export default function PayrollAutomation({ user, personal, centrosGestion = [],
   const parameters = useMemo(() => ({ ...indicadores, horasSemanales: costConfig?.horas_semanales || indicadores.horasSemanales || 42, topeGratificacionMensual: costConfig?.tope_gratificacion_mensual, cargasEmpleadorPct: costConfig?.cargas_empleador_pct, factorHoraExtra: costConfig?.factor_hora_extra, afpRates: afpCommissionRates }), [indicadores,costConfig]);
 
   const load = useCallback(async () => {
-    setLoading(true); setMessage('');
+    setLoading(true); setMessage('');setWorkEarnings(null);
     const automation=await supabase.from('rrhh_costeo_automatico_empresas').select('empresa').eq('empresa',user.empresa).maybeSingle();
     if(automation.error){setMessage(automation.error.message);setLoading(false);return;}
     if(automation.data){
@@ -43,6 +44,14 @@ export default function PayrollAutomation({ user, personal, centrosGestion = [],
     ]);
     if (attendanceResult.error || runResult.error || approved.error || config.error) { setMessage((attendanceResult.error || runResult.error || approved.error || config.error).message); setLoading(false); return; }
     setApprovedDays(approved.data || []); setCostConfig(config.data);
+    const extra={};
+    for(let offset=0;;offset+=500){
+      const {data,error}=await supabase.from('rrhh_haberes_obra').select('trabajador_id,obra_id,referencia,tipo,concepto,monto').eq('empresa',user.empresa).eq('periodo',period).order('trabajador_id').order('obra_id').order('referencia').order('tipo').order('clave').range(offset,offset+499);
+      if(error){setMessage('No se pudieron cargar los haberes de obra: '+error.message);setLoading(false);return;}
+      for(const h of data){const dest=extra[h.trabajador_id]??={};const key=JSON.stringify([h.obra_id,h.referencia,h.tipo,h.concepto.trim().toLocaleLowerCase('es-CL')]);dest[key]={date:h.referencia,type:h.tipo,name:h.concepto,amount:h.monto};}
+      if(data.length<500)break;
+    }
+    setWorkEarnings(extra);
     if (runResult.data) { setStatus(runResult.data.estado); setSavedItems(runResult.data.rrhh_nomina_items || []); setNovelties(Object.fromEntries((runResult.data.rrhh_nomina_items || []).map(item => [item.trabajador_id, item.novedades || {}]))); }
     else { setStatus('Borrador'); setSavedItems([]); setNovelties({}); }
     setLoading(false);
@@ -54,14 +63,16 @@ export default function PayrollAutomation({ user, personal, centrosGestion = [],
     const center = centerMap.get(String(worker.centro_gestion_id || ''));
     const effective=laborCostParameters(worker,costConfig);
     const workerParameters={...parameters,periodo:period,horasSemanales:effective.horas_semanales || parameters.horasSemanales,cargasEmpleadorPct:effective.cargas_empleador_pct ?? parameters.cargasEmpleadorPct,gratificarHaberesVariables:costConfig?.origen==='Automático'};
-    return { ...calculatePayroll(worker, attendanceSummary(worker, attendance, period, approvedDays), workerParameters, novelties[worker.id] || {}), centroGestionId: worker.centro_gestion_id || null, centroGestion: center ? `${center.codigo} · ${center.nombre}` : 'Sin centro de gestión' };
-  }), [personal, attendance, period, parameters, novelties, centerMap,approvedDays,costConfig]);
+    const n=novelties[worker.id]||{};
+    return { ...calculatePayroll(worker, attendanceSummary(worker, attendance, period, approvedDays), workerParameters, {...n,haberes_detallados:{...n.haberes_detallados,...workEarnings?.[worker.id]}}), centroGestionId: worker.centro_gestion_id || null, centroGestion: center ? `${center.codigo} · ${center.nombre}` : 'Sin centro de gestión' };
+  }), [personal, attendance, period, parameters, novelties, centerMap,approvedDays,costConfig,workEarnings]);
   const calculations = useMemo(() => centerFilter === 'Todos' ? allCalculations : allCalculations.filter(row => String(row.centroGestionId || '') === centerFilter), [allCalculations, centerFilter]);
   const totals = useMemo(() => calculations.reduce((sum, row) => ({ gross: sum.gross + row.totalAssets, legal: sum.legal + row.legalDiscounts, net: sum.net + row.net }), { gross: 0, legal: 0, net: 0 }), [calculations]);
   const payrollTotals = useMemo(() => allCalculations.reduce((sum, row) => ({ gross: sum.gross + row.totalAssets, legal: sum.legal + row.legalDiscounts, net: sum.net + row.net }), { gross: 0, legal: 0, net: 0 }), [allCalculations]);
   const setNovelty = (id, key, value) => setNovelties(current => ({ ...current, [id]: { ...(current[id] || {}), [key]: value } }));
 
   const save = async (close = false) => {
+    if(!workEarnings||loading){setMessage('Actualiza la nómina para cargar los haberes de obra antes de guardar.');return;}
     if (!costConfig) { setMessage('No hay referencias verificadas para este período. Revise la configuración excepcional en Asignaciones y distribución de costos.'); return; }
     setMessage('');
     const header = { empresa: user.empresa, periodo: period, estado: close ? 'Cerrada' : 'Borrador', parametros: parameters, total_haberes: payrollTotals.gross, total_descuentos: payrollTotals.legal, total_liquido: payrollTotals.net, generado_por: user.nombre || user.usuario || user.correo, updated_at: new Date().toISOString() };
