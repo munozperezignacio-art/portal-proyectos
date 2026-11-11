@@ -338,8 +338,7 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
   const input = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 focus:border-emerald-600 focus:outline-none';
   if (!permissionsLoading && !canViewPayments) return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm font-bold text-amber-900">Tu perfil no tiene permiso para ver Estados de Pago.</div>;
   return <div className="space-y-5 animate-in fade-in duration-200">
-    <header className="flex flex-col gap-3 border-b border-slate-200 pb-4 lg:flex-row lg:items-center lg:justify-between">
-      <div><div className="flex items-center gap-2"><BadgeDollarSign className="h-6 w-6 text-emerald-700" /><h2 className="text-xl font-black text-slate-900">Estados de Pago</h2></div><p className="mt-1 text-xs text-slate-500">Valorización contractual basada en el avance acumulado de esta obra, con retención y trazabilidad de revisión.</p></div>
+    <header className="flex justify-end">
       <button onClick={load} className="flex w-fit items-center gap-1 rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"><RefreshCw className="h-3.5 w-3.5" />Actualizar</button>
     </header>
     {message && <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-900">{message}</div>}

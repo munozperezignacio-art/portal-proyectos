@@ -3444,19 +3444,11 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
           {/* DENTRO DE UN SUBMÓDULO: BOTÓN PARA VOLVER A LAS TARJETAS */}
           {obraActiveSubmodule !== null && (
-            <div className="flex justify-between items-center bg-slate-100 p-3 rounded-2xl border border-slate-200 mb-4">
-              <button
-                onClick={() => setObraActiveSubmodule(null)}
-                className="flex items-center gap-1.5 bg-white hover:bg-slate-200 text-blue-950 font-bold px-3.5 py-2 rounded-xl text-xs border border-slate-300 transition cursor-pointer shadow-2xs"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                <span>Volver a Módulos de Operación</span>
-              </button>
-
-              <span className="text-xs font-extrabold uppercase text-slate-600 bg-white px-3 py-1.5 rounded-xl border border-slate-200">
-                Obra: {selectedObra?.nombre}
-              </span>
-            </div>
+            <header className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-slate-200 bg-white px-3 py-2">
+              <button type="button" onClick={()=>setObraActiveSubmodule(null)} aria-label="Volver a Módulos de Operación" className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-blue-900 hover:bg-slate-100"><ArrowLeft className="h-4 w-4"/> Módulos</button>
+              <h2 className="border-l border-slate-200 pl-3 text-sm font-bold text-slate-900">{{avance:'Reportes de avance',equipo:'Equipo de obra',maquinaria:'Maquinaria',materiales:'Materiales y bodega',bitacora:'Bitácora',libro_obra:'Libro de obras digital',estados_pago:'Estados de pago',subcontratos:'Subcontratos',estadisticas:'Estadísticas',calidad:'Calidad',prevencion:'Prevención de riesgos',gestion_obra:'Plan y control de obra',solicitudes:'Solicitudes'}[obraActiveSubmodule]}</h2>
+              <span className="ml-auto max-w-full break-words text-xs text-slate-600">{selectedObra?.nombre}</span>
+            </header>
           )}
 
           {obraActiveSubmodule === 'solicitudes' && <Solicitudes key={`${user.id}:${selectedObra.id}`} user={user} obra={selectedObra}/>}
@@ -3466,12 +3458,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
             <div className="space-y-6 animate-in fade-in duration-200">
               
               {/* Header con boton de ingreso y sub-pestañas */}
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
-                <div>
-                  <h3 className="font-bold text-slate-800 text-sm">Reporte de Avance Diario y Visor de Faena</h3>
-                  <p className="text-[11px] text-slate-500">Métricas de producción, avance acumulado por partida y registro de observaciones</p>
-                </div>
-
+              <div className="flex flex-wrap items-center gap-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
                     <button
@@ -3814,7 +3801,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           )}
 
           {/* VISTA DEDICADA 2: ASISTENCIA Y LIBRO DIGITAL CON FILTROS AVANZADOS */}
-          {obraActiveSubmodule === 'equipo' && <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4"><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div><p className="text-sm font-black text-emerald-950">Equipo de Obra</p><p className="mt-1 text-xs text-emerald-900">Gestiona asistencia, nómina y cuadrillas desde la misma vista.</p></div><div className="flex flex-wrap gap-2">{[['asistencia', 'Asistencia y libro'], ['personal', 'Personal asignado'], ['cuadrillas', 'Cuadrillas'], ['imputaciones', 'Imputaciones de personal']].map(([id, label]) => <button key={id} onClick={() => setEquipoTab(id)} className={`rounded-xl px-3 py-2 text-xs font-black ${equipoTab === id ? 'bg-emerald-800 text-white' : 'border border-emerald-200 bg-white text-emerald-900'}`}>{label}</button>)}</div></div></div>}
+          {obraActiveSubmodule === 'equipo' && <div className="flex flex-wrap gap-2">{[['asistencia', 'Asistencia y libro'], ['personal', 'Personal asignado'], ['cuadrillas', 'Cuadrillas'], ['imputaciones', 'Imputaciones de personal']].map(([id, label]) => <button key={id} onClick={() => setEquipoTab(id)} className={`rounded-xl px-3 py-2 text-xs font-black ${equipoTab === id ? 'bg-emerald-800 text-white' : 'border border-emerald-200 bg-white text-emerald-900'}`}>{label}</button>)}</div>}
           {obraActiveSubmodule === 'equipo' && equipoTab === 'imputaciones' && <WorkPersonnelAllocations key={selectedObra.id} obra={selectedObra} user={user} parts={partidasList} onSaved={()=>fetchObraDetails(selectedObra.nombre)} />}
 
           {obraActiveSubmodule === 'equipo' && canObraPersonalView && equipoTab === 'asistencia' && (
@@ -4495,11 +4482,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           {/* VISTA DEDICADA 6: CONTROL MATERIALES */}
           {obraActiveSubmodule === 'materiales' && canObraFichaView && (
             <div className="space-y-4 animate-in fade-in duration-200">
-              <div className="flex justify-between items-center bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
-                <div>
-                  <h3 className="font-bold text-slate-800 text-sm">Control de Materiales e Insumos de Bodega</h3>
-                  <p className="text-[11px] text-slate-500">Trazabilidad de guías de despacho, entradas y salidas de materiales</p>
-                </div>
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={() => { setActiveModal('materiales'); setSuccessMsg(''); setErrorMsg(''); }}
                   className="bg-cyan-900 hover:bg-cyan-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
@@ -4514,16 +4497,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           {/* VISTA DEDICADA 7: BITÁCORA DE OBRA (LÍNEA DE TIEMPO VERTICAL) */}
           {obraActiveSubmodule === 'bitacora' && canObraFichaView && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-3">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                  <div>
-                    <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
-                      <History className="w-4 h-4 text-slate-700" />
-                      <span>Bitácora de Obra - Línea del Tiempo</span>
-                    </h3>
-                    <p className="text-[11px] text-slate-500">Historial completo de eventos, notas e información relevante de faena</p>
-                  </div>
-
+              <div><div className="flex flex-wrap items-center gap-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <button
@@ -4818,14 +4792,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
               <div className="space-y-6 animate-in fade-in duration-200">
                 {/* CABECERA PRINCIPAL Y BARRA DE FILTROS Y ACCIONES */}
                 <div className="bg-white p-5 border border-slate-200 rounded-2xl shadow-xs space-y-4">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b pb-4">
-                    <div>
-                      <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
-                        <BarChart3 className="w-5 h-5 text-blue-900" />
-                        <span>📊 Panel de Estadísticas Ejecutivas de Obra</span>
-                      </h3>
-                      <p className="text-xs text-slate-500 font-medium">Consolidado operacional de Avance, Cuadrillas, Maquinarias, HSE y Análisis EVM de Valor Ganado</p>
-                    </div>
+                  <div className="flex flex-wrap items-center gap-2">
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => window.print()}
@@ -6113,15 +6080,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           )}
           {obraActiveSubmodule === 'prevencion' && canPrevView && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-3">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                  <div>
-                    <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
-                      <ShieldCheck className="w-4 h-4 text-rose-800" />
-                      <span>Prevención de Riesgos de la Obra</span>
-                    </h3>
-                    <p className="text-[11px] text-slate-500">Inspecciones de seguridad, procedimientos PTS aplicables e historial de incidentes / accidentes</p>
-                  </div>
+              <div><div className="flex flex-wrap items-center gap-2">
 
                   <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
                     <button
@@ -6202,7 +6161,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           )}
 
           {/* VISTA DEDICADA 11: PRESUPUESTO DE OBRA */}
-          {obraActiveSubmodule === 'gestion_obra' && <div className="mb-5 rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4"><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div><p className="text-sm font-black text-indigo-950">Plan y Control de Obra</p><p className="mt-1 text-xs text-indigo-900">Conecta el presupuesto, la carta Gantt, el control de costos y el flujo de caja para decidir con una sola fuente de información.</p></div><div className="flex flex-wrap gap-2">{[['presupuesto', 'Presupuesto'], ['planificacion', 'Programación'], ['costos', 'Control de costos'], ['flujo_caja', 'Flujo de caja']].map(([id, label]) => <button key={id} onClick={() => setGestionObraTab(id)} className={`rounded-xl px-3 py-2 text-xs font-black ${gestionObraTab === id ? 'bg-indigo-800 text-white' : 'border border-indigo-200 bg-white text-indigo-900'}`}>{label}</button>)}</div></div></div>}
+          {obraActiveSubmodule === 'gestion_obra' && <div className="flex flex-wrap gap-2">{[['presupuesto', 'Presupuesto'], ['planificacion', 'Programación'], ['costos', 'Control de costos'], ['flujo_caja', 'Flujo de caja']].map(([id, label]) => <button key={id} onClick={() => setGestionObraTab(id)} className={`rounded-xl px-3 py-2 text-xs font-black ${gestionObraTab === id ? 'bg-indigo-800 text-white' : 'border border-indigo-200 bg-white text-indigo-900'}`}>{label}</button>)}</div>}
 
           {obraActiveSubmodule === 'gestion_obra' && canObraGestionView && gestionObraTab === 'presupuesto' && (
             <div className="space-y-6 animate-in fade-in duration-200">

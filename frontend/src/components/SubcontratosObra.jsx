@@ -139,7 +139,7 @@ export default function SubcontratosObra({ obra, user }) {
   const portal = subcontract => `${window.location.origin}/?acreditacion_subcontrato=${encodeURIComponent(subcontract.empresa_nombre)}&token=${encodeURIComponent(subcontract.token_acceso)}`;
 
   return <div className="space-y-4">
-    <div className="rounded-3xl border bg-white p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-black">Gestión de subcontratos de la obra</h3><p className="text-xs text-slate-500">Contratos colaborativos, avances, dotación, asistencia, expedientes y estados de pago.</p></div><div className="flex flex-wrap gap-2">{[['contratos','Contratos y partidas'],['resumen','Resumen'],['avances','Avances'],['asistencia','Asistencia'],['pagos','Estados de pago']].map(([id,label]) => <button key={id} onClick={() => setTab(id)} className={`rounded-xl px-3 py-2 text-xs font-black ${tab === id ? 'bg-slate-950 text-white' : 'bg-slate-100'}`}>{label}</button>)}</div></div></div>
+    <div className="flex flex-wrap gap-2">{[['contratos','Contratos y partidas'],['resumen','Resumen'],['avances','Avances'],['asistencia','Asistencia'],['pagos','Estados de pago']].map(([id,label]) => <button key={id} onClick={() => setTab(id)} className={`rounded-xl px-3 py-2 text-xs font-black ${tab === id ? 'bg-slate-950 text-white' : 'bg-slate-100'}`}>{label}</button>)}</div>
     {msg && <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs font-bold text-blue-900">{msg}</div>}
     {tab === 'contratos' && <div className="space-y-4">
       <SubcontractContractManager obra={obra} user={user} subcontracts={subs}/>

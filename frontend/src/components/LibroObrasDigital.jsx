@@ -369,19 +369,7 @@ export default function LibroObrasDigital({ user, obraNombre, obra }) {
   if (!canView) return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center text-sm font-bold text-amber-900">Tu perfil no tiene permiso para ver el Libro de Obras.</div>;
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
-      <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <BookOpenCheck className="h-6 w-6 text-blue-800" />
-            <h2 className="text-xl font-black text-slate-900">
-              Libro de Obras Digital
-            </h2>
-          </div>
-          <p className="mt-1 text-xs text-slate-500">
-            Flujo formal: emisión, autorización, envío al cliente, respuesta,
-            corrección y cierre trazable.
-          </p>
-        </div>
+      <div className="flex justify-end">
         <button
           onClick={load}
           className="flex w-fit items-center gap-1 rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"
