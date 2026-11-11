@@ -66,6 +66,7 @@ import AttendanceExtraHours from './AttendanceExtraHours';
 import {parseOtherHours} from '../utils/attendanceOtherHours';
 import AttendanceRegisterFilters from './AttendanceRegisterFilters';
 import WorkerBatch from './WorkerBatch';
+import AttendanceAction from './AttendanceAction';
 import {filterAttendanceRegister} from '../utils/attendanceRegisterFilters';
 import AdvanceReportDateFilter from './AdvanceReportDateFilter';
 import {filterAdvanceReports,advanceReportDateLabel} from '../utils/advanceReportDates';
@@ -711,6 +712,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const [attendanceRegisterDate,setAttendanceRegisterDate]=useState('');
   const [attendanceRegisterPerson,setAttendanceRegisterPerson]=useState('');
   const [registerFilters,setRegisterFilters]=useState({});
+  const [correctionDay,setCorrectionDay]=useState('');
   useEffect(()=>{setAttendanceRegisterDate('');setAttendanceRegisterPerson('');setRegisterFilters({});},[selectedObra?.id,selectedObra?.nombre]);
   const visibleAttendanceRecords=React.useMemo(()=>filterAttendanceRegister(asistenciaList,{...registerFilters,date:attendanceRegisterDate,person:attendanceRegisterPerson}),[asistenciaList,attendanceRegisterDate,attendanceRegisterPerson,registerFilters]);
   const [personalAsignadoList, setPersonalAsignadoList] = useState([]);
@@ -3919,22 +3921,28 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                       📋 Registros Recientes de Marcaje en Faena ({asistenciaList.length} registros)
                     </h4>
 
+                    <div className="flex flex-wrap items-center gap-2" key={selectedObra.id}>
+                    <AttendanceAction title="Filtros de marcaje" trigger={'Filtros'+([attendanceRegisterDate,attendanceRegisterPerson,...Object.values(registerFilters)].filter(Boolean).length?' · '+[attendanceRegisterDate,attendanceRegisterPerson,...Object.values(registerFilters)].filter(Boolean).length:'')}>
                     <AttendanceRegisterFilters filters={registerFilters} states={[...new Set(asistenciaList.map(a=>a.asistencia).filter(Boolean))].sort()} onFilter={(key,value)=>{if(key==='from'||key==='to')setAttendanceRegisterDate('');setRegisterFilters(f=>({...f,[key]:value}));}} date={attendanceRegisterDate} person={attendanceRegisterPerson} onDateChange={v=>{setRegisterFilters(f=>({...f,from:'',to:''}));setAttendanceRegisterDate(v);}} onPersonChange={setAttendanceRegisterPerson} onClear={()=>{setAttendanceRegisterDate('');setAttendanceRegisterPerson('');setRegisterFilters({});}} shown={visibleAttendanceRecords.length} total={asistenciaList.length}/>
-                    {canPersonnelEdit && (attendanceRegisterDate ? <WorkerBatch key={selectedObra.id+':'+attendanceRegisterDate} title="Corregir marcajes del día" workers={visibleAttendanceRecords.filter(a=>a._sourceTable==='asistencia_personal').map(a=>({id:a.id,name:a.trabajador,record:a}))} onApply={async(workers,form)=>{
+                    </AttendanceAction>
+                    {canPersonnelEdit && <AttendanceAction title="Corregir marcaje" primary onOpen={()=>setCorrectionDay(attendanceRegisterDate||'')}>
+                    <label className="block text-xs font-bold">Fecha del marcaje<input type="date" className="mt-1 block rounded-xl border border-slate-300 p-2" value={correctionDay} onChange={e=>setCorrectionDay(e.target.value)}/></label>
+                    {!correctionDay?<p>Elige el día que quieres corregir.</p>:!asistenciaList.some(a=>attendanceDay(a)===correctionDay&&a._sourceTable==='asistencia_personal')?<p>No hay marcajes editables para esta fecha.</p>:<WorkerBatch inline key={correctionDay} title="Seleccionar trabajadores" workers={asistenciaList.filter(a=>attendanceDay(a)===correctionDay&&a._sourceTable==='asistencia_personal').map(a=>({id:a.id,name:a.trabajador,record:a}))} onApply={async(workers,form)=>{
                       const changes=Object.fromEntries(Object.entries(form).filter(([,v])=>v!==''));
                       if(!Object.keys(changes).length)throw new Error('Completa al menos un campo.');
                       let count=0;
                       try{for(const {record:r} of workers){
-                        const schedule=r.jornada_aplicada||scheduleForDate(selectedObra,attendanceRegisterDate);
+                        const schedule=r.jornada_aplicada||scheduleForDate(selectedObra,correctionDay);
                         const patch={...changes};
                         if((patch.asistencia||r.asistencia)!=='PRESENTE')Object.assign(patch,{ingreso:null,salida:null,colacion:null,otras_horas:0});
                         const next={...r,...patch};
                         if(next.asistencia==='PRESENTE'&&(!next.ingreso||!next.salida))throw new Error('Falta ingreso o salida para '+r.trabajador+'. Guardados: '+count);
                         const h=calculateScheduledAttendance(next,schedule,r.jornada_ordinaria_horas??(schedule?scheduledDayHours(schedule):9));
-                        const {error}=await supabase.from('asistencia_personal').update({...patch,horas_ordinarias:h.ordinary,horas_extras_auto:h.extra}).eq('empresa',selectedObra.empresa||user.empresa).eq('obra_id',selectedObra.id).eq('fecha_marcacion',attendanceRegisterDate).eq('id',r.id).select('id').single();
+                        const {error}=await supabase.from('asistencia_personal').update({...patch,horas_ordinarias:h.ordinary,horas_extras_auto:h.extra}).eq('empresa',selectedObra.empresa||user.empresa).eq('obra_id',selectedObra.id).eq('fecha_marcacion',correctionDay).eq('id',r.id).select('id').single();
                         if(error)throw new Error('Guardados '+count+' de '+workers.length+'. '+error.message);count++;
                       }}finally{await fetchObraDetails(selectedObra.nombre);}
-                    }}/> : <p className="text-xs text-blue-900">Selecciona el día del marcaje para corregir varios trabajadores.</p>)}
+                    }}/>}</AttendanceAction>}
+                    <span className="text-xs text-slate-600">{visibleAttendanceRecords.length} de {asistenciaList.length} marcajes</span></div>
 
                     {asistenciaList.length === 0 ? (
                       <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl space-y-2">

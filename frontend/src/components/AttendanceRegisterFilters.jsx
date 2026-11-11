@@ -1,6 +1,6 @@
 import React from 'react';
 export default function AttendanceRegisterFilters({date,person,onDateChange,onPersonChange,onClear,shown,total,filters={},states=[],onFilter}) {
-  return <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+  return <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 [&_input]:w-full [&_select]:w-full">
     <label className="text-xs font-bold text-slate-700">Día del marcaje<input aria-label="Filtrar asistencia por día" type="date" value={date} onChange={e=>onDateChange(e.target.value)} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white p-2 text-xs"/></label>
     <label className="min-w-0 flex-1 text-xs font-bold text-slate-700">Trabajador — nombre o RUT<input aria-label="Filtrar asistencia por trabajador" type="search" value={person} onChange={e=>onPersonChange(e.target.value)} placeholder="Ej.: Franco o 18.009.385-0" className="mt-1 block w-full min-w-40 rounded-lg border border-slate-200 bg-white p-2 text-xs"/></label>
     {Object.entries({from:'Desde',to:'Hasta'}).map(([k,label])=><label key={k} className="text-xs font-bold">{label}<input type="date" className="mt-1 block rounded-lg border bg-white p-2" value={filters[k]||''} min={k==='to'?filters.from:undefined} max={k==='from'?filters.to:undefined} onChange={e=>onFilter(k,e.target.value)}/></label>)}
