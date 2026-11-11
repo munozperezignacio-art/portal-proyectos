@@ -67,6 +67,8 @@ import {parseOtherHours} from '../utils/attendanceOtherHours';
 import AttendanceRegisterFilters from './AttendanceRegisterFilters';
 import WorkerBatch from './WorkerBatch';
 import AttendanceAction from './AttendanceAction';
+import WorkExpenseFilters from './WorkExpenseFilters';
+import {matchesExpense,sourceOf,sources as expenseSources} from '../utils/workExpenseFilters';
 import WorkEarnings from './WorkEarnings';
 import {filterAttendanceRegister} from '../utils/attendanceRegisterFilters';
 import AdvanceReportDateFilter from './AdvanceReportDateFilter';
@@ -515,6 +517,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
   // Modal y CRUD de Costos Reales de Obra
   const [costosList, setCostosList] = useState([]);
+  const [expenseFilters,setExpenseFilters]=useState({});
+  useEffect(()=>setExpenseFilters({}),[selectedObra?.id]);
+  const visibleExpenses=React.useMemo(()=>costosList.map((c,idx)=>({c,idx})).filter(({c})=>matchesExpense(c,expenseFilters)),[costosList,expenseFilters]);
   const [notificationDataWork, setNotificationDataWork] = useState(null);
   const [costosSubTab, setCostosSubTab] = useState('reales'); // 'reales' | 'proyectados'
   const [proyeccionesList, setProyeccionesList] = useState([]);
@@ -7376,11 +7381,12 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     </div>
                   ) : (
                     <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+                      <WorkExpenseFilters filters={expenseFilters} set={setExpenseFilters} costs={costosList} shown={visibleExpenses.length}/>
                       <div className="overflow-x-auto">
                         <table className="w-full text-xs text-left border-collapse">
                           <thead>
                             <tr className="bg-slate-100 border-b text-slate-700 font-bold uppercase text-[10px]">
-                              <th className="p-2.5">Concepto / Nombre Costo</th>
+                              <th className="p-2.5">Concepto / Origen</th>
                               <th className="p-2.5">Emisor · razón social / RUT</th>
                               <th className="p-2.5">Tipo de Costo</th>
                               <th className="p-2.5">Factura / Guía / OC</th>
@@ -7630,9 +7636,10 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
               </button>
 <button type="button" disabled={costoSaving} onClick={()=>{setShowCostoModal(false);setCostoSaveError('');}} className="rounded border px-3 py-2">Cancelar</button></form></td>
 </tr>}
-                            {costosList.map((c, idx) => (
-                              <tr key={idx} className="hover:bg-slate-50">
-                                <td className="p-2.5 font-bold text-slate-800">{c.nombre}<span className="mt-1 block text-[10px] font-normal text-indigo-800">{costDate(c)} · {costStateLabel[costState(c,new Date().toLocaleDateString('en-CA',{timeZone:'America/Santiago'}))]}</span></td>
+                            {!visibleExpenses.length&&!showCostoModal&&<tr><td colSpan={7} className="p-5 text-center">No hay gastos con estos filtros.</td></tr>}
+                            {visibleExpenses.map(({c,idx}) => (
+                              <tr key={c.id??idx} className="hover:bg-slate-50">
+                                <td className="p-2.5 font-bold text-slate-800">{c.nombre}<span className={'ml-2 inline-block rounded px-2 py-1 text-[10px] '+(sourceOf(c)==='iconstruye_oc'?'bg-blue-50 text-blue-900':sourceOf(c)==='iconstruye_rendicion'?'bg-emerald-50 text-emerald-900':'bg-slate-100 text-slate-600')}>{expenseSources[sourceOf(c)]}</span><span className="mt-1 block text-[10px] font-normal text-indigo-800">{costDate(c)} · {costStateLabel[costState(c,new Date().toLocaleDateString('en-CA',{timeZone:'America/Santiago'}))]}</span></td>
                                 <td className="p-2.5"><span className="block font-semibold">{c.proveedor_nombre || 'Sin proveedor informado'}</span>{c.proveedor_rut && <span className="block font-mono text-slate-500">{c.proveedor_rut}</span>}</td>
                                 <td className="p-2.5">
                                   <span className="inline-block max-w-full whitespace-normal break-words text-[10px] leading-relaxed font-bold uppercase bg-slate-100 text-slate-700 px-2 py-1 rounded border">
