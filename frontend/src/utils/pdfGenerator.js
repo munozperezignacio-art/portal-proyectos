@@ -1,5 +1,6 @@
 import { loadPdfEngine } from '../services/documentEngines';
 import { groupQuestions } from '../components/questionMatrixRows.mjs';
+import { visibleFormFields } from '../../../supabase/functions/_shared/formFields.mjs';
 
 /**
  * Genera un archivo PDF a partir del formulario y las respuestas dadas.
@@ -126,7 +127,7 @@ export async function generateFormPdf({ form, metadata, answers, mainSignature, 
   doc.text('Registro:', margin, y);
   y += 6;
 
-  groupQuestions(form.campos || []).forEach(({field,rows,title}) => {
+  groupQuestions(visibleFormFields(form.campos || [],answers)).forEach(({field,rows,title}) => {
     if (rows) {
       // Split wide matrices into column bands; never shrink alternatives to illegibility.
       for(let start=0;start<field.options.length;start+=5){

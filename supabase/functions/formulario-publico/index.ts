@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { workCatalog, responsibleCatalog, validateFormAnswers } from "../_shared/formFields.mjs";
+import { workCatalog, responsibleCatalog, removeHiddenAnswers, validateFormAnswers } from "../_shared/formFields.mjs";
 
 const cors={"Access-Control-Allow-Origin":"https://www.obraxis.cl","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json"}});
@@ -57,13 +57,22 @@ Deno.serve(async(req)=>{
       return Array.isArray(data)?data:[];
     };
 
+    if(action==="personal_centro"){
+      if(form.campos?.control_documental?.personal_por_centro!==true)return json({error:"Acción no habilitada"},400);
+      const {data:centers,error}=await db.rpc("formulario_centros_gestion",{p_token:token});
+      if(error)throw error;
+      const center=(centers||[]).find((c:any)=>Number(c.id)===Number(body.centro_gestion_id));
+      if(!center){await log(false);return json({error:"Centro no autorizado"},403);}
+      const entries=await Promise.all(fields.filter((f:any)=>f.type==="data_lookup"&&f.source==="responsibles").map(async(f:any)=>[String(f.id),await catalogFor(f,[center])]));
+      await log(true);return json({catalogos:Object.fromEntries(entries)});
+    }
     if(action==="cargar"){
       const {data:branding}=await db.from("config_empresa").select("logo_base64,color_primario,color_secundario").eq("empresa",form.empresa).maybeSingle();
       const {data:centers,error:centerError}=await db.rpc("formulario_centros_gestion",{p_token:token});
       if(centerError)throw centerError;
       const storedFields:any=form.campos;
       const fields=Array.isArray(storedFields)?storedFields:(storedFields?.items||[]);
-      const linkedFields=fields.filter((field:any)=>field?.type==="data_lookup"&&field?.id);
+      const linkedFields=fields.filter((field:any)=>field?.type==="data_lookup"&&field?.id&&!(storedFields?.control_documental?.personal_por_centro===true&&field.source==="responsibles"));
       const catalogEntries=await Promise.all(linkedFields.map(async(field:any)=>{
         return[String(field.id),await catalogFor(field,Array.isArray(centers)?centers:[])];
       }));
@@ -81,6 +90,7 @@ Deno.serve(async(req)=>{
     const centers=Array.isArray(authorizedCenters)?authorizedCenters:[];
     if(!centerId||!centers.some((center:any)=>Number(center.id)===centerId))return json({error:"Centro de gestión no autorizado"},403);
     if(workId){const {data:work}=await db.from("obras").select("id,nombre,centro_gestion_id").eq("id",workId).eq("empresa",form.empresa).maybeSingle();if(!work||Number(work.centro_gestion_id)!==centerId)return json({error:"Obra no autorizada"},403);workName=work.nombre;}
+    removeHiddenAnswers(fields,answers);
     const validationErrors=validateFormAnswers(fields,answers);
     if(validationErrors.length)return json({error:validationErrors.join("\n")},400);
     for(const field of fields.filter((field:any)=>field.type==="data_lookup")){

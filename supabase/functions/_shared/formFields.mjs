@@ -34,15 +34,47 @@ export function workCatalog(field, works) {
   }));
 }
 
+// Conditions may reference an earlier question only. Hidden parents cannot
+// activate children, even when the client still holds an old answer.
+export function visibleFormFields(fields, answers = {}) {
+  const active = new Set();
+  return fields.filter(field => {
+    const rule = field.showWhen;
+    if (rule) {
+      const value = answers?.[rule.fieldId];
+      if (!active.has(String(rule.fieldId)) ||
+          !(Array.isArray(value) ? value.includes(rule.equals) : value === rule.equals)) return false;
+    }
+    active.add(String(field.id));
+    return true;
+  });
+}
+
+export function removeHiddenAnswers(fields, answers) {
+  const active = new Set(visibleFormFields(fields,answers).map(f => String(f.id)));
+  for (const f of fields) if (!active.has(String(f.id))) delete answers[f.id];
+}
+
 // Shared by the public UI and the server: required controls cannot be bypassed.
 export function validateFormAnswers(fields, answers) {
   const errors = [];
-  for (const field of fields) {
+  for (const field of visibleFormFields(fields,answers)) {
     const value = answers?.[field.id];
     const empty = value == null || value === '' || (typeof value === 'string' && !value.trim()) || (Array.isArray(value) && !value.length);
     const fail = message => errors.push(`${field.label || 'Campo'}: ${message}`);
     if (empty) { if (field.required) fail('es obligatorio.'); continue; }
     switch (field.type) {
+      case 'number': {
+        const n = Number(value);
+        if (!['string','number'].includes(typeof value) || !/^-?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(String(value)) || !Number.isFinite(n) || (field.min != null && n < field.min) || (field.max != null && n > field.max)) fail('ingresa un número válido.');
+        break;
+      }
+      case 'email':
+        if (typeof value !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) fail('ingresa un correo válido.');
+        break;
+      case 'tel':
+        if (typeof value !== 'string' || !/^[+\d() .-]+$/.test(value) || !/\d/.test(value)) fail('ingresa un teléfono válido.');
+        break;
       case 'text': case 'textarea':
         if (typeof value !== 'string' && typeof value !== 'number') fail('texto inválido.');
         break;

@@ -1,6 +1,7 @@
 import React, { useCallback, useState, useEffect, useRef } from 'react';
+import { groupQuestions } from './questionMatrixRows.mjs';
 import { supabase } from '../supabaseClient';
-import { validateFormAnswers } from '../../../supabase/functions/_shared/formFields.mjs';
+import { removeHiddenAnswers, visibleFormFields, validateFormAnswers } from '../../../supabase/functions/_shared/formFields.mjs';
 import { 
   Send, CheckCircle2, Camera, AlertCircle, Loader2, Plus
 } from 'lucide-react';
@@ -64,6 +65,7 @@ export default function PublicFormFiller({ formToken }) {
       revision: control.revision ?? rawForm?.revision ?? '',
       fecha_revision: control.fecha_revision ?? rawForm?.fecha_revision ?? '',
       tipo_registro: control.tipo_registro ?? ''
+      ,personalPorCentro: control.personal_por_centro === true
     };
   }, []);
 
@@ -122,6 +124,21 @@ export default function PublicFormFiller({ formToken }) {
       loadPublicForm();
     }
   }, [formToken, loadPublicForm]);
+
+  useEffect(() => {
+    if (!form?.personalPorCentro || !fillMetadata.centro_gestion_id) return;
+    let active = true;
+    const ids = form.campos.filter(f => f.source === 'responsibles').map(f => f.id);
+    if (!ids.length) return;
+    setLinkedCatalogs(prev => ({...prev,...Object.fromEntries(ids.map(id=>[id,[]]))}));
+    supabase.functions.invoke('formulario-publico', {body:{action:'personal_centro',token:formToken,centro_gestion_id:fillMetadata.centro_gestion_id}})
+      .then(({data,error:failure}) => {
+        if (!active) return;
+        if (failure) setError('No se pudo cargar el personal de la obra.');
+        else setLinkedCatalogs(prev => ({...prev,...data?.catalogos}));
+      });
+    return () => { active = false; };
+  }, [form,formToken,fillMetadata.centro_gestion_id]);
 
   const selectEquipment = (patente) => {
     const equipment = maquinariaList.find(item => item.patente === patente);
@@ -281,6 +298,7 @@ export default function PublicFormFiller({ formToken }) {
         finalAnswers[signatureField.id] = mainSignatureDataUrl;
       }
 
+      removeHiddenAnswers(form.campos || [], finalAnswers);
       const validationErrors = validateFormAnswers(form.campos || [], finalAnswers);
       if (validationErrors.length) throw new Error(validationErrors.join('\n'));
       const { data: result, error: insErr } = await supabase.functions.invoke('formulario-publico', {
@@ -427,7 +445,7 @@ export default function PublicFormFiller({ formToken }) {
 
           {/* Preguntas Dinámicas */}
           <div className="space-y-6">
-            {groupQuestions(form.campos || []).map(({field:f,index,rows,title}) => {
+            {groupQuestions(visibleFormFields(form.campos || [],fillAnswers)).map(({field:f,index,rows,title}) => {
               if (rows) return <section key={f.id} className="min-w-0 space-y-2">
                 <h3 className="font-bold text-slate-900">{title}</h3>
                 <div className="max-w-full overflow-x-auto rounded-xl border border-slate-200">
@@ -589,11 +607,15 @@ export default function PublicFormFiller({ formToken }) {
                         <option key={item.id || item.patente} value={item.patente}>{item.tipo || 'Equipo'} · {item.patente}</option>
                       ))}
                     </select>
-                  ) : f.type === 'text' && (
+                  ) : ['text','number','email','tel'].includes(f.type) && (
                     <input
-                      type="text"
+                      aria-label={f.label}
+                      type={f.type}
+                      step={f.type === 'number' ? 'any' : undefined}
+                      min={f.type === 'number' ? f.min : undefined}
+                      max={f.type === 'number' ? f.max : undefined}
                       required={f.required}
-                      value={fillAnswers[f.id] || ''}
+                      value={fillAnswers[f.id] ?? ''}
                       onChange={(e) => setFillAnswers({ ...fillAnswers, [f.id]: e.target.value })}
                       placeholder="Escriba aquí..."
                       readOnly={Boolean(f.autoFilled)}
@@ -750,4 +772,3 @@ export default function PublicFormFiller({ formToken }) {
     </div>
   );
 }
-import { groupQuestions } from './questionMatrixRows.mjs';
