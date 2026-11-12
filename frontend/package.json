@@ -26,7 +26,8 @@
     "qrcode": "1.5.4",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
+    "xlsx-js-style": "^1.2.0"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.13",

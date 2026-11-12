@@ -18,5 +18,5 @@ export default function WorkEarnings({obra,workers}){
  const {error}=await supabase.from('rrhh_haberes_obra').upsert(rows,{onConflict:'empresa,obra_id,trabajador_id,referencia,tipo,clave'});
  if(error)throw error;
  refresh(v=>v+1);
- }}/>}</AttendanceAction><AttendanceAction title="Haberes registrados" onOpen={()=>refresh(v=>v+1)}>{revision>0&&<EarningsHistory obra={obra} revision={revision}/>}</AttendanceAction><AttendanceAction title="Descargar haberes"><label>Mes <input type="month" value={period} onChange={e=>setPeriod(e.target.value)}/></label> <LoncoDownload empresa={obra.empresa} obra={obra} period={period} workers={workers}/></AttendanceAction></>;
+ }}/>}</AttendanceAction><AttendanceAction title="Haberes registrados" onOpen={()=>refresh(v=>v+1)}>{revision>0&&<EarningsHistory obra={obra} revision={revision}/>}</AttendanceAction><AttendanceAction title="Descargar haberes"><LoncoDownload empresa={obra.empresa} obra={obra} period={period} workers={workers}/></AttendanceAction></>;
 }
