@@ -427,7 +427,19 @@ export default function PublicFormFiller({ formToken }) {
 
           {/* Preguntas Dinámicas */}
           <div className="space-y-6">
-            {(form.campos || []).map((f, index) => {
+            {groupQuestions(form.campos || []).map(({field:f,index,rows,title}) => {
+              if (rows) return <section key={f.id} className="min-w-0 space-y-2">
+                <h3 className="font-bold text-slate-900">{title}</h3>
+                <div className="max-w-full overflow-x-auto rounded-xl border border-slate-200">
+                  <table aria-label={title} className="w-full min-w-[32rem] border-collapse text-sm">
+                    <thead className="bg-slate-100"><tr><th scope="col" className="w-1/2 p-3 text-left">Pregunta</th>{f.options.map(o=><th scope="col" key={o} className="px-2 py-3 text-center">{o}</th>)}</tr></thead>
+                    <tbody>{rows.map(({field,question})=><tr key={field.id} className="border-t border-slate-200 even:bg-slate-50">
+                      <th scope="row" className="p-3 text-left font-medium">{question}{field.required && ' *'}</th>
+                      {field.options.map(o=><td key={o} className="text-center"><label className="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center"><input type="radio" name={'matrix-'+field.id} aria-label={question+' — '+o} value={o} required={field.required} checked={fillAnswers[field.id]===o} onChange={()=>setFillAnswers(prev=>({...prev,[field.id]:o}))}/></label></td>)}
+                    </tr>)}</tbody>
+                  </table>
+                </div>
+              </section>;
               const isRepeater = f.type === 'repeater';
 
               if (isRepeater) {
@@ -738,3 +750,4 @@ export default function PublicFormFiller({ formToken }) {
     </div>
   );
 }
+import { groupQuestions } from './questionMatrixRows.mjs';

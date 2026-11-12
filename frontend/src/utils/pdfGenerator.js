@@ -1,4 +1,5 @@
 import { loadPdfEngine } from '../services/documentEngines';
+import { groupQuestions } from '../components/questionMatrixRows.mjs';
 
 /**
  * Genera un archivo PDF a partir del formulario y las respuestas dadas.
@@ -125,7 +126,30 @@ export async function generateFormPdf({ form, metadata, answers, mainSignature, 
   doc.text('Registro:', margin, y);
   y += 6;
 
-  (form.campos || []).forEach((field) => {
+  groupQuestions(form.campos || []).forEach(({field,rows,title}) => {
+    if (rows) {
+      // Split wide matrices into column bands; never shrink alternatives to illegibility.
+      for(let start=0;start<field.options.length;start+=5){
+        const options=field.options.slice(start,start+5);
+        const widths=[76,...options.map(()=>(contentWidth-76)/options.length)];
+        const wrap=(cells,bold)=>{doc.setFont('helvetica',bold?'bold':'normal');doc.setFontSize(8);return cells.map((s,i)=>doc.splitTextToSize(String(s),widths[i]-4));};
+        const height=lines=>4+Math.max(1,...lines.map(c=>c.length))*3.5;
+        const draw=(lines,head)=>{
+          const h=height(lines);let x=margin;
+          doc.setFont('helvetica',head?'bold':'normal');doc.setFontSize(8);doc.setTextColor(20,38,66);
+          lines.forEach((ls,i)=>{doc.setDrawColor(183,195,209);doc.setFillColor(...(head?[232,239,249]:[255,255,255]));doc.rect(x,y,widths[i],h,'FD');doc.text(ls,i?x+widths[i]/2:x+2,y+4,{align:i?'center':'left',lineHeightFactor:1.2});x+=widths[i];});y+=h;
+        };
+        const headers=wrap(['Pregunta',...options],true);
+        const heading=()=>{doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(20,38,66);doc.text(title,margin,y+4);y+=7;draw(headers,true);};
+        rows.forEach(({field:row,question},i)=>{
+          const lines=wrap([question,...options.map(o=>answers[row.id]===o?'X':'')],false);
+          if(i===0){checkPage(7+height(headers)+height(lines));heading();}
+          else if(y+height(lines)>pageHeight-margin){doc.addPage();y=margin;drawHeader();heading();}
+          draw(lines,false);
+        });y+=5;
+      }
+      return;
+    }
     // La firma principal se almacena separada en respuestas históricas. Si el
     // formulario contiene un campo firma, pertenece a ese campo y no a un
     // segundo bloque genérico de firma al final del documento.

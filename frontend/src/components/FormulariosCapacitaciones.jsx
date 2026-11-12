@@ -779,6 +779,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
               <div className="flex flex-wrap gap-2">
                 {[['text','Texto corto'],['textarea','Texto largo'],['date','Fecha'],['time','Hora'],['select','Lista desplegable'],['radio','Selección múltiple · una respuesta'],['checkbox','Checkbox · varias respuestas'],['rating','Nivel de valoración'],['photo','Subir imágenes'],['signature','Dibujar firma'],['repeater','Grupo repetible']].map(([type,label]) => <button key={type} type="button" onClick={() => handleAddField(type)} className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">+ {label}</button>)}
                 <button type="button" onClick={() => addLinkedDataField('risk_matrix')} className="rounded-xl bg-rose-50 px-3.5 py-2 text-xs font-black text-rose-800 hover:bg-rose-100">+ Usar matriz de riesgo</button>
+                <QuestionMatrixBuilder onAdd={items => setFormFields(current => [...current, ...items])} />
                 <button type="button" onClick={() => addLinkedDataField('machinery')} className="rounded-xl bg-blue-50 px-3.5 py-2 text-xs font-black text-blue-800 hover:bg-blue-100">+ Usar datos de maquinaria</button>
                 <button type="button" onClick={() => addLinkedDataField('responsibles')} className="rounded-xl bg-blue-50 px-3.5 py-2 text-xs font-black text-blue-800 hover:bg-blue-100">+ Responsable por cargo</button>
                 <button type="button" onClick={() => addLinkedDataField('works')} className="rounded-xl bg-blue-50 px-3.5 py-2 text-xs font-black text-blue-800 hover:bg-blue-100">+ Obra y datos de ficha</button>
@@ -1075,3 +1076,4 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     </div>
   );
 }
+import QuestionMatrixBuilder from './QuestionMatrixBuilder';
