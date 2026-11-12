@@ -1,3 +1,10 @@
+import {CHILEAN_HOLIDAYS} from './chileanHolidays.js';
+const holidays=new Set(CHILEAN_HOLIDAYS);
+function isHolidayRow(date){
+ if(!(date instanceof Date))return false;
+ const key=[date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('-');
+ return date.getDay()===0||holidays.has(key);
+}
 const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
 export const rutKey=s=>norm(s).replace(/[^0-9k]/g,'');
 export const monthEnd=m=>new Date(Date.UTC(+m.slice(0,4),+m.slice(5),0)).toISOString().slice(0,10);
@@ -27,7 +34,8 @@ export function loncoWorkbook(X,period,workers,marks,earnings,from=period+'-01',
  s['!merges']=[X.utils.decode_range('D2:G2')];s['!rows']=[];
  for(let r=0;r<rows.length;r++){const dark=r===1||r===header,total=name!=='RESUMEN'&&r===rows.length-1;
  s['!rows'][r]={hpt:r===1?26:r===header?30:20};
- for(let c=0;c<widths.length;c++){const k=X.utils.encode_cell({r,c}),cell=s[k]??={t:'s',v:''};cell.s={font:{name:'Calibri',sz:r===1?14:11,bold:dark||total,color:{rgb:dark?'FFFFFF':'17324D'}},fill:{patternType:'solid',fgColor:{rgb:dark?'203864':total?'C6E5DA':r>header&&r%2?'EEF4FA':'FFFFFF'}},alignment:{vertical:'center',wrapText:r===header},...(r>=header?{border:{top:line,bottom:line,left:line,right:line}}:{})};}}
+ const holiday=name!=='RESUMEN'&&isHolidayRow(rows[r][0]);
+ for(let c=0;c<widths.length;c++){const k=X.utils.encode_cell({r,c}),cell=s[k]??={t:'s',v:''};cell.s={font:{name:'Calibri',sz:r===1?14:11,bold:dark||total,color:{rgb:dark?'FFFFFF':'17324D'}},fill:{patternType:'solid',fgColor:{rgb:dark?'203864':total?'C6E5DA':holiday?'FCE4D6':r>header&&r%2?'EEF4FA':'FFFFFF'}},alignment:{vertical:'center',wrapText:r===header},...(r>=header?{border:{top:line,bottom:line,left:line,right:line}}:{})};}}
  X.utils.book_append_sheet(book,s,name);}
  for(const {w,rows} of people.values()){
  const list=[...rows.values()].sort((a,b)=>a.date.localeCompare(b.date)||a.work.localeCompare(b.work));

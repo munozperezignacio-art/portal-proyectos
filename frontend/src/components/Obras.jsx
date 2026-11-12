@@ -1,3 +1,4 @@
+import { CHILEAN_HOLIDAYS } from '../utils/chileanHolidays';
 import React, { useState, useEffect, useRef } from 'react';
 import WorkBudgetMargin from './WorkBudgetMargin';
 import ProjectAlertNotifications from './ProjectAlertNotifications';
@@ -772,11 +773,6 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const [arriendoData, setArriendoData] = useState({ equipo: '', patente: '', proveedor: '', costo: '', unidad_costo: '$/mes', tipo_condicion_minima: 'sin_minimo', cantidad_minima: '', modalidad_dias: 'laborales', fechaInicio: '', fechaTermino: '', observaciones: '' });
 
   // Días Feriados Oficiales de Chile (para cálculo exacto de avance y arriendos en Días Laborales)
-  const CHILEAN_HOLIDAYS = [
-    '2026-01-01', '2026-04-03', '2026-04-04', '2026-05-01', '2026-05-21', '2026-06-07', '2026-06-29', '2026-07-16', '2026-08-15', '2026-09-18', '2026-09-19', '2026-10-12', '2026-10-31', '2026-11-01', '2026-12-08', '2026-12-25',
-    '2025-01-01', '2025-04-18', '2025-04-19', '2025-05-01', '2025-05-21', '2025-06-20', '2025-06-29', '2025-07-16', '2025-08-15', '2025-09-18', '2025-09-19', '2025-10-12', '2025-10-31', '2025-11-01', '2025-12-08', '2025-12-25',
-    '2024-01-01', '2024-03-29', '2024-03-30', '2024-05-01', '2024-05-21', '2024-06-20', '2024-06-29', '2024-07-16', '2024-08-15', '2024-09-18', '2024-09-19', '2024-09-20', '2024-10-12', '2024-10-31', '2024-11-01', '2024-12-08', '2024-12-25'
-  ];
 
   const [periodStats,setPeriodStats]=useState(null);
   const statWork=selectedObra?.id;
