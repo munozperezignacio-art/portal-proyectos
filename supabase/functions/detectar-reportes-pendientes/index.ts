@@ -39,7 +39,9 @@ Deno.serve(async (req) => {
         continue;
       }
       const [{ data: works }, { data: users }, { data: advances }, { data: usage }, { data: legacyUsage }, { data: equipment }, { data: existing, error: historyError }, { data: mailConfig }] = await Promise.all([
-        db.from('obras').select('id,nombre,estado').eq('empresa', rule.empresa),
+        // El último día de trabajo sí cuenta. El estado administrativo puede seguir vacío.
+        db.from('obras').select('id,nombre,estado').eq('empresa', rule.empresa)
+          .or(`fecha_termino_real.is.null,fecha_termino_real.gte.${local.date}`),
         db.from('usuarios').select('id,usuario,nombre,correo,rol,obras').eq('empresa', rule.empresa),
         db.from('avances_produccion_partidas').select('obra_id,obra_nombre,created_at').eq('empresa', rule.empresa).gte('created_at', lookback),
         db.from('maquinaria_uso_diario').select('obra_nombre,fecha,created_at').eq('empresa', rule.empresa).gte('created_at', lookback),
