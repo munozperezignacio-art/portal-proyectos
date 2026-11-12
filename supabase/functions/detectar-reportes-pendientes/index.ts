@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
         results.push(await processCompliancePending(db, rule, local, now));
         continue;
       }
-      const [{ data: works }, { data: users }, { data: advances }, { data: usage }, { data: legacyUsage }, { data: equipment }, { data: existing }, { data: mailConfig }] = await Promise.all([
+      const [{ data: works }, { data: users }, { data: advances }, { data: usage }, { data: legacyUsage }, { data: equipment }, { data: existing, error: historyError }, { data: mailConfig }] = await Promise.all([
         db.from('obras').select('id,nombre,estado').eq('empresa', rule.empresa),
         db.from('usuarios').select('id,usuario,nombre,correo,rol,obras').eq('empresa', rule.empresa),
         db.from('avances_produccion_partidas').select('obra_id,obra_nombre,created_at').eq('empresa', rule.empresa).gte('created_at', lookback),
@@ -49,6 +49,7 @@ Deno.serve(async (req) => {
         db.from('config_empresa').select('email_sender').eq('empresa', 'Obraxis').maybeSingle()
       ]);
 
+      if (historyError) throw historyError;
       if ((existing || []).some((item: any) => item.payload?.fecha_control === local.date || localParts(new Date(item.created_at)).date === local.date)) {
         results.push({ rule: rule.id, skipped: 'already_processed' });
         continue;
@@ -91,10 +92,13 @@ Deno.serve(async (req) => {
           try {
             const key=Deno.env.get('RESEND_API_KEY');
             if(!key)throw new Error('Resend no está configurado');
-            const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify({from:`Obraxis <${mailConfig?.email_sender || 'notificaciones@obraxis.cl'}>`,to:[recipient],subject:title,html})});
+            const fingerprint = JSON.stringify([rule.empresa,work,local.date,String(recipient).trim().toLowerCase()]);
+            const digest = new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(fingerprint)));
+            const deliveryKey = 'informes-pendientes/'+Array.from(digest,b=>b.toString(16).padStart(2,'0')).join('');
+            const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${key}`,'Idempotency-Key':deliveryKey,'Content-Type':'application/json'},body:JSON.stringify({from:`Obraxis <${mailConfig?.email_sender || 'notificaciones@obraxis.cl'}>`,to:[recipient],subject:title,html})});
             if(response.ok)state='Enviada';else detail=await response.text();
           } catch(error){detail=String(error);}
-          deliveries.push({regla_id:rule.id,empresa:rule.empresa,evento_codigo:rule.evento_codigo,obra_nombre:work,canal:'Email',destinatario:recipient,asunto:title,estado:state,error_detalle:detail,payload,programada_para:now.toISOString(),enviada_at:state==='Enviada'?now.toISOString():null});
+          deliveries.push({regla_id:rule.id,empresa:rule.empresa,evento_codigo:rule.evento_codigo,obra_nombre:work,canal:'Correo',destinatario:recipient,asunto:title,estado:state,error_detalle:detail,payload,programada_para:now.toISOString(),enviada_at:state==='Enviada'?now.toISOString():null});
         }
         if(rule.canal_plataforma && targets.users.length) {
           deliveries.push({regla_id:rule.id,empresa:rule.empresa,evento_codigo:rule.evento_codigo,obra_nombre:work,canal:'Plataforma',destinatario:'Roles y usuarios configurados',asunto:title,estado:'Pendiente',payload,programada_para:now.toISOString()});
@@ -189,7 +193,7 @@ async function processCompliancePending(db: any, rule: any, local: { date: strin
     const payload = { asignacion_id: item.id, formulario_id: item.formulario_id, usuario_id: item.usuario_id, periodo: periodFor(item), fecha_control: local.date };
     return [
       ...(rule.canal_plataforma ? platformRecipients.map((recipient: string) => ({ regla_id: rule.id, empresa: rule.empresa, evento_codigo: rule.evento_codigo, canal: 'Plataforma', destinatario: recipient, asunto: recipient === String(item.usuario_id) ? `${item.registro_nombre} pendiente` : title, estado: 'Pendiente', payload, programada_para: now.toISOString() })) : []),
-      ...(rule.canal_email ? emailRecipients.map((recipient: string) => ({ regla_id: rule.id, empresa: rule.empresa, evento_codigo: rule.evento_codigo, canal: 'Email', destinatario: recipient, asunto: title, estado: emailState, error_detalle: errorDetail, payload, programada_para: now.toISOString(), enviada_at: emailState === 'Enviada' ? now.toISOString() : null })) : [])
+      ...(rule.canal_email ? emailRecipients.map((recipient: string) => ({ regla_id: rule.id, empresa: rule.empresa, evento_codigo: rule.evento_codigo, canal: 'Correo', destinatario: recipient, asunto: title, estado: emailState, error_detalle: errorDetail, payload, programada_para: now.toISOString(), enviada_at: emailState === 'Enviada' ? now.toISOString() : null })) : [])
     ];
   });
   if (deliveries.length) await db.from('notificaciones_entregas').insert(deliveries);
