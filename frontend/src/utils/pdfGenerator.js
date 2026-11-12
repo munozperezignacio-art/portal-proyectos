@@ -30,7 +30,7 @@ export async function generateFormPdf({ form, metadata, answers, mainSignature, 
 
   const drawHeader = () => {
     // Caja del encabezado corporativo de tres columnas Obraxis
-    doc.setDrawColor(148, 163, 184); // Borde gris (slate 400)
+    doc.setLineWidth(0.28);doc.setDrawColor(0);
     doc.setFillColor(255, 255, 255);
     doc.rect(margin, y, contentWidth, 24, 'FD');
 
@@ -92,7 +92,7 @@ export async function generateFormPdf({ form, metadata, answers, mainSignature, 
   drawHeader();
 
   // 2. Tabla de Metadatos de la Inspección
-  doc.setDrawColor(226, 232, 240); // Slate 200
+  doc.setDrawColor(0);
   doc.setFillColor(248, 250, 252); // Slate 50
   
   // Fondo de tabla metadatos
@@ -124,10 +124,35 @@ export async function generateFormPdf({ form, metadata, answers, mainSignature, 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
   doc.setTextColor(15, 23, 42);
-  doc.text('Registro:', margin, y);
+  doc.text('Detalle del registro', margin, y);
   y += 6;
 
+  let lastSection='',sectionCount=0;
   groupQuestions(visibleFormFields(form.campos || [],answers)).forEach(({field,rows,title}) => {
+    const parts=String(rows?title:field.label||'').split(' · ');
+    const section=parts.length>1?parts.shift():'Registro';
+    if(section!==lastSection){
+      checkPage(34);lastSection=section;sectionCount++;
+      doc.setDrawColor(0);doc.setFillColor(237,241,245);doc.setFont('helvetica','bold');doc.setFontSize(10);
+      const heading=doc.splitTextToSize(String(sectionCount).padStart(2,'0')+'   '+section.toUpperCase(),contentWidth-8);
+      const h=6+heading.length*4.4;doc.rect(margin,y,contentWidth,h,'FD');doc.setTextColor(20,30,43);doc.text(heading,margin+4,y+6);y+=h+2;
+    }
+    if(!rows && ['text','textarea','date','time','number','select','radio','checkbox','tel','email','rating','data_lookup'].includes(field.type)){
+      const v=answers[field.id];
+      const value=v==null?'Sin respuesta':Array.isArray(v)?v.join(', '):typeof v==='object'?Object.entries(v).filter(([k])=>!k.startsWith('_')).map(([,x])=>x).filter(Boolean).join(' · ')||v._display:String(v);
+      doc.setFont('helvetica','bold');doc.setFontSize(9);const label=doc.splitTextToSize(parts.join(' · ')||field.label,76);
+      doc.setFont('helvetica','normal');const answer=doc.splitTextToSize(String(value||'Sin respuesta'),82);
+      for(let n=0;n<Math.max(label.length,answer.length);n+=36){
+        const a=label.slice(n,n+36),b=answer.slice(n,n+36),h=7+Math.max(a.length,b.length)*4.4;
+        checkPage(h+1);doc.setDrawColor(0);doc.setFillColor(248,249,250);doc.rect(margin,y,82,h,'FD');doc.rect(margin+82,y,contentWidth-82,h);
+        doc.setTextColor(23,32,45);doc.setFontSize(9);doc.setFont('helvetica','bold');doc.text(a,margin+3,y+5.5);doc.setFont('helvetica','normal');doc.text(b,margin+85,y+5.5);y+=h;
+      }y+=1.3;return;
+    }
+    if(field.type==='notice'){
+      doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(35,45,60);
+      for(const line of doc.splitTextToSize(field.label,contentWidth)){checkPage(5);doc.text(line,margin,y);y+=5;}
+      y+=3;return;
+    }
     if (rows) {
       // Split wide matrices into column bands; never shrink alternatives to illegibility.
       for(let start=0;start<field.options.length;start+=5){
@@ -138,7 +163,7 @@ export async function generateFormPdf({ form, metadata, answers, mainSignature, 
         const draw=(lines,head)=>{
           const h=height(lines);let x=margin;
           doc.setFont('helvetica',head?'bold':'normal');doc.setFontSize(8);doc.setTextColor(20,38,66);
-          lines.forEach((ls,i)=>{doc.setDrawColor(183,195,209);doc.setFillColor(...(head?[232,239,249]:[255,255,255]));doc.rect(x,y,widths[i],h,'FD');doc.text(ls,i?x+widths[i]/2:x+2,y+4,{align:i?'center':'left',lineHeightFactor:1.2});x+=widths[i];});y+=h;
+          lines.forEach((ls,i)=>{doc.setDrawColor(0);doc.setFillColor(...(head?[237,241,245]:[255,255,255]));doc.rect(x,y,widths[i],h,'FD');doc.text(ls,i?x+widths[i]/2:x+2,y+4,{align:i?'center':'left',lineHeightFactor:1.2});x+=widths[i];});y+=h;
         };
         const headers=wrap(['Pregunta',...options],true);
         const heading=()=>{doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(20,38,66);doc.text(title,margin,y+4);y+=7;draw(headers,true);};
@@ -226,6 +251,17 @@ export async function generateFormPdf({ form, metadata, answers, mainSignature, 
         doc.text('[Firma Registrada]', margin, y);
         y += 5;
       }
+    } else if (field.type === 'attachments' && Array.isArray(val)) {
+      for(const attachment of val){
+        const caption=doc.splitTextToSize(attachment.name,contentWidth);
+        const image=field.includeInPdf!==false && doc.getImageProperties(attachment.data);
+        const scale=image?Math.min(contentWidth/image.width,70/image.height):0;
+        const height=image?image.height*scale:0;
+        checkPage(height+caption.length*5+8);
+        doc.text(caption,margin,y);y+=caption.length*5;
+        if(image)doc.addImage(attachment.data,image.fileType,margin,y,image.width*scale,height);
+        y+=height+5;
+      }
     } else if (field.type === 'photo' && val) {
       checkPage(40);
       try {
@@ -281,6 +317,8 @@ export async function generateFormPdf({ form, metadata, answers, mainSignature, 
   }
 
   // Generar string Base64 del PDF sin prefijos (data:application/pdf;base64,)
+  const pages=doc.getNumberOfPages();
+  for(let p=1;p<=pages;p++){doc.setPage(p);doc.setDrawColor(0);doc.line(margin,283,margin+contentWidth,283);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.text(form.empresa||'',margin,288);doc.text('Página '+p+' de '+pages,margin+contentWidth,288,{align:'right'});}
   const pdfOutput = doc.output('datauristring');
   const base64Prefix = 'data:application/pdf;filename=generated.pdf;base64,';
   return pdfOutput.substring(base64Prefix.length);
