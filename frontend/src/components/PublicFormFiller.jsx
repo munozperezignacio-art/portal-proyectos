@@ -577,6 +577,7 @@ export default function PublicFormFiller({ formToken }) {
               }
 
               // CAMPOS ESTÁNDAR
+              if(f.type==='notice') return <p key={f.id} className="whitespace-pre-line text-sm leading-relaxed text-slate-700">{f.label}</p>;
               const measurementName = fillAnswers.unidad_medicion === 'Kilometraje (km)' ? 'Kilometraje' : 'Horómetro';
               const displayedLabel = f.id === 'horometro_inicial' ? `${measurementName} inicial` : f.id === 'horometro_final' ? `${measurementName} final` : f.label;
               const linkedOptions = (linkedCatalogs[f.id] || []).filter(item => f.source === 'works' || !fillMetadata.centro_gestion_id || !item.centro_gestion_id || String(item.centro_gestion_id) === String(fillMetadata.centro_gestion_id));
@@ -740,6 +741,14 @@ export default function PublicFormFiller({ formToken }) {
                     </div>
                   )}
 
+                  {f.type === 'attachments' && <div><input aria-label={f.label} type="file" multiple={f.multiple!==false} accept="image/jpeg,image/png" onChange={async e=>{
+                    const files=Array.from(e.target.files||[]);e.target.value='';if(!files.length)return;
+                    try{
+                      if(files.reduce((sum,file)=>sum+file.size,0)>7*1024*1024)throw new Error('Las imágenes seleccionadas superan 7 MB.');
+                      const added=await Promise.all(files.map(file=>new Promise((resolve,reject)=>{const reader=new FileReader();reader.onerror=()=>reject(new Error('No se pudo leer la imagen.'));reader.onload=()=>resolve({name:file.name,data:reader.result});reader.readAsDataURL(file);})));
+                      setFillAnswers(prev=>({...prev,[f.id]:f.multiple===false?added:[...(prev[f.id]||[]),...added]}));
+                    }catch(err){setError(err.message);}
+                  }}/>{(fillAnswers[f.id]||[]).map((a,i)=><div key={i}><img src={a.data} alt={a.name} className="max-h-24"/><button type="button" onClick={()=>setFillAnswers(prev=>({...prev,[f.id]:prev[f.id].filter((_,j)=>j!==i)}))}>Quitar {a.name}</button></div>)}</div>}
                   {f.type === 'photo' && (
                     <div className="border-2 border-dashed border-slate-200 rounded-2xl p-4 text-center bg-slate-50">
                       <Camera className="w-6 h-6 text-slate-400 mx-auto mb-1" />

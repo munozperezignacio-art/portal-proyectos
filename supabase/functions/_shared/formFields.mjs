@@ -98,6 +98,9 @@ export function validateFormAnswers(fields, answers) {
       case 'rating':
         if (!Number.isInteger(Number(value)) || Number(value) < 1 || Number(value) > (Number(field.maxRating) || 5)) fail('valor fuera de la escala.');
         break;
+      case 'attachments':
+        if (!Array.isArray(value) || (field.maxFiles && value.length > field.maxFiles) || (field.multiple === false && value.length > 1) || value.some(a => !a || typeof a.name!=='string' || !a.name.trim() || a.name.length>250 || typeof a.data!=='string' || !/^data:image\/(?:jpeg;base64,\/9j\/|png;base64,iVBORw0KGgo)[A-Za-z0-9+/]*={0,2}$/.test(a.data))) fail('adjunta imágenes JPG o PNG válidas.');
+        break;
       case 'photo': case 'signature':
         if (typeof value !== 'string' || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(value)) fail('imagen o firma inválida.');
         break;

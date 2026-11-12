@@ -10,6 +10,7 @@ const textValue = value => {
 const isImage = (field, value) => (field?.type === 'photo' || field?.type === 'signature') && typeof value === 'string' && value.startsWith('data:image');
 
 export default function FormAnswerDisplay({ field, value }) {
+  if(field?.type==='attachments' && Array.isArray(value)) return <div>{value.map((a,i)=><figure key={i}><img src={a.data} alt={a.name} className="max-h-64"/><figcaption>{a.name}</figcaption></figure>)}</div>;
   const instances = Array.isArray(value) && (field?.type === 'repeater' || value.some(item => item && typeof item === 'object')) ? value : null;
   if (instances) return <div className="mt-2 space-y-3">
     {instances.length ? instances.map((instance, index) => <div key={index} className="border-t border-slate-200 pt-3 first:border-t-0 first:pt-0">
