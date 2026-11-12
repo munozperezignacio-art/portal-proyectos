@@ -400,7 +400,11 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     const status = String(obra.estado || 'Activa').toLowerCase();
     const matchStatus = obraStatusFilter === 'todas' || (obraStatusFilter === 'activas' && ['activa', 'en pausa'].includes(status)) || (obraStatusFilter === 'cierre' && status === 'en cierre') || (obraStatusFilter === 'terminadas' && ['terminada', 'archivada'].includes(status));
     return matchSearch && matchStatus && (obraTypeFilter === 'todas' || obra.tipo === obraTypeFilter) && (!onlyFavorites || favorites.includes(obra.nombre));
-  }).sort((left, right) => Number(favorites.includes(right.nombre)) - Number(favorites.includes(left.nombre)) || String(left.nombre).localeCompare(String(right.nombre)));
+  }).sort((left, right) => {
+    const closed = obra => ['terminada', 'archivada'].includes(String(obra.estado || '').trim().toLowerCase());
+    const group = obraStatusFilter === 'todas' ? Number(closed(left)) - Number(closed(right)) : 0;
+    return group || Number(favorites.includes(right.nombre)) - Number(favorites.includes(left.nombre)) || String(left.nombre).localeCompare(String(right.nombre));
+  });
 
   const openObraDetails = () => {
     setErrorMsg('');
