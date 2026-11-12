@@ -1,5 +1,6 @@
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { groupQuestions } from './questionMatrixRows.mjs';
+import { workQuestion } from '../../../supabase/functions/_shared/formFields.mjs';
 import { supabase } from '../supabaseClient';
 import { removeHiddenAnswers, visibleFormFields, validateFormAnswers } from '../../../supabase/functions/_shared/formFields.mjs';
 import { 
@@ -306,7 +307,7 @@ export default function PublicFormFiller({ formToken }) {
           action: 'enviar', token: String(formToken),
           centro_gestion_id: fillMetadata.centro_gestion_id ? Number(fillMetadata.centro_gestion_id) : null,
           obra_id: fillMetadata.obra_id ? Number(fillMetadata.obra_id) : null,
-          proyecto_nombre: fillMetadata.proyecto_nombre.trim() || 'Terreno',
+          proyecto_nombre: fillMetadata.proyecto_nombre.trim() || null,
           inspector: fillMetadata.inspector.trim() || 'Trabajador Terreno',
           respuestas: finalAnswers,
           firma_url: mainSignatureDataUrl || null
@@ -410,7 +411,7 @@ export default function PublicFormFiller({ formToken }) {
           
           {/* Identificación del Terreno */}
           {!(form.campos.some(field => field.source === 'works') && form.campos.some(field => field.source === 'responsibles')) && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
-            {!form.campos.some(field => field.type === 'data_lookup' && field.source === 'works') && <div>
+            {form.tipo_registro === 'maquinaria_uso' && !form.campos.some(workQuestion) && <div>
               <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Centro de gestión *</label>
               <select
                 required
@@ -429,7 +430,7 @@ export default function PublicFormFiller({ formToken }) {
               >
                 <option value="">-- Selecciona centro de gestión --</option>
                 {centrosGestion.map(center => (
-                  <option key={center.id} value={center.id}>{center.codigo} · {center.nombre}{obrasList.find(work => String(work.centro_gestion_id) === String(center.id)) ? ` · ${obrasList.find(work => String(work.centro_gestion_id) === String(center.id)).nombre}` : ''}</option>
+                  <option key={center.id} value={center.id}>{obrasList.find(work => String(work.centro_gestion_id) === String(center.id))?.nombre || center.nombre}</option>
                 ))}
               </select>
               {fillMetadata.proyecto_nombre && <p className="mt-1 text-[9px] font-bold text-slate-500">Obra vinculada: {fillMetadata.proyecto_nombre}</p>}
@@ -585,7 +586,17 @@ export default function PublicFormFiller({ formToken }) {
                     {index + 1}. {displayedLabel} {f.required && <span className="text-red-500">*</span>}
                   </label>
 
-                  {f.type === 'data_lookup' ? (
+                  {workQuestion(f) ? (
+                    <div><input list={`work-${f.id}`} aria-label={f.label} required={f.required} maxLength={250} placeholder="Selecciona una obra o escribe su nombre" className="w-full rounded-xl border p-2.5" value={(f.type==='text'?fillAnswers[f.id]:fillAnswers[f.id]?.nombre) || ''} onChange={e=>{
+                      const name=e.target.value;
+                      const work=obrasList.find(w=>w.nombre?.trim().toLowerCase()===name.trim().toLowerCase());
+                      const record=(linkedCatalogs[f.id]||[]).find(w=>work && String(w.obra_id)===String(work.id));
+                      setFillMetadata(prev=>({...prev,obra_id:work?.id||'',centro_gestion_id:work?.centro_gestion_id||'',proyecto_nombre:name}));
+                      setFillAnswers(prev=>({...prev,...Object.fromEntries(form.campos.filter(x=>x.type==='data_lookup' && x.source!=='works').map(x=>[x.id,null])),[f.id]:f.type==='text'?name:record||(name.trim()?{_id:'manual',nombre:name,_display:name}:null)}));
+                    }}/><datalist id={`work-${f.id}`}>{obrasList.map(w=><option key={w.id} value={w.nombre}/>)}</datalist></div>
+                  ) : f.type==='data_lookup' && f.source==='responsibles' && !fillMetadata.centro_gestion_id ? (
+                    <input aria-label={f.label} required={f.required} maxLength={200} className="w-full rounded-xl border p-2.5" placeholder="Escribe el nombre" value={fillAnswers[f.id]?.nombre||''} onChange={e=>{const nombre=e.target.value;setFillAnswers(prev=>({...prev,[f.id]:nombre.trim()?{_id:'manual',nombre,_display:nombre}:null}));}}/>
+                  ) : f.type === 'data_lookup' ? (
                     <div className="space-y-3 rounded-2xl border border-blue-100 bg-blue-50/40 p-3">
                       <select aria-label={f.label} required={f.required} value={fillAnswers[f.id]?._id || ''} onChange={e => selectLinkedRecord(f, e.target.value)} disabled={f.source !== 'works' && !fillMetadata.centro_gestion_id} className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-800 disabled:bg-slate-100">
                         <option value="">{f.source === 'works' || fillMetadata.centro_gestion_id ? '-- Seleccionar --' : '-- Primero selecciona un centro de gestión --'}</option>

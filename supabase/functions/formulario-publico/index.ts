@@ -83,12 +83,12 @@ Deno.serve(async(req)=>{
     if(!answers||typeof answers!=="object"||Array.isArray(answers))return json({error:"Respuestas inválidas"},400);
     if(new TextEncoder().encode(JSON.stringify(answers)).length>10*1024*1024)return json({error:"El formulario supera el tamaño permitido"},413);
     const centerId=Number(body?.centro_gestion_id)||null,workId=Number(body?.obra_id)||null;
-    let workName=clean(body?.proyecto_nombre,250)||"Terreno";
+    let workName=clean(body?.proyecto_nombre,250)||null;
     const stored:any=form.campos,control=stored&&!Array.isArray(stored)?stored.control_documental||{}:{};
     const {data:authorizedCenters,error:scopeError}=await db.rpc("formulario_centros_gestion",{p_token:token});
     if(scopeError)throw scopeError;
     const centers=Array.isArray(authorizedCenters)?authorizedCenters:[];
-    if(!centerId||!centers.some((center:any)=>Number(center.id)===centerId))return json({error:"Centro de gestión no autorizado"},403);
+    if((!centerId&&(workId||control.tipo_registro==="maquinaria_uso"))||(centerId&&!centers.some((center:any)=>Number(center.id)===centerId)))return json({error:"Centro de gestión no autorizado"},403);
     if(workId){const {data:work}=await db.from("obras").select("id,nombre,centro_gestion_id").eq("id",workId).eq("empresa",form.empresa).maybeSingle();if(!work||Number(work.centro_gestion_id)!==centerId)return json({error:"Obra no autorizada"},403);workName=work.nombre;}
     removeHiddenAnswers(fields,answers);
     const validationErrors=validateFormAnswers(fields,answers);
@@ -96,6 +96,13 @@ Deno.serve(async(req)=>{
     for(const field of fields.filter((field:any)=>field.type==="data_lookup")){
       const value=answers[field.id];
       if(!value)continue;
+      if(value._id==="manual"&&!centerId&&!workId&&["works","responsibles"].includes(field.source)){
+        const nombre=clean(value.nombre,field.source==="works"?250:200);
+        if(!nombre)return json({error:`${field.label}: escribe un nombre.`},400);
+        answers[field.id]={_id:"manual",_display:nombre,nombre};
+        if(field.source==="works")workName=nombre;
+        continue;
+      }
       const catalog=await catalogFor(field,centers);
       const record=catalog.find((item:any)=>String(item._id)===String(value._id));
       if(!record||(record.centro_gestion_id&&Number(record.centro_gestion_id)!==centerId)||(field.source==="works"&&Number(record.obra_id)!==workId))return json({error:`${field.label}: registro no autorizado para esta obra.`},403);

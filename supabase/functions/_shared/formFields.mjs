@@ -118,3 +118,8 @@ export function validateFormAnswers(fields, answers) {
   }
   return errors;
 }
+export function workQuestion(field) {
+  if (field.type === 'data_lookup') return field.source === 'works';
+  const name = String(field.label || '').split('·').pop().trim().toLowerCase().replace(/\s*\/\s*/g,'/');
+  return field.type === 'text' && /^(?:nombre (?:de (?:la )?|del ))?(?:obra|proyecto|faena|centro de gesti[oó]n)(?:\/(?:obra|proyecto|faena|centro de gesti[oó]n))*$/.test(name);
+}
