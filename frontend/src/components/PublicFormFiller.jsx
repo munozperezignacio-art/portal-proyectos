@@ -1,5 +1,6 @@
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { groupQuestions } from './questionMatrixRows.mjs';
+import { fillSections } from './fillSections.mjs';
 import { workQuestion } from '../../../supabase/functions/_shared/formFields.mjs';
 import { supabase } from '../supabaseClient';
 import { removeHiddenAnswers, visibleFormFields, validateFormAnswers } from '../../../supabase/functions/_shared/formFields.mjs';
@@ -446,9 +447,10 @@ export default function PublicFormFiller({ formToken }) {
 
           {/* Preguntas Dinámicas */}
           <div className="space-y-6">
-            {groupQuestions(visibleFormFields(form.campos || [],fillAnswers)).map(({field:f,index,rows,title}) => {
+            {fillSections(groupQuestions(visibleFormFields(form.campos || [],fillAnswers))).map(({field:original,index,rows,title,heading,key,shortLabel}) => {
+              if (heading) return <h3 key={key} className="border-b border-slate-200 pb-2 text-base font-bold text-slate-900">{heading}</h3>;
+              const f = {...original, label: shortLabel};
               if (rows) return <section key={f.id} className="min-w-0 space-y-2">
-                <h3 className="font-bold text-slate-900">{title}</h3>
                 <div className="max-w-full overflow-x-auto rounded-xl border border-slate-200">
                   <table aria-label={title} className="w-full min-w-[32rem] border-collapse text-sm">
                     <thead className="bg-slate-100"><tr><th scope="col" className="w-1/2 p-3 text-left">Pregunta</th>{f.options.map(o=><th scope="col" key={o} className="px-2 py-3 text-center">{o}</th>)}</tr></thead>
@@ -587,7 +589,7 @@ export default function PublicFormFiller({ formToken }) {
                     {index + 1}. {displayedLabel} {f.required && <span className="text-red-500">*</span>}
                   </label>
 
-                  {workQuestion(f) ? (
+                  {workQuestion(original) ? (
                     <div><input list={`work-${f.id}`} aria-label={f.label} required={f.required} maxLength={250} placeholder="Selecciona una obra o escribe su nombre" className="w-full rounded-xl border p-2.5" value={(f.type==='text'?fillAnswers[f.id]:fillAnswers[f.id]?.nombre) || ''} onChange={e=>{
                       const name=e.target.value;
                       const work=obrasList.find(w=>w.nombre?.trim().toLowerCase()===name.trim().toLowerCase());
