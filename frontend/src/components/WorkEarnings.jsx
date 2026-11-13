@@ -11,7 +11,7 @@ export default function WorkEarnings({obra,workers}){
  return <><AttendanceAction title="Registrar haberes">
  <p className="text-sm font-bold text-blue-900">{obra.nombre}</p>
  <label className="text-xs font-bold">Mes de nómina<input type="month" value={period} onChange={e=>setPeriod(e.target.value)} className="mt-1 block rounded-lg border p-2"/></label>
- {period&&<WorkerBatch key={period} inline savedMessage="Haberes guardados para esta obra y período." title="Trabajadores de la obra" period={period} workers={workers.map(w=>({id:w.id,name:w.nombre}))} onApply={async(selected,f)=>{
+ {period&&<WorkerBatch company={obra.empresa} revision={revision} key={period} inline savedMessage="Haberes guardados para esta obra y período." title="Trabajadores de la obra" period={period} workers={workers.map(w=>({id:w.id,name:w.nombre}))} onApply={async(selected,f)=>{
  const concepto=(f.name||'').trim(),monto=Number(f.amount),referencia=f.scope==='dia'?f.day:f.from+'/'+f.to;
  if(!concepto||!referencia?.split('/').at(-1)?.startsWith(period)||!Number.isSafeInteger(monto)||monto<=0||monto>2147483647)throw new Error('Revisa la fecha, el concepto y el monto en pesos.');
  const rows=selected.map(w=>({empresa:obra.empresa,obra_id:obra.id,trabajador_id:w.id,periodo:period,referencia,tipo:f.type||'Imponible',concepto,monto}));
