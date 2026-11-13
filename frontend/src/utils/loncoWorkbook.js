@@ -8,7 +8,7 @@ function isHolidayRow(date){
 const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
 export const rutKey=s=>norm(s).replace(/[^0-9k]/g,'');
 export const monthEnd=m=>new Date(Date.UTC(+m.slice(0,4),+m.slice(5),0)).toISOString().slice(0,10);
-export function inRange(ref,from,to){return ref?.length===7?from<=ref+'-01'&&monthEnd(ref)<=to:ref>=from&&ref<=to;}
+export function inRange(ref,from,to){if(ref?.includes('/')){const end=ref.split('/')[1];return end>=from&&end<=to;}return ref?.length===7?from<=ref+'-01'&&monthEnd(ref)<=to:ref>=from&&ref<=to;}
 export function loncoWorkbook(X,period,workers,marks,earnings,from=period+'-01',to=monthEnd(period)){
  const label=d=>d.split('-').reverse().join('-');
  period=label(from)+' al '+label(to);
@@ -45,7 +45,7 @@ export function loncoWorkbook(X,period,workers,marks,earnings,from=period+'-01',
  const dates=new Set(list.map(r=>r.date));
  for(let t=Date.parse(from+'T00:00:00Z');t<=Date.parse(to+'T00:00:00Z');t+=86400000){const date=new Date(t).toISOString().slice(0,10);if(!dates.has(date))list.push({date,work:'',v:[],extra:{}});}
  list.sort((a,b)=>(a.date.length===7)-(b.date.length===7)||a.date.localeCompare(b.date));
- for(const r of list){const daily=r.date.length===10;body.push([daily?new Date(r.date+'T00:00:00'):null,daily?new Date(r.date+'T12:00:00').toLocaleDateString('es-CL',{weekday:'long'}):'Del mes '+r.date,r.work,...Array.from({length:5},(_,i)=>r.v[i]),'',r.v[5],'',...others.map(k=>r.extra[k])]);}
+ for(const r of list){const daily=r.date.length===10;body.push([daily?new Date(r.date+'T00:00:00'):null,daily?new Date(r.date+'T12:00:00').toLocaleDateString('es-CL',{weekday:'long'}):r.date.includes('/')?r.date.split('/').map(label).join(' al '):'Del mes '+r.date,r.work,...Array.from({length:5},(_,i)=>r.v[i]),'',r.v[5],'',...others.map(k=>r.extra[k])]);}
  body.push(['','','Total',...totals.slice(0,5),'',totals[5],'',...totals.slice(6)]);
  const base=String(w.nombre||'Trabajador').replace(/[:\\/?*\[\]']/g,' ').trim()||'Trabajador';let name=base.slice(0,31),n=1;while(used.has(name.toLowerCase())){const suffix=' '+(++n);name=base.slice(0,31-suffix.length)+suffix;}used.add(name.toLowerCase());detail.push([name,body]);}
  append('RESUMEN',summary,[35,35,18,16,18,16,16,16,25,...others.map(()=>24)]);
