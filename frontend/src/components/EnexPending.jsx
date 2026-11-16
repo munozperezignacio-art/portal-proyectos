@@ -1,0 +1,8 @@
+import React,{useState,useEffect} from 'react';
+import {supabase} from '../supabaseClient';
+export default function EnexPending({company}){
+ const [data,setData]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[choices,setChoices]=useState({});
+ useEffect(()=>{let live=true;supabase.rpc('enex_my_pending',{p_company:company}).then(({data,error})=>{if(live){if(error)setError('No se pudieron consultar tus pendientes.');else setData(data);}});return()=>{live=false}},[company]);
+ async function save(id){setBusy(true);setError('');try{const {error}=await supabase.rpc('enex_charge_center',{p_company:company,p_id:id,p_center:Number(choices[id])});if(error)throw error;setData(d=>({...d,rows:d.rows.filter(r=>r.id!==id)}));}catch{setError('La asignación no se confirmó. Actualiza antes de volver a intentarlo.')}finally{setBusy(false)}}
+ return <section className="p-5"><h2 className="text-xl font-bold">Combustibles · Mis pendientes</h2>{error&&<p role="alert">{error}</p>}{!data&&!error?'Cargando…':data?.rows.length===0?'No tienes cargas pendientes.':data?.rows.map(r=><fieldset key={r.id} disabled={busy} className="bg-white rounded-xl border p-4 my-3"><legend>{r.vehicle} · {r.portal}</legend><p>{r.date} · Documento {r.document} · ${Number(r.amount).toLocaleString('es-CL')}</p><label>Centro de gestión <select value={choices[r.id]||''} onChange={e=>setChoices({...choices,[r.id]:e.target.value})}><option value="">Seleccionar centro</option>{data.centers.map(c=><option key={c.id} value={c.id}>{c.code} · {c.name}</option>)}</select></label> <button disabled={!choices[r.id]} onClick={()=>save(r.id)}>Guardar asignación</button></fieldset>)}</section>
+}

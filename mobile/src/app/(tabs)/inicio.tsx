@@ -18,6 +18,7 @@ import { fetchNotificationInbox } from '@/lib/notifications';
 const modules = [
   ['Obras', 'Avances y asistencia', 'business-outline', '/obras', 'obra'],
   ['Equipos', 'Flota y mantenciones', 'construct-outline', '/maquinaria', 'maquinaria'],
+  ['Combustibles', 'Asignar mis cargas pendientes', 'water-outline', '/combustibles', 'combustibles'],
   ['Personal', 'Personas y asignaciones', 'people-outline', '/personal', 'rrhh'],
   ['Prevención', 'Formularios y manuales', 'shield-checkmark-outline', '/formularios', 'formulario'],
 ] as const;
@@ -30,7 +31,7 @@ export default function Home() {
   const { profile, signOut, biometricAvailable, biometricEnabled, biometricOfferPending, setBiometricEnabled, dismissBiometricOffer } = useAuth();
   const insets = useSafeAreaInsets(); const [menu, setMenu] = useState(false); const prompted = useRef(false);
   const [unread, setUnread] = useState(0);
-  const visible = (module:string) => module === 'obra' ? canUse(profile, 'obra') && can(profile, 'obras.ficha.ver') : module === 'maquinaria' ? canUse(profile, module) && can(profile, 'maquinaria.inventario.ver') : module === 'rrhh' ? canUse(profile, module) && can(profile, 'rrhh.personal.ver') : (canUse(profile, 'formulario') || canUse(profile, 'prevencion')) && (can(profile, 'formularios.formularios.ver') || can(profile, 'prevencion.registros.ver'));
+  const visible = (module:string) => module==='combustibles' ? profile?.empresa==='EMINSG' : module === 'obra' ? canUse(profile, 'obra') && can(profile, 'obras.ficha.ver') : module === 'maquinaria' ? canUse(profile, module) && can(profile, 'maquinaria.inventario.ver') : module === 'rrhh' ? canUse(profile, module) && can(profile, 'rrhh.personal.ver') : (canUse(profile, 'formulario') || canUse(profile, 'prevencion')) && (can(profile, 'formularios.formularios.ver') || can(profile, 'prevencion.registros.ver'));
   const toggle = async (value:boolean) => {
     const ok = await setBiometricEnabled(value);
     if (!ok) Alert.alert('Biometría no disponible', 'Configura huella, rostro o un bloqueo seguro en tu teléfono e intenta nuevamente.');

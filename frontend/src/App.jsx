@@ -639,6 +639,7 @@ function App() {
         </div>
 
         {/* Menu Navigation Links */}
+        {!preview&&activeUserContext.empresa==='EMINSG'&&<button className="mx-4 my-2 rounded-lg border p-2 text-sm font-bold" onClick={()=>setCurrentModule('combustibles')}>Combustibles · Mis pendientes</button>}
         <RoleExplorer key={user.id+':'+user.empresa} user={user} name={preview?.role.nombre||''} onChange={switchRole}/>
         <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
           {/* Dashboard/Inicio */}
@@ -927,6 +928,8 @@ function App() {
               setSelectedObraName(null);
               setCurrentModule('dashboard');
             }} />
+          ) : currentModule === 'combustibles' && !preview ? (
+            <EnexPending key={activeUserContext.empresa+':'+user.id} company={activeUserContext.empresa}/>
           ) : currentModule === 'maquinaria' ? (
             <Maquinaria companyBranding={companyBranding} user={activeUserContext} onBack={() => {
               setSelectedObraName(null);
@@ -1055,3 +1058,4 @@ function App() {
 }
 
 export default App;
+import EnexPending from './components/EnexPending';

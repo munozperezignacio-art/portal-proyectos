@@ -1,12 +1,15 @@
 import React,{useEffect,useState,useRef} from 'react';
 import {Fuel} from 'lucide-react';
 import './EnexFuel.css';
+import EnexOwners from './EnexOwners';
+import {groupFuelByVehicle} from '../utils/enexStatistics';
 import {supabase} from '../supabaseClient';
 import useUserPermissions from '../utils/useUserPermissions';
 import {parseEnexCsv,planImport,summarize,createOperationGate} from '../utils/enex.js';
 import {readEnex,importEnex,sendEnexSummary} from '../services/enexService';
 
 export default function EnexFuel({user}) {
+ const [tab,setTab]=useState('Movimientos');
  const operation=useRef(createOperationGate()),mailAttempted=useRef(false);
  const [mailConfirm,setMailConfirm]=useState(false),[mailStatus,setMailStatus]=useState('');
  const {permissions,loading:permissionsLoading}=useUserPermissions(user);
@@ -52,6 +55,8 @@ export default function EnexFuel({user}) {
  }
  return <section className="enex-fuel" aria-label="Combustible Enex" aria-busy={busy}>
   <header className="enex-heading"><div className="enex-icon"><Fuel size={24}/></div><div><span className="enex-eyebrow">MAQUINARIA Y EQUIPOS · {user.empresa}</span><h2>Combustible Enex</h2><p>Consulta el consumo y asigna cada carga a su obra o centro de gestión.</p></div></header>
+  <nav aria-label="Combustibles" className="enex-tabs">{['Movimientos',...(allowed('editar')?['Responsables']:[]),'Estadísticas'].map(t=><button key={t} aria-pressed={tab===t} onClick={()=>setTab(t)}>{t}</button>)}</nav>
+  {tab==='Responsables'&&allowed('editar')?<EnexOwners company={user.empresa} vehicles={groupFuelByVehicle(rows)}/>:<>
   <div className="enex-metrics">{[['Cargas registradas',total.count.toLocaleString('es-CL')],['Litros cargados',(total.liters_milli/1000).toLocaleString('es-CL',{minimumFractionDigits:3})],['Consumo del portal',`$${Math.abs(total.amount_signed).toLocaleString('es-CL')}`],['Por asignar',total.pending.toLocaleString('es-CL')]].map(([label,value])=><div className="enex-metric" key={label}><span>{label}</span><strong>{busy?'…':value}</strong></div>)}</div>
   <p className="enex-info">Movimientos originales: no generan costos contables ni alteran registros de uso. Importes del portal, con moneda e impuestos pendientes de confirmar.</p>
   {error&&<p role="alert" className="text-red-700">{error}</p>}{notice&&<p role="status">{notice}</p>}
@@ -62,6 +67,7 @@ export default function EnexFuel({user}) {
    <label>Centro <select value={center} onChange={e=>setCenter(e.target.value)}><option value="">Todos</option>{centers.map(c=><option key={c.id} value={c.id}>{c.codigo} — {c.nombre}</option>)}</select></label>
    <label><input type="checkbox" checked={pending} onChange={e=>setPending(e.target.checked)}/> Solo pendientes</label>
   </fieldset>
+  {tab==='Estadísticas'?<div className="enex-table-wrap"><table><caption>Consumo por vehículo en el período seleccionado</caption><thead><tr>{['Vehículo','Portal','Cargas','Litros','Consumo ($)','Pendientes'].map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{groupFuelByVehicle(filtered).map(v=><tr key={v.portal+v.vehicle}>{[v.vehicle,v.portal,v.count,(v.litersMilli/1000).toLocaleString('es-CL'),v.debit.toLocaleString('es-CL'),v.pending].map((cell,i)=><td key={i}>{cell}</td>)}</tr>)}</tbody></table></div>:<>
   <section className="enex-info" aria-label="Movimientos sospechosos"><h3 className="font-bold">Movimientos sospechosos · revisión parcial</h3><p>{filtered.filter(r=>r.liters_milli>250000).length} cargas de más de 250 litros en los movimientos visibles.</p><p>Reglas por tarjeta: dos cargas consecutivas en menos de 30 minutos o más de tres cargas en un día. No evaluables todavía: la importación actual no contiene el identificador de tarjeta.</p><p>Una alerta indica que hay que revisar la carga; no confirma un uso indebido.</p></section>
   {allowed('importar')&&<fieldset disabled={busy}><legend>Importar lectura verificada</legend><input aria-label="CSV Enex" type="file" accept=".csv,text/csv" onChange={chooseFile}/>
    {preview&&<div><p>{preview.incoming.length} filas: {preview.added.length} nuevas y {preview.repeated} repetidas.</p><label><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/> Confirmo que el archivo corresponde a {user.empresa} y a las lecturas revisadas de los portales.</label><button disabled={!confirmed} onClick={commitImport} className="border rounded p-2">Importar y verificar persistencia</button></div>}
@@ -71,5 +77,6 @@ export default function EnexFuel({user}) {
   {updated&&<section className="enex-info" aria-label="Resumen por correo"><h3 className="font-bold">Enviar resumen por correo</h3><p>Incluye las cargas visibles con los filtros actuales. El envío verifica los registros guardados.</p>
   {permissions['maquinaria.enex.enviar']===true && user.correo && filtered.length>0 && <div><label><input type="checkbox" checked={mailConfirm} disabled={busy||mailAttempted.current} onChange={e=>setMailConfirm(e.target.checked)}/> Confirmo enviar este resumen a mi correo: {user.correo}</label><button className="border rounded p-2" disabled={!mailConfirm||busy||mailAttempted.current} onClick={sendSummary}>Enviar resumen una vez</button></div>}
   {mailStatus&&<p role="status">{mailStatus}</p>}</section>}
+ </>}</>}
  </section>;
 }
