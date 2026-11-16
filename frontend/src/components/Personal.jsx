@@ -72,6 +72,7 @@ function Personal({ user, onBack }) {
   const [activeSubmodule, setActiveSubmodule] = useState(null);
 
   const [personal, setPersonal] = useState([]);
+  const [exitWorker,setExitWorker]=useState(null);
   const [obras, setObras] = useState([]);
   const [centrosGestion, setCentrosGestion] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -471,14 +472,7 @@ function Personal({ user, onBack }) {
 
   const handleDeleteWorker = async (worker) => {
     if (!canDelete) { setErrorMsg('Tu perfil no está autorizado para eliminar trabajadores.'); return; }
-    if (!window.confirm(`¿Estás seguro de eliminar a ${worker.nombre} del Máster de Personal Empresa?`)) return;
-    try {
-      const { error } = await supabase.from('maestro_personal').delete().eq('id', worker.id);
-      if (error) throw error;
-      fetchData();
-    } catch (err) {
-      alert(`Error al eliminar trabajador: ${err.message}`);
-    }
+    setExitWorker(worker);
   };
 
   const handleOpenAssignObraModal = (worker, targetObra) => {
@@ -755,7 +749,7 @@ function Personal({ user, onBack }) {
       selectedObraFilter === '' || 
       (selectedObraFilter === '__sin_obra__' ? !p.obra_nombre&&!obras.some(work=>workerAssignedToWork(p,{...work,empresa:user.empresa},workerCenterLinks)) : obras.some(work=>work.nombre===selectedObraFilter&&workerAssignedToWork(p,{...work,empresa:user.empresa},workerCenterLinks)));
 
-    return p.empresa === user?.empresa && matchesSearch && matchesObra;
+    return p.empresa === user?.empresa && workerIsActive(p) && matchesSearch && matchesObra;
   });
 
   if (permissionsLoading) return <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">Cargando permisos…</div>;
@@ -763,6 +757,7 @@ function Personal({ user, onBack }) {
   return (
     <div className="space-y-6">
       {canDownloadStatistics&&showMonthlyReport&&<MonthlyWorkerAssignments key={user.empresa} company={user.empresa} workers={personal} initialSelected={selectedWorkerIds} onClose={()=>setShowMonthlyReport(false)}/>}
+      {canDelete&&exitWorker&&<WorkerExitReview key={exitWorker.id} worker={exitWorker} company={user.empresa} centers={centrosGestion} canRead={can(user,permissions,'rrhh.imputaciones.ver')} canApprove={can(user,permissions,'rrhh.imputaciones.aprobar')} onClose={()=>setExitWorker(null)} onDone={()=>{setExitWorker(null);fetchData();}}/>}
       {canEdit&&centerWorkerIds.length>0&&<WorkerCenterAssignments company={user.empresa} workers={personal.filter(worker=>worker.empresa===user.empresa&&centerWorkerIds.includes(String(worker.id)))} centers={centrosGestion} assignments={workerCenterLinks} obras={obras} onClose={()=>setCenterWorkerIds([])} onPrimaryAssigned={async result=>{const refreshed=await fetchData();setAssignmentNotice(`${result.asignados} obras principales actualizadas · ${result.omitidos} sin cambios. Historial y centros adicionales conservados.${refreshed?'':' Recarga el listado para ver los cambios.'}`);}} onSaved={async result=>{const refreshed=await fetchData();setAssignmentNotice(`${result.agregados} vínculos agregados · ${result.omitidos} ya existían · ${result.finalizados} finalizados. El centro principal y los costos se conservaron.${refreshed?'':' No se pudo refrescar el listado; recarga la pantalla.'}`);}}/>}
       
       {/* Encabezado */}
@@ -2353,3 +2348,5 @@ function Personal({ user, onBack }) {
 }
 
 export default Personal;
+import WorkerExitReview from './WorkerExitReview';
+import {workerIsActive} from '../utils/workerActive';
