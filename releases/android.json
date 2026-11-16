@@ -3,14 +3,13 @@
   "platform": "android",
   "packageName": "cl.obraxis.terreno",
   "version": "1.0.15",
-  "build": 25,
-  "apkUrl": "https://expo.dev/artifacts/eas/kcjpIlSIpoHko1cnmFWaTPuceM86-p9o_iIcGEzQy-4.apk",
-  "sha256": "29e8c4bd20a711fbd330432f5b7822ab8fabc256674bc1852dc76adf75d91cc9",
-  "commit": "a179f2d07b1f2541fdac52c83cc655985929599b",
-  "sourceHash": "09b8d6b31ec341f76006de8be937ad594dcefe6870475be0ca0ec0d08b3309a1",
-  "publishedAt": "2026-11-10T18:32:28.500Z",
+  "build": 26,
+  "apkUrl": "https://expo.dev/artifacts/eas/rX-dqq7FZmmfjxkWutzcaSEr0yO-jIjHxvQN4k1uF18.apk",
+  "sha256": "d87b9bffc024d02d58f17ab013ba305ce5ffb4f76c7f985064154fd5c9c23515",
+  "commit": "d9aaf2ec79bca1ecf3691ba9d2a7bf6c7069fd69",
+  "sourceHash": "c2816fb41f1562549f922a9e3101a511a7b6ac17889e5fa76ea0e834e8f7fc52",
+  "publishedAt": "2026-11-16T14:30:53.279Z",
   "notes": [
-    "Diagrama: borde azul para pendientes, amarillo para las pilas del día y azul para las anteriores.",
-    "Botón verde con el logo de WhatsApp para preparar el reporte."
+    "Combustibles: consulta tus cargas pendientes y asígnalas a un centro de gestión."
   ]
 }
