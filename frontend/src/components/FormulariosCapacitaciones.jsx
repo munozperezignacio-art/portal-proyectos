@@ -1,3 +1,4 @@
+import {MatrixList,newMatrixRows} from './QuestionMatrixDesigner';
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import ModuleHeader from './ModuleHeader';
@@ -779,6 +780,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
               <div className="flex flex-wrap gap-2">
                 {[['text','Texto corto'],['textarea','Texto largo'],['date','Fecha'],['time','Hora'],['select','Lista desplegable'],['radio','Selección múltiple · una respuesta'],['checkbox','Checkbox · varias respuestas'],['rating','Nivel de valoración'],['photo','Subir imágenes'],['signature','Dibujar firma'],['repeater','Grupo repetible']].map(([type,label]) => <button key={type} type="button" onClick={() => handleAddField(type)} className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">+ {label}</button>)}
                 <button type="button" onClick={() => addLinkedDataField('risk_matrix')} className="rounded-xl bg-rose-50 px-3.5 py-2 text-xs font-black text-rose-800 hover:bg-rose-100">+ Usar matriz de riesgo</button>
+                <button type="button" onClick={()=>setFormFields(current=>[...current,...newMatrixRows()])} className="rounded-xl bg-primary/10 px-3.5 py-2 text-xs font-black text-primary">+ Matriz de preguntas y respuestas</button>
                 <QuestionMatrixBuilder onAdd={items => setFormFields(current => [...current, ...items])} />
                 {[['number','Número'],['email','Correo electrónico'],['tel','Teléfono'],['attachments','Adjuntar varias imágenes']].map(([type,label]) => <button key={type} type="button" onClick={() => handleAddField(type)} className="rounded-xl bg-slate-100 px-3.5 py-2 text-xs font-bold text-slate-700">+ {label}</button>)}
                 <button type="button" onClick={() => addLinkedDataField('machinery')} className="rounded-xl bg-blue-50 px-3.5 py-2 text-xs font-black text-blue-800 hover:bg-blue-100">+ Usar datos de maquinaria</button>
@@ -790,7 +792,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
             {/* Lista de Campos */}
             <p className="text-xs text-slate-500">Arrastra el agarre de cada campo para cambiar el orden, o usa las flechas. Guarda los cambios para aplicarlos al formulario y al PDF.</p>
             <div className="space-y-3">
-              {formFields.map((field, index) => (
+              <MatrixList fields={formFields} setFields={setFormFields}>{(field, index) => (
                 <div key={field.id} data-field-id={field.id}
                   onDragOver={event => { if (draggedField === null) return; event.preventDefault(); event.dataTransfer.dropEffect = 'move'; setDropTarget(field.id); }}
                   onDrop={event => { if (draggedField === null) return; event.preventDefault(); event.stopPropagation(); moveField(draggedField, field.id); }}
@@ -867,7 +869,7 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                   })()}
                   {field.type === 'repeater' && <div className="space-y-2 rounded-xl bg-amber-50 p-3"><p className="text-[11px] font-semibold text-amber-900">Campos dentro del grupo. Arrastra ⠿ para ordenar:</p><div className="flex flex-wrap gap-2">{[['text','Texto corto'],['date','Fecha'],['time','Hora'],['select','Lista'],['radio','Selección múltiple · una respuesta'],['checkbox','Checkbox · varias respuestas'],['photo','Imagen'],['signature','Firma']].map(([type,label])=><button key={type} type="button" onClick={()=>addRepeaterField(field.id,type)} className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[10px] font-black text-amber-900">+ {label}</button>)}</div>{(field.subFields || []).map((sub, subIndex)=><div key={sub.id} draggable onDragStart={event=>event.dataTransfer.setData('text/plain', String(subIndex))} onDragOver={event=>event.preventDefault()} onDrop={event=>{ event.preventDefault(); moveRepeaterField(field.id, Number(event.dataTransfer.getData('text/plain')), subIndex); }} className="cursor-grab rounded-lg bg-white p-3 text-xs active:cursor-grabbing"><div className="flex items-center justify-between gap-2"><span className="flex items-center gap-2"><b className="text-slate-400">⠿</b><b className="text-slate-400">({sub.type})</b></span><button type="button" onClick={()=>removeRepeaterField(field.id,sub.id)} className="text-[10px] font-black text-rose-700">Quitar</button></div><input value={sub.label} onChange={e=>updateRepeaterSubField(field.id,sub.id,'label',e.target.value)} className="mt-2 h-9 w-full rounded-lg border border-slate-200 px-3 text-xs font-semibold"/>{['select','radio','checkbox'].includes(sub.type) && <div className="mt-2 space-y-1">{(sub.options || []).map((option, index)=><input key={index} value={option} onChange={e=>updateRepeaterOption(field.id,sub.id,index,e.target.value)} className="h-8 w-full rounded-lg border border-slate-200 px-2 text-[11px]"/>)}<button type="button" onClick={()=>addRepeaterOption(field.id,sub.id)} className="text-[10px] font-black text-primary">+ Agregar opción</button></div>}</div>)}</div>}
                 </div>
-              ))}
+              )}</MatrixList>
             </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
