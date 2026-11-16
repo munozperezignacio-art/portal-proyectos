@@ -62,7 +62,7 @@ export default function PublicFormFiller({ formToken }) {
     }
     return {
       ...rawForm,
-      campos: fields,
+      campos: (control.tipo_registro==='maquinaria_uso'||fields.some(f=>f.source==='machinery')) ? [...fields.filter(workQuestion),...fields.filter(f=>!workQuestion(f))] : fields,
       codigo: control.codigo ?? rawForm?.codigo ?? '',
       revision: control.revision ?? rawForm?.revision ?? '',
       fecha_revision: control.fecha_revision ?? rawForm?.fecha_revision ?? '',
@@ -97,8 +97,8 @@ export default function PublicFormFiller({ formToken }) {
         setObrasList(loadedWorks);
         setLinkedCatalogs(linkedCatalogMap);
         const linkedFields = (normalizedForm.campos || []).filter(field => field.type === 'data_lookup');
-        const machineryCatalog = linkedFields.filter(field => field.source === 'machinery').flatMap(field => linkedCatalogMap[field.id] || []);
-        setMaquinariaList(machineryCatalog.map(item => ({ id: item._id, patente: item.patente, tipo: item.tipo, marca: item.marca, obra_nombre: loadedWorks.find(work => work.id === item.obra_id)?.nombre || '', horometro_inicial: item.horometro_inicial })));
+        const machineryCatalog = linkedCatalogMap.__usage_equipment || linkedFields.filter(field => field.source === 'machinery').flatMap(field => linkedCatalogMap[field.id] || []);
+        setMaquinariaList(machineryCatalog.map(item => ({ obra_id:item.obra_id, id: item._id, patente: item.patente, tipo: item.tipo, marca: item.marca, obra_nombre: loadedWorks.find(work => work.id === item.obra_id)?.nombre || '', horometro_inicial: item.horometro_inicial })));
         
         // Inicializar respuestas para bloques repetibles con 1 elemento por defecto
         const initial = {};
@@ -109,7 +109,7 @@ export default function PublicFormFiller({ formToken }) {
         });
         setFillAnswers(initial);
         const obraPreseleccionada = new URLSearchParams(window.location.search).get('obra');
-        if (obraPreseleccionada) {
+        if (obraPreseleccionada && normalizedForm.campos.some(workQuestion)) {
           const selectedWork = loadedWorks.find(work => work.nombre === obraPreseleccionada);
           setFillMetadata(current => ({ ...current, proyecto_nombre: obraPreseleccionada, obra_id: selectedWork?.id || '', centro_gestion_id: selectedWork?.centro_gestion_id || '' }));
         }
@@ -412,30 +412,6 @@ export default function PublicFormFiller({ formToken }) {
           
           {/* Identificación del Terreno */}
           {!(form.campos.some(field => field.source === 'works') && form.campos.some(field => field.source === 'responsibles')) && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
-            {form.tipo_registro === 'maquinaria_uso' && !form.campos.some(workQuestion) && <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Centro de gestión *</label>
-              <select
-                required
-                value={fillMetadata.centro_gestion_id}
-                onChange={(e) => {
-                  const centerId = e.target.value;
-                  const linkedWork = obrasList.find(work => String(work.centro_gestion_id) === String(centerId));
-                  const center = centrosGestion.find(item => String(item.id) === String(centerId));
-                  setFillMetadata({ ...fillMetadata, centro_gestion_id: centerId, obra_id: linkedWork?.id || '', proyecto_nombre: linkedWork?.nombre || center?.nombre || 'Centro corporativo' });
-                  setFillAnswers(previous => ({ ...previous, ...Object.fromEntries((form.campos || []).filter(field => field.type === 'data_lookup').map(field => [field.id, null])) }));
-                  if (form.tipo_registro === 'maquinaria_uso') {
-                    setFillAnswers(previous => ({ ...previous, equipo_patente: '', marca_modelo: '', unidad_medicion: '', horometro_inicial: '' }));
-                  }
-                }}
-                className="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs font-semibold uppercase text-slate-800 focus:outline-none focus:border-primary"
-              >
-                <option value="">-- Selecciona centro de gestión --</option>
-                {centrosGestion.map(center => (
-                  <option key={center.id} value={center.id}>{obrasList.find(work => String(work.centro_gestion_id) === String(center.id))?.nombre || center.nombre}</option>
-                ))}
-              </select>
-              {fillMetadata.proyecto_nombre && <p className="mt-1 text-[9px] font-bold text-slate-500">Obra vinculada: {fillMetadata.proyecto_nombre}</p>}
-            </div>}
             {!form.campos.some(field => field.type === 'data_lookup' && field.source === 'responsibles') && <div>
               <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">Inspector / Trabajador *</label>
               <input required value={fillMetadata.inspector}
@@ -582,7 +558,7 @@ export default function PublicFormFiller({ formToken }) {
               if(f.type==='notice') return <p key={f.id} className="whitespace-pre-line text-sm leading-relaxed text-slate-700">{f.label}</p>;
               const measurementName = fillAnswers.unidad_medicion === 'Kilometraje (km)' ? 'Kilometraje' : 'Horómetro';
               const displayedLabel = f.id === 'horometro_inicial' ? `${measurementName} inicial` : f.id === 'horometro_final' ? `${measurementName} final` : f.label;
-              const linkedOptions = (linkedCatalogs[f.id] || []).filter(item => f.source === 'works' || !fillMetadata.centro_gestion_id || !item.centro_gestion_id || String(item.centro_gestion_id) === String(fillMetadata.centro_gestion_id));
+              const linkedOptions = (linkedCatalogs[f.id] || []).filter(item => f.source === 'machinery' ? (!fillMetadata.obra_id || String(item.obra_id) === String(fillMetadata.obra_id)) : f.source === 'works' || !fillMetadata.centro_gestion_id || !item.centro_gestion_id || String(item.centro_gestion_id) === String(fillMetadata.centro_gestion_id));
               return (
                 <div key={f.id} className="space-y-2 border-b border-slate-100 pb-5">
                   <label className="block text-xs font-extrabold text-slate-800 uppercase">
@@ -595,14 +571,14 @@ export default function PublicFormFiller({ formToken }) {
                       const work=obrasList.find(w=>w.nombre?.trim().toLowerCase()===name.trim().toLowerCase());
                       const record=(linkedCatalogs[f.id]||[]).find(w=>work && String(w.obra_id)===String(work.id));
                       setFillMetadata(prev=>({...prev,obra_id:work?.id||'',centro_gestion_id:work?.centro_gestion_id||'',proyecto_nombre:name}));
-                      setFillAnswers(prev=>({...prev,...Object.fromEntries(form.campos.filter(x=>x.type==='data_lookup' && x.source!=='works').map(x=>[x.id,null])),[f.id]:f.type==='text'?name:record||(name.trim()?{_id:'manual',nombre:name,_display:name}:null)}));
+                      setFillAnswers(prev=>({...prev,...(form.tipo_registro==="maquinaria_uso"?{equipo_patente:"",marca_modelo:"",horometro_inicial:""}:{}),...Object.fromEntries(form.campos.filter(x=>x.type==='data_lookup' && x.source!=='works').map(x=>[x.id,null])),[f.id]:f.type==='text'?name:record||(name.trim()?{_id:'manual',nombre:name,_display:name}:null)}));
                     }}/><datalist id={`work-${f.id}`}>{obrasList.map(w=><option key={w.id} value={w.nombre}/>)}</datalist></div>
                   ) : f.type==='data_lookup' && f.source==='responsibles' && !fillMetadata.centro_gestion_id ? (
                     <input aria-label={f.label} required={f.required} maxLength={200} className="w-full rounded-xl border p-2.5" placeholder="Escribe el nombre" value={fillAnswers[f.id]?.nombre||''} onChange={e=>{const nombre=e.target.value;setFillAnswers(prev=>({...prev,[f.id]:nombre.trim()?{_id:'manual',nombre,_display:nombre}:null}));}}/>
                   ) : f.type === 'data_lookup' ? (
                     <div className="space-y-3 rounded-2xl border border-blue-100 bg-blue-50/40 p-3">
-                      <select aria-label={f.label} required={f.required} value={fillAnswers[f.id]?._id || ''} onChange={e => selectLinkedRecord(f, e.target.value)} disabled={f.source !== 'works' && !fillMetadata.centro_gestion_id} className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-800 disabled:bg-slate-100">
-                        <option value="">{f.source === 'works' || fillMetadata.centro_gestion_id ? '-- Seleccionar --' : '-- Primero selecciona un centro de gestión --'}</option>
+                      <select aria-label={f.label} required={f.required} value={fillAnswers[f.id]?._id || ''} onChange={e => selectLinkedRecord(f, e.target.value)} disabled={!['works','machinery'].includes(f.source) && !fillMetadata.centro_gestion_id} className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-800 disabled:bg-slate-100">
+                        <option value="">{['works','machinery'].includes(f.source) || fillMetadata.centro_gestion_id ? '-- Seleccionar --' : '-- Primero selecciona un centro de gestión --'}</option>
                         {linkedOptions.map(item => <option key={item._id} value={item._id}>{item._display}</option>)}
                       </select>
                       {fillAnswers[f.id] && <div className="grid gap-2 sm:grid-cols-2">{Object.entries(fillAnswers[f.id]).filter(([key]) => !key.startsWith('_')).map(([key, value]) => <div key={key} className="rounded-lg border border-blue-100 bg-white p-2"><p className="text-[9px] font-black uppercase text-slate-400">{f.sourceColumns?.find(column => column.key === key)?.label || key}</p><p className="mt-1 text-xs font-bold text-slate-700">{String(value || 'Sin información')}</p></div>)}</div>}
@@ -613,11 +589,10 @@ export default function PublicFormFiller({ formToken }) {
                       required={f.required}
                       value={fillAnswers[f.id] || ''}
                       onChange={(e) => selectEquipment(e.target.value)}
-                      disabled={!fillMetadata.proyecto_nombre}
                       className="w-full border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 disabled:cursor-not-allowed disabled:bg-slate-100"
                     >
-                      <option value="">{fillMetadata.proyecto_nombre ? '-- Selecciona equipo --' : '-- Primero selecciona una obra --'}</option>
-                      {maquinariaList.filter(item => fillMetadata.proyecto_nombre === 'Bodega / sin asignar' ? isWarehouseEquipment(item) : item.obra_nombre === fillMetadata.proyecto_nombre).map(item => (
+                      <option value="">-- Selecciona equipo --</option>
+                      {maquinariaList.filter(item => !fillMetadata.obra_id || String(item.obra_id) === String(fillMetadata.obra_id)).map(item => (
                         <option key={item.id || item.patente} value={item.patente}>{item.tipo || 'Equipo'} · {item.patente}</option>
                       ))}
                     </select>

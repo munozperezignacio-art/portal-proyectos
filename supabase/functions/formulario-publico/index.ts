@@ -27,7 +27,27 @@ Deno.serve(async(req)=>{
     const {data:form,error:formError}=await db.from("prevencion_formularios").select("id,titulo,descripcion,categoria,campos,publico_token,codigo,revision,fecha_revision,empresa,cargos_obligados").eq("publico_token",token).maybeSingle();
     if(formError||!form){await log(false);return json({error:"Formulario no disponible"},404);}
     const fields=Array.isArray(form.campos)?form.campos:(form.campos?.items||[]);
+    const usage=form.campos?.control_documental?.tipo_registro==="maquinaria_uso";
+    const usageField={source:"machinery",selectorKey:"patente",autofillKeys:["marca","tipo","horometro_inicial"]};
     const catalogFor=async(field:any,centers:any[])=>{
+      if(field.source==="machinery"){
+        const results:any[]=[];
+        const control=form.campos?.control_documental||{};
+        const restricted=control.todas_las_obras!==true && Array.isArray(control.centros_gestion_ids) && control.centros_gestion_ids.length>0;
+        const norm=(s:any)=>String(s||"").trim().toLowerCase();
+        for(let offset=0;;offset+=500){
+          const {data,error}=await db.from("inventario_maquinaria").select("id,tipo,patente,obra_nombre,marca,estado_equipo,horometro_inicial").eq("empresa",form.empresa).order("id").range(offset,offset+499);
+          if(error)throw error;
+          for(const eq of data||[]){
+            const work=centers.find(c=>c.obra_id && norm(c.obra_nombre)===norm(eq.obra_nombre));
+            if(restricted&&!work)continue;
+            const display=[eq.tipo,eq.patente].filter(Boolean).join(" · ")||"Equipo "+eq.id;
+            const safe:any={equipo:display,tipo:eq.tipo,marca:eq.marca,patente:eq.patente,estado_equipo:eq.estado_equipo,horometro_inicial:eq.horometro_inicial};
+            results.push({_id:String(eq.id),_display:display,obra_id:work?.obra_id||null,...Object.fromEntries([field.selectorKey,...(field.autofillKeys||[])].filter(k=>Object.hasOwn(safe,k)).map(k=>[k,safe[k]]))});
+          }
+          if(!data||data.length<500)return results;
+        }
+      }
       if(field.source==="responsibles"){
         if(!Array.isArray(field.cargos)||!field.cargos.length)return [];
         const today=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago"}).format(new Date());
@@ -76,6 +96,7 @@ Deno.serve(async(req)=>{
       const catalogEntries=await Promise.all(linkedFields.map(async(field:any)=>{
         return[String(field.id),await catalogFor(field,Array.isArray(centers)?centers:[])];
       }));
+      if(usage)catalogEntries.push(["__usage_equipment",await catalogFor(usageField,centers||[])]);
       await log(true); return json({form,branding:branding||null,centros:Array.isArray(centers)?centers:[],catalogos:Object.fromEntries(catalogEntries)});
     }
     if(action!=="enviar")return json({error:"Acción inválida"},400);
@@ -88,7 +109,7 @@ Deno.serve(async(req)=>{
     const {data:authorizedCenters,error:scopeError}=await db.rpc("formulario_centros_gestion",{p_token:token});
     if(scopeError)throw scopeError;
     const centers=Array.isArray(authorizedCenters)?authorizedCenters:[];
-    if((!centerId&&(workId||control.tipo_registro==="maquinaria_uso"))||(centerId&&!centers.some((center:any)=>Number(center.id)===centerId)))return json({error:"Centro de gestión no autorizado"},403);
+    if((!centerId&&workId)||(centerId&&!centers.some((center:any)=>Number(center.id)===centerId)))return json({error:"Centro de gestión no autorizado"},403);
     if(workId){const {data:work}=await db.from("obras").select("id,nombre,centro_gestion_id").eq("id",workId).eq("empresa",form.empresa).maybeSingle();if(!work||Number(work.centro_gestion_id)!==centerId)return json({error:"Obra no autorizada"},403);workName=work.nombre;}
     removeHiddenAnswers(fields,answers);
     const validationErrors=validateFormAnswers(fields,answers);
@@ -105,16 +126,21 @@ Deno.serve(async(req)=>{
       }
       const catalog=await catalogFor(field,centers);
       const record=catalog.find((item:any)=>String(item._id)===String(value._id));
-      if(!record||(record.centro_gestion_id&&Number(record.centro_gestion_id)!==centerId)||(field.source==="works"&&Number(record.obra_id)!==workId))return json({error:`${field.label}: registro no autorizado para esta obra.`},403);
+      if(!record||(field.source==="machinery"&&workId&&Number(record.obra_id)!==workId)||(record.centro_gestion_id&&Number(record.centro_gestion_id)!==centerId)||(field.source==="works"&&Number(record.obra_id)!==workId))return json({error:`${field.label}: registro no autorizado para esta obra.`},403);
       const keys=field.source==="works"?["nombre",...(field.autofillKeys||[])]:[field.selectorKey,...(field.autofillKeys||[])];
       answers[field.id]={_id:record._id,_display:record._display,...Object.fromEntries(keys.filter((key:string)=>Object.hasOwn(record,key)&&!key.startsWith("_")).map((key:string)=>[key,record[key]]))};
     }
     const responsibleField=fields.find((field:any)=>field.type==="data_lookup"&&field.source==="responsibles");
     const inspector=clean(responsibleField?answers[responsibleField.id]?.nombre:body?.inspector,200)||"Trabajador Terreno",signature=clean(body?.firma_url,4*1024*1024)||null;
+    if(usage){
+      const selected=answers.equipo_patente;
+      const equipment=(await catalogFor(usageField,centers)).find((r:any)=>r.patente && String(r.patente).toUpperCase()===String(selected?.patente||selected).toUpperCase() && (!workId||Number(r.obra_id)===workId));
+      if(!equipment)return json({error:"Selecciona un equipo del inventario autorizado."},400);
+    }
     const {data:saved,error:saveError}=await db.from("prevencion_respuestas").insert({formulario_id:form.id,centro_gestion_id:centerId,obra_id:workId,proyecto_nombre:workName,inspector,respuestas:answers,firma_url:signature}).select("id").single();
     if(saveError){await log(false);throw saveError;}
     if(control.tipo_registro==="maquinaria_uso"){
-      const patent=clean((answers as any).equipo_patente,40).toUpperCase();
+      const patent=clean(((answers as any).equipo_patente?.patente || (answers as any).equipo_patente),40).toUpperCase();
       const initial=Number((answers as any).horometro_inicial),final=Number((answers as any).horometro_final);
       const{data:equipment}=await db.from("inventario_maquinaria").select("id,tipo,patente,obra_nombre,horometro_inicial,empresa").eq("empresa",form.empresa).ilike("patente",patent).maybeSingle();
       if(!equipment||!Number.isFinite(initial)||!Number.isFinite(final)||final<initial)throw new Error("Lecturas de maquinaria inválidas");
