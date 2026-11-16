@@ -1,4 +1,5 @@
 import EnexFuel from './EnexFuel';
+import { equipmentLocationFields } from '../utils/equipmentLocation.mjs';
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import {useMachineryCharge} from '../utils/useMachineryCharge';
@@ -329,7 +330,7 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
       categoria_id:'',
       patente: '',
       marca: '',
-      obra_nombre: obras.length > 0 ? obras[0].nombre : 'Bodega Central / Libre',
+      obra_nombre: obras[0]?.nombre || '',
       fecha_asig: new Date().toLocaleDateString('en-CA'),
       horometro_inicial: '0',
       planes_mantencion: [],
@@ -359,7 +360,7 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
       categoria_id:equip.categoria_id||'',
       patente: equip.patente || '',
       marca: equip.marca || '',
-      obra_nombre: equip.obra_nombre || 'Bodega Central / Libre',
+      obra_nombre: equip.obra_nombre || '',
       fecha_asig: equip.fecha_asig || '',
       horometro_inicial: equip.horometro_inicial ? equip.horometro_inicial.toString() : '0',
       planes_mantencion: Array.isArray(equip.planes_mantencion) ? equip.planes_mantencion : (equip.mantenimiento_intervalo ? [{ nombre: equip.mantenimiento_descripcion || 'Mantención preventiva', intervalo: equip.mantenimiento_intervalo, unidad: equip.mantenimiento_unidad || 'horas', ultima_lectura: equip.mantenimiento_ultima_lectura || '', ultima_fecha: equip.mantenimiento_ultima_fecha || '' }] : []),
@@ -409,15 +410,13 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
     setSuccessMsg('');
     setErrorMsg('');
 
-    const validObraNombre = formData.obra_nombre || 'Bodega Central / Libre';
 
     const dataToSave = {
       tipo: formData.tipo.trim(),
       categoria_id:formData.categoria_id?Number(formData.categoria_id):null,
       patente: formData.patente.toUpperCase().trim(),
       marca: formData.marca.trim(),
-      obra_nombre: validObraNombre,
-      fecha_asig: validObraNombre === 'Bodega Central / Libre' ? null : (formData.fecha_asig || null),
+      ...equipmentLocationFields(editingEquip, formData),
       horometro_inicial: parseFloat(formData.horometro_inicial) || 0,
       planes_mantencion: formData.planes_mantencion || [],
       costo_interno: parseFloat(formData.costo_interno) || 0,
@@ -2705,10 +2704,10 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
                     onChange={(e) => setFormData(prev => ({ ...prev, obra_nombre: e.target.value }))}
                     className="w-full border border-slate-200 rounded-xl p-2.5 font-bold text-slate-800"
                   >
-                    <option value="Bodega Central / Libre">Bodega Central / Libre</option>
+                    <option value="">Bodega / sin asignar</option>
                     {obras.map(o => <option key={o.nombre} value={o.nombre}>{o.nombre}</option>)}
                   </select>
-                  {formData.obra_nombre && formData.obra_nombre !== 'Bodega Central / Libre' && <label className="mt-3 block"><span className="mb-1 block text-[10px] font-bold uppercase text-slate-600">Asignado desde *</span><input required type="date" value={formData.fecha_asig || ''} onChange={e => setFormData(prev => ({ ...prev, fecha_asig: e.target.value }))} className="w-full rounded-xl border border-slate-200 p-2.5 font-bold text-slate-800"/></label>}
+                  {formData.obra_nombre && <label className="mt-3 block"><span className="mb-1 block text-[10px] font-bold uppercase text-slate-600">Asignado desde *</span><input required={!editingEquip || editingEquip.obra_nombre !== formData.obra_nombre || Boolean(editingEquip.fecha_asig)} type="date" value={formData.fecha_asig || ''} onChange={e => setFormData(prev => ({ ...prev, fecha_asig: e.target.value }))} className="w-full rounded-xl border border-slate-200 p-2.5 font-bold text-slate-800"/></label>}
                 </div>
               </div>
 
