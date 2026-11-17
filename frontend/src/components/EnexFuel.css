@@ -40,3 +40,10 @@
 .enex-fuel [role=status] { padding:14px; border-radius:12px; background:#ecfdf5; color:#065f46; overflow-wrap:anywhere; }
 @media(max-width:700px) { .enex-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; } .enex-heading { padding:18px; align-items:flex-start; } .enex-heading h2 { font-size:20px; } .enex-metric { padding:16px; } .enex-metric strong { font-size:22px; } .enex-fuel fieldset { padding:16px; } }
 .enex-tabs{display:flex;flex-wrap:wrap;gap:4px;background:#f1f5f9;border-radius:12px;padding:5px}.enex-tabs button{padding:8px 16px;border-radius:8px;font-weight:600}.enex-tabs button[aria-pressed=true]{background:white;color:#1e3a8a;box-shadow:0 1px 3px #cbd5e1}
+.enex-assignment-dialog { margin:auto; padding:24px; width:min(560px,calc(100vw - 32px)); max-height:calc(100dvh - 40px); overflow:auto; border:1px solid #e2e8f0; border-radius:20px; background:white; color:#172033; box-shadow:0 24px 64px #0f172a40; }
+.enex-assignment-dialog::backdrop { background:#0f172a80; }
+.enex-assignment-dialog header { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.enex-assignment-dialog h2 { font-size:20px; font-weight:700; }
+.enex-assignment-dialog fieldset { display:grid; gap:16px; }
+.enex-assignment-dialog label { display:grid; gap:6px; }
+.enex-assignment-dialog :is(select,input) { width:100%; min-height:44px; }
