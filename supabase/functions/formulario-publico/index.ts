@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { workCatalog, responsibleCatalog, removeHiddenAnswers, validateFormAnswers } from "../_shared/formFields.mjs";
+import { normalizeRut, checklistCandidates } from '../_shared/equipmentQr.mjs';
 
 const cors={"Access-Control-Allow-Origin":"https://www.obraxis.cl","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json"}});
@@ -26,6 +27,18 @@ Deno.serve(async(req)=>{
     const log=async(exitoso:boolean)=>{await db.from("formulario_publico_intentos").insert({token_hash:tokenHash,ip_hash:ipHash,accion:action,exitoso});};
     const {data:form,error:formError}=await db.from("prevencion_formularios").select("id,titulo,descripcion,categoria,campos,publico_token,codigo,revision,fecha_revision,empresa,cargos_obligados").eq("publico_token",token).maybeSingle();
     if(formError||!form){await log(false);return json({error:"Formulario no disponible"},404);}
+    let qrEquipment:any=null,qrActor:any=null;
+    if(body.qrContext){
+      const qrToken=clean(body.qrContext.token,100),rut=normalizeRut(body.qrContext.rut);
+      if(!/^[a-f0-9]{48}$/.test(qrToken)||!rut)return json({error:'Identificación QR inválida'},403);
+      const eq=await db.from('inventario_maquinaria').select('id,empresa,tipo,patente,marca,obra_nombre').eq('publico_token',qrToken).eq('empresa',form.empresa).maybeSingle();
+      if(eq.error||!eq.data||!checklistCandidates(eq.data,[form]).includes(form.id))return json({error:'El formulario no corresponde al equipo del QR'},403);
+      const config=await db.from('maquinaria_reporte_equipo').select('qr_activo').eq('equipo_id',eq.data.id).maybeSingle();
+      if(config.error||config.data?.qr_activo===false)return json({error:'QR no disponible'},403);
+      const person=await db.rpc('equipo_qr_persona',{p_empresa:form.empresa,p_rut:rut});
+      if(person.error||person.data?.length!==1)return json({error:'RUT no disponible en el personal activo'},403);
+      qrEquipment=eq.data;qrActor={...person.data[0],rut};
+    }
     const fields=Array.isArray(form.campos)?form.campos:(form.campos?.items||[]);
     const usage=form.campos?.control_documental?.tipo_registro==="maquinaria_uso";
     const usageField={source:"machinery",selectorKey:"patente",autofillKeys:["marca","tipo","horometro_inicial"]};
@@ -97,11 +110,28 @@ Deno.serve(async(req)=>{
         return[String(field.id),await catalogFor(field,Array.isArray(centers)?centers:[])];
       }));
       if(usage)catalogEntries.push(["__usage_equipment",await catalogFor(usageField,centers||[])]);
-      await log(true); return json({form,branding:branding||null,centros:Array.isArray(centers)?centers:[],catalogos:Object.fromEntries(catalogEntries)});
+      const initialAnswers:any={},initialMetadata:any={};
+      if(qrEquipment){
+        const center=(centers||[]).find((c:any)=>c.obra_nombre===qrEquipment.obra_nombre);
+        Object.assign(initialMetadata,{proyecto_nombre:qrEquipment.obra_nombre||'',obra_id:center?.obra_id||'',centro_gestion_id:center?.id||'',inspector:qrActor.nombre});
+        for(const f of fields){
+          if(f.source==='machinery')initialAnswers[f.id]=(catalogEntries.find(([id]:any)=>id===String(f.id))?.[1]||[]).find((r:any)=>String(r._id)===String(qrEquipment.id));
+          if(f.type==='text'&&/^obra(?:\s|$)/i.test(f.label))initialAnswers[f.id]=qrEquipment.obra_nombre||'Bodega / sin asignar';
+          if(f.type==='text'&&/patente$/i.test(f.label))initialAnswers[f.id]=qrEquipment.patente;
+        }
+      }
+      await log(true); return json({form,branding:branding||null,centros:Array.isArray(centers)?centers:[],catalogos:Object.fromEntries(catalogEntries),initialAnswers,initialMetadata});
     }
     if(action!=="enviar")return json({error:"Acción inválida"},400);
     const answers=body?.respuestas;
     if(!answers||typeof answers!=="object"||Array.isArray(answers))return json({error:"Respuestas inválidas"},400);
+    if(qrEquipment){
+      for(const field of fields){
+        if(field.source==='machinery'&&String(answers[field.id]?._id)!==String(qrEquipment.id))return json({error:'El checklist debe corresponder al equipo del QR.'},400);
+        if(field.type==='text'&&/patente$/i.test(field.label))answers[field.id]=qrEquipment.patente;
+      }
+      answers._qr_identidad={equipo_id:qrEquipment.id,patente:qrEquipment.patente,rut:qrActor.rut,nombre:qrActor.nombre,cargo:qrActor.cargo,identidad:'declarada, RUT coincidente con personal'};
+    }
     if(new TextEncoder().encode(JSON.stringify(answers)).length>10*1024*1024)return json({error:"El formulario supera el tamaño permitido"},413);
     const centerId=Number(body?.centro_gestion_id)||null,workId=Number(body?.obra_id)||null;
     let workName=clean(body?.proyecto_nombre,250)||null;
@@ -131,7 +161,7 @@ Deno.serve(async(req)=>{
       answers[field.id]={_id:record._id,_display:record._display,...Object.fromEntries(keys.filter((key:string)=>Object.hasOwn(record,key)&&!key.startsWith("_")).map((key:string)=>[key,record[key]]))};
     }
     const responsibleField=fields.find((field:any)=>field.type==="data_lookup"&&field.source==="responsibles");
-    const inspector=clean(responsibleField?answers[responsibleField.id]?.nombre:body?.inspector,200)||"Trabajador Terreno",signature=clean(body?.firma_url,4*1024*1024)||null;
+    const inspector=qrActor?`${qrActor.nombre} · ${qrActor.cargo||''}`:clean(responsibleField?answers[responsibleField.id]?.nombre:body?.inspector,200)||"Trabajador Terreno",signature=clean(body?.firma_url,4*1024*1024)||null;
     if(usage){
       const selected=answers.equipo_patente;
       const equipment=(await catalogFor(usageField,centers)).find((r:any)=>r.patente && String(r.patente).toUpperCase()===String(selected?.patente||selected).toUpperCase() && (!workId||Number(r.obra_id)===workId));

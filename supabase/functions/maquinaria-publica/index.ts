@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { normalizeRut, checklistCandidates } from '../_shared/equipmentQr.mjs';
 
 const origins = new Set(["https://obraxis.cl", "https://www.obraxis.cl"]);
 const cors = (origin: string | null) => ({
@@ -23,7 +24,7 @@ Deno.serve(async (req: Request) => {
     if (raw.length > 20000) return reply({ error: 'Formulario demasiado extenso.' }, 400, origin);
     const body = JSON.parse(raw);
     const action = clean(body?.action, 20), token = clean(body?.token, 160);
-    if (!/^[a-f0-9]{48}$/.test(token) || !['cargar','registrar'].includes(action)) return reply({ error: "Enlace inválido." }, 404, origin);
+    if (!/^[a-f0-9]{48}$/.test(token) || !['cargar','identificar','registrar','checklist','mantencion'].includes(action)) return reply({ error: "Enlace inválido." }, 404, origin);
     const ip = clean(req.headers.get("x-forwarded-for")?.split(",")[0] || "unknown", 80);
     const [tokenHash, ipHash] = await Promise.all([digest(token), digest(ip)]);
     const since = new Date(Date.now() - 15 * 60 * 1000).toISOString();
@@ -44,13 +45,34 @@ Deno.serve(async (req: Request) => {
     if(config.error || equipmentConfig.error) return reply({error:'Configuración no disponible.'},503,origin);
     if(equipmentConfig.data?.qr_activo === false) return reply({error:'Este QR fue desactivado.'},404,origin);
     if (action === "cargar") {
-      const operators=[];
-      for(let offset=0;;offset+=500){const result=await db.from('maquinaria_operadores').select('id,nombre').eq('empresa',equipment.empresa).eq('activo',true).order('id').range(offset,offset+499);if(result.error)return reply({error:'Operadores no disponibles.'},503,origin);operators.push(...result.data);if(result.data.length<500)break;}
       await db.from('formulario_publico_intentos').update({exitoso:true}).eq('id',attempt.data.id);
-      return reply({ operadores:operators, equipo: { tipo:equipment.tipo,patente:equipment.patente,marca:equipment.marca,empresa:equipment.empresa,obra_nombre:equipment.obra_nombre,
+      return reply({ equipo: { tipo:equipment.tipo,patente:equipment.patente,marca:equipment.marca,empresa:equipment.empresa,obra_nombre:equipment.obra_nombre,
       horometro_inicial:equipment.horometro_inicial??0,unidad:equipmentConfig.data?.unidad||'h',codigo:config.data?.codigo||'MAQ-01',revision:config.data?.revision||'01' } },200,origin);
     }
-    if (action !== "registrar") return reply({ error: "Acción inválida." }, 400, origin);
+    const rut=normalizeRut(body.rut);
+    if(!rut)return reply({error:'Ingresa un RUT válido para continuar.'},400,origin);
+    const person=await db.rpc('equipo_qr_persona',{p_empresa:equipment.empresa,p_rut:rut});
+    if(person.error)return reply({error:'No se pudo comprobar el personal. Intenta nuevamente.'},503,origin);
+    if(person.data?.length!==1)return reply({error:'El RUT no corresponde a una ficha activa única del personal de esta empresa. Solicita revisar la ficha en Recursos Humanos.'},403,origin);
+    const actor=person.data[0];
+    if(action==='identificar')return reply({nombre:actor.nombre,cargo:actor.cargo,rut},200,origin);
+    if(action==='checklist'){
+      const forms=await db.from('prevencion_formularios').select('id,empresa,titulo,publico_token').eq('empresa',equipment.empresa);
+      if(forms.error)return reply({error:'No se pudo consultar los formularios.'},503,origin);
+      const ids=checklistCandidates(equipment,forms.data||[]);
+      const form=forms.data?.find(f=>ids.includes(f.id));
+      if(!form?.publico_token)return reply({error:'Este equipo aún no tiene un checklist compatible vinculado. No se usará el de otra maquinaria.'},409,origin);
+      return reply({formToken:form.publico_token},200,origin);
+    }
+    const author=`${actor.nombre} · ${actor.cargo||'Sin cargo'} · RUT ${rut} (identidad declarada)`;
+    if(action==='mantencion'){
+      if(!/^[0-9a-f-]{36}$/i.test(String(body.solicitud_id||'')))return reply({error:'Solicitud inválida'},400,origin);
+      const saved=await db.rpc('equipo_qr_mantencion',{p_equipo:equipment.id,p_solicitud:body.solicitud_id,p_datos:{fecha:body.fecha,horometro:body.horometro,tipo:body.tipo,descripcion:clean(body.descripcion,4000),nombre:actor.nombre,cargo:actor.cargo,rut,autor_declarado:author}});
+      if(saved.error)return reply({error:'No se guardó la mantención. Revisa fecha, lectura y descripción.'},400,origin);
+      return reply({ok:true,id:saved.data.id},200,origin);
+    }
+    body.operador=actor.nombre; body.operador_id=null; body.autor_declarado=author;
+    delete body.rut;
 
     if (!/^[0-9a-f-]{36}$/i.test(String(body.solicitud_id || ''))) return reply({error:'Actualiza el formulario antes de enviar.'},400,origin);
     const { data, error: saveError } = await db.rpc('registrar_reporte_maquinaria', {p_equipo_id:equipment.id,p_datos:body,p_solicitud:body.solicitud_id});

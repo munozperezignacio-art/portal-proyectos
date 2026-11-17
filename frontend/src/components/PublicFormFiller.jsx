@@ -8,7 +8,7 @@ import {
   Send, CheckCircle2, Camera, AlertCircle, Loader2, Plus
 } from 'lucide-react';
 
-export default function PublicFormFiller({ formToken }) {
+export default function PublicFormFiller({ formToken, qrContext = null }) {
   const [form, setForm] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -76,7 +76,7 @@ export default function PublicFormFiller({ formToken }) {
     setError('');
     try {
       const { data: publicPayload, error: err } = await supabase.functions.invoke('formulario-publico', {
-        body: { action: 'cargar', token: String(formToken) }
+        body: { action: 'cargar', token: String(formToken), qrContext }
       });
       const data = publicPayload?.form;
       if (err) throw err;
@@ -107,7 +107,8 @@ export default function PublicFormFiller({ formToken }) {
             initial[f.id] = [{}];
           }
         });
-        setFillAnswers(initial);
+        setFillAnswers({...initial,...(publicPayload?.initialAnswers||{})});
+        if(publicPayload?.initialMetadata)setFillMetadata(current=>({...current,...publicPayload.initialMetadata}));
         const obraPreseleccionada = new URLSearchParams(window.location.search).get('obra');
         if (obraPreseleccionada && normalizedForm.campos.some(workQuestion)) {
           const selectedWork = loadedWorks.find(work => work.nombre === obraPreseleccionada);
@@ -119,7 +120,7 @@ export default function PublicFormFiller({ formToken }) {
     } finally {
       setLoading(false);
     }
-  }, [formToken, normalizeForm]);
+  }, [formToken, normalizeForm, qrContext]);
 
   useEffect(() => {
     if (formToken) {
@@ -305,7 +306,7 @@ export default function PublicFormFiller({ formToken }) {
       if (validationErrors.length) throw new Error(validationErrors.join('\n'));
       const { data: result, error: insErr } = await supabase.functions.invoke('formulario-publico', {
         body: {
-          action: 'enviar', token: String(formToken),
+          action: 'enviar', token: String(formToken), qrContext,
           centro_gestion_id: fillMetadata.centro_gestion_id ? Number(fillMetadata.centro_gestion_id) : null,
           obra_id: fillMetadata.obra_id ? Number(fillMetadata.obra_id) : null,
           proyecto_nombre: fillMetadata.proyecto_nombre.trim() || null,

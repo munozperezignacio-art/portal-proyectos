@@ -50,7 +50,7 @@ export default function MachineryEquipmentDetailModal({ companyBranding, equipme
             <h4 className="font-bold">Código QR · {equipment.patente}</h4>
             {qrUrl ? <><div className="mx-auto aspect-square w-full max-w-64"><EquipmentQrImage value={qrUrl} label={`Código QR del equipo ${equipment.patente}`}/></div>
               <div className="flex flex-wrap justify-center gap-2"><a href={qrUrl} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-indigo-800 px-4 py-3 text-sm font-semibold text-white">Abrir enlace público</a><button onClick={downloadQr} className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold">Descargar QR</button><button onClick={async()=>{try{await navigator.clipboard.writeText(qrUrl);setQrMessage('Enlace copiado.');}catch{setQrMessage('No se pudo copiar. Usa Abrir enlace público.');}}} className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold">Copiar enlace</button></div>
-              <p className="text-xs text-slate-500">Acceso actual: documentos publicados y reporte diario. Checklist y mantenimiento públicos todavía pendientes.</p>
+              <p className="text-xs text-slate-500">El enlace solicita RUT y luego muestra Documentos, Reporte, Checklist y Mantenimiento.</p>
             </> : <p role="alert">Este equipo no tiene un enlace QR disponible.</p>}
             {qrMessage && <p role="status" className="text-sm">{qrMessage}</p>}
           </div>}
