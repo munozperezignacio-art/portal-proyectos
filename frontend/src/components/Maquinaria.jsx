@@ -2803,7 +2803,7 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
         </div>
       )}
 
-      {viewingEquip && <MachineryEquipmentDetailModal
+      {viewingEquip && <MachineryEquipmentDetailModal user={user} canEditForms={!permissionsLoading && can(user,permissions,'formularios.formularios.editar')} onChanged={fetchData}
         canConfigureDocuments={!permissionsLoading && canConfigure}
         companyBranding={companyBranding}
         company={user.empresa}

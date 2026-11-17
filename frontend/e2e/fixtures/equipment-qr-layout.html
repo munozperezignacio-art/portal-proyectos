@@ -1,0 +1,17 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module">
+import React from 'react';import{createRoot}from'react-dom/client';import '../../src/index.css';
+import EquipmentFormsEditor from '../../src/components/EquipmentFormsEditor.jsx';
+import MachineryPublicForm from '../../src/components/MachineryPublicForm.jsx';import EquipmentQrDocuments from '../../src/components/EquipmentQrDocuments.jsx';import{ supabase }from'../../src/supabaseClient.js';
+const docs=[];const equipment={id:1,empresa:'Empresa prueba',patente:'TEST-01',tipo:'EXCAVADORA',obra_nombre:'Obra prueba',horometro_inicial:10,unidad:'h',codigo:'MAQ-01',revision:'01'};
+Object.defineProperty(supabase,'functions',{value:{invoke:async(name,{body})=>{
+if(name==='equipment-documents')return {data:{documents:docs.filter(d=>d.publico_qr&&!d.deleted_at)}};
+if(name==='formulario-publico')return {data:{form:{id:1,empresa:'Empresa prueba',titulo:'Checklist prueba',campos:{items:[{id:'estado',type:'radio',label:'Estado del equipo',required:true,options:['Bueno','Malo']}],control_documental:{codigo:'CHK-01',revision:'01'}}},initialMetadata:{inspector:'Persona prueba'}}};
+if(body.action==='cargar')return {data:{equipo:equipment}};
+if(body.action==='identificar')return {data:{nombre:'Persona prueba',cargo:'Operador',rut:body.rut}};
+if(body.action==='checklist')return {data:{formToken:'TEST'}};
+return {data:{id:1}};
+}}});
+Object.defineProperty(supabase,'storage',{value:{from:()=>({upload:async()=>({data:{}}),createSignedUrl:async()=>({data:{signedUrl:'about:blank'}})})}});
+supabase.from=table=>{let patch,id,insert;const c={select(){return c},eq(k,v){if(k==='id')id=v;return c},order(){return c},in(){return c},insert(v){insert=v;return c},update(v){patch=v;return c},single(){return c},then(resolve){if(insert)docs.push({...insert,deleted_at:null});if(patch)Object.assign(docs.find(d=>d.id===id),patch);resolve({data:table==='prevencion_formularios'?[{id:11,empresa:'Empresa prueba',titulo:'Lista de verificación excavadora',campos:{items:[{id:'meter',type:'number',label:'Horómetro protegido',required:true,systemRequired:true}],control_documental:{codigo:'TEST'}}}]:table==='equipo_documentos_qr'?(patch?{id}:docs.map(d=>({...d}))):[],error:null})}};return c};
+createRoot(document.getElementById('root')).render(new URLSearchParams(location.search).has('editor')?React.createElement(EquipmentFormsEditor,{equipment,user:{id:1,empresa:'Empresa prueba',_rolePreview:true,permisos:{'formularios.formularios.ver':true,'formularios.formularios.editar':true}}}):new URLSearchParams(location.search).has('docs')?React.createElement(EquipmentQrDocuments,{equipmentId:1,canConfigure:true}):React.createElement(MachineryPublicForm,{token:'a'.repeat(48)}));
+</script></body></html>

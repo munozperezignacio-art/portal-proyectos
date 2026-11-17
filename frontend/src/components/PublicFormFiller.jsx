@@ -1,3 +1,4 @@
+import EquipmentFormHeader from './EquipmentFormHeader';
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { groupQuestions } from './questionMatrixRows.mjs';
 import { fillSections } from './fillSections.mjs';
@@ -371,10 +372,10 @@ export default function PublicFormFiller({ formToken, qrContext = null }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100/60 py-8 px-4 flex items-center justify-center font-sans">
-      <div className="bg-white border border-slate-200 rounded-3xl shadow-xl w-full max-w-2xl p-6 sm:p-8 space-y-6">
+    <div className={qrContext?"w-full space-y-5 font-sans":"min-h-screen bg-slate-100/60 py-8 px-4 flex items-center justify-center font-sans"}>
+      <div className={qrContext?"w-full space-y-5":"bg-white border border-slate-200 rounded-3xl shadow-xl w-full max-w-2xl p-6 sm:p-8 space-y-6"}>
         
-        {/* Cabecera corporativa del formulario público Obraxis */}
+        {qrContext?<EquipmentFormHeader title={form.titulo} company={form.empresa} code={form.codigo} revision={form.revision}/>:<> {/* Cabecera corporativa del formulario público Obraxis */}
         <div className="border border-slate-300 rounded-2xl overflow-hidden grid grid-cols-1 sm:grid-cols-12">
           {/* Logo Empresa */}
           <div className="sm:col-span-3 flex items-center justify-center p-4 border-b sm:border-b-0 sm:border-r border-slate-300 bg-white">
@@ -408,7 +409,8 @@ export default function PublicFormFiller({ formToken, qrContext = null }) {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        </>}
+        <form onSubmit={handleSubmit} className={qrContext?"equipment-qr-form space-y-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm":"space-y-6"}>
           {error && <p role="alert" className="whitespace-pre-line rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
           
           {/* Identificación del Terreno */}
@@ -759,7 +761,7 @@ export default function PublicFormFiller({ formToken, qrContext = null }) {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3.5 rounded-2xl shadow-sm text-xs cursor-pointer flex items-center justify-center gap-2 transition uppercase tracking-wider"
+            className={qrContext?"flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-900 p-4 font-bold text-white disabled:opacity-50":"w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3.5 rounded-2xl shadow-sm text-xs cursor-pointer flex items-center justify-center gap-2 transition uppercase tracking-wider"}
           >
             <Send className="w-4 h-4" />
             <span>{submitting ? 'Enviando...' : 'Enviar'}</span>

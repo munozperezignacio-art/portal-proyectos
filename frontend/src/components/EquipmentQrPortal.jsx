@@ -38,7 +38,7 @@ export default function EquipmentQrPortal({ equipment, identify, openAction, chi
     finally { setBusy(false); }
   }
   return <main className="min-h-screen bg-slate-50 px-4 py-6 text-slate-900">
-    <div className="mx-auto max-w-2xl space-y-5">
+    <div className="equipment-qr-layout mx-auto max-w-2xl space-y-5">
       <header className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <p className="text-xs font-bold uppercase tracking-wide text-indigo-800">{equipment.empresa}</p>
         <h1 className="mt-2 text-2xl font-bold">{equipment.patente}</h1>

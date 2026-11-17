@@ -2,9 +2,11 @@ import { useMemo, useState } from 'react';
 import { Activity, AlertTriangle, CalendarClock, Gauge, Wrench, X, FileText, QrCode } from 'lucide-react';
 import MachineryDownload from './MachineryDownload';
 import EquipmentQrDocuments from './EquipmentQrDocuments';
+import EquipmentFormsEditor from './EquipmentFormsEditor';
+import MachineryReportSettings from './MachineryReportSettings';
 import EquipmentQrImage from './EquipmentQrImage';
 
-export default function MachineryEquipmentDetailModal({ companyBranding, equipment, usage = [], failures = [], maintenance = [], scopeLabel = '', company, workName, canDownload = false, canConfigureDocuments = false, onClose, onUsage, onFailure, onMaintenance }) {
+export default function MachineryEquipmentDetailModal({ user, canEditForms=false, onChanged=async()=>{}, companyBranding, equipment, usage = [], failures = [], maintenance = [], scopeLabel = '', company, workName, canDownload = false, canConfigureDocuments = false, onClose, onUsage, onFailure, onMaintenance }) {
   const [tab, setTab] = useState('historial');
   const [panel, setPanel] = useState('');
   const [qrMessage, setQrMessage] = useState('');
@@ -39,6 +41,8 @@ export default function MachineryEquipmentDetailModal({ companyBranding, equipme
         <div className="flex flex-wrap gap-2" aria-label="Acciones del equipo">
           <Action icon={FileText} label="Documentos" onClick={() => { setPanel('documentos'); setQrMessage(''); }} color="bg-blue-800" />
           <Action icon={QrCode} label="Código QR" onClick={() => { setPanel('qr'); setQrMessage(''); }} color="bg-slate-800" />
+          {canEditForms&&user&&<EquipmentFormsEditor equipment={equipment} user={user} companyBranding={companyBranding}/>}
+          {canConfigureDocuments&&user&&<MachineryReportSettings user={user} equipment={[equipment]} initialEquipmentId={equipment.id} canConfigure={canConfigureDocuments} onChanged={onChanged} buttonLabel="Configurar reporte"/>}
           <MachineryDownload companyBranding={companyBranding} company={company} equipmentId={equipment.id} workName={workName} allowed={canDownload} />
           {onUsage && <Action icon={Gauge} label="Registrar uso" onClick={onUsage} color="bg-emerald-700" />}
           {onFailure && <Action icon={AlertTriangle} label="Reportar falla" onClick={onFailure} color="bg-rose-700" />}

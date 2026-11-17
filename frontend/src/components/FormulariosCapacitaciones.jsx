@@ -20,7 +20,7 @@ const MACHINERY_SOURCE_COLUMNS = [
   { key: 'horometro_inicial', label: 'Lectura inicial' }
 ];
 
-export default function FormulariosCapacitaciones({ user, onBack, companyBranding }) {
+export default function FormulariosCapacitaciones({ user, onBack, companyBranding, initialForm = null }) {
   const { permissions, loading: permissionsLoading } = useUserPermissions(user);
   const canView = can(user, permissions, 'formularios.formularios.ver');
   const canCreate = can(user, permissions, 'formularios.formularios.crear');
@@ -273,6 +273,11 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
     setFormFields((Array.isArray(stored) ? stored : (stored?.items || [])).map(field => (field.systemRequired || requiredIds.includes(field.id)) ? { ...field, systemRequired: true, required: true } : field));
     setActiveTab('designer');
   };
+
+  const openInitialForm = React.useEffectEvent(() => {
+    if(initialForm?.empresa===user?.empresa&&canEdit)openFormEditor(initialForm);
+  });
+  useEffect(()=>{if(initialForm&&!permissionsLoading)openInitialForm();},[initialForm,permissionsLoading]);
 
   const installOperationalTemplates = async () => {
     if (!canCreate) { setErrorMsg('Tu perfil no está autorizado para instalar plantillas.'); return; }
