@@ -2804,6 +2804,7 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
       )}
 
       {viewingEquip && <MachineryEquipmentDetailModal
+        canConfigureDocuments={!permissionsLoading && canConfigure}
         companyBranding={companyBranding}
         company={user.empresa}
         canDownload={!permissionsLoading && can(user, permissions, 'maquinaria.uso.descargar') && can(user, permissions, 'maquinaria.fallas.descargar') && can(user, permissions, 'maquinaria.mantenimiento.descargar')}

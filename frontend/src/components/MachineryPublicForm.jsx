@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../supabaseClient';
+import EquipmentQrDocuments from './EquipmentQrDocuments';
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date());
 export default function MachineryPublicForm({ token }) {
   const [equipment,setEquipment]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[receipt,setReceipt]=useState(null),[operators,setOperators]=useState([]);
@@ -21,6 +22,7 @@ export default function MachineryPublicForm({ token }) {
   const section='space-y-4 rounded-2xl border bg-white p-5';
   return <main className="min-h-screen bg-slate-50 px-4 py-6 text-slate-800"><div className="mx-auto max-w-lg space-y-4">
     <header className={section}><p className="text-xs font-bold uppercase text-indigo-700">{equipment?.empresa||'Obraxis'}</p><h1 className="text-xl font-black">Reporte diario de maquinaria</h1>{equipment&&<><p className="font-bold">{equipment.tipo} · {equipment.patente}</p><p className="text-sm">{equipment.obra_nombre||'Sin obra asignada'}</p><p className="text-xs text-slate-500">Documento {equipment.codigo} · Revisión {equipment.revision}</p></>}</header>
+    {equipment&&<details className={section}><summary className="cursor-pointer rounded-xl bg-indigo-50 p-3 font-bold text-indigo-900">Documentos del equipo</summary><EquipmentQrDocuments token={token}/></details>}
     {error&&<p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-800">{error}</p>}
     {receipt?<section role="status" className={section}><h2 className="font-bold">Reporte #{receipt} recibido</h2><p>Los datos quedaron guardados. La consulta y descarga están disponibles para usuarios autorizados en Obraxis.</p></section>:equipment?<form onSubmit={submit} className="space-y-4">
       <section className={section}><h2 className="font-bold">1. Jornada y operador</h2><label className="block text-sm font-semibold">Fecha<input required type="date" max={today()} value={form.fecha} onChange={e=>set('fecha',e.target.value)} className="mt-1 w-full rounded-xl border p-3"/></label><label className="block text-sm font-semibold">Operador<select aria-label="Operador" required value={form.operador_id||''} onChange={e=>{set('operador_id',e.target.value);set('operador',operators.find(o=>o.id===e.target.value)?.nombre||'');}} className="mt-1 w-full rounded-xl border p-3"><option value="">Seleccionar operador</option>{operators.map(o=><option key={o.id} value={o.id}>{o.nombre}</option>)}</select></label>{!operators.length&&<p className="text-sm text-amber-800">El responsable debe habilitar operadores en Gestión de Maquinaria → Operadores.</p>}{input('autor_declarado','Nombre de quien registra')}<p className="text-xs text-slate-500">Quien registra puede ser distinto del operador. Su identidad es declarada, no verificada.</p></section>

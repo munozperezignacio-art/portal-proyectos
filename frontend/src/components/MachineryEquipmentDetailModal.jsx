@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Activity, AlertTriangle, CalendarClock, Gauge, Wrench, X } from 'lucide-react';
 import MachineryDownload from './MachineryDownload';
+import EquipmentQrDocuments from './EquipmentQrDocuments';
 
-export default function MachineryEquipmentDetailModal({ companyBranding, equipment, usage = [], failures = [], maintenance = [], scopeLabel = '', company, workName, canDownload = false, onClose, onUsage, onFailure, onMaintenance }) {
+export default function MachineryEquipmentDetailModal({ companyBranding, equipment, usage = [], failures = [], maintenance = [], scopeLabel = '', company, workName, canDownload = false, canConfigureDocuments = false, onClose, onUsage, onFailure, onMaintenance }) {
   const [tab, setTab] = useState('historial');
   const scopedUsage = useMemo(() => usage.filter(item => String(item.equipo_id) === String(equipment?.id)), [usage, equipment]);
   const scopedFailures = useMemo(() => failures.filter(item => String(item.equipo_id) === String(equipment?.id)), [failures, equipment]);
@@ -27,6 +28,7 @@ export default function MachineryEquipmentDetailModal({ companyBranding, equipme
         <button onClick={onClose} className="rounded-xl bg-slate-100 p-2 text-slate-600 hover:bg-slate-200" aria-label="Cerrar ficha"><X className="h-5 w-5" /></button>
       </div>
       <div className="space-y-5 p-5">
+        <details className="rounded-2xl border border-slate-200 p-3"><summary className="cursor-pointer rounded-xl bg-indigo-50 px-4 py-3 font-semibold text-indigo-900">Documentos del equipo / QR</summary><EquipmentQrDocuments key={equipment.id} equipmentId={equipment.id} canConfigure={canConfigureDocuments}/></details>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Kpi label="Lectura actual" value={Number(equipment.horometro_inicial || 0).toLocaleString('es-CL')} />
           <Kpi label="Uso registrado" value={`${totalUse.toLocaleString('es-CL')} h`} />
