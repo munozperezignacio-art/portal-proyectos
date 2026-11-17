@@ -2,7 +2,7 @@ import {validateMovement,planImport} from '../utils/enex.js';
 export async function readEnex(db,company) {
  const rows=[],seen=new Set();
  for(let offset=0;offset<100000;offset+=500) {
-  const {data,error}=await db.from('enex_movements').select('id,empresa,portal,document,occurred_local,vehicle,kind,liters_milli,amount_signed,ingested_at,enex_assignments(obra_id,centro_gestion_id,note)').eq('empresa',company).order('id').range(offset,offset+499);
+  const {data,error}=await db.from('enex_movements').select('id,empresa,portal,document,occurred_local,vehicle,kind,liters_milli,amount_signed,station,station_commune,ingested_at,enex_assignments(obra_id,centro_gestion_id,note)').eq('empresa',company).order('id').range(offset,offset+499);
   if(error)throw Error('No se pudo leer Enex; compruebe acceso y migración');
   for(const r of data||[]) {
    if(r.empresa!==company)throw Error('Empresa inesperada');

@@ -1,0 +1,407 @@
+{
+  "date": "2026-11-17",
+  "company": "EMINSG",
+  "source": "Authenticated ENEX Empresa and Transporte Excel exports",
+  "sourceFiles": [
+    "TSE_Movimiento_tarjeta_20261117173150.xlsx",
+    "TSE_Movimiento_tarjeta_2026111717324.xlsx",
+    "TSE_Movimiento_tarjeta_20261117173347.xlsx",
+    "TSE_Movimiento_tarjeta_2026111717348.xlsx",
+    "TSE_Movimiento_tarjeta_20261117173421.xlsx",
+    "TSE_Movimiento_tarjeta_20261117173433.xlsx"
+  ],
+  "verified": 96,
+  "empresa": 12,
+  "transporte": 84,
+  "inserted": 0,
+  "assignmentsChanged": 0,
+  "coreChanges": 0,
+  "emailsSent": 0,
+  "documents": [
+    {
+      "portal": "empresa",
+      "document": "43554379"
+    },
+    {
+      "portal": "empresa",
+      "document": "43640348"
+    },
+    {
+      "portal": "empresa",
+      "document": "43672390"
+    },
+    {
+      "portal": "empresa",
+      "document": "43507576"
+    },
+    {
+      "portal": "empresa",
+      "document": "43565120"
+    },
+    {
+      "portal": "empresa",
+      "document": "43166889"
+    },
+    {
+      "portal": "empresa",
+      "document": "43807417"
+    },
+    {
+      "portal": "empresa",
+      "document": "43532335"
+    },
+    {
+      "portal": "empresa",
+      "document": "43695459"
+    },
+    {
+      "portal": "empresa",
+      "document": "43772652"
+    },
+    {
+      "portal": "empresa",
+      "document": "43679426"
+    },
+    {
+      "portal": "empresa",
+      "document": "43731555"
+    },
+    {
+      "portal": "transporte",
+      "document": "42996781"
+    },
+    {
+      "portal": "transporte",
+      "document": "43450670"
+    },
+    {
+      "portal": "transporte",
+      "document": "42380549"
+    },
+    {
+      "portal": "transporte",
+      "document": "43450684"
+    },
+    {
+      "portal": "transporte",
+      "document": "43160627"
+    },
+    {
+      "portal": "transporte",
+      "document": "43160666"
+    },
+    {
+      "portal": "transporte",
+      "document": "43450706"
+    },
+    {
+      "portal": "transporte",
+      "document": "43030893"
+    },
+    {
+      "portal": "transporte",
+      "document": "43030899"
+    },
+    {
+      "portal": "transporte",
+      "document": "42996853"
+    },
+    {
+      "portal": "transporte",
+      "document": "43591568"
+    },
+    {
+      "portal": "transporte",
+      "document": "43191286"
+    },
+    {
+      "portal": "transporte",
+      "document": "43506493"
+    },
+    {
+      "portal": "transporte",
+      "document": "43506520"
+    },
+    {
+      "portal": "transporte",
+      "document": "43506525"
+    },
+    {
+      "portal": "transporte",
+      "document": "42911344"
+    },
+    {
+      "portal": "transporte",
+      "document": "43030956"
+    },
+    {
+      "portal": "transporte",
+      "document": "42945741"
+    },
+    {
+      "portal": "transporte",
+      "document": "43543108"
+    },
+    {
+      "portal": "transporte",
+      "document": "43543111"
+    },
+    {
+      "portal": "transporte",
+      "document": "43591634"
+    },
+    {
+      "portal": "transporte",
+      "document": "43591642"
+    },
+    {
+      "portal": "transporte",
+      "document": "43506989"
+    },
+    {
+      "portal": "transporte",
+      "document": "43506992"
+    },
+    {
+      "portal": "transporte",
+      "document": "43191511"
+    },
+    {
+      "portal": "transporte",
+      "document": "43507038"
+    },
+    {
+      "portal": "transporte",
+      "document": "43507067"
+    },
+    {
+      "portal": "transporte",
+      "document": "42795608"
+    },
+    {
+      "portal": "transporte",
+      "document": "43572659"
+    },
+    {
+      "portal": "transporte",
+      "document": "43654376"
+    },
+    {
+      "portal": "transporte",
+      "document": "43643597"
+    },
+    {
+      "portal": "transporte",
+      "document": "43507599"
+    },
+    {
+      "portal": "transporte",
+      "document": "42882131"
+    },
+    {
+      "portal": "transporte",
+      "document": "43587131"
+    },
+    {
+      "portal": "transporte",
+      "document": "43543172"
+    },
+    {
+      "portal": "transporte",
+      "document": "43609425"
+    },
+    {
+      "portal": "transporte",
+      "document": "43019941"
+    },
+    {
+      "portal": "transporte",
+      "document": "43019942"
+    },
+    {
+      "portal": "transporte",
+      "document": "43704333"
+    },
+    {
+      "portal": "transporte",
+      "document": "43704334"
+    },
+    {
+      "portal": "transporte",
+      "document": "43770257"
+    },
+    {
+      "portal": "transporte",
+      "document": "43737086"
+    },
+    {
+      "portal": "transporte",
+      "document": "43593767"
+    },
+    {
+      "portal": "transporte",
+      "document": "43166993"
+    },
+    {
+      "portal": "transporte",
+      "document": "43778146"
+    },
+    {
+      "portal": "transporte",
+      "document": "43167022"
+    },
+    {
+      "portal": "transporte",
+      "document": "43609538"
+    },
+    {
+      "portal": "transporte",
+      "document": "43770386"
+    },
+    {
+      "portal": "transporte",
+      "document": "42946168"
+    },
+    {
+      "portal": "transporte",
+      "document": "43695202"
+    },
+    {
+      "portal": "transporte",
+      "document": "43770469"
+    },
+    {
+      "portal": "transporte",
+      "document": "43770470"
+    },
+    {
+      "portal": "transporte",
+      "document": "43774953"
+    },
+    {
+      "portal": "transporte",
+      "document": "43593809"
+    },
+    {
+      "portal": "transporte",
+      "document": "43593810"
+    },
+    {
+      "portal": "transporte",
+      "document": "43593811"
+    },
+    {
+      "portal": "transporte",
+      "document": "43609574"
+    },
+    {
+      "portal": "transporte",
+      "document": "43167078"
+    },
+    {
+      "portal": "transporte",
+      "document": "43167080"
+    },
+    {
+      "portal": "transporte",
+      "document": "43167089"
+    },
+    {
+      "portal": "transporte",
+      "document": "43167094"
+    },
+    {
+      "portal": "transporte",
+      "document": "43865484"
+    },
+    {
+      "portal": "transporte",
+      "document": "43167130"
+    },
+    {
+      "portal": "transporte",
+      "document": "43865499"
+    },
+    {
+      "portal": "transporte",
+      "document": "43865528"
+    },
+    {
+      "portal": "transporte",
+      "document": "43920714"
+    },
+    {
+      "portal": "transporte",
+      "document": "43616716"
+    },
+    {
+      "portal": "transporte",
+      "document": "42014872"
+    },
+    {
+      "portal": "transporte",
+      "document": "43587315"
+    },
+    {
+      "portal": "transporte",
+      "document": "43587318"
+    },
+    {
+      "portal": "transporte",
+      "document": "43616722"
+    },
+    {
+      "portal": "transporte",
+      "document": "43616725"
+    },
+    {
+      "portal": "transporte",
+      "document": "43616733"
+    },
+    {
+      "portal": "transporte",
+      "document": "43616750"
+    },
+    {
+      "portal": "transporte",
+      "document": "43644424"
+    },
+    {
+      "portal": "transporte",
+      "document": "43441702"
+    },
+    {
+      "portal": "transporte",
+      "document": "43920772"
+    },
+    {
+      "portal": "transporte",
+      "document": "43767197"
+    },
+    {
+      "portal": "transporte",
+      "document": "43644494"
+    },
+    {
+      "portal": "transporte",
+      "document": "43762010"
+    },
+    {
+      "portal": "transporte",
+      "document": "43696437"
+    },
+    {
+      "portal": "transporte",
+      "document": "43767214"
+    },
+    {
+      "portal": "transporte",
+      "document": "43762026"
+    },
+    {
+      "portal": "transporte",
+      "document": "42014948"
+    }
+  ],
+  "validation": "Matched company, portal, document, timestamp, vehicle, kind, liters_milli and signed amount. Trimmed trailing document whitespace. Transaction compared original core rows and assignments before and after."
+}
