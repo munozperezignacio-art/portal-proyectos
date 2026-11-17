@@ -287,6 +287,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const savingProfile = React.useRef(false);
   const canObraAvancesView = can(user, userPermissions, 'obras.avances.ver');
   const canObraGestionView = can(user, userPermissions, 'obras.gestion.ver');
+  const canViewSalary = recordPermission('sueldos','ver');
   const canObraPersonalView = can(user, userPermissions, 'obras.personal.ver');
   const canObraMaquinariaView = can(user, userPermissions, 'obras.maquinaria.ver');
   const canObraMaquinariaCreate = can(user, userPermissions, 'obras.maquinaria.crear');
@@ -1660,7 +1661,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     try {
       const company=selectedObra?.empresa||user.empresa;
       const [{data:allPers,error:staffError},{data:centerLinks,error:centerError}]=await Promise.all([
-        supabase.from('maestro_personal').select('*').eq('empresa',company),
+        supabase.from('maestro_personal').select(canViewSalary?'*':'id,empresa,nombre,rut,cargo,obra_nombre,centro_gestion_id,centro_gestion_defecto_id,centro_trabajo,centro_trabajo_id,estado,fecha_asig').eq('empresa',company),
         supabase.from('rrhh_personal_centros_detalle').select('*').eq('empresa',company)
       ]);
       if(staffError||centerError)throw staffError||centerError;
@@ -1682,8 +1683,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
       try {
         const [proyeccionesResult, liquidacionesResult, costosResult] = await Promise.all([
-          supabase.from('rrhh_proyecciones_dotacion').select('*').eq('empresa', user?.empresa || 'Obraxis').eq('obra_nombre', obraNombre).order('fecha_inicio'),
-          supabase.from('obra_liquidaciones').select('*,obra_liquidaciones_partidas(*)').eq('empresa', user?.empresa || 'Obraxis').eq('obra_nombre', obraNombre).order('periodo', { ascending: false }),
+          canViewSalary?supabase.from('rrhh_proyecciones_dotacion').select('*').eq('empresa',company).eq('obra_nombre', obraNombre).order('fecha_inicio'):{data:[]},
+          canViewSalary?supabase.from('obra_liquidaciones').select('*,obra_liquidaciones_partidas(*)').eq('empresa',company).eq('obra_nombre', obraNombre).order('periodo', { ascending: false }):supabase.rpc('costos_laborales_obra_agrupados',{p_empresa:company,p_obra:selectedObra.id}),
           supabase.from('costos_reales_obra').select('*').eq('empresa', user?.empresa || 'Obraxis').eq('obra_nombre', obraNombre).order('created_at', { ascending: false })
         ]);
         if (proyeccionesResult.error) throw proyeccionesResult.error;
@@ -1691,7 +1692,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         if (costosResult.error) throw costosResult.error;
         setProyeccionesRrhhList(proyeccionesResult.data || []);
         const laborRows = [];
-        for (let offset = 0; ; offset += 1000) {
+        for (let offset = 0; canViewSalary; offset += 1000) {
           const result = await supabase.from('rrhh_costos_personal_vigentes').select('*').eq('empresa',user?.empresa || 'Obraxis').eq('obra_nombre',obraNombre).order('fecha').order('id').range(offset,offset+999);
           if (result.error) { setLaborCostError(result.error.message); throw result.error; }
           laborRows.push(...result.data);
@@ -3726,7 +3727,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
           {/* VISTA DEDICADA 2: ASISTENCIA Y LIBRO DIGITAL CON FILTROS AVANZADOS */}
           {obraActiveSubmodule === 'equipo' && <WorkHeaderActions><div className="flex flex-wrap gap-2">{[['asistencia', 'Asistencia y libro'], ['personal', 'Personal asignado'], ['cuadrillas', 'Cuadrillas'], ['imputaciones', 'Imputaciones de personal']].map(([id, label]) => <button key={id} onClick={() => setEquipoTab(id)} className={`rounded-xl px-3 py-2 text-xs font-black ${equipoTab === id ? 'bg-emerald-800 text-white' : 'border border-emerald-200 bg-white text-emerald-900'}`}>{label}</button>)}</div></WorkHeaderActions>}
-          {obraActiveSubmodule === 'equipo' && equipoTab === 'imputaciones' && <WorkPersonnelAllocations key={selectedObra.id} obra={selectedObra} user={user} parts={partidasList} onSaved={()=>fetchObraDetails(selectedObra.nombre)} />}
+          {obraActiveSubmodule === 'equipo' && equipoTab === 'imputaciones' && !canViewSalary && <p>El detalle de costos por trabajador requiere el permiso «Ver sueldos de personal».</p>}
+          {obraActiveSubmodule === 'equipo' && equipoTab === 'imputaciones' && canViewSalary && <WorkPersonnelAllocations key={selectedObra.id} obra={selectedObra} user={user} parts={partidasList} onSaved={()=>fetchObraDetails(selectedObra.nombre)} />}
 
           {obraActiveSubmodule === 'equipo' && canObraPersonalView && equipoTab === 'asistencia' && (
             <div className="space-y-4 animate-in fade-in duration-200">
@@ -3859,7 +3861,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         if(error)throw new Error('Guardados '+count+' de '+workers.length+'. '+error.message);count++;
                       }}finally{await fetchObraDetails(selectedObra.nombre);}
                     }}/>}</AttendanceAction>}
-                    {canPersonnelEdit&&/administrador.*(empresa|contrato)/i.test([user.rol,user.rol_base].join(' '))&&<WorkEarnings key={selectedObra.id} obra={selectedObra} workers={personalList}/>}
+                    {recordPermission('haberes','crear')&&<WorkEarnings key={selectedObra.id} obra={selectedObra} workers={personalList} showHistory={canViewSalary}/>}
                     <span className="text-xs text-slate-600">{visibleAttendanceRecords.length} de {asistenciaList.length} marcajes</span></div>
 
                     {asistenciaList.length === 0 ? (
@@ -5463,7 +5465,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                   <th className="p-2.5">RUT</th>
                                   <th className="p-2.5">Cargo / Especialidad</th>
                                   <th className="p-2.5 text-center">Asistencias Acumuladas</th>
-                                  <th className="p-2.5 text-right">Costo Diario Estimado</th>
+                                  {canViewSalary&&<th className="p-2.5 text-right">Costo Diario Estimado</th>}
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-150 text-[11px]">
@@ -5483,7 +5485,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                         </span>
                                       </td>
                                       <td className="p-2.5 text-center font-mono font-bold text-indigo-900">{pAsistCount} días</td>
-                                      <td className="p-2.5 text-right font-mono font-bold text-emerald-800">${valorDia.toLocaleString('es-CL')} /día</td>
+                                      {canViewSalary&&<td className="p-2.5 text-right font-mono font-bold text-emerald-800">${valorDia.toLocaleString('es-CL')} /día</td>}
                                     </tr>
                                   );
                                 })}
@@ -7593,6 +7595,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   )}
 
                   {/* TABLA DE LIQUIDACIONES DE SUELDO REALES EMITIDAS */}
+                  {canViewSalary&&<>
                   <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
                     <div className="flex justify-between items-center border-b pb-2">
                       <h4 className="font-extrabold text-slate-800 text-xs flex items-center gap-2">
@@ -7722,6 +7725,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                       </div>
                     )}
                   </div>
+                  </>}
                 </>
               ) : (
                 /* VISTA DE PROYECCIÓN DE GASTOS & ANÁLISIS UNITARIO DE PARTIDAS Y PERSONAL */
@@ -8040,6 +8044,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   
 
                   {/* SECCIÓN DEDICADA DE PERSONAL ASIGNADO Y PROYECCIÓN DE MANO DE OBRA (COLAPSABLE) */}
+                  {canViewSalary&&<>
                   <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
                     {(() => {
                       const workerMap = new window.Map();
@@ -8335,6 +8340,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   </div>
 
                   {/* SECCIÓN DEDICADA DE MAQUINARIA Y EQUIPOS ASIGNADOS (PROYECCIÓN AL CORTE) */}
+                  </>}
                   <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs mt-4">
                     {(() => {
                       const fCorteStr = fechaCorteProyeccion || new Date().toISOString().substring(0, 10);
