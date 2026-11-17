@@ -3,13 +3,15 @@
   "platform": "android",
   "packageName": "cl.obraxis.terreno",
   "version": "1.0.15",
-  "build": 26,
-  "apkUrl": "https://expo.dev/artifacts/eas/rX-dqq7FZmmfjxkWutzcaSEr0yO-jIjHxvQN4k1uF18.apk",
-  "sha256": "d87b9bffc024d02d58f17ab013ba305ce5ffb4f76c7f985064154fd5c9c23515",
-  "commit": "d9aaf2ec79bca1ecf3691ba9d2a7bf6c7069fd69",
-  "sourceHash": "c2816fb41f1562549f922a9e3101a511a7b6ac17889e5fa76ea0e834e8f7fc52",
-  "publishedAt": "2026-11-16T14:30:53.279Z",
+  "build": 28,
+  "apkUrl": "https://expo.dev/artifacts/eas/GGsqHaJLFqwsWIE5jU12U8wnZvev9PIQDYoWZPPM1zE.apk",
+  "sha256": "a84143478b2befef1356f42285f1208f7e77c767c58182abd68bb460245cc819",
+  "commit": "096dfb88b476e6f4675ddbe6cfb32e70d2517a02",
+  "sourceHash": "3a58d2f584ef4281388e0ae04393e9032820162fdc7f316465e0dc7490f119ee",
+  "publishedAt": "2026-11-17T16:16:59.896Z",
   "notes": [
-    "Combustibles: consulta tus cargas pendientes y asígnalas a un centro de gestión."
+    "Combustibles para usuarios con patentes asignadas.",
+    "Tarjetas de inicio uniformes.",
+    "Guardar en verde y Cancelar con estilo neutro."
   ]
 }

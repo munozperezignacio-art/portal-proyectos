@@ -417,8 +417,13 @@
   "builds": [
     {
       "id": "b27448e7-8f8f-48e7-8d95-703df7d3b3c1",
-      "status": "NEW",
+      "status": "FINISHED",
       "platform": "ANDROID"
     }
-  ]
+  ],
+  "status": "FINISHED",
+  "appBuildVersion": "28",
+  "artifactUrl": "https://expo.dev/artifacts/eas/GGsqHaJLFqwsWIE5jU12U8wnZvev9PIQDYoWZPPM1zE.apk",
+  "apkSha256": "a84143478b2befef1356f42285f1208f7e77c767c58182abd68bb460245cc819",
+  "verifiedEmbeddedRelease": true
 }
