@@ -3,10 +3,9 @@ import { Activity, AlertTriangle, CalendarClock, Gauge, Wrench, X, FileText, QrC
 import MachineryDownload from './MachineryDownload';
 import EquipmentQrDocuments from './EquipmentQrDocuments';
 import EquipmentFormsEditor from './EquipmentFormsEditor';
-import MachineryReportSettings from './MachineryReportSettings';
 import EquipmentQrImage from './EquipmentQrImage';
 
-export default function MachineryEquipmentDetailModal({ user, canEditForms=false, onChanged=async()=>{}, companyBranding, equipment, usage = [], failures = [], maintenance = [], scopeLabel = '', company, workName, canDownload = false, canConfigureDocuments = false, onClose, onUsage, onFailure, onMaintenance }) {
+export default function MachineryEquipmentDetailModal({ user, canEditForms=false, companyBranding, equipment, usage = [], failures = [], maintenance = [], scopeLabel = '', company, workName, canDownload = false, canConfigureDocuments = false, onClose, onUsage, onFailure, onMaintenance }) {
   const [tab, setTab] = useState('historial');
   const [panel, setPanel] = useState('');
   const [qrMessage, setQrMessage] = useState('');
@@ -38,12 +37,11 @@ export default function MachineryEquipmentDetailModal({ user, canEditForms=false
         <button onClick={onClose} className="shrink-0 rounded-xl bg-slate-100 p-2 text-slate-600 hover:bg-slate-200" aria-label="Cerrar ficha"><X className="h-5 w-5" /></button>
       </div>
       <div className="space-y-5 p-5">
-        <div className="flex flex-wrap gap-2" aria-label="Acciones del equipo">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Acciones del equipo">
           <Action icon={FileText} label="Documentos" onClick={() => { setPanel('documentos'); setQrMessage(''); }} color="bg-blue-800" />
           <Action icon={QrCode} label="Código QR" onClick={() => { setPanel('qr'); setQrMessage(''); }} color="bg-slate-800" />
           {canEditForms&&user&&<EquipmentFormsEditor equipment={equipment} user={user} companyBranding={companyBranding}/>}
-          {canConfigureDocuments&&user&&<MachineryReportSettings user={user} equipment={[equipment]} initialEquipmentId={equipment.id} canConfigure={canConfigureDocuments} onChanged={onChanged} buttonLabel="Configurar reporte"/>}
-          <MachineryDownload companyBranding={companyBranding} company={company} equipmentId={equipment.id} workName={workName} allowed={canDownload} />
+          <MachineryDownload toolbar companyBranding={companyBranding} company={company} equipmentId={equipment.id} workName={workName} allowed={canDownload} />
           {onUsage && <Action icon={Gauge} label="Registrar uso" onClick={onUsage} color="bg-emerald-700" />}
           {onFailure && <Action icon={AlertTriangle} label="Reportar falla" onClick={onFailure} color="bg-rose-700" />}
           {onMaintenance && <Action icon={Wrench} label="Registrar mantención" onClick={onMaintenance} color="bg-indigo-700" />}
@@ -76,6 +74,6 @@ export default function MachineryEquipmentDetailModal({ user, canEditForms=false
   </div>;
 }
 function Kpi({ label, value, tone = 'blue' }) { const color = tone === 'rose' ? 'text-rose-700' : tone === 'green' ? 'text-emerald-700' : 'text-blue-950'; return <div className="rounded-2xl border border-slate-200 bg-white p-4"><span className="text-[9px] font-black uppercase tracking-wider text-slate-400">{label}</span><p className={`mt-1 text-2xl font-black ${color}`}>{value}</p></div>; }
-function Action({ icon: Icon, label, onClick, color }) { return <button onClick={onClick} className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black text-white ${color}`}><Icon className="h-4 w-4" />{label}</button>; }
+function Action({ icon: Icon, label, onClick, color }) { return <button onClick={onClick} className={`flex h-11 w-full items-center justify-center gap-2 rounded-xl px-3 text-xs font-semibold text-white ${color}`}><Icon className="h-4 w-4" />{label}</button>; }
 function HistoryItem({ item }) { const failure = item.kind === 'Falla', maintenance = item.kind === 'Mantención'; const Icon = failure ? AlertTriangle : maintenance ? Wrench : Activity; return <div className={`rounded-2xl border p-4 ${failure ? 'border-rose-200 bg-rose-50/50' : maintenance ? 'border-indigo-200 bg-indigo-50/40' : 'border-emerald-200 bg-emerald-50/40'}`}><div className="flex items-center justify-between gap-3"><span className="flex items-center gap-1.5 text-xs font-black"><Icon className="h-4 w-4" />{item.kind}</span><span className="text-[10px] font-bold text-slate-500">{item.fecha || String(item.created_at || '').slice(0, 10)}</span></div><p className="mt-2 text-xs text-slate-600">{failure ? `${item.descripcion || 'Sin descripción'} · ${item.horas_fuera_servicio || 0} h fuera de servicio` : maintenance ? `${item.tipo || ''} · ${item.descripcion || 'Sin descripción'}` : `${Number(item.horas_trabajadas || 0).toLocaleString('es-CL')} h · ${item.operador || 'Sin operador'}${item.observaciones ? ` · ${item.observaciones}` : ''}`}</p></div>; }
 function Empty({ text }) { return <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center"><CalendarClock className="mx-auto h-7 w-7 text-slate-400" /><p className="mt-2 text-xs text-slate-500">{text}</p></div>; }

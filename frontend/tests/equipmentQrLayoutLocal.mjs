@@ -5,6 +5,13 @@ for(let i=0;i<60;i++){try{if((await fetch('http://127.0.0.1:4187')).ok)break;}ca
 browser=await chromium.launch({channel:'chrome',headless:true});
 for(const width of [1280,390]){
 const page=await browser.newPage({viewport:{width,height:900}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+await page.goto('http://127.0.0.1:4187/e2e/fixtures/equipment-qr-layout.html?detail');
+await page.getByRole('button',{name:'Editar checklist',exact:true}).waitFor();
+assert.equal(await page.getByRole('button',{name:'Configurar reporte',exact:true}).count(),0);
+const sizes=await page.locator('[aria-label="Acciones del equipo"] button').evaluateAll(els=>els.map(e=>({w:Math.round(e.getBoundingClientRect().width),h:Math.round(e.getBoundingClientRect().height)})));
+assert.equal(sizes.length,7);assert.equal(new Set(sizes.map(x=>x.w)).size,1);assert.ok(sizes.every(x=>x.h===44));
+await page.screenshot({path:'tests/equipment-actions-'+width+'.png',fullPage:true});
+console.log('PASS seven uniform equipment actions '+width);
 await page.goto('http://127.0.0.1:4187/e2e/fixtures/equipment-qr-layout.html');
 await page.getByLabel('Tu RUT').fill('12.345.678-5');await page.getByRole('button',{name:'Continuar',exact:true}).click();
 await page.getByRole('button',{name:'Realizar reporte',exact:true}).click();
