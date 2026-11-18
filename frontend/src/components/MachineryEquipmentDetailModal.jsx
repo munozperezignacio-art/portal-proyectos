@@ -2,12 +2,13 @@ import { useMemo, useState } from 'react';
 import { Activity, AlertTriangle, CalendarClock, Gauge, Wrench, X, FileText, QrCode } from 'lucide-react';
 import MachineryDownload from './MachineryDownload';
 import EquipmentRecordHistory from './EquipmentRecordHistory';
+import EquipmentStartMeter from './EquipmentStartMeter';
 import EquipmentQrDocuments from './EquipmentQrDocuments';
 import EquipmentFormsEditor from './EquipmentFormsEditor';
 import EquipmentQrImage from './EquipmentQrImage';
 import { equipmentQrDownloadImage } from '../utils/equipmentQrDownload';
 
-export default function MachineryEquipmentDetailModal({ user, canEditForms=false, canReadChecklists=false, canDownloadChecklists=false, companyBranding, equipment, usage = [], failures = [], maintenance = [], scopeLabel = '', company, workName, canDownload = false, canConfigureDocuments = false, onClose, onUsage, onFailure, onMaintenance }) {
+export default function MachineryEquipmentDetailModal({ user, canEditForms=false, canConfigureMeter=false, onMeterSaved, canReadChecklists=false, canDownloadChecklists=false, companyBranding, equipment, usage = [], failures = [], maintenance = [], scopeLabel = '', company, workName, canDownload = false, canConfigureDocuments = false, onClose, onUsage, onFailure, onMaintenance }) {
   const [tab, setTab] = useState('historial');
   const [panel, setPanel] = useState('');
   const [qrMessage, setQrMessage] = useState('');
@@ -47,8 +48,10 @@ export default function MachineryEquipmentDetailModal({ user, canEditForms=false
           {onUsage && <Action icon={Gauge} label="Registrar uso" onClick={onUsage} color="bg-emerald-700" />}
           {onFailure && <Action icon={AlertTriangle} label="Reportar falla" onClick={onFailure} color="bg-rose-700" />}
           {onMaintenance && <Action icon={Wrench} label="Registrar mantención" onClick={onMaintenance} color="bg-indigo-700" />}
+          {canConfigureMeter && <Action icon={Gauge} label="Configurar horómetro" onClick={() => setPanel('meter')} color="bg-blue-900" />}
         </div>
-        {panel && <section className="space-y-3" aria-label={panel === 'qr' ? 'Código QR del equipo' : 'Documentos del equipo'}>
+        {panel === 'meter' && <EquipmentStartMeter key={equipment.id} equipment={equipment} onClose={()=>setPanel('')} onSaved={onMeterSaved}/>}
+        {panel && panel !== 'meter' && <section className="space-y-3" aria-label={panel === 'qr' ? 'Código QR del equipo' : 'Documentos del equipo'}>
           <button onClick={() => setPanel('')} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold">Volver al historial</button>
           {panel === 'documentos' ? <EquipmentQrDocuments key={equipment.id} equipmentId={equipment.id} canConfigure={canConfigureDocuments}/> : <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 text-center">
             <h4 className="font-bold">Código QR · {equipment.patente}</h4>

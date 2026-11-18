@@ -1,0 +1,43 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {PGlite} from '@electric-sql/pglite';
+test('starting meter: permission, stale value, first report lock and no cost/history changes',async()=>{
+ const db=new PGlite();try{
+ await db.exec(`create schema private;create schema auth;create role anon;create role authenticated;
+ create function auth.uid() returns uuid language sql as $$select nullif(current_setting('test.uid',true),'')::uuid$$;
+ create function private.obraxis_permission(text,text) returns boolean language sql as $$select $1='TEST' and coalesce(current_setting('test.allowed',true),'')='yes'$$;
+ create function private.obraxis_actor_can_access_company(text) returns boolean language sql as $$select $1='TEST'$$;
+ create table inventario_maquinaria(id int primary key,empresa text,horometro_inicial numeric,obra_nombre text,costo_interno numeric,unidad_costo_interno text,fecha_asig date,fecha_cambio_asignacion date,tipo text,patente text);
+ create table maquinaria_uso_diario(id int,equipo_id text,empresa text,horometro_inicial numeric,horometro_final numeric);
+ create table maquinaria_periodos_costo(id serial,empresa text,equipo_id int,obra_id bigint,desde date,hasta date,asignacion_id bigint,tarifa numeric,equipo_tipo text,equipo_patente text);
+ create table obras(id bigint,empresa text,nombre text);
+ insert into inventario_maquinaria values(1,'TEST',0,'Obra A',500,'$/día','2026-01-01',null,'Excavadora','TEST-01'),(2,'OTHER',10,null,null,null,null,null,null,null);
+ insert into maquinaria_periodos_costo(empresa,equipo_id,obra_id,desde,tarifa) values('TEST',1,1,'2026-01-01',500);
+ insert into obras values(1,'TEST','Obra A');`);
+ await db.exec(readFileSync(new URL('./fixtures/equipment-cost-trigger.sql',import.meta.url),'utf8'));
+ await db.exec(`create trigger historial_maquinaria_costo after update on inventario_maquinaria for each row execute function private.historial_maquinaria_costo();`);
+ await db.exec(readFileSync(new URL('../../supabase/migrations/20261118151855_equipment_start_meter.sql',import.meta.url),'utf8'));
+ const call=(value='null',previous='null',id=1)=>db.query(`select public.equipment_start_meter(${id},${value},${previous}) as result`);
+ await assert.rejects(call('1250','0'),/Sesión requerida/);
+ await db.exec(`set test.uid='00000000-0000-0000-0000-000000000001';`);
+ await assert.rejects(call('1250','0'),/Sin permiso/);
+ await db.exec(`set test.allowed='yes';`);
+ await assert.rejects(call('1250','10',2),/Sin permiso/);
+ const before=await db.query('select * from maquinaria_periodos_costo');
+ assert.equal((await call()).rows[0].result.puede_configurar,true);
+ for(const invalid of ['-1',"'NaN'","'Infinity'",'1000000000'])await assert.rejects(call(invalid,'0'),/válido/);
+ await call('1250.5','0');
+ assert.equal((await call()).rows[0].result.lectura,1250.5);
+ assert.deepEqual(await db.query('select * from maquinaria_periodos_costo'),before);
+ assert.equal((await db.query('select count(*)::int n from maquinaria_uso_diario')).rows[0].n,0);
+ await assert.rejects(call('1500','0'),/lectura cambió/);
+ await db.exec(`insert into maquinaria_uso_diario select 1,id::text,empresa,horometro_inicial,horometro_inicial+2 from inventario_maquinaria where id=1;`);
+ const history=await db.query('select * from maquinaria_uso_diario');
+ assert.equal(history.rows[0].horometro_inicial,'1250.5');
+ await assert.rejects(call('1500','1250.5'),/ya tiene reportes/);
+ assert.equal((await call()).rows[0].result.puede_configurar,false);
+ assert.deepEqual(await db.query('select * from maquinaria_uso_diario'),history);
+ assert.equal((await db.query("select has_function_privilege('anon','public.equipment_start_meter(integer,numeric,numeric)','execute') allowed")).rows[0].allowed,false);
+ }finally{await db.close();}
+});

@@ -417,7 +417,7 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
       patente: formData.patente.toUpperCase().trim(),
       marca: formData.marca.trim(),
       ...equipmentLocationFields(editingEquip, formData),
-      horometro_inicial: parseFloat(formData.horometro_inicial) || 0,
+      ...(!editingEquip ? {horometro_inicial: parseFloat(formData.horometro_inicial) || 0} : {}),
       planes_mantencion: formData.planes_mantencion || [],
       costo_interno: parseFloat(formData.costo_interno) || 0,
       unidad_costo_interno: formData.unidad_costo_interno || '$/día',
@@ -2688,13 +2688,17 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Horómetro Inicial (hrs)</label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">Horómetro actual</label>
                   <input
                     type="number"
                     value={formData.horometro_inicial}
+                    readOnly={!!editingEquip}
+                    min="0"
+                    step="any"
                     onChange={(e) => setFormData(prev => ({ ...prev, horometro_inicial: e.target.value }))}
                     className="w-full border border-slate-200 rounded-xl p-2.5 font-bold text-slate-800"
                   />
+                  {editingEquip && <p className="mt-2 text-xs text-slate-500">Para fijar la lectura antes del primer reporte, abre la ficha del equipo y pulsa Configurar horómetro.</p>}
                 </div>
 
                 <div>
@@ -2804,6 +2808,8 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
       )}
 
       {viewingEquip && <MachineryEquipmentDetailModal user={user} canEditForms={!permissionsLoading && can(user,permissions,'formularios.formularios.editar')} onChanged={fetchData}
+        canConfigureMeter={!permissionsLoading && canEdit}
+        onMeterSaved={reading=>{setViewingEquip(current=>current&&String(current.id)===String(viewingEquip.id)?{...current,horometro_inicial:reading}:current);setMaquinaria(current=>current.map(item=>String(item.id)===String(viewingEquip.id)?{...item,horometro_inicial:reading}:item));}}
         canConfigureDocuments={!permissionsLoading && canConfigure}
         canReadChecklists={!permissionsLoading && can(user,permissions,'formularios.formularios.ver')}
         canDownloadChecklists={!permissionsLoading && can(user,permissions,'formularios.formularios.descargar')}
