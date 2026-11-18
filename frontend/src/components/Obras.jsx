@@ -244,21 +244,22 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const loadMachineryCharges=async obra=>{
     const request=++machineryLoadId.current;
     const all=async factory=>{let data=[];for(let from=0;from<100000;from+=1000){const page=await factory().range(from,from+999);if(page.error)return page;data.push(...page.data);if(page.data.length<1000)return {data};}return {error:new Error('Demasiados registros para consolidar sin paginación adicional')};};
-    const [reports,periods,decisions,work,allocations,chargePeriods]=await Promise.all([
-      all(()=>supabase.from('maquinaria_uso_diario').select('id,empresa,equipo_id,fecha,obra_nombre,obra_cargo_diario,cargo_obra_id,tarifa_diaria_aplicada,cargo_decidido_at,equipo_tipo,equipo_patente,created_at').eq('empresa',user.empresa).order('id')),
+    const [reports,periods,decisions,work,allocations,chargePeriods,ufValues]=await Promise.all([
+      all(()=>supabase.from('maquinaria_uso_diario').select('id,empresa,equipo_id,fecha,obra_nombre,obra_cargo_diario,cargo_obra_id,tarifa_diaria_aplicada,tarifa_uf,cargo_decidido_at,equipo_tipo,equipo_patente,created_at').eq('empresa',user.empresa).order('id')),
       all(()=>supabase.from('maquinaria_periodos_costo').select('*').eq('empresa',user.empresa).order('id')),
       all(()=>supabase.from('maquinaria_decisiones_costo').select('*').eq('empresa',user.empresa).order('fecha').order('equipo_id')),
       supabase.from('obras').select('id').eq('empresa',user.empresa).eq('nombre',obra).single(),
       all(()=>supabase.from('maquinaria_partidas_decisiones').select('*').eq('empresa',user.empresa).order('obra_id').order('fecha').order('equipo_id')),
-      all(()=>supabase.from('obra_periodo_cargos').select('*').eq('empresa',user.empresa).order('obra_id'))
+      all(()=>supabase.from('obra_periodo_cargos').select('*').eq('empresa',user.empresa).order('obra_id')),
+      all(()=>supabase.from('maquinaria_uf_valores').select('fecha,valor').order('fecha'))
     ]);
     if(request!==machineryLoadId.current)return;
-    if(reports.error||periods.error||decisions.error||work.error||allocations.error||chargePeriods.error){setMachineryCharges([]);setMachineryPeriods([]);setMachineryDecisions([]);setMachineryChargeError('No se pudieron cargar todos los cargos de maquinaria. El costo de control está incompleto.');return;}
+    if(reports.error||periods.error||decisions.error||work.error||allocations.error||chargePeriods.error||ufValues.error){setMachineryCharges([]);setMachineryPeriods([]);setMachineryDecisions([]);setMachineryChargeError('No se pudieron cargar todos los cargos de maquinaria. El costo de control está incompleto.');return;}
     const today=new Date().toLocaleDateString('en-CA',{timeZone:'America/Santiago'});
     const end=`${Number(today.slice(0,4))+3}-12-31`;
     setMachineryPeriods(periods.data||[]);
     setMachineryDecisions(decisions.data||[]);
-    const days=machineryCostControl({periods:periods.data,reports:reports.data,decisions:decisions.data,holidays:CHILEAN_HOLIDAYS,end,cutoff:today,obraId:work.data.id,obraName:obra,chargePeriod:chargePeriods.data.find(p=>String(p.obra_id)===String(work.data.id))||{}});
+    const days=machineryCostControl({periods:periods.data,reports:reports.data,decisions:decisions.data,ufValues:ufValues.data,holidays:CHILEAN_HOLIDAYS,end,cutoff:today,obraId:work.data.id,obraName:obra,chargePeriod:chargePeriods.data.find(p=>String(p.obra_id)===String(work.data.id))||{}});
     setSharedEquipmentDays(days.filter(d=>d.pendiente_obra&&d.fecha<=today));setMachineryCharges(applyMachineryAllocations(days.filter(d=>!d.pendiente_obra),allocations.data.filter(d=>String(d.obra_id)===String(work.data.id))));
     setMachineryChargeError('');
   };
@@ -2968,7 +2969,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     <div className="space-y-4">
       {machineryCharge.dialog}
       {selectedObra&&machineryChargeError&&<p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{machineryChargeError}</p>}
-      {selectedObra&&machineryCharges.some(c=>c.monto==null)&&<p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Hay reportes de maquinaria sin tarifa diaria válida: no se han sumado al costo real. Revisa la tarifa del equipo.</p>}
+      {selectedObra&&machineryCharges.some(c=>c.monto==null)&&<p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Hay cargos de maquinaria pendientes de valoración: falta tarifa, horas o la UF exacta de su fecha. No se suman como cero ni se sustituyen por la UF de hoy; los totales solo incluyen cargos valorados. Los días futuros en UF se valorarán cuando exista su cotización.</p>}
       
       {!selectedObra ? (
         // ================= VISTA DE LISTADO DE OBRAS =================
@@ -4303,7 +4304,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                 <td className="p-3 font-bold text-slate-800">{Number(m.horometro_inicial || 0).toLocaleString('es-CL')} {lecturaUnidad}</td>
                                 <td className="p-3 font-extrabold text-amber-900 bg-amber-50/50">
                                   {costoNum > 0 ? (
-                                    `$${costoNum.toLocaleString('es-CL')} ${unidadStr}`
+                                    `${unidadStr.startsWith('UF/')?'UF ':'$'}${costoNum.toLocaleString('es-CL',{maximumFractionDigits:6})} / ${unidadStr.split('/')[1]}`
                                   ) : (
                                     <span className="text-slate-400 font-normal italic">Sin tarifa asignada</span>
                                   )}
@@ -7151,6 +7152,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 ];
 
                 const totalMaquinariaProyectado = combinedEquipFleet.reduce((acc, m) => {
+                  if(String(m.unidad_costo_interno||'').startsWith('UF/'))return acc+machineryCharges.filter(r=>String(r.equipo_id)===String(m.id)&&r.fecha<=fCorteStr).reduce((sum,r)=>sum+(Number(r.monto)||0),0);
                   const tarifaBase = parseFloat(m.costo_mensual || m.valor_arriendo_mensual || m.costo_arriendo || m.costo_interno || m.costo) || 1500000;
                   const unidad = m.unidad_costo_interno || m.unidad_costo || m.unidad_tarifa || '$/mes';
                   const tipoMin = m.tipo_condicion_minima || m.tipo_minimo || 'sin_minimo';
@@ -8440,6 +8442,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         const isPosteriorACorte = rawAsigDate && fCorteStr && rawAsigDate > fCorteStr;
                         const costoProyectadoAlCorte = diasOperativosCorte * valorDia;
 
+                        if(unidad.startsWith('UF/'))return {...m,tarifaBase,unidad,labelTarifa,labelMinimo,modDias,valorDia:null,rawAsigDate,formattedAsig,diasOperativosCorte,isPosteriorACorte,costoProyectadoAlCorte:machineryCharges.filter(r=>String(r.equipo_id)===String(m.id)&&r.fecha<=fCorteStr).reduce((sum,r)=>sum+(Number(r.monto)||0),0)};
+
                         return {
                           ...m,
                           tarifaBase,
@@ -8537,7 +8541,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                       <div className="space-y-1 text-[11px]">
                                         <div className="flex justify-between items-center">
                                           <span className="text-slate-500 font-semibold">Tarifa Base / Unidad:</span>
-                                          <span className="font-mono font-bold text-slate-800">${m.tarifaBase.toLocaleString('es-CL')} <span className="text-[9px] bg-slate-200 px-1 py-0.5 rounded">{m.unidad}</span></span>
+                                          <span className="font-mono font-bold text-slate-800">{m.unidad.startsWith('UF/')?'UF ':'$'}{m.tarifaBase.toLocaleString('es-CL',{maximumFractionDigits:6})} <span className="text-[9px] bg-slate-200 px-1 py-0.5 rounded">{m.unidad}</span></span>
                                         </div>
                                         <div className="flex justify-between items-center text-slate-600">
                                           <span className="font-semibold">Modalidad Días:</span>
@@ -8551,12 +8555,12 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                         </div>
                                         <div className="flex justify-between items-center text-slate-600">
                                           <span className="font-semibold">Valor Día Proyectado:</span>
-                                          <span className="font-mono font-bold text-amber-900">${m.valorDia.toLocaleString('es-CL')}/día</span>
+                                          <span className="font-mono font-bold text-amber-900">{m.valorDia==null?'Según UF de cada fecha':`$${m.valorDia.toLocaleString('es-CL')}/día`}</span>
                                         </div>
                                       </div>
 
                                       <div className="flex justify-between items-center pt-2 border-t border-slate-200 text-xs bg-amber-50 p-2 rounded-lg">
-                                        <span className="font-extrabold text-amber-950">Costo Proyectado ({m.diasOperativosCorte} días):</span>
+                                        <span className="font-extrabold text-amber-950">{m.unidad.startsWith('UF/')?'Cargos con UF disponible al corte':`Costo Proyectado (${m.diasOperativosCorte} días)`}:</span>
                                         <span className="font-mono font-black text-amber-900 text-sm">${m.costoProyectadoAlCorte.toLocaleString('es-CL')}</span>
                                       </div>
                                     </div>

@@ -1,4 +1,5 @@
 import EnexFuel from './EnexFuel';
+import {isUfTariff, parseUfInput, ufCost} from '../utils/equipmentUf';
 import { equipmentLocationFields } from '../utils/equipmentLocation.mjs';
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
@@ -95,6 +96,7 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
   const [inventoryView,setInventoryView]=useState('list');
   const [activeSection, setActiveSection] = useState(''); // '', 'inventario', 'asignaciones', 'uso', 'reservas', 'arriendos'
   const [maquinaria, setMaquinaria] = useState([]);
+  const [ufValues,setUfValues]=useState([]);
   const [obras, setObras] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -262,6 +264,9 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
       });
 
       setMaquinaria(mergedData);
+      const quotes=[];
+      for(let offset=0;;offset+=1000){const result=await supabase.from('maquinaria_uf_valores').select('fecha,valor').order('fecha').range(offset,offset+999);if(result.error)break;quotes.push(...result.data);if(result.data.length<1000)break;}
+      setUfValues(quotes);
 
       const { data: dataObras, error: errObras } = await supabase
         .from('obras')
@@ -409,6 +414,7 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
     e.preventDefault();
     if (editingEquip ? !canEdit : !canCreate) { setErrorMsg('Tu perfil no está autorizado para guardar equipos.'); return; }
     if(formData.tipo_activo==='Arrendado'&&!formData.proveedor_nombre?.trim()){setErrorMsg('Indica el nombre del proveedor del equipo arrendado.');return;}
+    if(isUfTariff(formData)&&(!Number.isFinite(Number(formData.costo_interno))||Number(formData.costo_interno)<0)){setErrorMsg('Indica una tarifa válida en UF.');return;}
     setModalLoading(true);
     setSuccessMsg('');
     setErrorMsg('');
@@ -890,6 +896,12 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
   const utilizationRate = Math.min(100, (totalHours / utilizationCapacity) * 100);
   const operatingCost = filteredStatsEquipment.reduce((sum, equipment) => {
     const equipmentLogs = statsUso.filter(log => String(log.equipo_id) === String(equipment.id));
+    if(isUfTariff(equipment)||equipmentLogs.some(log=>log.tarifa_uf)) {
+      const latest=new Map();
+      for(const log of [...equipmentLogs].sort((a,b)=>String(a.cargo_decidido_at||a.created_at).localeCompare(String(b.cargo_decidido_at||b.created_at))))latest.set(log.fecha,log);
+      const values=new Map(ufValues.map(r=>[r.fecha,r]));
+      return sum+[...latest.values()].reduce((total,log)=>total+(Number(log.tarifa_diaria_aplicada??ufCost(log.tarifa_uf,log.fecha,values,log.tarifa_uf?.horas))||0),0);
+    }
     const hours = equipmentLogs.reduce((acc, log) => acc + (Number(log.horas_trabajadas) || Math.max(0, Number(log.horometro_final) - Number(log.horometro_inicial))), 0);
     const days = new Set(equipmentLogs.map(log => log.fecha || String(log.created_at || '').slice(0, 10))).size;
     const rate = Number(equipment.costo_interno) || 0;
@@ -1205,6 +1217,7 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            {statsUso.some(log=>log.tarifa_uf&&log.tarifa_diaria_aplicada==null&&!ufValues.some(q=>q.fecha===log.fecha))&&<p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950 xl:col-span-2">Costo parcial: hay reportes en UF pendientes de la cotización exacta de su fecha. No se han incluido en los totales.</p>}
             <div className="rounded-3xl border border-slate-200 bg-white p-5"><div className="flex items-start justify-between gap-3"><div><h4 className="text-xs font-black uppercase text-slate-900">Plan preventivo</h4><p className="mt-1 text-[10px] text-slate-500">Próximas mantenciones calculadas desde el plan y la última lectura disponible.</p></div><span className={`rounded-lg px-2 py-1 text-[10px] font-black ${urgentMaintenance.length ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800'}`}>{urgentMaintenance.length} requieren atención</span></div><div className="mt-4 space-y-2">{maintenanceForecast.length ? maintenanceForecast.slice(0, 10).map((item, index) => <div key={`${item.equipment.id}-${item.plan.id || index}`} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 p-3"><div><p className="text-xs font-bold text-slate-800">{item.equipment.patente} · {item.plan.nombre}</p><p className="mt-0.5 text-[10px] text-slate-500">Próxima referencia: {item.dueLabel}</p></div><span className={`rounded-lg px-2 py-1 text-[10px] font-black ${item.status === 'Vencida' ? 'bg-rose-100 text-rose-800' : item.status === 'Próxima' ? 'bg-amber-100 text-amber-900' : 'bg-blue-50 text-blue-700'}`}>{item.status}</span></div>) : <p className="rounded-xl bg-slate-50 p-4 text-center text-xs text-slate-500">No hay planes de mantención configurados para este alcance.</p>}</div></div>
             <div className="rounded-3xl border border-slate-200 bg-white p-5"><div className="flex items-start justify-between gap-3"><div><h4 className="text-xs font-black uppercase text-slate-900">Control de lecturas</h4><p className="mt-1 text-[10px] text-slate-500">Discontinuidades y variaciones atípicas detectadas en los registros.</p></div><span className={`rounded-lg px-2 py-1 text-[10px] font-black ${readingAnomalies.length ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'}`}>{readingAnomalies.length} alertas</span></div><div className="mt-4 space-y-2">{readingAnomalies.length ? readingAnomalies.slice(0, 10).map((item, index) => <div key={`${item.equipment.id}-${item.log.id || index}`} className="rounded-xl border border-rose-100 bg-rose-50/60 p-3"><p className="text-xs font-bold text-slate-800">{item.equipment.patente} · {item.log.fecha || 'Sin fecha'}</p>{item.reasons.map(reason => <p key={reason} className="mt-1 text-[10px] text-rose-800">• {reason}</p>)}</div>) : <p className="rounded-xl bg-emerald-50 p-4 text-center text-xs font-semibold text-emerald-800">Las lecturas del alcance mantienen continuidad.</p>}</div></div>
           </div>
@@ -2725,14 +2738,18 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
                 <span className="text-[10.5px] font-extrabold text-amber-950 uppercase tracking-wider block flex items-center gap-1.5">
                   {formData.tipo_activo==='Arrendado'?'💲 Valor de arriendo a cargo de la obra':'💲 Costo interno de operación en obra'}
                 </span>
+                <div className="flex gap-2" role="group" aria-label="Moneda de la tarifa">
+                  {['CLP','UF'].map(currency=><button key={currency} type="button" aria-pressed={isUfTariff(formData)===(currency==='UF')} onClick={()=>setFormData(prev=>({...prev,unidad_costo_interno:(currency==='UF'?'UF':'$')+'/'+(prev.unidad_costo_interno||'$/día').split('/')[1]}))} className={`rounded-xl border px-4 py-2 text-xs font-bold ${isUfTariff(formData)===(currency==='UF')?'bg-blue-900 border-blue-900 text-white':'bg-white border-amber-300 text-slate-700'}`}>{currency==='CLP'?'Pesos (CLP)':'UF'}</button>)}
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[9.5px] font-bold uppercase text-amber-900 mb-1">{formData.tipo_activo==='Arrendado'?'Tarifa de arriendo ($)':'Tarifa interna ($)'}</label>
+                    <label htmlFor="equipment-tariff" className="block text-[9.5px] font-bold uppercase text-amber-900 mb-1">{formData.tipo_activo==='Arrendado'?'Tarifa de arriendo':'Tarifa interna'} ({isUfTariff(formData)?'UF':'$'})</label>
                     <input
+                      id="equipment-tariff" inputMode="decimal"
                       type="text"
-                      placeholder="ej: 50.000"
-                      value={formatNumberWithDots(formData.costo_interno)}
-                      onChange={(e) => setFormData(prev => ({ ...prev, costo_interno: parseNumberFromDots(e.target.value) }))}
+                      placeholder={isUfTariff(formData)?'ej: 1,25':'ej: 50.000'}
+                      value={isUfTariff(formData)?String(formData.costo_interno).replace('.',','):formatNumberWithDots(formData.costo_interno)}
+                      onChange={(e) => {const value=isUfTariff(formData)?parseUfInput(e.target.value):parseNumberFromDots(e.target.value);if(value!==null)setFormData(prev => ({ ...prev, costo_interno:value }));}}
                       className="w-full border border-amber-300 rounded-xl p-2.5 font-bold text-slate-900 bg-white text-xs font-mono"
                     />
                   </div>
@@ -2743,13 +2760,14 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
                       onChange={(e) => setFormData(prev => ({ ...prev, unidad_costo_interno: e.target.value }))}
                       className="w-full border border-amber-300 rounded-xl p-2.5 font-bold text-slate-900 bg-white text-xs"
                     >
-                      <option value="$/día">$/día (por día de obra)</option>
-                      <option value="$/hr">$/hr (por hora horómetro)</option>
-                      <option value="$/mes">$/mes (tarifa mensual)</option>
+                      <option value={`${isUfTariff(formData)?'UF':'$'}/día`}>{isUfTariff(formData)?'UF':'$'}/día (por día de obra)</option>
+                      <option value={`${isUfTariff(formData)?'UF':'$'}/hr`}>{isUfTariff(formData)?'UF':'$'}/hr (por hora horómetro)</option>
+                      <option value={`${isUfTariff(formData)?'UF':'$'}/mes`}>{isUfTariff(formData)?'UF':'$'}/mes (tarifa mensual)</option>
                     </select>
                   </div>
                 </div>
 
+                {isUfTariff(formData)&&<p className="text-xs text-amber-950">Se convierte a pesos con la UF de la fecha de cada cargo. Sin UF publicada, queda pendiente de valoración. La tarifa mensual se distribuye en 30 días (o los días mínimos contratados); por hora se utiliza el horómetro y el mínimo diario, o el mínimo mensual dividido en 30. Cambiar la moneda no convierte automáticamente el número ingresado.</p>}
                 <div className="grid grid-cols-2 gap-3 pt-2 border-t border-amber-200">
                   <div>
                     <label className="block text-[9.5px] font-bold uppercase text-amber-900 mb-1">Condición Mínima Garantizada</label>

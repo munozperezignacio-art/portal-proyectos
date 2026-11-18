@@ -1,3 +1,4 @@
+import {ufCost} from './equipmentUf.js';
 export const costDate=c=>String(c.fecha_costo||c.fecha||c.created_at||'').slice(0,10);
 export const costState=(c,cutoff)=>costDate(c)>cutoff?'proyectado':['pendiente','proyectado'].includes(c.estado_costo)?'pendiente':'confirmado';
 export const costStateLabel={confirmado:'Confirmado',pendiente:'Incurrido · pendiente de confirmar',proyectado:'Futuro proyectado'};
@@ -24,7 +25,9 @@ export function pendingMachineryAllocations(rows, cutoff) {
  }).filter(r=>r.monto_sin_imputar==null||r.monto_sin_imputar>0.01);
 }
 export const outsideChargePeriod=(date,period={})=>Boolean((period?.desde&&date<period.desde)||(period?.hasta&&date>period.hasta));
-export function machineryCostControl({periods=[],reports=[],decisions=[],holidays=[],end,cutoff,obraId,obraName,chargePeriod={}}) {
+export function machineryCostControl({periods=[],reports=[],decisions=[],holidays=[],end,cutoff,obraId,obraName,chargePeriod={},ufValues=[]}) {
+ const uf=new Map(ufValues.map(r=>[r.fecha,r]));
+ const amount=(p,date,hours=null)=>p?.tarifa_uf?ufCost(p.tarifa_uf,date,uf,hours):p?.tarifa??null;
  const result=new Map(),holidaySet=new Set(holidays),candidates=new Map(),reported=new Map();
  const key=(id,date)=>`${id}:${date}`;
  const working=date=>![0,6].includes(new Date(`${date}T12:00:00Z`).getUTCDay())&&!holidaySet.has(date);
@@ -36,9 +39,9 @@ export function machineryCostControl({periods=[],reports=[],decisions=[],holiday
      const date=new Date(time).toISOString().slice(0,10);
      if(stop&&date>=stop)break;
      if(outsideChargePeriod(date,chargePeriod)&&!decisions.some(d=>String(d.equipo_id)===String(p.equipo_id)&&d.fecha===date&&d.tipo==='confirmar'))continue;
-     if(!working(date))continue;
+     if(p.tarifa_uf?.modalidad!=='calendario'&&!working(date))continue;
      const k=key(p.equipo_id,date);if(!candidates.has(k))candidates.set(k,new Map());candidates.get(k).set(String(p.obra_id),p);
-     result.set(key(p.equipo_id,date),{...p,periodo_id:p.id,equipo_id:String(p.equipo_id),fecha:date,monto:p.tarifa,estado_costo:'pendiente',origen_costo:'Asignación vigente',reporte_id:key(p.equipo_id,date)});
+     result.set(key(p.equipo_id,date),{...p,periodo_id:p.id,equipo_id:String(p.equipo_id),fecha:date,monto:amount(p,date),estado_costo:'pendiente',origen_costo:'Asignación vigente',reporte_id:key(p.equipo_id,date)});
    }
  }
  // Resolve company-wide reports before filtering a work: a report in another
@@ -46,7 +49,7 @@ export function machineryCostControl({periods=[],reports=[],decisions=[],holiday
  for(const r of [...reports].sort((a,b)=>String(a.cargo_decidido_at||a.created_at||'').localeCompare(String(b.cargo_decidido_at||b.created_at||''))||Number(a.id||0)-Number(b.id||0)))if(r.fecha<=end){
    const k=key(r.equipo_id,r.fecha);if(!reported.has(k))reported.set(k,new Set());reported.get(k).add(r.obra_cargo_diario||r.obra_nombre||String(r.cargo_obra_id));
    const p=periods.find(p=>String(p.equipo_id)===String(r.equipo_id)&&p.desde<=r.fecha&&(!p.hasta||r.fecha<p.hasta)&&(!r.cargo_obra_id||String(p.obra_id)===String(r.cargo_obra_id)));
-   result.set(key(r.equipo_id,r.fecha),{...r,obra_id:r.cargo_obra_id||null,obra_nombre:r.obra_cargo_diario||r.obra_nombre,monto:r.tarifa_diaria_aplicada??r.monto??p?.tarifa??null,estado_costo:'pendiente',origen_costo:'Reporte de uso'});
+   result.set(key(r.equipo_id,r.fecha),{...r,obra_id:r.cargo_obra_id||null,obra_nombre:r.obra_cargo_diario||r.obra_nombre,monto:r.tarifa_diaria_aplicada??r.monto??(r.tarifa_uf?ufCost(r.tarifa_uf,r.fecha,uf,r.tarifa_uf.horas):amount(p,r.fecha)),estado_costo:'pendiente',origen_costo:'Reporte de uso'});
  }
  const confirmed=new Map(decisions.filter(d=>d.tipo==='confirmar').map(d=>[key(d.equipo_id,d.fecha),d]));
  for(const [k,choices] of candidates){
@@ -55,7 +58,7 @@ export function machineryCostControl({periods=[],reports=[],decisions=[],holiday
    if(d){const winner=choices.get(String(d.obra_id));if(winner)result.set(k,{...winner,fecha:d.fecha,periodo_id:winner.id,monto:d.monto,origen_costo:'Confirmación de obra'});continue;}
    if(reported.get(k)?.size===1)continue;
    if(!here){result.delete(k);continue;}
-   result.set(k,{...here,periodo_id:here.id,fecha:k.split(':')[1],monto:0,monto_candidato:here.tarifa,pendiente_obra:true,origen_costo:'Pendiente de elegir obra'});
+   result.set(k,{...here,periodo_id:here.id,fecha:k.split(':')[1],monto:0,monto_candidato:amount(here,k.split(':')[1]),pendiente_obra:true,origen_costo:'Pendiente de elegir obra'});
  }
  for(const d of decisions){
    const k=key(d.equipo_id,d.fecha),row=result.get(k);

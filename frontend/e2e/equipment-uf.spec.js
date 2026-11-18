@@ -1,0 +1,20 @@
+import {test,expect} from '@playwright/test';
+test('UF rate can be saved and reopened without changing equipment location',async({page})=>{
+ await page.goto('/e2e/fixtures/equipment-inventory.html');
+ await page.getByText('Ver Inventario',{exact:true}).click();
+ const edit=async()=>{await page.getByRole('button',{name:'Acciones EXC-01',exact:true}).filter({visible:true}).click();await page.getByRole('button',{name:'Editar equipo',exact:true}).click();};
+ await edit();
+ await page.getByRole('button',{name:'UF',exact:true}).click();
+ await page.getByLabel('Tarifa interna (UF)',{exact:true}).fill('1,2345');
+ await expect(page.getByRole('group',{name:'Moneda de la tarifa'})).toBeVisible();
+ await page.screenshot({path:`tests/artifacts/equipment-uf-${test.info().project.name}.png`,fullPage:true});
+ await page.getByRole('button',{name:'Guardar Equipo',exact:true}).click();
+ await expect.poll(()=>page.evaluate(()=>window.savedEquipment.length)).toBe(1);
+ const data=await page.evaluate(()=>window.savedEquipment[0]);
+ expect(data.costo_interno).toBe(1.2345);expect(data.unidad_costo_interno).toBe('UF/día');
+ expect(data.obra_nombre===undefined||data.obra_nombre==='Edificio Lonco').toBe(true);
+ await edit();
+ await expect(page.getByLabel('Tarifa interna (UF)',{exact:true})).toHaveValue('1,2345');
+ await expect(page.getByRole('button',{name:'UF',exact:true})).toHaveAttribute('aria-pressed','true');
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});

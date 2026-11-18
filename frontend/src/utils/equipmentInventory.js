@@ -24,6 +24,7 @@ export function inventoryRows(equipment,{search='',category='',work='',state='',
 }
 export function inventoryTariff(item){
   if(item.costo_interno==null||item.costo_interno===''||!Number.isFinite(Number(item.costo_interno))||Number(item.costo_interno)<0)return 'Sin tarifa';
-  const unit=String(item.unidad_costo_interno||'$/día').replace(/^\$\s*\/?/,'');
-  return `$${Number(item.costo_interno).toLocaleString('es-CL')} / ${unit}`;
+  const uf=String(item.unidad_costo_interno||'').startsWith('UF/');
+  const unit=String(item.unidad_costo_interno||'$/día').replace(/^(\$|UF)\s*\/?/,'');
+  return `${uf?'UF ':'$'}${Number(item.costo_interno).toLocaleString('es-CL',{maximumFractionDigits:6})} / ${unit}`;
 }
