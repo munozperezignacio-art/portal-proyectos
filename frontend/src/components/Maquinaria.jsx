@@ -122,6 +122,7 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
     horometro_inicial: '0',
     planes_mantencion: [],
     tipo_activo: 'Propio',
+    proveedor_nombre: '',
     estado_equipo: 'Operativo',
     foto_frontal: '',
     foto_izquierda: '',
@@ -340,6 +341,7 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
       cantidad_minima: '',
       modalidad_dias: 'laborales',
       tipo_activo: 'Propio',
+      proveedor_nombre: '',
       estado_equipo: 'Operativo',
       foto_frontal: '',
       foto_izquierda: '',
@@ -370,6 +372,7 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
       cantidad_minima: equip.cantidad_minima ? equip.cantidad_minima.toString() : '',
       modalidad_dias: equip.modalidad_dias || 'laborales',
       tipo_activo: equip.tipo_activo || 'Propio',
+      proveedor_nombre: equip.proveedor_nombre || '',
       estado_equipo: equip.estado_equipo || 'Operativo',
       foto_frontal: equip.foto_frontal || '',
       foto_izquierda: equip.foto_izquierda || '',
@@ -406,6 +409,7 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
   const handleSubmitEquip = async (e) => {
     e.preventDefault();
     if (editingEquip ? !canEdit : !canCreate) { setErrorMsg('Tu perfil no está autorizado para guardar equipos.'); return; }
+    if(formData.tipo_activo==='Arrendado'&&!formData.proveedor_nombre?.trim()){setErrorMsg('Indica el nombre del proveedor del equipo arrendado.');return;}
     setModalLoading(true);
     setSuccessMsg('');
     setErrorMsg('');
@@ -425,6 +429,7 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
       cantidad_minima: parseFloat(formData.cantidad_minima) || 0,
       modalidad_dias: formData.modalidad_dias || 'laborales',
       tipo_activo: formData.tipo_activo,
+      proveedor_nombre: formData.tipo_activo==='Arrendado'?formData.proveedor_nombre.trim():null,
       estado_equipo: formData.estado_equipo,
       foto_frontal: formData.foto_frontal || null,
       foto_izquierda: formData.foto_izquierda || null,
@@ -454,6 +459,7 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
 
         lastError = res.error;
         const msg = res.error.message || "";
+        if(res.error.code==='P0001'||/proveedor_nombre/i.test(msg))break;
 
         const match = msg.match(/Could not find the '([^']+)' column/i) || msg.match(/column "([^"]+)"/i);
         if (match && match[1] && payload[match[1]] !== undefined) {
@@ -2675,6 +2681,7 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
                 </div>
               </div>
 
+              {formData.tipo_activo==='Arrendado'&&<label className="block rounded-2xl border border-blue-200 bg-blue-50/50 p-3 text-xs font-bold text-slate-700">Proveedor del equipo *<input required maxLength={200} value={formData.proveedor_nombre||''} onChange={e=>setFormData(prev=>({...prev,proveedor_nombre:e.target.value}))} placeholder="Nombre o razón social del proveedor" className="mt-2 block w-full rounded-xl border border-slate-300 bg-white p-3 text-slate-900 focus:border-blue-700 focus:outline-none"/><span className="mt-2 block text-xs font-normal text-slate-500">La tarifa de arriendo indicada abajo se utiliza como costo del equipo en la obra asignada, según la unidad y condiciones de cobro.</span></label>}
               <div className="rounded-2xl border border-purple-200 bg-purple-50/70 p-3 flex items-center justify-between gap-4">
                 <div>
                   <label className="block text-[10px] font-black uppercase text-purple-950">Color en calendario de reservas</label>
@@ -2718,11 +2725,11 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
               {/* CAMPO DESTACADO DE COSTO INTERNO */}
               <div className="bg-amber-50/80 p-3.5 rounded-2xl border border-amber-300 space-y-2">
                 <span className="text-[10.5px] font-extrabold text-amber-950 uppercase tracking-wider block flex items-center gap-1.5">
-                  💲 Costo Interno de Operación en Obra:
+                  {formData.tipo_activo==='Arrendado'?'💲 Valor de arriendo a cargo de la obra':'💲 Costo interno de operación en obra'}
                 </span>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[9.5px] font-bold uppercase text-amber-900 mb-1">Tarifa Interna ($)</label>
+                    <label className="block text-[9.5px] font-bold uppercase text-amber-900 mb-1">{formData.tipo_activo==='Arrendado'?'Tarifa de arriendo ($)':'Tarifa interna ($)'}</label>
                     <input
                       type="text"
                       placeholder="ej: 50.000"

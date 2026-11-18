@@ -1,5 +1,6 @@
 import {hasAssignedWork} from './equipmentAssignments.js';
 const normalize=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+export const equipmentOwnership=item=>normalize(item.tipo_activo)==='arrendado'?'Arrendado':'Propio';
 const active=item=>!['cancelada','cancelado','anulada','anulado','finalizada','finalizado','cerrado','cerrada'].includes(normalize(item.estado));
 export const INVENTORY_STATES=[['','Total'],['libre','Disponibles'],['en_uso','Asignados'],['mantencion','En mantención'],['fuera_servicio','Fuera de servicio'],['reservado','Reservados'],['arrendado','Arrendados']];
 export function inventoryState(equipment,bookings=[],rentals=[],today){
@@ -11,12 +12,13 @@ export function inventoryState(equipment,bookings=[],rentals=[],today){
   if(bookings.some(item=>String(item.equipo_id)===String(equipment.id)&&active(item)&&item.fecha_inicio&&(!item.fecha_fin||item.fecha_fin>=today)))return {code:'reservado',label:'Reservado',color:'bg-amber-50 text-amber-900 border-amber-200'};
   return {code:'libre',label:'Disponible',color:'bg-emerald-50 text-emerald-800 border-emerald-200'};
 }
-export function inventoryRows(equipment,{search='',category='',work='',state='',sort='patente',direction=1},categories,bookings,rentals,today){
+export function inventoryRows(equipment,{search='',category='',work='',state='',ownership='',sort='patente',direction=1},categories,bookings,rentals,today){
   const names=new Map(categories.map(item=>[String(item.id),item.nombre]));
   return equipment.map(item=>({...item,categoryName:names.get(String(item.categoria_id))||'Sin categoría',inventoryStatus:inventoryState(item,bookings,rentals,today)}))
     .filter(item=>(!search||normalize(`${item.tipo} ${item.patente} ${item.marca} ${item.modelo||''} ${item.categoryName}`).includes(normalize(search)))
       &&(!category||(category==='__none'?!item.categoria_id:String(item.categoria_id)===category))
       &&(!work||(work==='__bodega'?!hasAssignedWork(item.obra_nombre):item.obra_nombre===work))
+      &&(!ownership||equipmentOwnership(item)===ownership)
       &&(!state||item.inventoryStatus.code===state))
     .sort((a,b)=>direction*String(a[sort]||'').localeCompare(String(b[sort]||''),'es',{numeric:true,sensitivity:'base'})||Number(a.id)-Number(b.id));
 }
