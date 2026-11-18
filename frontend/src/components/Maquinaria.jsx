@@ -16,7 +16,6 @@ import { can } from '../utils/permissionsCatalog';
 import MachineryMeterAI from './MachineryMeterAI';
 import MachineryEquipmentDetailModal from './MachineryEquipmentDetailModal';
 import MachineryDownload from './MachineryDownload';
-import MachineryReportSettings from './MachineryReportSettings';
 import MachineryOperators, { OperatorSelect } from './MachineryOperators';
 import EquipmentQrImage from './EquipmentQrImage';
 import EquipmentBulkImport from './EquipmentBulkImport';
@@ -947,7 +946,6 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
       {/* 1. Encabezado Oficial Estándar Obraxis */}
       <ModuleHeader className="mb-6" title="Gestión de Maquinaria y Equipos" subtitle="Inventario, asignaciones en faena, horómetros, reservas de obras futuras y arriendos a terceros." Icon={Truck} onBack={() => { if (activeSection !== '') { setActiveSection(''); setSuccessMsg(''); setErrorMsg(''); } else { onBack(); } }} />
 
-      {(activeSection === '' || activeSection === 'inventario' || activeSection === 'uso') && <MachineryReportSettings user={user} equipment={maquinaria} canConfigure={canConfigure} onChanged={fetchData} />}
       {activeSection === 'enex' && <EnexFuel key={user.empresa} user={user} />}
       {/* Alertas Globales */}
       {successMsg && <div className="mb-6 bg-emerald-50 text-emerald-700 p-2 rounded-lg text-xs font-semibold border border-emerald-250 animate-in fade-in duration-150">{successMsg}</div>}
