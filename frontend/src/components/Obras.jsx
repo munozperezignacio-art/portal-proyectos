@@ -37,6 +37,7 @@ import NotificationMaster from './NotificationMaster';
 import { can } from '../utils/permissionsCatalog';
 import MachineryEquipmentDetailModal from './MachineryEquipmentDetailModal';
 import MachineryDownload from './MachineryDownload';
+import { readAllMachineryRows } from '../utils/machineryExports';
 import { matchesWorkReport, reportedProgress, dailyTimeRate } from '../utils/workReportCalculations';
 import ProjectedCostsList from './ProjectedCostsList';
 import {loadProjectedCosts,saveProjectedCosts,deleteProjectedCost} from '../utils/projectedCostsStore';
@@ -1212,6 +1213,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   // Listas desplegables cargadas de la base de datos para la obra
   const [personalList, setPersonalList] = useState([]);
   const [maquinariaList, setMaquinariaList] = useState([]);
+  const [maquinariaHistorialList, setMaquinariaHistorialList] = useState([]);
   const [maquinariaUsoObra, setMaquinariaUsoObra] = useState([]);
   const [partidasList, setPartidasList] = useState([]);
   const budgetDisplayOptions={mode:budgetCurrencyView,overrides:partidasCostos,projectCurrency:workBudgetFinancials.currency,quotes:budgetDisplayQuotes};
@@ -1616,7 +1618,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
   // La maquinaria asignada proviene exclusivamente de Supabase.
   const getEquiposParaObraActual = () => {
-    return maquinariaList || [];
+    return maquinariaHistorialList || [];
   };
 
   const fetchObraDetails = async (obraNombre) => {
@@ -1774,9 +1776,21 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         .select('*')
         .eq('empresa', user?.empresa || 'OBRAXIS');
       if (maquinariaError) throw maquinariaError;
-      const finalMaqObra = (allRemoteMaq || []).filter(item => isMatchObra(item.obra_nombre, obraNombre));
-      setMaquinariaCount(finalMaqObra.length);
-      setMaquinariaList(finalMaqObra);
+      const {data:qrWork,error:qrWorkError}=await supabase.from('obras').select('id').eq('empresa',user.empresa).eq('nombre',obraNombre).single();
+      if(qrWorkError)throw qrWorkError;
+      const [assignedPeriods,oldUses,oldMaintenance,oldChecks]=await Promise.all([
+        readAllMachineryRows(()=>supabase.from('maquinaria_periodos_costo').select('id,equipo_id,desde,hasta').eq('empresa',user.empresa).eq('obra_id',qrWork.id)),
+        readAllMachineryRows(()=>supabase.from('maquinaria_uso_diario').select('id,equipo_id').eq('empresa',user.empresa).eq('obra_nombre',obraNombre)),
+        readAllMachineryRows(()=>supabase.from('maquinaria_mantenciones').select('id,equipo_id').eq('empresa',user.empresa).eq('obra_nombre',obraNombre)),
+        can(user,userPermissions,'formularios.formularios.ver')?readAllMachineryRows(()=>supabase.from('prevencion_respuestas').select('id,respuestas,prevencion_formularios!inner(empresa)').eq('prevencion_formularios.empresa',user.empresa).eq('proyecto_nombre',obraNombre)):Promise.resolve([]),
+      ]);
+      const referencedIds=new Set([...assignedPeriods,...oldUses,...oldMaintenance].map(row=>String(row.equipo_id)));
+      oldChecks.forEach(row=>{if(row.respuestas?._qr_identidad?.equipo_id)referencedIds.add(String(row.respuestas._qr_identidad.equipo_id));});
+      const assignmentDay=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago'}).format(new Date());
+      const finalMaqObra=(allRemoteMaq||[]).filter(item=>isMatchObra(item.obra_nombre,obraNombre)||referencedIds.has(String(item.id))).map(item=>({...item,_historicalOnly:!isMatchObra(item.obra_nombre,obraNombre)&&!assignedPeriods.some(p=>String(p.equipo_id)===String(item.id)&&p.desde<=assignmentDay&&(!p.hasta||p.hasta>assignmentDay))}));
+      setMaquinariaCount(finalMaqObra.filter(item => !item._historicalOnly).length);
+      setMaquinariaList(finalMaqObra.filter(item => !item._historicalOnly));
+      setMaquinariaHistorialList(finalMaqObra);
 
       const equipmentIds = finalMaqObra.map(item => item.id).filter(Boolean);
       if (equipmentIds.length > 0) {
@@ -4247,7 +4261,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                       </p>
                     </div>
                     <span className="text-xs font-black text-blue-950 bg-blue-50 px-3 py-1 rounded-xl border border-blue-200">
-                      {getEquiposParaObraActual().length} Equipos Activos
+                      {getEquiposParaObraActual().length} Equipos vinculados
                     </span>
                   </div>
 
@@ -4296,7 +4310,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                 </td>
                                 <td className="p-3">
                                   <span className="text-[10px] font-black px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-900 border border-emerald-300 uppercase">
-                                    {m.estado_equipo || 'Operativo'}
+                                    {m._historicalOnly ? 'Histórico en esta obra' : m.estado_equipo || 'Operativo'}
                                   </span>
                                   <span className="ml-2 text-[10px] font-black text-blue-800">Ver ficha →</span>
                                 </td>
@@ -11576,13 +11590,15 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           company={user.empresa}
           workName={selectedObra?.nombre}
           canDownload={recordPermission('maquinaria', 'descargar')}
+          canReadChecklists={recordPermission('maquinaria','ver') && can(user,userPermissions,'formularios.formularios.ver')}
+          canDownloadChecklists={recordPermission('maquinaria','descargar') && can(user,userPermissions,'formularios.formularios.descargar')}
           equipment={selectedObraEquipment}
           usage={maquinariaUsoObra}
           failures={paralizacionesMaquinariaList}
           maintenance={mantencionesMaquinariaList}
           scopeLabel={`Historial exclusivo de ${selectedObra?.nombre || 'esta obra'}`}
           onClose={() => setSelectedObraEquipment(null)}
-          onUsage={() => {
+          onUsage={selectedObraEquipment._historicalOnly ? undefined : () => {
             setUsoEquipoFormData({
               equipo_id: String(selectedObraEquipment.id),
               fecha: new Date().toISOString().substring(0, 10),
@@ -11594,7 +11610,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
             setSelectedObraEquipment(null);
             setShowUsoEquipoModal(true);
           }}
-          onFailure={() => {
+          onFailure={selectedObraEquipment._historicalOnly ? undefined : () => {
             setParalizacionFormData({
               equipo_nombre: selectedObraEquipment.id,
               fecha_inicio: new Date().toISOString().substring(0, 10),
@@ -11604,7 +11620,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
             setSelectedObraEquipment(null);
             setShowParalizacionModal(true);
           }}
-          onMaintenance={() => {
+          onMaintenance={selectedObraEquipment._historicalOnly ? undefined : () => {
             setMantencionFormData({
               equipo_nombre: selectedObraEquipment.id,
               fecha: new Date().toISOString().substring(0, 10),

@@ -1,17 +1,19 @@
 import { useMemo, useState } from 'react';
 import { Activity, AlertTriangle, CalendarClock, Gauge, Wrench, X, FileText, QrCode } from 'lucide-react';
 import MachineryDownload from './MachineryDownload';
+import EquipmentRecordHistory from './EquipmentRecordHistory';
 import EquipmentQrDocuments from './EquipmentQrDocuments';
 import EquipmentFormsEditor from './EquipmentFormsEditor';
 import EquipmentQrImage from './EquipmentQrImage';
+import { equipmentQrDownloadImage } from '../utils/equipmentQrDownload';
 
-export default function MachineryEquipmentDetailModal({ user, canEditForms=false, companyBranding, equipment, usage = [], failures = [], maintenance = [], scopeLabel = '', company, workName, canDownload = false, canConfigureDocuments = false, onClose, onUsage, onFailure, onMaintenance }) {
+export default function MachineryEquipmentDetailModal({ user, canEditForms=false, canReadChecklists=false, canDownloadChecklists=false, companyBranding, equipment, usage = [], failures = [], maintenance = [], scopeLabel = '', company, workName, canDownload = false, canConfigureDocuments = false, onClose, onUsage, onFailure, onMaintenance }) {
   const [tab, setTab] = useState('historial');
   const [panel, setPanel] = useState('');
   const [qrMessage, setQrMessage] = useState('');
   const qrUrl = equipment?.publico_token ? `https://www.obraxis.cl/?maquinaria_token=${encodeURIComponent(equipment.publico_token)}` : '';
   async function downloadQr() {
-    try { const QRCode = await import('qrcode'); const image = await QRCode.toDataURL(qrUrl,{width:1200,margin:4}); const link=document.createElement('a');link.href=image;link.download=`QR-${equipment.patente || equipment.id}.png`;link.click(); }
+    try { const image = await equipmentQrDownloadImage(qrUrl, equipment); const link=document.createElement('a');link.href=image;link.download=`QR-${equipment.patente || equipment.id}.png`;link.click(); }
     catch { setQrMessage('No se pudo descargar el QR. Intenta nuevamente.'); }
   }
   const scopedUsage = useMemo(() => usage.filter(item => String(item.equipo_id) === String(equipment?.id)), [usage, equipment]);
@@ -65,7 +67,7 @@ export default function MachineryEquipmentDetailModal({ user, canEditForms=false
         </div>
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs"><div className="grid gap-2 sm:grid-cols-2"><p><b>Marca / modelo:</b> {equipment.marca || 'Sin informar'}</p><p><b>Estado:</b> {equipment.estado_equipo || 'Operativo'}</p><p><b>Ubicación:</b> {equipment.obra_nombre || 'Bodega / Sin asignar'}</p><p><b>Propiedad:</b> {equipment.tipo_activo || 'Propio'}</p></div></div>
         <div className="flex gap-2 overflow-x-auto border-b border-slate-200 pb-2">{[['historial', 'Historial'], ['mantenciones', 'Mantenciones'], ['planes', 'Próximas']].map(([key, label]) => <button key={key} onClick={() => setTab(key)} className={`rounded-xl px-4 py-2 text-xs font-black ${tab === key ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-600'}`}>{label}</button>)}</div>
-        {tab === 'historial' && <div className="space-y-2">{history.length ? history.map(item => <div key={`${item.kind}-${item.id}`}><HistoryItem item={item} />{item.kind === 'Uso' && <MachineryDownload companyBranding={companyBranding} company={company} equipmentId={equipment.id} workName={workName} reportId={item.id} allowed={canDownload} />}</div>) : <Empty text="No hay movimientos registrados para este alcance." />}</div>}
+        {tab === 'historial' && <><EquipmentRecordHistory key={String(equipment.id)+':'+(workName||'')} company={company} equipment={equipment} workName={workName} companyBranding={companyBranding} canDownload={canDownload} canReadChecklists={canReadChecklists} canDownloadChecklists={canDownloadChecklists}/>{history.filter(item=>item.kind==='Falla').map(item=><HistoryItem key={item.id} item={item}/>)}</>}
         {tab === 'mantenciones' && <div className="space-y-2">{scopedMaintenance.length ? scopedMaintenance.map(item => <div key={item.id} className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4"><div className="flex justify-between gap-3"><b className="text-xs text-slate-900">{item.tipo || 'Mantención'}</b><span className="text-[10px] font-bold text-slate-500">{item.fecha}</span></div><p className="mt-1 text-xs text-slate-600">{item.descripcion || 'Sin descripción'}</p><p className="mt-2 text-[10px] font-bold text-indigo-800">Lectura {Number(item.horometro || 0).toLocaleString('es-CL')} · ${Number(item.costo || 0).toLocaleString('es-CL')} · {item.proveedor || item.responsable || 'Sin proveedor'}</p></div>) : <Empty text="No hay mantenciones registradas." />}</div>}
         {tab === 'planes' && <div className="space-y-2">{plans.length ? plans.map((plan, index) => <div key={plan.id || index} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 p-4"><div><b className="text-xs text-slate-900">{plan.nombre || 'Mantención preventiva'}</b><p className="mt-1 text-[10px] text-slate-500">Próxima referencia: {plan.next.toLocaleString('es-CL')} {plan.unidad || 'horas'}</p></div><span className={`rounded-lg px-2.5 py-1 text-[10px] font-black ${plan.remaining <= 0 ? 'bg-rose-100 text-rose-800' : plan.remaining <= 10 ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800'}`}>{plan.remaining <= 0 ? 'Vencida' : `${plan.remaining.toLocaleString('es-CL')} restantes`}</span></div>) : <Empty text="Este equipo no tiene planes de mantención configurados." />}</div>}
         </>}

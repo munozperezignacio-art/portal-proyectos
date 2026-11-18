@@ -45,8 +45,12 @@ Deno.serve(async (req: Request) => {
     if(config.error || equipmentConfig.error) return reply({error:'Configuración no disponible.'},503,origin);
     if(equipmentConfig.data?.qr_activo === false) return reply({error:'Este QR fue desactivado.'},404,origin);
     if (action === "cargar") {
+      const fecha=clean(body.fecha,10)||new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago'}).format(new Date());
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha))return reply({error:'Fecha inválida'},400,origin);
+      const assignments=await db.rpc('equipo_obras_fecha',{p_equipo:equipment.id,p_fecha:fecha});
+      if(assignments.error)return reply({error:'No se pudieron comprobar las obras asignadas.'},503,origin);
       await db.from('formulario_publico_intentos').update({exitoso:true}).eq('id',attempt.data.id);
-      return reply({ equipo: { tipo:equipment.tipo,patente:equipment.patente,marca:equipment.marca,empresa:equipment.empresa,obra_nombre:equipment.obra_nombre,
+      return reply({ obras:assignments.data||[], equipo: { tipo:equipment.tipo,patente:equipment.patente,marca:equipment.marca,empresa:equipment.empresa,obra_nombre:equipment.obra_nombre,
       horometro_inicial:equipment.horometro_inicial??0,unidad:equipmentConfig.data?.unidad||'h',codigo:config.data?.codigo||'MAQ-01',revision:config.data?.revision||'01' } },200,origin);
     }
     const rut=normalizeRut(body.rut);
@@ -67,7 +71,7 @@ Deno.serve(async (req: Request) => {
     const author=`${actor.nombre} · ${actor.cargo||'Sin cargo'} · RUT ${rut} (identidad declarada)`;
     if(action==='mantencion'){
       if(!/^[0-9a-f-]{36}$/i.test(String(body.solicitud_id||'')))return reply({error:'Solicitud inválida'},400,origin);
-      const saved=await db.rpc('equipo_qr_mantencion',{p_equipo:equipment.id,p_solicitud:body.solicitud_id,p_datos:{fecha:body.fecha,horometro:body.horometro,tipo:body.tipo,descripcion:clean(body.descripcion,4000),nombre:actor.nombre,cargo:actor.cargo,rut,autor_declarado:author}});
+      const saved=await db.rpc('equipo_qr_mantencion',{p_equipo:equipment.id,p_solicitud:body.solicitud_id,p_datos:{fecha:body.fecha,obra_id:body.obra_id||null,horometro:body.horometro,tipo:body.tipo,descripcion:clean(body.descripcion,4000),nombre:actor.nombre,cargo:actor.cargo,rut,autor_declarado:author}});
       if(saved.error)return reply({error:'No se guardó la mantención. Revisa fecha, lectura y descripción.'},400,origin);
       return reply({ok:true,id:saved.data.id},200,origin);
     }

@@ -2805,6 +2805,8 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
 
       {viewingEquip && <MachineryEquipmentDetailModal user={user} canEditForms={!permissionsLoading && can(user,permissions,'formularios.formularios.editar')} onChanged={fetchData}
         canConfigureDocuments={!permissionsLoading && canConfigure}
+        canReadChecklists={!permissionsLoading && can(user,permissions,'formularios.formularios.ver')}
+        canDownloadChecklists={!permissionsLoading && can(user,permissions,'formularios.formularios.descargar')}
         companyBranding={companyBranding}
         company={user.empresa}
         canDownload={!permissionsLoading && can(user, permissions, 'maquinaria.uso.descargar') && can(user, permissions, 'maquinaria.fallas.descargar') && can(user, permissions, 'maquinaria.mantenimiento.descargar')}

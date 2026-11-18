@@ -116,7 +116,7 @@ export async function generateFormPdf({ form, metadata, answers, mainSignature, 
   doc.text('Fecha:', margin + 110, y + 8);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(15, 23, 42);
-  doc.text(new Date().toLocaleDateString('es-CL'), margin + 125, y + 8);
+  doc.text(/^\d{4}-\d{2}-\d{2}$/.test(metadata?.fecha || '') ? metadata.fecha.split('-').reverse().join('-') : new Date().toLocaleDateString('es-CL'), margin + 125, y + 8);
   
   y += 32;
 

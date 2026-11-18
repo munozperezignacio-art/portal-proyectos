@@ -1,0 +1,20 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module">
+import React from 'react';import{createRoot}from'react-dom/client';import '../../src/index.css';
+import MachineryPublicForm from '../../src/components/MachineryPublicForm.jsx';import EquipmentRecordHistory from '../../src/components/EquipmentRecordHistory.jsx';import{ supabase }from'../../src/supabaseClient.js';
+const equipment={id:1,empresa:'TEST',patente:'TEST-01',tipo:'EXCAVADORA',obra_nombre:'Obra A',horometro_inicial:100,unidad:'h',codigo:'MAQ-01',revision:'01'};
+const works=[{id:1,nombre:'Obra A',centro_gestion_id:11},{id:2,nombre:'Obra B',centro_gestion_id:12}];
+const form={id:1,empresa:'TEST',titulo:'CHECKLIST DE EXCAVADORA',campos:[{id:'estado',type:'radio',label:'Estado del equipo',required:true,options:['Bueno','Malo']}]};
+const usage={id:1,empresa:'TEST',equipo_id:'1',equipo_tipo:'EXCAVADORA',equipo_patente:'TEST-01',obra_nombre:'Obra A',fecha:'2026-11-17',horometro_inicial:100,horometro_final:101,horas_trabajadas:1,operador:'Persona prueba',reporte_datos:{codigo:'MAQ-01',revision:'01'}};
+const tables={maquinaria_uso_diario:[usage],maquinaria_mantenciones:[{id:2,empresa:'TEST',equipo_id:1,obra_nombre:'Obra A',fecha:'2026-11-17',horometro:101,tipo:'Preventiva',descripcion:'Cambio de filtros',responsable:'Persona prueba'}],maquinaria_fallas:[],inventario_maquinaria:[equipment],obras:works.map(w=>({...w,empresa:'TEST'})),maquinaria_reporte_config:[{empresa:'TEST',codigo:'MAQ-01',revision:'01'}],prevencion_respuestas:[{id:3,formulario_id:1,prevencion_formularios:form,proyecto_nombre:'Obra A',inspector:'Persona prueba',created_at:'2026-11-17',respuestas:{estado:'Bueno',_qr_identidad:{equipo_id:1,fecha:'2026-11-17'}}}]};
+Object.defineProperty(supabase,'functions',{value:{invoke:async(name,{body})=>{
+ if(name==='formulario-publico'){if(body.action==='enviar'){document.getElementById('saved').textContent=JSON.stringify({checklist:body.qrContext});return {data:{id:5}};}return {data:{form,initialMetadata:{inspector:'Persona prueba',proyecto_nombre:works.find(w=>w.id===body.qrContext.obra_id)?.nombre||''}}};}
+ if(body.action==='cargar')return {data:{equipo:equipment,obras:body.fecha==='2026-11-17'?[works[0]]:works}};
+ if(body.action==='identificar')return {data:{nombre:'Persona prueba',cargo:'Operador',rut:body.rut}};
+ if(body.action==='checklist')return {data:{formToken:'TEST'}};
+ document.getElementById('saved').textContent=JSON.stringify({action:body.action,fecha:body.fecha,obra_id:body.obra_id});
+ return {data:{id:4}};
+}}});
+supabase.from=table=>{let filters=[],single=false,start=0,end=999;const q={select(){return q},eq(k,v){filters.push([k,v]);return q},order(){return q},range(a,b){start=a;end=b;return q},maybeSingle(){single=true;return q},then(resolve){const rows=(tables[table]||[]).filter(row=>filters.every(([k,v])=>String(k==='prevencion_formularios.empresa'?row.prevencion_formularios.empresa:k.startsWith('respuestas->')?row.respuestas._qr_identidad.equipo_id:row[k])===String(v))).slice(start,end+1);resolve({data:single?rows[0]||null:rows,error:null})}};return q;};
+function Test(){const[history,setHistory]=React.useState(false);return React.createElement('main',{className:'mx-auto max-w-4xl space-y-5 p-4'},React.createElement('p',{className:'text-sm'},'Prueba local · datos ficticios'),React.createElement('button',{className:'rounded-xl bg-blue-900 px-4 py-3 font-bold text-white',onClick:()=>setHistory(!history)},history?'Abrir QR':'Ver historial de Obra A'),history?React.createElement(EquipmentRecordHistory,{company:'TEST',equipment,workName:'Obra A',canDownload:true,canReadChecklists:true,canDownloadChecklists:true}):React.createElement(MachineryPublicForm,{token:'a'.repeat(48)}),React.createElement('pre',{id:'saved',className:'whitespace-pre-wrap text-xs'}));}
+createRoot(document.getElementById('root')).render(React.createElement(Test));
+</script></body></html>
