@@ -98,7 +98,6 @@ export function drawMachineryReport(doc, { report, company, companyLogo, fields,
   note(...fields[19]); cells([fields[20], fields[21]]);
   if (report.reporte_datos?.responsable) cells([['Responsable de maquinaria al registrar', report.reporte_datos.responsable]]);
   if (report.reporte_datos?.configuracion_actual) note('Formato del documento', 'Este registro anterior no conserva revisión propia. El encabezado usa la configuración actual de maquinaria.');
-  note('Alcance de los datos', 'Responsables y marca/modelo corresponden a las fichas actuales. Las fallas se consultan por equipo, obra y fecha, sin afirmar un vínculo directo con este reporte. Sin registros no significa ausencia de incidentes. Combustible según uso registrado; no se infieren cargas ENEX por patente.');
   for (let page = 1; page <= doc.getNumberOfPages(); page++) {
     doc.setPage(page); doc.setDrawColor(203, 213, 225); doc.line(left, 282, left + width, 282);
     text(7); doc.text('Generado desde Obraxis · Registro de maquinaria', left, 288);

@@ -20,6 +20,8 @@ try{
  assert.equal((await readEquipmentRecords(db,{...options,equipmentId:1,canReadChecklists:false})).length,2);
  const output=new URL('./artifacts/equipment-records/',import.meta.url);mkdirSync(output,{recursive:true});
  const render=async record=>{const bytes=await equipmentRecordPdf(db,record,options);assert.equal(new TextDecoder().decode(bytes.slice(0,4)),'%PDF');writeFileSync(new URL(record.kind+'.pdf',output),bytes);return bytes;};
+ const reportBytes=await render(records.find(record=>record.kind==='Reporte'));
+ assert.ok(!new TextDecoder().decode(reportBytes).includes('Alcance de los datos'),'Removed disclaimer must not appear in report PDF');
  const zip=await buildEquipmentRecordDownload(records,options,render);assert.ok(zip.name.endsWith('.zip'));
  const archive=await JSZip.loadAsync(await zip.blob.arrayBuffer());assert.equal(Object.keys(archive.files).length,3);
  writeFileSync(new URL('registros.zip',output),Buffer.from(await zip.blob.arrayBuffer()));
