@@ -1057,7 +1057,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   
   const attendanceAppliedDate = asistenciaMode === 'manual' ? asistenciaFecha : chileanAttendanceToday();
   const isBulkAttendance = asistenciaMode==='manual' && multiAttendance && !editingAttendanceRecord;
-  const asistenciaDaySchedule = editingAttendanceRecord?.fecha === attendanceAppliedDate && editingAttendanceRecord?.applied ? editingAttendanceRecord.applied : scheduleForDate(selectedObra,attendanceAppliedDate);
+  const hasDatedSchedule = selectedObra?.jornadas_historial?.some(v=>v.desde<=attendanceAppliedDate);
+  const asistenciaDaySchedule = !hasDatedSchedule && editingAttendanceRecord?.fecha === attendanceAppliedDate && editingAttendanceRecord?.applied ? editingAttendanceRecord.applied : scheduleForDate(selectedObra,attendanceAppliedDate);
   const asistenciaJornada = asistenciaDaySchedule ? scheduledDayHours(asistenciaDaySchedule) : editingAttendanceRecord?.hours ?? selectedObra?.jornada_ordinaria_horas ?? 9;
   const { canvasRef, hasSignature, clearSignature, handleStartDraw, handleDraw, handleStopDraw } = useSignatureCanvas(
     `${activeModal}:${selectedObra?.id}:${asistenciaData.trabajador}:${asistenciaData.rut}:${asistenciaData.asistencia}:${asistenciaMode}:${asistenciaFecha}:${isBulkAttendance}:${attendanceWorkerIds.join(',')}`
@@ -3866,7 +3867,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                       if(!Object.keys(changes).length)throw new Error('Completa al menos un campo.');
                       let count=0;
                       try{for(const {record:r} of workers){
-                        const schedule=r.jornada_aplicada||scheduleForDate(selectedObra,correctionDay);
+                        const schedule=selectedObra?.jornadas_historial?.some(v=>v.desde<=correctionDay)?scheduleForDate(selectedObra,correctionDay):r.jornada_aplicada||scheduleForDate(selectedObra,correctionDay);
                         const patch={...changes};
                         if((patch.asistencia||r.asistencia)!=='PRESENTE')Object.assign(patch,{ingreso:null,salida:null,colacion:null,otras_horas:0});
                         const next={...r,...patch};
@@ -8615,7 +8616,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       {/* ================= MODALES DE REGISTRO DIARIO ================= */}
 
       {/* Modal 1: Asistencia con QR, Geofencing y Firma Digital */}
-      {showWeeklySchedule && selectedObra && <WeeklyWorkSchedule key={selectedObra.id} work={selectedObra} company={selectedObra.empresa || user.empresa} canConfigure={can(user,userPermissions,'obras.gestion.configurar')} onClose={()=>setShowWeeklySchedule(false)} onSaved={schedule=>{setSelectedObra(prev=>({...prev,jornada_semanal:schedule}));setObras(prev=>prev.map(work=>work.id===selectedObra.id?{...work,jornada_semanal:schedule}:work));setSuccessMsg('Jornada semanal guardada. Los marcajes anteriores conservan su cálculo.');}}/>}
+      {showWeeklySchedule && selectedObra && <WeeklyWorkSchedule key={selectedObra.id} work={selectedObra} company={selectedObra.empresa || user.empresa} canConfigure={can(user,userPermissions,'obras.gestion.configurar')} onClose={()=>setShowWeeklySchedule(false)} onSaved={result=>{setSelectedObra(prev=>({...prev,jornadas_historial:result.jornadas_historial}));setObras(prev=>prev.map(work=>work.id===selectedObra.id?{...work,jornadas_historial:result.jornadas_historial}:work));fetchObraDetails(selectedObra.nombre);setSuccessMsg(`Jornada guardada con vigencia. ${result.recalculados} marcajes recalculados.`);}}/>}
       {activeModal === 'asistencia' && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto">

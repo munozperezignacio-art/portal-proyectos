@@ -22,6 +22,11 @@ assert.deepEqual(calculateScheduledAttendance({...data,asistencia:'LICENCIA'},da
 assert.deepEqual(calculateScheduledAttendance(data,null,8),{worked:10,ordinary:8,extra:2});
 assert.equal(scheduledDayHours(day),9);
 assert.equal(scheduleForDate({jornada_semanal:{1:day}},'2026-10-19'),day);
+const changedDay={...day,end:'17:00'};
+const datedWork={jornada_semanal:{1:day},jornadas_historial:[{id:1,desde:'2026-10-19',jornada:{1:changedDay}}]};
+assert.deepEqual(scheduleForDate(datedWork,'2026-10-19'),changedDay);
+assert.deepEqual(scheduleForDate(datedWork,'2026-10-12'),day);
+assert.equal(calculateScheduledAttendance(data,scheduleForDate(datedWork,'2026-10-19')).extra,2);
 assert.throws(()=>calculateScheduledAttendance({...data,ingreso:'25:00'},day));
 const workers = [{id:1,nombre:'Ana',rut:'12.345.678-5',empresa:'ACME'}, {id:2,nombre:'Luis',rut:'9.876.543-K',empresa:'ACME'}];
 const base = {empresa:'ACME',fecha_marcacion:'2026-10-19',...data,horas_ordinarias:9,horas_extras_auto:1};

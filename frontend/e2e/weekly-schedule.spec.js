@@ -5,8 +5,16 @@ test('weekly schedule has separate weekdays and meal intervals and saves them',a
  await page.getByLabel('Viernes Salida',{exact:true}).fill('14:00');
  await page.getByLabel('Viernes Inicio colación',{exact:true}).fill('');
  await page.getByLabel('Viernes Fin colación',{exact:true}).fill('');
+ await page.getByLabel('Vigente desde',{exact:true}).fill('2026-10-19');
+ await page.getByLabel('Motivo del cambio',{exact:true}).fill('Cambio de jornada');
+ await page.getByRole('checkbox',{name:/Confirmo recalcular/}).check();
  await page.getByRole('button',{name:'Guardar jornada semanal'}).click();
- expect(await page.evaluate(()=>window.savedSchedule.jornada_semanal['5'].end)).toBe('14:00');
- expect(await page.evaluate(()=>window.savedSchedule.jornada_semanal['0'].active)).toBe(false);
+ await expect(page.getByText('Cambio de jornada',{exact:true})).toBeVisible();
+ expect(await page.evaluate(()=>window.savedSchedule.p_jornada['5'].end)).toBe('14:00');
+ expect(await page.evaluate(()=>window.savedSchedule.p_jornada['0'].active)).toBe(false);
+ expect(await page.evaluate(()=>window.savedSchedule.p_desde)).toBe('2026-10-19');
+ await expect(page.getByText('7 marcajes recalculados.',{exact:false})).toBeVisible();
+ await page.getByRole('button',{name:'Usar como base'}).first().click();
+ await expect(page.getByLabel('Vigente desde',{exact:true})).toHaveValue('2026-10-19');
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
 });

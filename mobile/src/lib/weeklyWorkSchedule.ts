@@ -14,11 +14,15 @@ export function validateWeeklySchedule(schedule: Row) {
   return schedule;
 }
 export function draftWeeklySchedule(work: Row) {
-  return work?.jornada_semanal || Object.fromEntries(WEEK_DAYS.map(([key])=>[key,{active:key!==0 && key!==6,start:'08:00',end:'18:00',breakStart:'13:00',breakEnd:'14:00'}]));
+  return effectiveWeeklySchedule(work,new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago'}).format(new Date())) || Object.fromEntries(WEEK_DAYS.map(([key])=>[key,{active:key!==0 && key!==6,start:'08:00',end:'18:00',breakStart:'13:00',breakEnd:'14:00'}]));
+}
+export function effectiveWeeklySchedule(work: Row | null,date: string) {
+  const version=(work?.jornadas_historial||[]).filter((v:Row)=>v.desde<=date).sort((a:Row,b:Row)=>b.desde.localeCompare(a.desde)||Number(b.id)-Number(a.id))[0];
+  return version?.jornada||work?.jornada_semanal||null;
 }
 export function scheduleForDate(work: Row | null,date: string) {
   if(!/^\d{4}-\d{2}-\d{2}$/.test(date || ''))return null;
-  return work?.jornada_semanal?.[new Date(`${date}T12:00:00Z`).getUTCDay()] || null;
+  return effectiveWeeklySchedule(work,date)?.[new Date(`${date}T12:00:00Z`).getUTCDay()] || null;
 }
 export function scheduledDayHours(day: Row | null) {
   if(!day?.active)return 0;

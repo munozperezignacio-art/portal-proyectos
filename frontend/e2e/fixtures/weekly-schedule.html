@@ -3,7 +3,11 @@ import React from 'react';
 import {createRoot} from 'react-dom/client';
 import WeeklyWorkSchedule from '../../src/components/WeeklyWorkSchedule.jsx';
 import {supabase} from '../../src/supabaseClient.js';
+import '../../src/index.css';
+import {draftWeeklySchedule} from '../../src/utils/weeklyWorkSchedule.js';
 window.savedSchedule=null;
-supabase.from=()=>({update:payload=>{window.savedSchedule=payload;return{eq:()=>({eq:()=>({select:async()=>({data:[{id:1}],error:null})})})};}});
-createRoot(document.getElementById('fixture')).render(React.createElement(WeeklyWorkSchedule,{work:{id:1,nombre:'TEST_ONLY'},company:'TEST_ONLY',canConfigure:true,onSaved:()=>{},onClose:()=>{}}));
+const initial={id:1,nombre:'TEST_ONLY',jornadas_historial:[{id:1,desde:'2026-10-01',jornada:draftWeeklySchedule({}),autor:'Administrador prueba',motivo:'Jornada inicial',registrado_at:'2026-10-01T12:00:00Z',recalculados:0}]};
+supabase.rpc=async(name,payload)=>{window.savedSchedule=payload;return {data:{jornadas_historial:[{id:2,desde:payload.p_desde,jornada:payload.p_jornada,autor:'Administrador prueba',motivo:payload.p_motivo,registrado_at:new Date().toISOString(),recalculados:7},...initial.jornadas_historial],recalculados:7},error:null};};
+function Fixture(){const [work,setWork]=React.useState(initial);return React.createElement(WeeklyWorkSchedule,{key:work.jornadas_historial.length,work,company:'TEST_ONLY',canConfigure:!location.search.includes('readonly'),onSaved:data=>setWork({...work,...data}),onClose:()=>{}});}
+createRoot(document.getElementById('fixture')).render(React.createElement(Fixture));
 </script></body></html>

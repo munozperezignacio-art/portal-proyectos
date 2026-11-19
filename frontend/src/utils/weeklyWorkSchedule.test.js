@@ -2,6 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {draftWeeklySchedule,validateWeeklySchedule,scheduleForDate,calculateScheduledAttendance} from './weeklyWorkSchedule.js';
 const day={active:true,start:'08:00',end:'18:00',breakStart:'13:00',breakEnd:'14:00'};
+test('vigencia uses attendance date, latest same-date revision and preserves earlier fallback',()=>{
+ const base=draftWeeklySchedule({}),first={...base,1:{...day,end:'17:00'}},future={...base,1:{...day,end:'16:00'}};
+ const work={jornada_semanal:base,jornadas_historial:[{id:1,desde:'2026-10-19',jornada:first},{id:2,desde:'2026-11-02',jornada:future},{id:3,desde:'2026-10-19',jornada:first}]};
+ assert.equal(scheduleForDate(work,'2026-10-12').end,'18:00');
+ assert.equal(scheduleForDate(work,'2026-10-19').end,'17:00');
+ assert.equal(scheduleForDate(work,'2026-11-02').end,'16:00');
+});
 test('outside configured interval is extra even without exceeding nine worked hours',()=>{
  assert.deepEqual(calculateScheduledAttendance({asistencia:'PRESENTE',ingreso:'07:00',salida:'16:00',colacion:'SI'},day),{worked:8,ordinary:7,extra:1});
  assert.equal(calculateScheduledAttendance({asistencia:'PRESENTE',ingreso:'08:00',salida:'19:00',colacion:'SI'},day).extra,1);
