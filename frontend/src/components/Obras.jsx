@@ -51,6 +51,8 @@ import PartidaCurrencyField from './PartidaCurrencyField';
 import {budgetPriceView,budgetViewTotals,formatBudgetViewAmount} from '../utils/workBudgetCurrencyView';
 import {economicIndicators,loadEconomicIndicator} from '../utils/economicIndicatorsCache';
 import {workerAssignedToWork} from '../utils/workerCenters';
+import {attendanceRoster,validateAttendancePerson} from '../utils/attendanceRoster';
+import AttendancePersonSelect from './AttendancePersonSelect';
 import {projectName,migrateProjectStorage} from '../utils/projectProfile';
 import { plannedValueAt, physicalProgressAt, dailyBudgetRate, plannedCurveFinish } from '../utils/plannedProgress';
 import { scheduleDelay } from '../utils/scheduleDelay';
@@ -1215,6 +1217,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
   // Listas desplegables cargadas de la base de datos para la obra
   const [personalList, setPersonalList] = useState([]);
+  const [attendanceStaff,setAttendanceStaff]=useState({workId:null,workers:[],links:[]});
+  const attendancePeople=attendanceRoster(attendanceStaff.workId===selectedObra?.id?attendanceStaff.workers:[],attendanceStaff.workId===selectedObra?.id?attendanceStaff.links:[],selectedObra,attendanceAppliedDate,editingAttendanceRecord);
   const [maquinariaList, setMaquinariaList] = useState([]);
   const [maquinariaHistorialList, setMaquinariaHistorialList] = useState([]);
   const [maquinariaUsoObra, setMaquinariaUsoObra] = useState([]);
@@ -1662,14 +1666,15 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     };
 
     // 1. Cargar personal
-    setPersonalList([]);setPersonalAsignadoList([]);setPersonalCount(0);
+    setPersonalList([]);setPersonalAsignadoList([]);setPersonalCount(0);setAttendanceStaff({workId:null,workers:[],links:[]});
     try {
       const company=selectedObra?.empresa||user.empresa;
       const [{data:allPers,error:staffError},{data:centerLinks,error:centerError}]=await Promise.all([
-        supabase.from('maestro_personal').select(canViewSalary?'*':'id,empresa,nombre,rut,cargo,obra_nombre,centro_gestion_id,centro_gestion_defecto_id,centro_trabajo,centro_trabajo_id,estado,fecha_asig').eq('empresa',company),
+        supabase.from('maestro_personal').select(canViewSalary?'*':'id,empresa,nombre,rut,cargo,obra_nombre,centro_gestion_id,centro_gestion_defecto_id,centro_trabajo,centro_trabajo_id,estado,fecha_asig,fecha_inicio_contrato,fecha_vencimiento_contrato').eq('empresa',company),
         supabase.from('rrhh_personal_centros_detalle').select('*').eq('empresa',company)
       ]);
       if(staffError||centerError)throw staffError||centerError;
+      setAttendanceStaff({workId:selectedObra?.id,workers:allPers||[],links:centerLinks||[]});
       const rawListPers = (allPers || []).filter(p => workerAssignedToWork(p,{...selectedObra,nombre:obraNombre,empresa:company},centerLinks||[]));
       
       const uniqueWorkersMap = new window.Map();
@@ -2063,10 +2068,11 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       };
 
       if (editingAttendanceRecord && !canPersonnelEdit) throw new Error('No tienes permisos para editar este marcaje.');
+      if (!isBulkAttendance) validateAttendancePerson(attendancePeople,asistenciaData,editingAttendanceRecord);
       if (editingAttendanceRecord && !hasSignature) delete payload.firma_base64;
       let batch=[payload];
       if (isBulkAttendance) {
-        const workers=personalList.filter(worker=>attendanceWorkerIds.includes(attendanceWorkerKey(worker)));
+        const workers=attendancePeople.filter(worker=>attendanceWorkerIds.includes(attendanceWorkerKey(worker)));
         if(workers.length!==attendanceWorkerIds.length)throw new Error('Cambió la lista de trabajadores. Revisa la selección.');
         buildManualAttendanceBatch(payload,workers);
         const existing=[];
@@ -2486,7 +2492,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const handleEditAsistenciaRecord = (a) => {
     if (!canPersonnelEdit) return alert('No tienes permisos para editar este registro.');
     if (a._sourceTable === 'asistencia') return alert('Este marcaje pertenece al registro antiguo. Debe revisarse desde su módulo de origen.');
-    setEditingAttendanceRecord({id:a.id,fecha:attendanceDay(a),applied:a.jornada_aplicada,hours:a.jornada_ordinaria_horas ?? 9});
+    setEditingAttendanceRecord({id:a.id,trabajador:a.trabajador,rut:a.rut||'',fecha:attendanceDay(a),applied:a.jornada_aplicada,hours:a.jornada_ordinaria_horas ?? 9});
     setEditingRecordId(a.id);
     setAsistenciaFecha(attendanceDay(a) || chileanAttendanceToday());
     setAsistenciaMode('manual');
@@ -2959,7 +2965,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
   // Si se selecciona un trabajador, llenar automáticamente su RUT
   const handleTrabajadorSelect = (nombre) => {
-    const selected = personalList.find(p => p.nombre === nombre);
+    const selected = attendancePeople.find(p => p.nombre === nombre);
     setAsistenciaData({
       ...asistenciaData,
       trabajador: nombre,
@@ -8654,22 +8660,12 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
             {errorMsg && <div className="bg-red-50 text-red-700 p-2.5 rounded-lg text-xs font-semibold mb-3">{errorMsg}</div>}
 
             <form onSubmit={submitAsistencia} className="space-y-4">
-              <AttendanceDateField mode={asistenciaMode} value={asistenciaFecha} onChange={setAsistenciaFecha}/>
+              <AttendanceDateField mode={asistenciaMode} value={asistenciaFecha} onChange={date=>{setAsistenciaFecha(date);setAttendanceWorkerIds([]);if(!editingAttendanceRecord)setAsistenciaData(current=>({...current,trabajador:'',rut:''}));}}/>
               {asistenciaMode==='manual'&&<p className="rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-xs text-emerald-950">Al guardar un presente, el costo se carga directamente al centro de gestión de esta obra, con las HE calculadas, sin una segunda confirmación. Si falta centro o información de costeo, o existe más de un marcaje ese día, se revisa en RRHH → Asignaciones y distribución de costos.</p>}
               {asistenciaMode==='manual' && !editingAttendanceRecord && <label className="flex items-center gap-2 rounded-xl bg-blue-50 p-3 text-xs font-bold text-blue-950"><input type="checkbox" checked={multiAttendance} disabled={modalLoading} onChange={e=>setMultiAttendance(e.target.checked)}/>Registrar varios trabajadores</label>}
-              {isBulkAttendance && <AttendanceWorkerPicker workers={personalList.filter(worker=>!worker.empresa || worker.empresa===(selectedObra.empresa || user.empresa))} selected={attendanceWorkerIds} onChange={setAttendanceWorkerIds} disabled={modalLoading}/>}
+              {isBulkAttendance && <AttendanceWorkerPicker workers={attendancePeople} selected={attendanceWorkerIds} onChange={setAttendanceWorkerIds} disabled={modalLoading}/>}
               <div className={isBulkAttendance?'hidden':''}>
-                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Trabajador</label>
-                <select
-                  required={!isBulkAttendance}
-                  disabled={isBulkAttendance}
-                  value={asistenciaData.trabajador}
-                  onChange={(e) => handleTrabajadorSelect(e.target.value)}
-                  className="w-full border border-slate-200 rounded-lg p-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600"
-                >
-                  <option value="">-- Selecciona Trabajador --</option>
-                  {personalList.map(p => <option key={p.rut || p.nombre} value={p.nombre}>{p.nombre} ({p.cargo})</option>)}
-                </select>
+                <AttendancePersonSelect workers={attendancePeople} value={asistenciaData.trabajador} onChange={handleTrabajadorSelect} editing={!!editingAttendanceRecord} disabled={isBulkAttendance||modalLoading}/>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
