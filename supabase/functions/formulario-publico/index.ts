@@ -31,7 +31,7 @@ Deno.serve(async(req)=>{
     if(body.qrContext){
       const qrToken=clean(body.qrContext.token,100),rut=normalizeRut(body.qrContext.rut);
       if(!/^[a-f0-9]{48}$/.test(qrToken)||!rut)return json({error:'Identificación QR inválida'},403);
-      const eq=await db.from('inventario_maquinaria').select('id,empresa,tipo,patente,marca,obra_nombre').eq('publico_token',qrToken).eq('empresa',form.empresa).maybeSingle();
+      const eq=await db.from('inventario_maquinaria').select('id,empresa,tipo,patente,marca,obra_nombre,horometro_inicial').eq('publico_token',qrToken).eq('empresa',form.empresa).maybeSingle();
       if(eq.error||!eq.data||!checklistCandidates(eq.data,[form]).includes(form.id))return json({error:'El formulario no corresponde al equipo del QR'},403);
       const config=await db.from('maquinaria_reporte_equipo').select('qr_activo').eq('equipo_id',eq.data.id).maybeSingle();
       if(config.error||config.data?.qr_activo===false)return json({error:'QR no disponible'},403);
@@ -44,7 +44,9 @@ Deno.serve(async(req)=>{
       qrWork=selectedWork.data;
       qrEquipment.obra_nombre=qrWork?.nombre||'';
     }
+    if(form.campos?.control_documental?.equipo_checklist_id&&!qrEquipment)return json({error:'Abre este checklist desde el QR del equipo para identificarte.'},403);
     const fields=Array.isArray(form.campos)?form.campos:(form.campos?.items||[]);
+    const coreAnswers=qrEquipment?{qr_equipo:[qrEquipment.tipo,qrEquipment.patente].filter(Boolean).join(' · '),qr_rut:qrActor.rut,qr_nombre:qrActor.nombre,qr_cargo:qrActor.cargo||'Sin cargo informado',qr_fecha:qrDate}:{};
     const usage=form.campos?.control_documental?.tipo_registro==="maquinaria_uso";
     const usageField={source:"machinery",selectorKey:"patente",autofillKeys:["marca","tipo","horometro_inicial"]};
     const catalogFor=async(field:any,centers:any[])=>{
@@ -117,6 +119,8 @@ Deno.serve(async(req)=>{
       if(usage)catalogEntries.push(["__usage_equipment",await catalogFor(usageField,centers||[])]);
       const initialAnswers:any={},initialMetadata:any={};
       if(qrEquipment){
+        Object.assign(initialAnswers,Object.fromEntries(Object.entries(coreAnswers).filter(([id])=>fields.some((f:any)=>f.id===id))));
+        if(fields.some((f:any)=>f.id==='qr_horometro'))initialAnswers.qr_horometro=qrEquipment.horometro_inicial??0;
         // Resolve the selected work from trusted assignments, never from editable answers.
         const center=(centers||[]).find((c:any)=>c.obra_nombre===qrEquipment.obra_nombre);
         Object.assign(initialMetadata,{proyecto_nombre:qrEquipment.obra_nombre||'',obra_id:qrWork?.id||'',centro_gestion_id:center?.id||'',inspector:qrActor.nombre});
@@ -133,6 +137,8 @@ Deno.serve(async(req)=>{
     const answers=body?.respuestas;
     if(!answers||typeof answers!=="object"||Array.isArray(answers))return json({error:"Respuestas inválidas"},400);
     if(qrEquipment){
+      Object.assign(answers,Object.fromEntries(Object.entries(coreAnswers).filter(([id])=>fields.some((f:any)=>f.id===id))));
+      if(fields.some((f:any)=>f.id==='qr_horometro')&&(!Number.isFinite(Number(answers.qr_horometro))||Number(answers.qr_horometro)<0))return json({error:'Ingresa un horómetro válido.'},400);
       body.obra_id=qrWork?.id||null;body.centro_gestion_id=qrWork?.centro_gestion_id||null;body.proyecto_nombre=qrWork?.nombre||null;
       for(const field of fields){
         if(field.source==='machinery'&&String(answers[field.id]?._id)!==String(qrEquipment.id))return json({error:'El checklist debe corresponder al equipo del QR.'},400);

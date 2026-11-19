@@ -1,0 +1,21 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="fixture"></div><script type="module">
+import React from 'react';import {createRoot} from 'react-dom/client';
+import '../../src/index.css';import Editor from '../../src/components/EquipmentFormsEditor.jsx';
+import {supabase} from '../../src/supabaseClient.js';
+import {withEquipmentFields} from '../../../supabase/functions/_shared/equipmentQr.mjs';
+const source={id:1,empresa:'TEST',titulo:'Checklist de inspección general',categoria:'Inspección',campos:{items:[{id:'estado',label:'Estado de los cables',type:'radio',options:['Bueno','Regular','Malo']}],control_documental:{todas_las_obras:true}},publico_token:'original_token'};
+window.forms=[source];window.copyCalls=0;window.saves=[];
+supabase.rpc=async(name,args)=>{
+ if(name!=='equipo_copiar_checklist')return {data:[],error:null};
+ window.copyCalls++;
+ const copy={...structuredClone(source),id:2,titulo:source.titulo+' · TEST-01',publico_token:'copy_token',campos:{items:withEquipmentFields(source.campos.items,{meter:true}),control_documental:{todas_las_obras:true,equipo_checklist_id:7,formulario_origen_id:1}}};
+ window.forms=[source,copy];return {data:copy,error:null};
+};
+supabase.from=table=>{let one=false,mutation=null,id=null;
+ const result=()=>{if(mutation&&table==='prevencion_formularios'){window.saves.push({id,...mutation});window.forms=window.forms.map(f=>f.id===id?{...f,...mutation}:f);}
+ const rows=table==='prevencion_formularios'?window.forms:[];return {data:one?rows[0]||null:rows,error:null};};
+ const q={select:()=>q,eq:(key,value)=>{if(key==='id')id=value;return q;},order:()=>q,range:()=>q,in:()=>q,limit:()=>q,update:v=>{mutation=v;return q;},maybeSingle:()=>{one=true;return q;},single:()=>{one=true;return q;},then:(resolve,reject)=>Promise.resolve(result()).then(resolve,reject)};return q;
+};
+const user={id:1,empresa:'TEST',rol:'Administrador',_rolePreview:true,permisos:{'formularios.formularios.ver':true,'formularios.formularios.crear':true,'formularios.formularios.editar':true}};
+createRoot(document.getElementById('fixture')).render(React.createElement('main',{className:'mx-auto max-w-4xl p-5'},React.createElement(Editor,{equipment:{id:7,empresa:'TEST',tipo:'MANIPULADOR TELESCÓPICO',patente:'TEST-01'},user})));
+</script></body></html>

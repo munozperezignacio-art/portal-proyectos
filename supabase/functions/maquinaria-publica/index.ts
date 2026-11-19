@@ -61,7 +61,7 @@ Deno.serve(async (req: Request) => {
     const actor=person.data[0];
     if(action==='identificar')return reply({nombre:actor.nombre,cargo:actor.cargo,rut},200,origin);
     if(action==='checklist'){
-      const forms=await db.from('prevencion_formularios').select('id,empresa,titulo,publico_token').eq('empresa',equipment.empresa);
+      const forms=await db.from('prevencion_formularios').select('id,empresa,titulo,publico_token,campos').eq('empresa',equipment.empresa);
       if(forms.error)return reply({error:'No se pudo consultar los formularios.'},503,origin);
       const ids=checklistCandidates(equipment,forms.data||[]);
       const form=forms.data?.find(f=>ids.includes(f.id));

@@ -9,6 +9,9 @@ export function normalizeRut(value) {
 }
 const norm=value=>String(value??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 export function checklistCandidates(equipment,forms) {
+ const bound=forms.filter(f=>f.empresa===equipment.empresa&&f.campos?.control_documental?.equipo_checklist_id!=null&&String(f.campos.control_documental.equipo_checklist_id)===String(equipment.id));
+ if(bound.length)return bound.map(f=>f.id);
+ forms=forms.filter(f=>!f.campos?.control_documental?.equipo_checklist_id);
  const name=norm(equipment.tipo);
  // Accessories containing a machine name are not machines.
  if(/^(broca|extension|buzon|cuello|reductor|pizon|balde|viga)\b/.test(name))return [];
