@@ -75,7 +75,11 @@ Deno.serve(async (req: Request) => {
       if(saved.error)return reply({error:'No se guardó la mantención. Revisa fecha, lectura y descripción.'},400,origin);
       return reply({ok:true,id:saved.data.id},200,origin);
     }
-    body.operador=actor.nombre; body.operador_id=null; body.autor_declarado=author;
+    // Resolve from the verified personnel record, never from a client-supplied operator ID/name.
+    const operator=await db.from('maquinaria_operadores').select('id').eq('empresa',equipment.empresa).eq('trabajador_id',actor.id).eq('activo',true).maybeSingle();
+    if(operator.error)return reply({error:'No se pudo comprobar la habilitación del operador. Intenta nuevamente.'},503,origin);
+    if(!operator.data)return reply({error:'Tu RUT está registrado en el personal, pero no estás habilitado como operador. Solicita al responsable revisar Maquinaria > Operadores.'},403,origin);
+    body.operador=actor.nombre; body.operador_id=operator.data.id; body.autor_declarado=author;
     delete body.rut;
 
     if (!/^[0-9a-f-]{36}$/i.test(String(body.solicitud_id || ''))) return reply({error:'Actualiza el formulario antes de enviar.'},400,origin);
