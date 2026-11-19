@@ -1,3 +1,4 @@
+import WorkFleetStatistics from './WorkFleetStatistics';
 import { CHILEAN_HOLIDAYS } from '../utils/chileanHolidays';
 import React, { useState, useEffect, useRef } from 'react';
 import WorkBudgetMargin from './WorkBudgetMargin';
@@ -4997,7 +4998,6 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 const filteredMantenciones = (mantencionesMaquinariaList || []).filter(m => m.fecha <= fCorteStr);
                 const filteredParalizaciones = (paralizacionesMaquinariaList || []).filter(p => p.fecha_inicio <= fCorteStr);
                 const totalCostoMantencion = filteredMantenciones.reduce((acc, m) => acc + (parseFloat(m.costo) || 0), 0);
-                const totalHorasParada = filteredParalizaciones.reduce((acc, p) => acc + (parseFloat(p.horas_parada) || 0), 0);
                 const totalEquiposFlota = historicalStats?.historicos ?? null;
 
                 // 6. Prevención de Riesgos y Accidentabilidad
@@ -5183,14 +5183,13 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 }, {})).sort((a, b) => b.hht - a.hht);
                 const valuePerHHT = totalHHT > 0 ? avanceMontoAcumulado / totalHHT : 0;
 
-                // Disponibilidad por equipo, calculada en horas potenciales desde el inicio del alcance hasta el corte.
-                const elapsedBusinessDays = Math.max(1, countChileanBusinessDays(fInicioObraDefault, fCorteStr));
+                // Sin base de horas programadas verificada no se certifica disponibilidad.
                 const equipmentAvailability = [...(maquinariaList || []), ...(arriendosList || [])].map((equipment, idx) => {
                   const name = equipment.nombre || equipment.equipo || equipment.patente || `Equipo ${idx + 1}`;
                   const stops = filteredParalizaciones.filter(p => String(p.equipo_nombre || '').trim().toLowerCase() === String(name).trim().toLowerCase());
                   const maintenance = filteredMantenciones.filter(m => String(m.equipo_nombre || '').trim().toLowerCase() === String(name).trim().toLowerCase());
                   const downtime = stops.reduce((sum, stop) => sum + (parseFloat(stop.horas_parada) || 0), 0);
-                  const availablePct = Math.max(0, 100 - ((downtime / (elapsedBusinessDays * 9)) * 100));
+                  const availablePct = null;
                   return { name, downtime, stops: stops.length, maintenance: maintenance.length, availablePct };
                 }).sort((a, b) => a.availablePct - b.availablePct);
 
@@ -5512,91 +5511,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                       </div>
                     )}
 
-                    {/* PESTAÑA 3: 🚜 MAQUINARIAS & FLOTA */}
-                    {estadisticasTab === 'maquinarias' && (
-                      <div className="space-y-6">
-
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Equipos que participaron hasta el corte</span>
-                            <p className="text-2xl font-black text-amber-900">{totalEquiposFlota} <span className="text-xs font-normal text-slate-400">maquinarias</span></p>
-                            <p className="text-[10px] text-slate-500 font-semibold">{historicalStats?.activos ?? '—'} activos al corte</p>
-                          </div>
-
-                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Mantenciones Realizadas</span>
-                            <p className="text-2xl font-black text-slate-800">{filteredMantenciones.length} <span className="text-xs font-normal text-slate-400">mant.</span></p>
-                            <p className="text-[10px] text-amber-800 font-bold">Costo Acum.: ${totalCostoMantencion.toLocaleString('es-CL')}</p>
-                          </div>
-
-                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Paralizaciones / Fallas</span>
-                            <p className="text-2xl font-black text-rose-700">{filteredParalizaciones.length} <span className="text-xs font-normal text-slate-400">eventos</span></p>
-                            <p className="text-[10px] text-rose-800 font-bold">{totalHorasParada} horas de parada acumuladas</p>
-                          </div>
-
-                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-1">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Disponibilidad de Flota</span>
-                            <p className="text-2xl font-black text-emerald-800">
-                              {totalEquiposFlota > 0 ? (100 - Math.min(100, (totalHorasParada / (totalEquiposFlota * 160)) * 100)).toFixed(1) : "100"}%
-                            </p>
-                            <p className="text-[10px] text-emerald-600 font-bold">✓ Nivel de operatividad de equipos</p>
-                          </div>
-                        </div>
-
-                        <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-3">
-                          <div className="flex items-center justify-between border-b border-slate-100 pb-2"><div><h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Disponibilidad por equipo</h4><p className="text-[10px] text-slate-500 mt-0.5">Horas de parada sobre horas potenciales desde el inicio hasta la fecha de corte.</p></div><span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-2 py-1 rounded-lg">{elapsedBusinessDays} días hábiles</span></div>
-                          {equipmentAvailability.length === 0 ? <p className="text-xs text-slate-500 italic p-3 text-center bg-slate-50 rounded-xl">No hay equipos asignados al alcance seleccionado.</p> : <div className="space-y-2">{equipmentAvailability.map((equipment, idx) => <div key={`equipment-availability-${idx}`} className="border border-slate-200 bg-slate-50 rounded-xl p-3"><div className="flex justify-between gap-2 text-xs"><span className="font-bold text-slate-800 truncate">{equipment.name}</span><span className={`font-black ${equipment.availablePct >= 95 ? 'text-emerald-700' : equipment.availablePct >= 85 ? 'text-amber-700' : 'text-rose-700'}`}>{equipment.availablePct.toFixed(1)}%</span></div><div className="h-2 mt-2 bg-slate-200 rounded-full overflow-hidden"><div className={`h-full rounded-full ${equipment.availablePct >= 95 ? 'bg-emerald-500' : equipment.availablePct >= 85 ? 'bg-amber-500' : 'bg-rose-600'}`} style={{ width: `${equipment.availablePct}%` }}></div></div><p className="text-[10px] text-slate-500 font-semibold mt-1.5">{equipment.downtime} h detenida · {equipment.stops} falla(s) · {equipment.maintenance} mantención(es)</p></div>)}</div>}
-                        </div>
-
-                        {/* HISTORIAL DE MANTENCIONES Y PARALIZACIONES */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-3">
-                            <h4 className="font-extrabold text-amber-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
-                              <Wrench className="w-3.5 h-3.5" />
-                              <span>Historial de Mantenciones Realizadas</span>
-                            </h4>
-                            {filteredMantenciones.length === 0 ? (
-                              <p className="text-xs text-slate-500 italic p-3 text-center bg-slate-50 rounded-xl">No hay mantenciones registradas a la fecha.</p>
-                            ) : (
-                              <div className="space-y-2 max-h-60 overflow-y-auto">
-                                {filteredMantenciones.map((m, mIdx) => (
-                                  <div key={mIdx} className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl space-y-0.5">
-                                    <div className="flex justify-between items-center text-xs font-bold text-slate-800">
-                                      <span>{m.equipo_nombre}</span>
-                                      <span className="font-mono text-amber-900">${(parseFloat(m.costo) || 0).toLocaleString('es-CL')}</span>
-                                    </div>
-                                    <p className="text-[10.5px] text-slate-600">{m.tipo} - {m.fecha} | {m.descripcion || 'Sin observación'}</p>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-xs space-y-3">
-                            <h4 className="font-extrabold text-rose-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
-                              <AlertTriangle className="w-3.5 h-3.5" />
-                              <span>Historial de Paralizaciones / Fallas Técnicas</span>
-                            </h4>
-                            {filteredParalizaciones.length === 0 ? (
-                              <p className="text-xs text-slate-500 italic p-3 text-center bg-slate-50 rounded-xl">No se registraron fallas técnicas a la fecha.</p>
-                            ) : (
-                              <div className="space-y-2 max-h-60 overflow-y-auto">
-                                {filteredParalizaciones.map((p, pIdx) => (
-                                  <div key={pIdx} className="bg-rose-50/60 border border-rose-200 p-2.5 rounded-xl space-y-0.5">
-                                    <div className="flex justify-between items-center text-xs font-bold text-rose-950">
-                                      <span>{p.equipo_nombre}</span>
-                                      <span className="font-mono text-rose-800 font-black">{p.horas_parada} hrs parada</span>
-                                    </div>
-                                    <p className="text-[10.5px] text-slate-700">Inicio: {p.fecha_inicio} | Motivo: {p.motivo}</p>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                    {estadisticasTab === 'maquinarias' && <WorkFleetStatistics key={selectedObra.id} company={user.empresa} work={selectedObra} cutoff={fCorteStr} start={fInicioObraDefault} canCosts={canObraGestionView} canChecks={can(user,userPermissions,'formularios.formularios.ver')} charges={machineryCharges} costError={machineryChargeError}/>}
 
                     {/* PESTAÑA 4: 🛡️ PREVENCIÓN DE RIESGOS (HSE) */}
                     {estadisticasTab === 'prevencion' && (
