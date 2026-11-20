@@ -21,7 +21,10 @@ export default function WorkerBatch({title,workers,onApply,period,inline=false,s
  {period?<><label>Aplicar a <select onChange={e=>field('scope',e.target.value)}><option value="rango">Por período</option><option value="dia">Día específico</option></select></label>
  {form.scope!=='dia'&&<div className="grid gap-3 sm:grid-cols-2"><label>Desde <input required type="date" max={form.to||undefined} onChange={e=>field('from',e.target.value)}/></label><label>Hasta <input required type="date" min={form.from>period+'-01'?form.from:period+'-01'} max={period+'-'+new Date(Number(period.slice(0,4)),Number(period.slice(5)),0).getDate()} onChange={e=>field('to',e.target.value)}/></label><small className="sm:col-span-2">Un solo monto por trabajador. Elige la nómina del mes en que termina el período.</small></div>}
  {form.scope==='dia'&&<label>Fecha <input required type="date" min={period+'-01'} max={period+'-'+new Date(Number(period.slice(0,4)),Number(period.slice(5)),0).getDate()} onChange={e=>field('day',e.target.value)}/></label>}
+ <p className="text-xs text-slate-500">Las fechas indican la vigencia de esta asignación. Puedes registrar otras asignaciones con sus propias vigencias.</p>
  <label>Nombre del haber <input required maxLength={120} onChange={e=>field('name',e.target.value)}/></label>
+ <label className="flex items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 p-3"><input type="checkbox" checked={!!form.proportional} onChange={e=>field('proportional',e.target.checked)}/>Proporcional a días trabajados en la descarga</label>
+ <small>Sin marcar: monto completo cuando la vigencia cruza la descarga. Marcado: monto × días trabajados del rango ÷ días trabajados de toda la vigencia.</small>
  <label>Monto por trabajador ($) <input type="number" min="1" step="1" required onChange={e=>field('amount',e.target.value)}/></label>
  <label>Tipo <select onChange={e=>field('type',e.target.value)}><option>Imponible</option><option>No imponible</option></select></label></>:<>
  <p>Solo se modifican los campos que completes.</p>

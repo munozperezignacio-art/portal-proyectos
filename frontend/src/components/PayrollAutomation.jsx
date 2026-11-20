@@ -12,7 +12,7 @@ const afpCommissionRates = { Habitat: 11.27, Capital: 11.44, Cuprum: 11.44, Mode
 const money = value => `$${Number(value || 0).toLocaleString('es-CL')}`;
 const currentPeriod = () => new Date().toISOString().slice(0, 7);
 
-export default function PayrollAutomation({ user, personal, centrosGestion = [], indicadores, onEmit }) {
+export default function PayrollAutomation({ user, personal, obras = [], centrosGestion = [], indicadores, onEmit }) {
   const [period, setPeriod] = useState(currentPeriod());
   const [attendance, setAttendance] = useState([]);
   const [approvedDays, setApprovedDays] = useState([]);
@@ -124,8 +124,8 @@ export default function PayrollAutomation({ user, personal, centrosGestion = [],
       const name=f.name.trim(), amount=Number(f.amount), date=f.scope==='dia'?f.day:f.from+'/'+f.to, type=f.type||'Imponible';
       if(!name||!Number.isSafeInteger(amount)||amount<=0||!date?.split('/').at(-1)?.startsWith(period))throw new Error('Revisa el concepto, período y monto.');
       const key=JSON.stringify([date,type,name.toLocaleLowerCase('es-CL')]);
-      setNovelties(prev=>{const next={...prev};for(const {id} of workers){const n=prev[id]||{};next[id]={...n,haberes_detallados:{...n.haberes_detallados,[key]:{date,type,name,amount}}};}return next;});
-    }}/></AttendanceAction>}<AttendanceAction title="Descargar haberes"><LoncoDownload empresa={user.empresa} period={period} workers={calculations.map(w=>({...w,id:w.workerId}))} novelties={novelties} disabled={loading||!workEarnings}/></AttendanceAction></div>
+      setNovelties(prev=>{const next={...prev};for(const {id} of workers){const n=prev[id]||{};next[id]={...n,haberes_detallados:{...n.haberes_detallados,[key]:{date,type,name,amount,proportional:!!f.proportional}}};}return next;});
+    }}/></AttendanceAction>}<AttendanceAction title="Descargar haberes"><LoncoDownload empresa={user.empresa} period={period} workers={personal} obras={obras} allowPayroll novelties={novelties} disabled={loading||!workEarnings}/></AttendanceAction></div>
     {message && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-900">{message}</div>}
     {costConfig?.origen==='Automático' && <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs">Costeo preparado automáticamente. {costConfig.reglas?.advertencia} Revise estas particularidades antes de cerrar la nómina definitiva.</p>}
     <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 lg:flex-row lg:items-end"><label className="flex-1"><span className="mb-1.5 flex items-center gap-1 text-[10px] font-black uppercase text-slate-500"><Building2 className="h-3.5 w-3.5"/>Centro de gestión</span><select value={centerFilter} onChange={event => setCenterFilter(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-black"><option value="Todos">Todos los centros</option>{centrosGestion.filter(center => center.activo !== false).map(center => <option key={center.id} value={center.id}>{center.codigo} · {center.nombre}</option>)}<option value="">Sin centro asignado</option></select></label><p className="pb-2 text-[10px] font-bold text-slate-500">{calculations.length} de {allCalculations.length} trabajadores</p><button onClick={printPayroll} className="flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-black text-white"><Printer className="h-4 w-4"/>Imprimir nómina filtrada</button></div>

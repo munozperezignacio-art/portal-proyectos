@@ -12,7 +12,7 @@ export default function EarningsHistory({obra,revision}){
  useEffect(()=>{
    let active=true; load([]);fail('');start(null);wait(true);
    (async()=>{try{const all=[];if(month)for(let offset=0;;offset+=300){
-     let q=supabase.from('rrhh_haberes_obra').select('trabajador_id,referencia,tipo,clave,concepto,monto,maestro_personal(nombre,rut)').eq('obra_id',obra.id).eq('empresa',obra.empresa).eq('periodo',month);
+     let q=supabase.from('rrhh_haberes_obra').select('trabajador_id,referencia,tipo,clave,concepto,monto,proporcional,maestro_personal(nombre,rut)').eq('obra_id',obra.id).eq('empresa',obra.empresa).eq('periodo',month);
      
      const {data,error}=await q.order('referencia',{ascending:false}).order('trabajador_id').order('tipo').order('clave').range(offset,offset+299);
      if(!active)return;if(error)throw error;all.push(...data.filter(r=>!day||r.referencia===day||(r.referencia.includes('/')&&r.referencia.split('/')[0]<=day&&day<=r.referencia.split('/')[1])));if(data.length<300)break;
@@ -22,8 +22,8 @@ export default function EarningsHistory({obra,revision}){
  async function submit(e){e.preventDefault();if(saving)return;const {original,concepto,tipo,referencia}=edit,monto=Number(edit.monto);
    if(!concepto.trim()||!Number.isSafeInteger(monto)||monto<1||monto>2147483647||referencia.split('/').at(-1).slice(0,7)!==month){say('Revisa el concepto, la fecha del período y el monto.');return;}
    saveBusy(true);say('');try{
-     const {data,error}=await supabase.from('rrhh_haberes_obra').update({concepto:concepto.trim(),tipo,referencia,monto})
-       .eq('obra_id',obra.id).eq('empresa',obra.empresa).eq('periodo',month).eq('trabajador_id',original.trabajador_id).eq('referencia',original.referencia).eq('tipo',original.tipo).eq('clave',original.clave).eq('concepto',original.concepto).eq('monto',original.monto).select('trabajador_id');
+     const {data,error}=await supabase.from('rrhh_haberes_obra').update({concepto:concepto.trim(),tipo,referencia,monto,proporcional:!!edit.proporcional})
+       .eq('obra_id',obra.id).eq('empresa',obra.empresa).eq('periodo',month).eq('trabajador_id',original.trabajador_id).eq('referencia',original.referencia).eq('tipo',original.tipo).eq('clave',original.clave).eq('concepto',original.concepto).eq('monto',original.monto).eq('proporcional',!!original.proporcional).select('trabajador_id');
      if(error)throw new Error(error.code==='23505'?'Ya existe un haber con ese concepto, tipo y fecha para este trabajador.':error.message);
      if(data?.length!==1)throw new Error('No se guardó: el registro cambió o ya no tienes permiso. Actualiza el listado.');
      say('Corrección guardada.');refresh(v=>v+1);
@@ -36,9 +36,10 @@ export default function EarningsHistory({obra,revision}){
  {busy?'Cargando haberes…':err?<p role="alert">{err}</p>:<p>{visible.length} haberes · {day?'Solo del día elegido':'Incluye haberes diarios y mensuales'}</p>}
  <button type="button" disabled={saving} className="font-bold text-blue-900" onClick={()=>refresh(v=>v+1)}>Actualizar listado</button>
  {visible.map(r=><article key={key(r)} className="rounded-xl border border-slate-200 p-3"><div className="flex items-center justify-between gap-2"><b>{r.maestro_personal?.nombre||'Trabajador #'+r.trabajador_id}</b><button type="button" disabled={saving} className="rounded-lg border px-3 py-1 font-bold text-blue-900" onClick={()=>{start({...r,original:r});say('');}}>Editar</button></div>
- <p>{dateLabel(r.referencia)} · {r.concepto} · {r.tipo} · <b>${Number(r.monto).toLocaleString('es-CL')}</b></p>
+ <p>Vigencia: {dateLabel(r.referencia)} · {r.concepto} · {r.tipo} · <b>${Number(r.monto).toLocaleString('es-CL')}</b> · {r.proporcional?'Proporcional a marcajes':'Monto completo'}</p>
  {edit&&key(edit.original)===key(r)&&<form onSubmit={submit}><fieldset disabled={saving} className="mt-3 grid gap-2 sm:grid-cols-2">
  <label>Concepto<input required maxLength="120" className={control} value={edit.concepto} onChange={e=>start({...edit,concepto:e.target.value})}/></label>
+ <label className="flex items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 p-3"><input type="checkbox" checked={!!edit.proporcional} onChange={e=>start({...edit,proporcional:e.target.checked})}/>Proporcional a días trabajados en la descarga</label>
  <label>Monto ($)<input required type="number" min="1" step="1" className={control} value={edit.monto} onChange={e=>start({...edit,monto:e.target.value})}/></label>
  <label>Tipo<select className={control} value={edit.tipo} onChange={e=>start({...edit,tipo:e.target.value})}><option>Imponible</option><option>No imponible</option></select></label>
  {edit.referencia.includes('/')?<div className="flex gap-2">{[0,1].map(i=><label key={i}>{i?'Hasta':'Desde'}<input required type="date" className={control} value={edit.referencia.split('/')[i]} onChange={e=>{const dates=edit.referencia.split('/');dates[i]=e.target.value;start({...edit,referencia:dates.join('/')});}}/></label>)}</div>:<label>Aplicar a<select className={control} value={edit.referencia.length===7?'mes':'dia'} onChange={e=>start({...edit,referencia:e.target.value==='mes'?month:month+'-01'})}><option value="mes">Mes completo</option><option value="dia">Día específico</option></select></label>}

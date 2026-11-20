@@ -1,0 +1,25 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import X from 'xlsx-js-style';
+import {earningForExport,earningOverlaps} from './earningPeriod.js';
+import {loadEarningsExport} from './earningsExport.js';
+import {loncoWorkbook} from './loncoWorkbook.js';
+const worker={id:1,nombre:'Prueba',rut:'1-9'},from='2026-10-21',to='2026-11-20';
+test('21-20 includes both full monthly allocations and overlapping ranges exactly once',()=>{
+ const allocations=['2026-10','2026-11','2026-10-01/2026-12-31','2026-09'].map(date=>({date,worker,name:'Bono',amount:30000,work:'Lonco'}));
+ const earnings=allocations.map(h=>earningForExport(h,[],from,to)).filter(Boolean);assert.equal(earnings.length,3);assert.equal(earnings.reduce((s,h)=>s+h.amount,0),90000);
+ const book=loncoWorkbook(X,'2026-11',[worker],[],earnings,from,to);assert.equal(book.Sheets.RESUMEN.H6.v,90000);assert.match(book.Sheets.RESUMEN.I6.v,/2026-10-01/);
+ const reopened=X.read(X.write(book,{type:'buffer',bookType:'xlsx'}),{type:'buffer'});assert.equal(reopened.Sheets.RESUMEN.H6.v,90000);
+ assert.equal(earningOverlaps('2026-11-21',from,to),false);
+});
+test('proportional counts unique PRESENT days on the assignment work, not duplicates or absences',()=>{
+ const marks=[['2026-10-10','PRESENTE',32],['2026-10-22','PRESENTE',32],['2026-10-22','PRESENTE',32],['2026-10-23','AUSENTE',32],['2026-10-24','PRESENTE',84]].map(([fecha_marcacion,asistencia,obra_id])=>({fecha_marcacion,asistencia,obra_id,rut:'19'}));
+ const h={date:'2026-10',worker,name:'Bono',amount:30000,proportional:true,workId:32};
+ assert.equal(earningForExport(h,marks,from,to).amount,15000);assert.match(earningForExport(h,marks,from,to).note,/1\/2/);
+ assert.throws(()=>earningForExport(h,[],from,to),/no hay días trabajados/);
+ assert.equal(earningForExport({...h,proportional:false},[],from,to).amount,30000);
+});
+test('loader keeps long overlapping assignments and scopes works/workers before export',async()=>{
+ const rows=[{obra_id:32,trabajador_id:1,periodo:'2026-12',referencia:'2026-10-01/2026-12-31',monto:100,concepto:'Largo',maestro_personal:worker,obras:{nombre:'Lonco'}},{obra_id:84,trabajador_id:2,periodo:'2026-11',referencia:'2026-11',monto:900,concepto:'Otro'}];
+ const db={from(table){let filters=[];const q={select:()=>q,eq:(k,v)=>{if(k!=='empresa')filters.push(r=>String(r[k])===String(v));return q;},gte:(k,v)=>{filters.push(r=>r[k]>=v);return q;},lte:(k,v)=>{filters.push(r=>r[k]<=v);return q;},in:(k,v)=>{filters.push(r=>v.map(String).includes(String(r[k])));return q;},order:()=>q,range:async(a,b)=>({data:(table==='rrhh_haberes_obra'?rows:[]).filter(r=>filters.every(f=>f(r))).slice(a,b+1)})};return q;}};
+ const result=await loadEarningsExport(db,{empresa:'TEST',workers:[worker],workIds:['32'],workerIds:['1'],from,to});assert.equal(result.earnings.length,1);assert.equal(result.earnings[0].amount,100);
+});

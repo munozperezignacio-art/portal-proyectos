@@ -12,6 +12,8 @@ import {
 import { HrStatistics } from './OperationalStatistics';
 import WorkforceProjection from './WorkforceProjection';
 import PayrollAutomation from './PayrollAutomation';
+import AttendanceAction from './AttendanceAction';
+import LoncoDownload from './LoncoDownload';
 import PersonnelAllocations from './PersonnelAllocations';
 import WorkerBulkImport from './WorkerBulkImport';
 import WorkerAssignmentSummary from './WorkerAssignmentSummary';
@@ -763,6 +765,7 @@ function Personal({ user, onBack }) {
       {/* Encabezado */}
       <ModuleHeader title="Recursos Humanos (RRHH)" subtitle="Gestión de personal, asignaciones a obra y planillas de remuneraciones." Icon={Users} onBack={activeSubmodule !== null ? () => setActiveSubmodule(null) : onBack} actions={activeSubmodule === 'personal_empresa' && (
           <div className="flex flex-wrap gap-2">
+            {can(user,permissions,'obras.haberes.descargar')&&<AttendanceAction title="Descargar haberes"><LoncoDownload empresa={user.empresa} obras={obras} workers={personal} period={allowanceMonth()}/></AttendanceAction>}
             {canDownloadStatistics&&<button type="button" onClick={()=>setShowMonthlyReport(true)} className="flex items-center gap-1.5 rounded-xl bg-emerald-800 px-4 py-2.5 text-xs font-bold text-white"><Download className="h-4 w-4"/>Asignaciones del mes · Excel</button>}
             {canImport && <button onClick={() => setShowBulkImport(true)} className="flex items-center gap-1.5 rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-xs font-bold text-blue-950 transition hover:bg-blue-50"><Upload className="h-4 w-4"/><span>Importar Excel</span></button>}
             {canCreate && <button onClick={handleOpenAddModal} className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition"><Plus className="w-4 h-4"/><span>Crear Ficha Trabajador</span></button>}
@@ -1154,7 +1157,7 @@ function Personal({ user, onBack }) {
 
           {/* SUB-PESTAÑA 1: LIQUIDACIONES DE SUELDO */}
           {remunSubTab === 'liquidaciones' && (
-            <><PayrollAutomation user={user} personal={personal} centrosGestion={centrosGestion} indicadores={indicadores} onEmit={(worker) => { setSelectedWorkerLiquidacion(worker); setShowLiquidacionPDFModal(true); }} /><div className="hidden bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+            <><PayrollAutomation user={user} personal={personal} obras={obras} centrosGestion={centrosGestion} indicadores={indicadores} onEmit={(worker) => { setSelectedWorkerLiquidacion(worker); setShowLiquidacionPDFModal(true); }} /><div className="hidden bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
               <div className="flex justify-between items-center border-b pb-2">
                 <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-800">💵 Planilla de Sueldos y Liquidaciones</h4>
                 <button className="bg-emerald-900 hover:bg-emerald-800 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 cursor-pointer">

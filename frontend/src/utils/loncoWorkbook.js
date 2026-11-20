@@ -1,4 +1,5 @@
 import {CHILEAN_HOLIDAYS} from './chileanHolidays.js';
+import {earningOverlaps} from './earningPeriod.js';
 const holidays=new Set(CHILEAN_HOLIDAYS);
 function isHolidayRow(date){
  if(!(date instanceof Date))return false;
@@ -8,7 +9,7 @@ function isHolidayRow(date){
 const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
 export const rutKey=s=>norm(s).replace(/[^0-9k]/g,'');
 export const monthEnd=m=>new Date(Date.UTC(+m.slice(0,4),+m.slice(5),0)).toISOString().slice(0,10);
-export function inRange(ref,from,to){if(ref?.includes('/')){const end=ref.split('/')[1];return end>=from&&end<=to;}return ref?.length===7?from<=ref+'-01'&&monthEnd(ref)<=to:ref>=from&&ref<=to;}
+export const inRange=earningOverlaps;
 export function loncoWorkbook(X,period,workers,marks,earnings,from=period+'-01',to=monthEnd(period)){
  const label=d=>d.split('-').reverse().join('-');
  period=label(from)+' al '+label(to);
@@ -25,7 +26,7 @@ export function loncoWorkbook(X,period,workers,marks,earnings,from=period+'-01',
  }
 
  for(const h of earnings){const r=entry(h.worker,h.date,h.work),name=h.name.trim(),idx=norm(name)==='movilizacion'?2:norm(name)==='colacion'?3:5;
- r.v[idx]+=Number(h.amount);if(idx===5)r.notes.push(name);}
+ r.v[idx]+=Number(h.amount);if(idx===5||h.note)r.notes.push([name,h.note].filter(Boolean).join(' · '));}
  if(!people.size)throw Error('No hay marcajes ni haberes para la selección.');
  const head=[[],[null,null,null,'Informe Semanal de Personal',null,null,null,'Rev 0']],summary=[...head,[],['Período',period],['Colaborador','Obra',...cols,'Observaciones']];
  const detail=[];const used=new Set(['resumen']);
@@ -33,9 +34,10 @@ export function loncoWorkbook(X,period,workers,marks,earnings,from=period+'-01',
  const header=name==='RESUMEN'?4:6,line={style:'thin',color:{rgb:'CBD5E1'}};
  s['!merges']=[X.utils.decode_range('D2:G2')];s['!rows']=[];
  for(let r=0;r<rows.length;r++){const dark=r===1||r===header,total=name!=='RESUMEN'&&r===rows.length-1;
- s['!rows'][r]={hpt:r===1?26:r===header?30:20};
+ const noteColumn=name==='RESUMEN'?8:10,noteLines=Math.ceil(String(rows[r][noteColumn]||'').length/50);
+ s['!rows'][r]={hpt:r===1?26:r===header?30:Math.max(20,15*noteLines)};
  const holiday=name!=='RESUMEN'&&isHolidayRow(rows[r][0]);
- for(let c=0;c<widths.length;c++){const k=X.utils.encode_cell({r,c}),cell=s[k]??={t:'s',v:''};cell.s={font:{name:'Calibri',sz:r===1?14:11,bold:dark||total,color:{rgb:dark?'FFFFFF':'17324D'}},fill:{patternType:'solid',fgColor:{rgb:dark?'203864':total?'C6E5DA':holiday?'FCE4D6':r>header&&r%2?'EEF4FA':'FFFFFF'}},alignment:{vertical:'center',wrapText:r===header},...(r>=header?{border:{top:line,bottom:line,left:line,right:line}}:{})};}}
+ for(let c=0;c<widths.length;c++){const k=X.utils.encode_cell({r,c}),cell=s[k]??={t:'s',v:''};cell.s={font:{name:'Calibri',sz:r===1?14:11,bold:dark||total,color:{rgb:dark?'FFFFFF':'17324D'}},fill:{patternType:'solid',fgColor:{rgb:dark?'203864':total?'C6E5DA':holiday?'FCE4D6':r>header&&r%2?'EEF4FA':'FFFFFF'}},alignment:{vertical:'center',wrapText:r===header||c===noteColumn},...(r>=header?{border:{top:line,bottom:line,left:line,right:line}}:{})};}}
  X.utils.book_append_sheet(book,s,name);}
  for(const {w,rows} of people.values()){
  const list=[...rows.values()].sort((a,b)=>a.date.localeCompare(b.date)||a.work.localeCompare(b.work));
