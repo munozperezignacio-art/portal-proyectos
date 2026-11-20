@@ -3884,7 +3884,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                         if(error)throw new Error('Guardados '+count+' de '+workers.length+'. '+error.message);count++;
                       }}finally{await fetchObraDetails(selectedObra.nombre);}
                     }}/>}</AttendanceAction>}
-                    {recordPermission('haberes','crear')&&<WorkEarnings key={selectedObra.id} obra={selectedObra} workers={personalList} showHistory={canViewSalary}/>}
+                    {['crear','editar','descargar'].some(action=>recordPermission('haberes',action))&&<WorkEarnings key={selectedObra.id} obra={selectedObra} workers={personalList} canCreate={recordPermission('haberes','crear')} canEdit={recordPermission('haberes','editar')} canDownload={recordPermission('haberes','descargar')}/>}
                     <span className="text-xs text-slate-600">{visibleAttendanceRecords.length} de {asistenciaList.length} marcajes</span></div>
 
                     {asistenciaList.length === 0 ? (

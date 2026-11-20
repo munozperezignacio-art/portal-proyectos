@@ -3,5 +3,5 @@ import React from 'react';import {createRoot} from 'react-dom/client';import Wor
 const lonco=new URLSearchParams(location.search).has('lonco');
 window.inserts=[];supabase.from=()=>{const q={select:()=>q,eq:()=>q,gte:()=>q,lte:()=>q,order:()=>q,range:async()=>({data:[],error:null}),insert:async rows=>{window.inserts.push(rows);return {error:{code:'23505'}};}};return q;};
 const loadRoster=async(_,work,from,to)=>from<='2026-10-31'&&to>='2026-10-01'?[{id:1,nombre:'Histórico CAM prueba'}]:lonco?[{id:2,nombre:'Boris prueba'}]:[];
-createRoot(document.getElementById('fixture')).render(React.createElement(WorkEarnings,{obra:{id:lonco?32:84,empresa:'TEST_ONLY',nombre:lonco?'Lonco':'CAM Coquimbo'},workers:[],loadRoster,showHistory:new URLSearchParams(location.search).has('history')}));
+createRoot(document.getElementById('fixture')).render(React.createElement(WorkEarnings,{obra:{id:lonco?32:84,empresa:'TEST_ONLY',nombre:lonco?'Lonco':'CAM Coquimbo'},workers:[],loadRoster,canCreate:true,canEdit:new URLSearchParams(location.search).has('history')}));
 </script></body></html>

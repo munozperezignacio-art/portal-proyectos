@@ -1,0 +1,7 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"></head><body><div id="fixture"></div><script type="module">
+import React from 'react';import {createRoot} from 'react-dom/client';import WorkEarnings from '../../src/components/WorkEarnings.jsx';import {supabase} from '../../src/supabaseClient';import {can} from '../../src/utils/permissionsCatalog.js';import '../../src/index.css';
+const action=new URLSearchParams(location.search).get('action'),permissions={['obras.haberes.'+action]:true,'obras.sueldos.ver':false},user={rol:'Supervisor'};
+window.saved=0;const row={trabajador_id:1,referencia:'2026-11-05',tipo:'No imponible',clave:'bono',concepto:'Bono',monto:27000,maestro_personal:{nombre:'Prueba local',rut:'1-9'}};
+supabase.from=table=>{let update=false;const q={select:()=>q,eq:()=>q,gte:()=>q,lte:()=>q,order:()=>q,update:values=>{Object.assign(row,values);window.saved++;update=true;return q;},range:async()=>({data:table==='rrhh_haberes_obra'?[row]:[]}),then:resolve=>resolve({data:update?[{trabajador_id:1}]:[]})};return q;};
+createRoot(document.getElementById('fixture')).render(React.createElement(WorkEarnings,{obra:{id:1,empresa:'TEST_ONLY',nombre:'Prueba local'},workers:[{id:1,nombre:'Prueba local',rut:'1-9'}],canCreate:can(user,permissions,'obras.haberes.crear'),canEdit:can(user,permissions,'obras.haberes.editar'),canDownload:can(user,permissions,'obras.haberes.descargar'),loadRoster:async()=>[]}));
+</script></body></html>

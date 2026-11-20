@@ -1,12 +1,12 @@
 import React,{useState} from 'react';
 
 import {useEarningAlerts} from './useEarningAlerts';
-export default function WorkerBatch({title,workers,onApply,period,inline=false,savedMessage,company,revision=0,draft,onRangeChange,loading=false}) {
+export default function WorkerBatch({title,workers,onApply,period,inline=false,savedMessage,company,revision=0,draft,onRangeChange,loading=false,workOnly=false}) {
  const [ids,pick]=useState([]),[form,set]=useState({}),[busy,wait]=useState(false),[msg,say]=useState('');
  const field=(k,v)=>{const next={...form,[k]:v};set(next);if(['scope','day','from','to'].includes(k)){pick([]);onRangeChange?.(next.scope==='dia'?{from:next.day,to:next.day}:{from:next.from,to:next.to});}};
  const [only,filter]=useState(false);
  const from=form.scope==='dia'?form.day:form.from,to=form.scope==='dia'?form.day:form.to;
- const alerts=useEarningAlerts(company,from,to,revision,draft,period);
+ const alerts=useEarningAlerts(company,from,to,revision,draft,period,workOnly);
  const flagged=w=>(alerts.byId?.[w.id]?.length||0)>=2;
  const shown=only&&company?workers.filter(flagged):workers;
  const selected=shown.filter(w=>ids.includes(w.id));

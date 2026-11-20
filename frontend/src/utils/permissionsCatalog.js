@@ -14,7 +14,7 @@ export const PERMISSION_ACTIONS = [
 export const PERMISSIONS_CATALOG = [
   { id: 'obras', label: 'Obras', menus: [
     { id: 'sueldos', label: 'Ver sueldos de personal', actions: ['ver'] },
-    { id: 'haberes', label: 'Registrar haberes de obra', actions: ['crear'] },
+    { id: 'haberes', label: 'Haberes de obra (registrar, editar y descargar)', actions: ['crear', 'editar', 'descargar'] },
     { id: 'ficha', label: 'Ficha de la obra', actions: ['ver', 'crear', 'editar', 'eliminar', 'configurar'] },
     { id: 'avances', label: 'Avances', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'revisar', 'descargar'] },
     { id: 'gestion', label: 'Presupuesto, programación y costos', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'descargar', 'configurar'] },
@@ -95,7 +95,7 @@ export const isSuperUser = user => {
 
 export const defaultPermission = (user, key) => {
   if (isSuperUser(user)) return true;
-  if (key === 'obras.sueldos.ver' || key === 'obras.haberes.crear') return /administrador.*(empresa|contrato)/i.test([user?.rol,user?.rol_base].join(' '));
+  if (key === 'obras.sueldos.ver' || key.startsWith('obras.haberes.')) return /administrador.*(empresa|contrato)/i.test([user?.rol,user?.rol_base].join(' '));
   const role = String(user?.rol_base || user?.rol || '').toLowerCase();
   const action = key.split('.').pop();
   if (role.includes('admin') || role.includes('gerencia')) return true;
