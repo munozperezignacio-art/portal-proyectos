@@ -1,8 +1,8 @@
 <!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="fixture"></div><script type="module">
-import React from 'react';import {createRoot} from 'react-dom/client';import RoleResponsibilities from '../../src/components/RoleResponsibilities.jsx';import {supabase} from '../../src/supabaseClient';import '../../src/index.css';
+import React from 'react';import {createRoot} from 'react-dom/client';import PermissionsGovernancePanel from '../../src/components/PermissionsGovernancePanel.jsx';import {supabase} from '../../src/supabaseClient';import '../../src/index.css';
 const role={id:1,nombre:'Supervisor'};
 window.rules=JSON.parse(sessionStorage.getItem('rules')||'[]');
-supabase.from=()=>{const q={select:()=>q,eq:()=>q,then:resolve=>resolve({data:window.rules})};return q;};
+supabase.from=table=>{const data=()=>table==='roles'?[{...role,empresa:'TEST',archivado:false,permisos:{}}]:table==='usuarios'?[]:table==='config_empresa'?{empresa:'TEST',modulos_activos:['obras','maquinaria','rrhh']}:window.rules;const q={select:()=>q,eq:()=>q,order:()=>q,maybeSingle:()=>q,then:resolve=>resolve({data:data()})};return q;};
 supabase.rpc=async(name,args)=>{if(name!=='guardar_responsabilidades_rol')throw Error('RPC incorrecta');window.saved=args;window.rules=args.p_codigos.map(evento_codigo=>({evento_codigo,activa:true,destinatarios_roles:['Supervisor'],condiciones:{origen:'responsabilidades_rol'}}));sessionStorage.setItem('rules',JSON.stringify(window.rules));return {error:null};};
-createRoot(document.getElementById('fixture')).render(React.createElement(RoleResponsibilities,{company:'TEST',role}));
+createRoot(document.getElementById('fixture')).render(React.createElement(PermissionsGovernancePanel,{user:{empresa:'TEST',rol:'Administrador de Empresa'},initialRoleId:1}));
 </script></body></html>
