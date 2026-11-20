@@ -3,9 +3,11 @@ import { ChevronDown, ChevronRight, Save, ShieldCheck, UserCog, Users } from 'lu
 import { supabase } from '../supabaseClient';
 import { PERMISSION_ACTIONS, defaultPermission, permissionKey,mergePermissions,isSuperUser } from '../utils/permissionsCatalog';
 import {companyPermissionCatalog,modulePermissionKeys,setModulePermissions} from '../utils/companyPermissions';
+import RoleResponsibilities from './RoleResponsibilities';
 
 export default function PermissionsGovernancePanel({ user, initialRoleId = '' }) {
   const [subjectType, setSubjectType] = useState('rol');
+  const [section,setSection]=useState('permisos');
   const [roles, setRoles] = useState([]);
   const [users, setUsers] = useState([]);
   const [subjectId, setSubjectId] = useState('');
@@ -103,7 +105,7 @@ export default function PermissionsGovernancePanel({ user, initialRoleId = '' })
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div><h3 className="flex items-center gap-2 text-base font-black text-slate-900"><ShieldCheck className="h-5 w-5 text-emerald-700" />Gobierno de accesos</h3><p className="mt-1 text-xs text-slate-500">Define capacidades por rol y luego agrega excepciones puntuales por usuario.</p></div>
-        <button type="button" onClick={save} disabled={disabled} className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-50"><Save className="h-4 w-4" />{saving ? 'Guardando…' : 'Guardar permisos'}</button>
+        {(subjectType!=='rol'||section==='permisos') && <button type="button" onClick={save} disabled={disabled} className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-50"><Save className="h-4 w-4" />{saving ? 'Guardando…' : 'Guardar permisos'}</button>}
       </div>
       {message && <p role="status" className={`mt-3 rounded-xl px-3 py-2 text-xs font-bold ${message.ok ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-700'}`}>{message.text}</p>}
       {loadError && <p role="alert" className="mt-3 rounded-xl bg-rose-50 p-3 text-xs text-rose-700">{loadError} No se habilitará el guardado hasta cargar la configuración correctamente.</p>}
@@ -120,7 +122,8 @@ export default function PermissionsGovernancePanel({ user, initialRoleId = '' })
       </div>
     </div>
 
-    <div className="space-y-3">
+    {subjectType==='rol'&&selected&&<div className="flex gap-2 rounded-xl bg-slate-100 p-1"><button type="button" onClick={()=>setSection('permisos')} className={'rounded-lg px-4 py-2 text-xs font-bold '+(section==='permisos'?'bg-white text-blue-950 shadow-sm':'text-slate-600')}>Permisos de acceso</button><button type="button" onClick={()=>setSection('responsabilidades')} className={'rounded-lg px-4 py-2 text-xs font-bold '+(section==='responsabilidades'?'bg-white text-blue-950 shadow-sm':'text-slate-600')}>Responsabilidades por módulo</button></div>}
+    {subjectType==='rol'&&selected&&section==='responsabilidades'?<RoleResponsibilities key={user.empresa+':'+selected.id} company={user.empresa} role={selected}/>:<div className="space-y-3">
       {catalog.map(module => {
         const open = openModules.includes(module.id);
         const keys=modulePermissionKeys(module),enabledCount=keys.filter(checked).length;
@@ -136,6 +139,6 @@ export default function PermissionsGovernancePanel({ user, initialRoleId = '' })
           </div>}
         </section>;
       })}
-    </div>
+    </div>}
   </div>;
 }

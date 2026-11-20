@@ -9,54 +9,7 @@ import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
 import { canConfigureWork, canConfigureResponsibility } from '../utils/workConfigurationAccess';
 
-const CATALOG = [
-  {code:'gastos_imputacion_pendiente',module:'Gastos',name:'Imputaciones pendientes de Gastos',description:'Resumen diario en la campana de los responsables. No cambia los permisos de aprobación.',frequency:'Diaria'},
-  {code:'rrhh_imputacion_pendiente',module:'RRHH',name:'Imputaciones pendientes de RRHH',description:'Resumen diario en la campana de los responsables. No cambia los permisos de aprobación.',frequency:'Diaria'},
-  {code:'maquinaria_imputacion_pendiente',module:'Maquinaria',name:'Imputaciones pendientes de Maquinaria',description:'Resumen diario en la campana de los responsables. No cambia los permisos de aprobación.',frequency:'Diaria'},
-  { code: 'especialidad_jornada_abierta', module: 'Obras', name: 'Jornada de especialidad sin cerrar', description: 'Recuerda el cierre al responsable designado y a los destinatarios configurados, en días laborales. Hora sugerida: 20:00 de Chile.', frequency: 'Diaria' },
-  { code: 'avance_registrado', module: 'Obras', name: 'Avance registrado', description: 'Informa cada nuevo reporte de avance físico.', frequency: 'Inmediata' },
-  { code: 'avance_reporte_pendiente', module: 'Obras', name: 'Reporte de avance diario pendiente', description: 'Avisa las obras activas que no han enviado su reporte diario. Un reporte con avance 0 se considera correctamente informado.', frequency: 'Diaria' },
-  { code: 'reportes_diarios_pendientes', module: 'Obras', name: 'Resumen diario de informes pendientes', description: 'Consolida cada día las obras que aún deben informar avance o uso de maquinaria.', frequency: 'Diaria' },
-  { code: 'resumen_diario_obra', module: 'Obras', name: 'Resumen diario de obra', description: 'Consolida avances, asistencia, incidencias y pendientes del día.', frequency: 'Diaria' },
-  { code: 'desviacion_programacion', module: 'Obras', name: 'Desviación de programación', description: 'Alerta cuando el avance real queda bajo el plan.', frequency: 'Diaria' },
-  { code: 'partida_proxima_inicio', module: 'Obras', name: 'Partida próxima a iniciar', description: 'Anticipa partidas y recursos que deben quedar liberados.', frequency: 'Anticipada' },
-  { code: 'restriccion_last_planner', module: 'Obras', name: 'Restricción Last Planner pendiente', description: 'Alerta compromisos que podrían impedir el inicio de una partida.', frequency: 'Diaria' },
-  { code: 'mantenimiento_proximo', module: 'Maquinaria', name: 'Próximo mantenimiento', description: 'Avisa antes de alcanzar la fecha, horómetro o kilometraje de mantención.', frequency: 'Anticipada' },
-  { code: 'maquinaria_reporte_pendiente', module: 'Maquinaria', name: 'Reporte diario de maquinaria pendiente', description: 'Avisa cuando una obra con equipos asignados no ha registrado su reporte diario de uso, incluso si el equipo no trabajó.', frequency: 'Diaria' },
-  { code: 'mantenimiento_vencido', module: 'Maquinaria', name: 'Mantenimiento vencido', description: 'Escala equipos con mantenimiento pendiente.', frequency: 'Diaria' },
-  { code: 'maquinaria_falla_reportada', module: 'Maquinaria', name: 'Falla de equipo reportada', description: 'Informa fallas, detenciones y horas fuera de servicio.', frequency: 'Inmediata' },
-  { code: 'maquinaria_reserva_conflicto', module: 'Maquinaria', name: 'Conflicto o vencimiento de reserva', description: 'Advierte conflictos de disponibilidad y reservas próximas.', frequency: 'Anticipada' },
-  { code: 'incidente_accidente', module: 'Prevención', name: 'Incidente o accidente informado', description: 'Notificación inmediata de un evento preventivo.', frequency: 'Inmediata' },
-  { code: 'prevencion_accion_vencida', module: 'Prevención', name: 'Acción preventiva vencida', description: 'Escala medidas correctivas sin cierre dentro del plazo.', frequency: 'Diaria' },
-  { code: 'prevencion_registro_recibido', module: 'Prevención', name: 'Nuevo registro preventivo', description: 'Informa inspecciones, PARE, AST y registros recibidos.', frequency: 'Inmediata' },
-  { code: 'prevencion_cumplimiento_pendiente', module: 'Prevención', name: 'Cumplimiento preventivo pendiente', description: 'Avisa al usuario responsable y escala a los destinatarios configurados cuando un formulario diario, semanal o mensual no fue completado al vencimiento.', frequency: 'Diaria' },
-  { code: 'prevencion_cumplimiento_bajo', module: 'Prevención', name: 'Cumplimiento preventivo bajo meta', description: 'Alerta cuando una obra o actividad cae bajo el estándar configurado.', frequency: 'Semanal' },
-  { code: 'rdi_pendiente', module: 'Calidad', name: 'RDI pendiente de respuesta', description: 'Recuerda solicitudes RDI sin respuesta dentro del plazo.', frequency: 'Diaria' },
-  { code: 'recepcion_observada', module: 'Calidad', name: 'Recepción observada o rechazada', description: 'Informa observaciones y rechazos de partidas.', frequency: 'Inmediata' },
-  { code: 'calidad_nc_vencida', module: 'Calidad', name: 'No conformidad vencida', description: 'Escala no conformidades que no han sido cerradas.', frequency: 'Diaria' },
-  { code: 'calidad_recepcion_solicitada', module: 'Calidad', name: 'Recepción de partida solicitada', description: 'Avisa que existe un protocolo pendiente de revisión.', frequency: 'Inmediata' },
-  { code: 'estado_pago_cambio', module: 'Estados de pago', name: 'Cambio de estado de pago', description: 'Informa envíos, observaciones, aprobaciones y pagos.', frequency: 'Inmediata' },
-  { code: 'estado_pago_documentos_pendientes', module: 'Estados de pago', name: 'Documentación contractual pendiente', description: 'Recuerda documentos obligatorios pendientes o rechazados.', frequency: 'Diaria' },
-  { code: 'estado_pago_factura_pendiente', module: 'Estados de pago', name: 'Factura pendiente de emisión o pago', description: 'Da seguimiento a la factura asociada al estado de pago.', frequency: 'Anticipada' },
-  { code: 'ep_subcontrato_documentos_pendientes', module: 'Subcontratos', name: 'Documentos pendientes del estado de pago', description: 'Avisa que el expediente obligatorio está incompleto o pendiente de revisión.', frequency: 'Diaria' },
-  { code: 'ep_subcontrato_documento_observado', module: 'Subcontratos', name: 'Documento observado o rechazado', description: 'Informa al responsable cuando un antecedente debe corregirse.', frequency: 'Inmediata' },
-  { code: 'ep_subcontrato_expediente_aprobado', module: 'Subcontratos', name: 'Expediente documental aprobado', description: 'Informa que el estado de pago ya puede continuar a aprobación y facturación.', frequency: 'Inmediata' },
-  { code: 'factura_vencimiento', module: 'Facturación', name: 'Factura próxima a vencer', description: 'Avisa documentos por vencer o vencidos.', frequency: 'Anticipada' },
-  { code: 'acreditacion_vencimiento', module: 'Acreditaciones', name: 'Acreditación próxima a vencer', description: 'Controla documentos de empresa, personal y equipos.', frequency: 'Anticipada' },
-  { code: 'stock_minimo', module: 'Bodega', name: 'Stock mínimo', description: 'Alerta cuando un artículo alcanza su nivel de reposición.', frequency: 'Inmediata' },
-  { code: 'bodega_quiebre_stock', module: 'Bodega', name: 'Quiebre de stock', description: 'Alerta productos sin disponibilidad para la operación.', frequency: 'Inmediata' },
-  { code: 'bodega_transferencia_pendiente', module: 'Bodega', name: 'Transferencia pendiente de recepción', description: 'Recuerda movimientos entre bodegas aún no confirmados.', frequency: 'Diaria' },
-  { code: 'bodega_guia_sin_conciliar', module: 'Bodega', name: 'Guía de despacho sin conciliar', description: 'Advierte guías que no están asociadas correctamente a movimientos o DTE.', frequency: 'Diaria' },
-  { code: 'rrhh_contrato_vencimiento', module: 'Recursos Humanos', name: 'Contrato próximo a vencer', description: 'Anticipa vencimientos contractuales de trabajadores.', frequency: 'Anticipada' },
-  { code: 'rrhh_documento_vencimiento', module: 'Recursos Humanos', name: 'Documento laboral próximo a vencer', description: 'Controla documentos obligatorios del trabajador.', frequency: 'Anticipada' },
-  { code: 'rrhh_brecha_dotacion', module: 'Recursos Humanos', name: 'Brecha de dotación proyectada', description: 'Avisa cargos requeridos que aún no tienen cobertura.', frequency: 'Semanal' },
-  { code: 'rrhh_ausencia_critica', module: 'Recursos Humanos', name: 'Ausencia o dotación crítica', description: 'Alerta ausencias que afectan la dotación mínima de una obra.', frequency: 'Inmediata' },
-  { code: 'gasto_pendiente', module: 'Gastos', name: 'Rendición pendiente de aprobación', description: 'Informa rendiciones que requieren revisión.', frequency: 'Diaria' },
-  { code: 'gasto_observado', module: 'Gastos', name: 'Rendición observada o rechazada', description: 'Informa al responsable que debe corregir una rendición.', frequency: 'Inmediata' },
-  { code: 'dte_recibido', module: 'Facturación', name: 'Nuevo DTE recibido', description: 'Informa la recepción de facturas, notas o guías electrónicas.', frequency: 'Inmediata' },
-  { code: 'dte_sin_centro_gestion', module: 'Facturación', name: 'DTE sin centro de gestión', description: 'Alerta documentos que aún no pueden imputarse a una obra o centro.', frequency: 'Diaria' },
-  { code: 'libro_obra_pendiente', module: 'Libro de obra', name: 'Folio pendiente de acción', description: 'Recuerda autorizaciones, respuestas y observaciones pendientes.', frequency: 'Diaria' }
-];
+import {RESPONSIBILITY_CATALOG as CATALOG} from '../utils/responsibilityCatalog';
 
 const emptyForm = {
   template_code: 'avance_registrado', nombre: 'Avance registrado', modulo: 'Obras', descripcion: '',
@@ -81,7 +34,7 @@ export default function NotificationMaster({ user, obras = [], roles = [], work 
   const [loadedRoles, setLoadedRoles] = useState([]);
   const [saving, setSaving] = useState(false);
   const [personSearch, setPersonSearch] = useState('');
-  const editable = rule => !permissionsLoading && canConfigureResponsibility(user, permissions, rule.condiciones);
+  const editable = rule => rule.condiciones?.origen !== 'responsabilidades_rol' && !permissionsLoading && canConfigureResponsibility(user, permissions, rule.condiciones);
   const [section, setSection] = useState('alertas');
   const [rules, setRules] = useState([]);
   const [deliveries, setDeliveries] = useState([]);

@@ -34,7 +34,6 @@ import WorkEquipmentCompletion from './WorkEquipmentCompletion';
 import FormAnswerDisplay from './FormAnswerDisplay';
 import Solicitudes from './Solicitudes';
 import useUserPermissions from '../utils/useUserPermissions';
-import NotificationMaster from './NotificationMaster';
 import { can } from '../utils/permissionsCatalog';
 import MachineryEquipmentDetailModal from './MachineryEquipmentDetailModal';
 import MachineryDownload from './MachineryDownload';
@@ -279,7 +278,6 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const canEquipmentDelete = recordPermission('maquinaria', 'eliminar');
   const canEquipmentActions = canEquipmentEdit || canEquipmentDelete;
   const canResponsibilities = recordPermission('ficha', 'configurar');
-  const [showResponsibilities, setShowResponsibilities] = useState(false);
   const [specialtySettingsRevision,setSpecialtySettingsRevision]=useState(0);
   const [specialtyHistory,setSpecialtyHistory]=useState(null);
   const canPrevView = can(user, userPermissions, 'obras.prevencion.ver');
@@ -3094,7 +3092,6 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
             <div className="flex flex-wrap gap-2">
               <button onClick={() => setShowObraTools(value => !value)} className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-[11px] text-slate-700 font-bold px-3 py-2 border border-slate-300 rounded-lg transition"><Settings className="w-3.5 h-3.5" /><span>{showObraTools ? 'Ocultar herramientas' : 'Herramientas'}</span></button>
               {canObraFichaView && <button onClick={openObraDetails} className="flex items-center gap-1.5 bg-blue-900 hover:bg-blue-800 text-xs text-white font-bold px-3 py-2 border border-blue-900 rounded-lg transition"><Edit className="w-4 h-4" /><span>Ficha del proyecto</span></button>}
-              {canResponsibilities && <button onClick={() => setShowResponsibilities(true)} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-900">Responsables y avisos</button>}
               {showObraTools && <>
 
               {/* Botón QR de Faena */}
@@ -3512,7 +3509,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   <button type="button" disabled={!canAdvanceCreate} aria-expanded={avanceSubTab==='especialidad'} onClick={()=>setAvanceSubTab(avanceSubTab==='especialidad'?'registro':'especialidad')} className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition shadow-xs"><Plus className="w-4 h-4"/>Avance por especialidad</button>
                 </div>
               </div></WorkHeaderActions>
-              <div hidden={avanceSubTab!=='especialidad'}><React.Suspense fallback={<p>Cargando especialidades…</p>}><SpecialtyReports key={selectedObra.id} work={selectedObra} user={user} parts={partidasList} settingsRevision={specialtySettingsRevision} onHistory={setSpecialtyHistory} onSaved={()=>fetchObraDetails(selectedObra.nombre)}/></React.Suspense></div>
+              <div hidden={avanceSubTab!=='especialidad'}><React.Suspense fallback={<p>Cargando especialidades…</p>}>{canResponsibilities && <SpecialtySettingsEntry key={'settings:'+selectedObra.id} work={selectedObra} user={user} parts={partidasList} onSaved={()=>setSpecialtySettingsRevision(n=>n+1)}/>}<SpecialtyReports key={selectedObra.id} work={selectedObra} user={user} parts={partidasList} settingsRevision={specialtySettingsRevision} onHistory={setSpecialtyHistory} onSaved={()=>fetchObraDetails(selectedObra.nombre)}/></React.Suspense></div>
 
               {/* SUB-PESTAÑA 1: VISOR DE AVANCE FÍSICO (BARRAS DE PROGRESO DE PARTIDAS DE LA OBRA) */}
               {avanceSubTab === 'visor' && (
@@ -9773,14 +9770,6 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         </div>
       )}
 
-      {showResponsibilities && selectedObra && <div role="dialog" aria-modal="true" aria-label="Responsables y avisos" className="fixed inset-0 z-[100] bg-slate-950/50 p-3 flex items-center justify-center">
-        <div className="w-full max-w-6xl max-h-[94dvh] overflow-y-auto rounded-2xl bg-white p-4">
-          <div className="flex justify-between items-center mb-3"><h3 className="font-bold">Responsables y avisos · {selectedObra.nombre}</h3><button onClick={() => setShowResponsibilities(false)} aria-label="Cerrar responsables" className="p-2">✕</button></div>
-          <button onClick={() => {setShowResponsibilities(false);setShowContextualEmailModal(true);}} className="mb-3 text-xs text-blue-800 underline">Destinatarios de correos al guardar registros de esta obra</button>
-          <React.Suspense fallback={<p>Cargando opciones de especialidad…</p>}><SpecialtySettingsEntry key={selectedObra.id} work={selectedObra} user={user} parts={partidasList} onSaved={()=>setSpecialtySettingsRevision(n=>n+1)}/></React.Suspense>
-          <NotificationMaster user={user} obras={obras} work={selectedObra} />
-        </div>
-      </div>}
       {showObraDetails && selectedObra && <ProjectProfileModal obra={selectedObra} form={obraDetailsForm} onChange={setObraDetailsForm} onSave={saveObraDetails} onClose={() => setShowObraDetails(false)} canEdit={canObraFichaEdit} busy={modalLoading} error={errorMsg} completion={workCompletion?.obra_id===selectedObra.id?workCompletion:null} chargePeriod={workChargePeriod} plannedEnd={fechaTerminoEstimada} />}
 
       {/* MODAL ENRIQUECIDO: CREAR NUEVA OBRA */}
