@@ -44,6 +44,9 @@ test('SQL routing: role settings, tenant/work/form filtering, dedup and email qu
  await save(1,{prevencion_registro_recibido:pref({forms:'selected',form_ids:['11']})},{obra_reporte_avance:pref({email:true})});
  await db.exec('insert into prevencion_respuestas values(21,11,1)');rows=(await db.query("select * from notificaciones_entregas where evento_codigo='prevencion_registro_recibido'")).rows;assert.equal(rows.length,1);assert.equal(rows[0].destinatario,'1');
  await db.exec('insert into prevencion_respuestas values(22,11,null)');assert.equal((await db.query("select * from notificaciones_entregas where evento_codigo='prevencion_registro_recibido'")).rows.length,1);
+ await save(1,{asistencia_registrada:pref()},{prevencion_registro_recibido:pref({forms:'selected',form_ids:['11']})});
+ await db.exec("insert into asistencia_personal values(1,'TEST','Lonco'),(2,'TEST','Lonco'),(3,'TEST','Lonco')");
+ assert.equal((await db.query("select * from notificaciones_entregas where evento_codigo='asistencia_registrada'")).rows.length,1);
  }finally{await db.close();}
 });
 

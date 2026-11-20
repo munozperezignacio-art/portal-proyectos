@@ -160,5 +160,18 @@ begin
 end $$;
 revoke all on function public.filter_legacy_notification_emails(text,text,text[]) from public,anon;
 grant execute on function public.filter_legacy_notification_emails(text,text,text[]) to authenticated,service_role;
+create or replace function private.notify_role_attendance_batch()
+returns trigger language plpgsql security definer set search_path='' as $$
+declare batch record;
+begin
+ for batch in select empresa,obra_nombre,min(id) first_id,count(*) quantity from role_attendance_rows where empresa is not null group by empresa,obra_nombre loop
+  perform private.route_role_notification(batch.empresa,'asistencia_registrada',batch.obra_nombre,'Asistencia registrada',
+   jsonb_build_object('destination','personal'),'attendance-batch:'||batch.first_id);
+ end loop;
+ return null;
+end $$;
+revoke all on function private.notify_role_attendance_batch() from public,anon,authenticated;
+drop trigger if exists role_attendance on public.asistencia_personal;
+create trigger role_attendance after insert on public.asistencia_personal referencing new table as role_attendance_rows for each statement execute function private.notify_role_attendance_batch();
 
 
