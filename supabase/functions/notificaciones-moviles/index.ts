@@ -1,4 +1,5 @@
 import { notificationRecipient } from "../_shared/notificationRecipients.mjs";
+import {presentNotification} from '../_shared/notificationText.mjs';
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
@@ -42,7 +43,7 @@ Deno.serve(async req => {
       if (!delivery || !isRecipient(delivery, profile, body.client_channel === 'web' ? 'web' : 'mobile')) return reply({ error: "Notificacion no autorizada" }, 403);
       if (body.action === "detail") {
         const { notificaciones_reglas: _rule, ...detail } = delivery;
-        return reply({ data: detail });
+        return reply({ data: presentNotification(detail) });
       }
       const { error: readError } = await db.from("notificaciones_lecturas").upsert({ entrega_id: deliveryId, auth_user_id: auth.user.id, leida_at: new Date().toISOString() });
       if (readError) throw readError;
@@ -60,7 +61,7 @@ Deno.serve(async req => {
       const ids = allowed.map(row => row.id);
       const { data: reads } = ids.length ? await db.from("notificaciones_lecturas").select("entrega_id,leida_at").eq("auth_user_id", auth.user.id).in("entrega_id", ids) : { data: [] };
       const readMap = new Map((reads || []).map(row => [row.entrega_id, row.leida_at]));
-      return reply({ data: allowed.map(({ notificaciones_reglas: _rule, ...row }) => ({ ...row, leida_at: readMap.get(row.id) || null })) });
+      return reply({ data: allowed.map(({ notificaciones_reglas: _rule, ...row }) => ({ ...presentNotification(row), leida_at: readMap.get(row.id) || null })) });
     }
     return reply({ error: "Accion no valida" }, 400);
   } catch (error) { return reply({ error: error instanceof Error ? error.message : String(error) }, 400); }

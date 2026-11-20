@@ -1,4 +1,5 @@
 import {dispatchRoleEmails} from '../_shared/roleNotificationEmails.ts';
+import {notificationText} from '../_shared/notificationText.mjs';
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 import { notificationRecipient, pushEnabled } from "../_shared/notificationRecipients.mjs";
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -40,8 +41,7 @@ Deno.serve(async req => {
           try {
             const message = {
               to: device.expo_push_token, sound: "default", channelId: "operacion", priority: "high",
-              title: "Obraxis · nuevo aviso",
-              body: "Tienes un nuevo aviso en Obraxis. Abre la app para consultar el detalle.",
+              ...notificationText(delivery),
               // Do not send project names, amounts, report text or people to the push provider.
               data: { entregaId: delivery.id, route: "/notificacion/" + delivery.id }
             };
