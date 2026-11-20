@@ -20,6 +20,9 @@ export async function processSpecialtyNotifications(db:any){
  const {data:config}=await db.from('config_empresa').select('email_sender').eq('empresa','Obraxis').maybeSingle();
  for(const job of jobs||[]){
   try{
+   const {data:allowed,error:filterError}=await db.rpc('filter_legacy_notification_emails',{p_company:job.payload.empresa,p_code:job.payload.datos?'obra_reporte_avance':'especialidad_jornada_abierta',p_emails:[job.destinatario]});
+   if(filterError)throw filterError;
+   if(!allowed?.length){await db.rpc('specialty_email_result',{p_id:job.id,p_status:'failed',p_error:'Omitido: destinatario gestionado desde notificaciones del rol.'});continue;}
    const key=Deno.env.get('RESEND_API_KEY');if(!key)throw new Error('Correo no configurado');
    const p=job.payload,rows=(p.datos?.pilas||[]).filter((r:any)=>r.terminada),elements=p.elements||[],attachments:any[]=[];
    let detail='';

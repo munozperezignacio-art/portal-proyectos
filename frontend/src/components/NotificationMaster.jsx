@@ -34,7 +34,7 @@ export default function NotificationMaster({ user, obras = [], roles = [], work 
   const [loadedRoles, setLoadedRoles] = useState([]);
   const [saving, setSaving] = useState(false);
   const [personSearch, setPersonSearch] = useState('');
-  const editable = rule => rule.condiciones?.origen !== 'responsabilidades_rol' && !permissionsLoading && canConfigureResponsibility(user, permissions, rule.condiciones);
+  const editable = rule => !['responsabilidades_rol','notificaciones_rol_fuente'].includes(rule.condiciones?.origen) && !permissionsLoading && canConfigureResponsibility(user, permissions, rule.condiciones);
   const [section, setSection] = useState('alertas');
   const [rules, setRules] = useState([]);
   const [deliveries, setDeliveries] = useState([]);

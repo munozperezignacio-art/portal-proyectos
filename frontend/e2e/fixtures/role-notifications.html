@@ -1,0 +1,6 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="fixture"></div><script type="module">
+import React from 'react';import {createRoot} from 'react-dom/client';import RoleNotifications from '../../src/components/RoleNotifications.jsx';import {supabase} from '../../src/supabaseClient';import '../../src/index.css';
+supabase.from=table=>{const q={select:()=>q,eq:()=>q,order:()=>q,maybeSingle:()=>q,then:resolve=>resolve({data:table==='role_notifications'?{settings:JSON.parse(sessionStorage.getItem('settings')||'{}')}:table==='prevencion_formularios'?[{id:11,titulo:'Checklist excavadora'},{id:12,titulo:'Tarjeta PARE'}]:[{id:'EXC-01',tipo:'Excavadora',patente:'EXC-01'}]})};return q;};
+supabase.rpc=async(name,args)=>{if(name!=='save_role_notifications')throw Error('RPC incorrecta');window.saved=args;sessionStorage.setItem('settings',JSON.stringify(args.p_settings));return {};};
+createRoot(document.getElementById('fixture')).render(React.createElement(RoleNotifications,{company:'TEST',role:{id:1,nombre:'Supervisor'}}));
+</script></body></html>

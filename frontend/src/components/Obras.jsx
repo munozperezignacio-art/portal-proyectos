@@ -43,6 +43,7 @@ import ProjectedCostsList from './ProjectedCostsList';
 import {loadProjectedCosts,saveProjectedCosts,deleteProjectedCost} from '../utils/projectedCostsStore';
 import {workEmailRecipients,workEmailSetting,workEmailBatches} from '../utils/workEmailRouting';
 import {sendWorkRecordNotification} from '../utils/workRecordNotifications';
+import {filterLegacyRoleEmails} from '../utils/roleNotificationEmails';
 import { calendarTimeline } from '../utils/sCurveTimeline';
 import DailySCurve from './DailySCurve';
 import ProjectProfileModal from './ProjectProfileModal';
@@ -2273,7 +2274,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         ]) : [{data:[]},{data:[]}];
         if (rulesResult.error || usersResult.error) throw rulesResult.error || usersResult.error;
         const recipients=workEmailRecipients({config:companyEmailConfig,workId:selectedObra.id,event:'avance_registrado',rules:rulesResult.data||[],users:usersResult.data||[],company:user.empresa,work:obraNombre});
-        const emailBatches=workEmailBatches(recipients);
+        const emailBatches=workEmailBatches(await filterLegacyRoleEmails(user.empresa,'avance_registrado',recipients));
 
         if (emailBatches.length > 0) {
           const supervisorName = user?.nombre || user?.usuario || 'Supervisor';

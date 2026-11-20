@@ -17,6 +17,10 @@ Deno.serve(async req => {
     const body = await req.json();
     const { data: profile } = await db.from("usuarios").select("id,auth_user_id,usuario,nombre,correo,empresa,rol,rol_base,obras").eq("auth_user_id", auth.user.id).eq("id", body.perfil_id).maybeSingle();
     if (!profile) return reply({ error: "Perfil no autorizado" }, 403);
+    const {data:role}=await db.from('roles').select('id').eq('empresa',profile.empresa).eq('nombre',profile.rol).eq('archivado',false).maybeSingle();
+    const preference=role?await db.from('role_notifications').select('settings').eq('empresa',profile.empresa).eq('role_id',role.id).maybeSingle():{data:null};
+    if(preference.error)throw preference.error;
+    profile.notification_settings=preference.data?.settings||{};
 
     if (body.action === "register") {
       const pushToken = String(body.expo_push_token || "");
@@ -35,7 +39,7 @@ Deno.serve(async req => {
     if (body.action === "read" || body.action === "detail") {
       const deliveryId = Number(body.entrega_id);
       const { data: delivery } = await db.from("notificaciones_entregas").select("*,notificaciones_reglas(*)").eq("id", deliveryId).eq("empresa", profile.empresa).maybeSingle();
-      if (!delivery || !isRecipient(delivery, profile)) return reply({ error: "Notificacion no autorizada" }, 403);
+      if (!delivery || !isRecipient(delivery, profile, body.client_channel === 'web' ? 'web' : 'mobile')) return reply({ error: "Notificacion no autorizada" }, 403);
       if (body.action === "detail") {
         const { notificaciones_reglas: _rule, ...detail } = delivery;
         return reply({ data: detail });
@@ -52,7 +56,7 @@ Deno.serve(async req => {
       ]);
       if (general.error || direct.error) throw general.error || direct.error;
       const deliveries = [...new Map([...(general.data || []), ...(direct.data || [])].map(row => [row.id, row])).values()];
-      const allowed = deliveries.filter(row => isRecipient(row, profile)).sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 60);
+      const allowed = deliveries.filter(row => isRecipient(row, profile, body.client_channel === 'web' ? 'web' : 'mobile')).sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 60);
       const ids = allowed.map(row => row.id);
       const { data: reads } = ids.length ? await db.from("notificaciones_lecturas").select("entrega_id,leida_at").eq("auth_user_id", auth.user.id).in("entrega_id", ids) : { data: [] };
       const readMap = new Map((reads || []).map(row => [row.entrega_id, row.leida_at]));

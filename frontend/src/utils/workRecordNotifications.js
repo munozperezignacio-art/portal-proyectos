@@ -1,3 +1,4 @@
+import {filterLegacyRoleEmails} from './roleNotificationEmails';
 import {supabase} from '../supabaseClient';
 import {sendSystemEmail} from './emailService';
 import {escapeCredentialText as escapeHtml} from './initialPassword';
@@ -9,7 +10,7 @@ export async function sendWorkRecordNotification({company,work,workId,event,summ
     if(!definition || event==='avance_registrado')throw new Error('Tipo de aviso no admitido.');
     const {data:config,error}=await supabase.from('config_empresa').select('correos_contextuales').eq('empresa',company).single();
     if(error)throw error;
-    const recipients=workEmailRecipients({config,company,work,workId,event});
+    const recipients=await filterLegacyRoleEmails(company,event,workEmailRecipients({config,company,work,workId,event}));
     for(const batch of workEmailBatches(recipients)){
       const result=await sendSystemEmail({...batch,permissionKey:definition.permission,subject:`${definition.label} · ${work}`,
         htmlContent:`<h2>${escapeHtml(definition.label)}</h2><p>Obra: <strong>${escapeHtml(work)}</strong></p><p>${escapeHtml(summary)}</p><p>Consulta el detalle en Obraxis con tus permisos habituales.</p><p><a href="https://www.obraxis.cl/login">Ingresar a Obraxis</a></p>`});

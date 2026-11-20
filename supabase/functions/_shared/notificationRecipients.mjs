@@ -1,7 +1,18 @@
 const values = value => Array.isArray(value) ? value.map(String) : [];
 const normalize = value => String(value ?? '').trim().toLowerCase();
-export function notificationRecipient(delivery, profile) {
+export function notificationRecipient(delivery, profile, channel = 'mobile') {
   if (delivery.empresa && delivery.empresa !== profile.empresa) return false;
+  const current=profile.notification_settings?.[delivery.evento_codigo];
+  if(!delivery.payload?.role_notification && current)return false;
+  if(delivery.payload?.role_notification){
+    const payload=current?{...delivery.payload,channels:current,works_scope:current.works}:delivery.payload;
+    if(current?.forms==='selected'&&!current.form_ids.includes(String(payload.formulario_id)))return false;
+    if(current?.equipment==='selected'&&!current.equipment_ids.includes(String(payload.equipo_id)))return false;
+    if(profile.rol!==payload.role_name || !payload.channels?.[channel])return false;
+    const workNames=(Array.isArray(profile.obras)?profile.obras:String(profile.obras||'').split(',')).map(normalize);
+    if(!['enex_pendiente','solicitudes_actualizacion'].includes(delivery.evento_codigo) && payload.works_scope==='assigned' && (!delivery.obra_nombre || (!workNames.includes('todas')&&!workNames.includes(normalize(delivery.obra_nombre)))))return false;
+    return [profile.id,profile.usuario,profile.correo].filter(x=>x!=null).map(normalize).includes(normalize(delivery.destinatario));
+  }
   const actor = delivery.payload?.actor_auth_user_id;
   if (actor && actor === profile.auth_user_id) return false;
   const assigned = (Array.isArray(profile.obras) ? profile.obras : String(profile.obras || '').split(',')).map(normalize);

@@ -15,7 +15,7 @@ export async function allocationNotices(db:any,rule:any,date:string){
  const [works,users]=await Promise.all([pages(()=>table('obras','id,nombre').order('id')),pages(()=>table('usuarios','id,rol,obras').order('id'))]);
  let equipment:any=null,sent=0;
  for(const work of works){
-  const targets=responsibleRecipients(rule,users,work.nombre).users.filter((u:any)=>(Array.isArray(u.obras)?u.obras:String(u.obras||'').split(',')).some((x:string)=>['todas',work.nombre.trim().toLowerCase()].includes(String(x).trim().toLowerCase())));
+  const targets=responsibleRecipients(rule,users,work.nombre).users.filter((u:any)=>rule.condiciones?.origen==='notificaciones_rol_fuente'||(Array.isArray(u.obras)?u.obras:String(u.obras||'').split(',')).some((x:string)=>['todas',work.nombre.trim().toLowerCase()].includes(String(x).trim().toLowerCase())));
   if(!targets.length)continue;
   const code=rule.evento_codigo;
   const key=(u:any)=>JSON.stringify([rule.empresa,work.id,code,date,String(u.id)]);

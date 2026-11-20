@@ -37,7 +37,7 @@ export default function PlatformNotificationCenter({ user, onNavigate, compact =
 
   const invoke = useCallback(async (action, extra = {}) => {
     if (!user?.id) return null;
-    const { data, error: invokeError } = await supabase.functions.invoke('notificaciones-moviles', { body: { action, perfil_id: user.id, ...extra } });
+    const { data, error: invokeError } = await supabase.functions.invoke('notificaciones-moviles', { body: { action, perfil_id: user.id, client_channel:'web', ...extra } });
     if (invokeError || data?.error) throw new Error(data?.error || 'No fue posible consultar las notificaciones.');
     return data;
   }, [user?.id]);

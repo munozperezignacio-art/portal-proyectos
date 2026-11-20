@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 import ModuleHeader from './ModuleHeader';
 import ImpactManual from './ImpactManual';
 import { sendSystemEmail } from '../utils/emailService';
+import {filterLegacyRoleEmails} from '../utils/roleNotificationEmails';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
 import {navigationSubmenuEnabled} from '../utils/roleNavigation';
@@ -1405,8 +1406,9 @@ export default function Prevencion({ user, onBack, companyBranding }) {
             companyLogo: formCompanyBranding?.logo_base64
           });
 
-          await sendSystemEmail({
-            to: destinationEmails,
+          const legacyRecipients=await filterLegacyRoleEmails(user.empresa,'prevencion_registro_recibido',{to:String(destinationEmails||'').split(',').map(x=>x.trim()).filter(Boolean),cc:[]});
+          if(legacyRecipients.to.length)await sendSystemEmail({
+            to: legacyRecipients.to,
             subject: `Nuevo Registro: "${selectedFormToFill.titulo}" - ${fillMetadata.proyecto_nombre || 'General'}`,
             htmlContent: mailHtml,
             attachments: [

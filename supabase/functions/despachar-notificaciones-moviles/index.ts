@@ -1,3 +1,4 @@
+import {dispatchRoleEmails} from '../_shared/roleNotificationEmails.ts';
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 import { notificationRecipient, pushEnabled } from "../_shared/notificationRecipients.mjs";
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -6,6 +7,7 @@ Deno.serve(async req => {
     const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
     const { data: valid, error: authorizationError } = await db.rpc("verify_internal_cron_secret", { p_secret: req.headers.get("x-cron-secret") || "" });
     if (authorizationError || valid !== true) return json({ error: "No autorizado" }, 401);
+    await dispatchRoleEmails(db);
     const since = new Date(Date.now() - 7 * 86400000).toISOString();
     let sent = 0, errors = 0, cursor = 0;
     // Keyset pagination prevents processed events from starving newer ones.
@@ -24,6 +26,8 @@ Deno.serve(async req => {
           db.from("usuarios").select("id,auth_user_id,usuario,correo,empresa,rol,rol_base,obras").eq("empresa", delivery.empresa)
         ]);
         if (deviceResult.error || profileResult.error) throw deviceResult.error || profileResult.error;
+        const {data:preferences,error:preferenceError}=await db.from('role_notifications').select('settings,roles(nombre)').eq('empresa',delivery.empresa);if(preferenceError)throw preferenceError;
+        for(const profile of profileResult.data||[])profile.notification_settings=preferences?.find((p:any)=>p.roles?.nombre===profile.rol)?.settings||{};
         const profileMap = new Map((profileResult.data || []).map((p: any) => [String(p.id), p]));
         for (const device of deviceResult.data || []) {
           const profile: any = profileMap.get(String(device.perfil_id));

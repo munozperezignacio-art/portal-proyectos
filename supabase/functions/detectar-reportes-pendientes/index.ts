@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
         const html = '<div style="font-family:Arial,sans-serif"><h2>' + escapeHtml(title) + '</h2><p>' + escapeHtml(local.date) + '</p><ul>' + (relevantAdvance ? '<li>Reporte de avance diario pendiente</li>' : '') + (relevantMachinery ? '<li>Reporte diario de maquinaria pendiente</li>' : '') + '</ul><p>Un reporte con avance cero o equipo sin uso también cumple el registro diario.</p></div>';
         const payload = { fecha_control:local.date,avance_pendiente:relevantAdvance?[work]:[],maquinaria_pendiente:relevantMachinery?[work]:[] };
         const deliveries:any[] = [];
-        if(rule.canal_email) for(const recipient of targets.emails) {
+        if(rule.canal_email) for(const recipient of (await legacyRoleEmails(db,rule,targets.emails))) {
           let state='Error', detail=null;
           try {
             const key=Deno.env.get('RESEND_API_KEY');
@@ -171,11 +171,11 @@ async function processCompliancePending(db: any, rule: any, local: { date: strin
     ...pending.map((item: any) => String(item.usuario_id)),
     ...(users || []).filter((person: any) => roleSet.has(person.rol) || idSet.has(String(person.id))).map((person: any) => String(person.id))
   ].filter(Boolean))];
-  const emailRecipients = [...new Set([
+  const emailRecipients = await legacyRoleEmails(db,rule,[...new Set([
     ...pending.map((item: any) => (users || []).find((person: any) => String(person.id) === String(item.usuario_id))?.correo),
     ...(users || []).filter((person: any) => roleSet.has(person.rol) || idSet.has(String(person.id))).map((person: any) => person.correo),
     ...asArray(rule.correos_adicionales)
-  ].filter(Boolean))];
+  ].filter(Boolean))]);
   const title = 'Cumplimientos preventivos pendientes';
   const html = `<div style="font-family:Arial,sans-serif;max-width:680px;margin:auto;color:#17233b"><div style="background:#102b5c;color:white;padding:22px;border-radius:16px 16px 0 0"><h2 style="margin:0">${title}</h2><p style="margin:6px 0 0;color:#cbd5e1">${escapeHtml(rule.empresa)} · ${local.date}</p></div><div style="padding:22px;border:1px solid #dbe3ef;border-top:0;border-radius:0 0 16px 16px"><p>Existen cumplimientos preventivos pendientes al cierre configurado.</p><p>Ingresa a Obraxis para consultar el detalle según tus permisos.</p><p style="margin-top:18px;font-size:12px;color:#64748b">Este aviso no incluye respuestas ni detalles del formulario y no modifica registros automáticamente.</p></div></div>`;
   let emailState = 'Omitido';
@@ -201,3 +201,6 @@ async function processCompliancePending(db: any, rule: any, local: { date: strin
   if (deliveries.length) await db.from('notificaciones_entregas').insert(deliveries);
   return { rule: rule.id, pending: pending.length, deliveries: deliveries.length };
 }
+
+
+async function legacyRoleEmails(db:any,rule:any,emails:any[]){const {data,error}=await db.rpc('filter_legacy_notification_emails',{p_company:rule.empresa,p_code:rule.evento_codigo,p_emails:emails});if(error)throw error;return data||[];}
