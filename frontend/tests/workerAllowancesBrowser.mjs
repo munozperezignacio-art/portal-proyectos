@@ -6,7 +6,7 @@ try{for(const width of [1280,390]){
  await page.goto('http://127.0.0.1:4181/e2e/fixtures/worker-allowance-modes.html');
  await page.getByText('Asignación anterior:',{exact:false}).waitFor();
  await page.getByLabel('Proporcional a los días trabajados según marcajes',{exact:true}).check();
- assert.match(await page.locator('output').textContent(),/100000/);
+ assert.match(await page.locator('output').textContent(),/200000/);
  await page.getByRole('button',{name:'Guardar ficha'}).click();await page.reload();
  assert.ok(await page.getByLabel('Proporcional a los días trabajados según marcajes',{exact:true}).isChecked());
  await page.getByLabel('Monto mensual completo independiente de la asistencia',{exact:true}).check();

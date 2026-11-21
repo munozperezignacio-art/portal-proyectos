@@ -1,3 +1,4 @@
+import {workedDaysProration} from './workedDaysProration.js';
 export const periodEnd=month=>new Date(Date.UTC(+month.slice(0,4),+month.slice(5),0)).toISOString().slice(0,10);
 export function earningDates(reference){
  if(reference?.includes('/'))return reference.split('/');
@@ -13,5 +14,5 @@ export function earningForExport(earning,marks,from,to){
  const days=[...new Set(marks.filter(m=>rut(m.rut)&&rut(m.rut)===rut(earning.worker.rut)&&(!earning.workId||String(m.obra_id)===String(earning.workId))&&m.fecha_marcacion>=start&&m.fecha_marcacion<=end&&/^(presente|asisti|trabaj)/i.test(m.asistencia||'')).map(m=>m.fecha_marcacion))];
  if(!days.length)throw Error(`No se puede calcular «${earning.name}» de ${earning.worker.nombre}: no hay días trabajados registrados en su vigencia (${start} al ${end}).`);
  const included=days.filter(d=>d>=from&&d<=to).length;
- return {...earning,amount:Math.round(Number(earning.amount)*included/days.length),note:`${vigencia}. Proporcional: ${included}/${days.length} días trabajados; base $${earning.amount}`};
+ return {...earning,amount:workedDaysProration(earning.amount,included,days.length),note:`${vigencia}. Proporcional: ${included}/${days.length} días trabajados; base $${earning.amount}`};
 }

@@ -45,7 +45,7 @@ export const calculatePayroll = (worker, attendance, parameters, novelty = {}) =
   const overtime = round(hourly * (parameters.factorHoraExtra || 1.5) * overtimeHours);
   const additional = type => Object.values(novelty.haberes_detallados || {}).reduce((sum, h) => sum + (h.type === type ? num(h.amount) : 0), 0);
   const bonus = round(novelty.bonos ?? attendance.bonus) + additional('Imponible');
-  const allowances = allowanceTotals(worker, parameters.periodo || '', paidDays, attendance.present || 0);
+  const allowances = allowanceTotals(worker, parameters.periodo || '', paidDays, attendance.present || 0, attendance.periodPresent ?? attendance.present ?? 0);
   const gratificationBase=base+(parameters.gratificarHaberesVariables ? overtime+bonus+allowances.taxable : 0);
   const gratification = worker.gratificacion === 'Sin Gratificación' ? 0 : Math.min(round(gratificationBase * 0.25), gratificationCap);
   const taxableGrossRaw = base + gratification + overtime + bonus + allowances.taxable;
@@ -70,5 +70,9 @@ export const calculatePayroll = (worker, attendance, parameters, novelty = {}) =
   const employerCharges = round(taxableGrossRaw * num(parameters.cargasEmpleadorPct) / 100);
   const employerCost = totalAssets + employerCharges;
   const net = Math.max(0, totalAssets - legalDiscounts - otherDiscounts);
-  return { workerId: worker.id, rut: worker.rut, nombre: worker.nombre, obra: worker.obra_nombre, cargo: worker.cargo, paidDays, attendanceRecords: attendance.records, absentDays: attendance.absent, overtimeHours, baseContract, base, gratification, overtime, bonus, allowances: allowances.details, taxableGross: taxableGrossRaw, pensionTaxable, collation, transport, otherNonTaxable, totalAssets, employerCharges, employerCost, afpRate, afp, health, afc, tax, legalDiscounts, otherDiscounts, net };
+  return { workerId: worker.id, rut: worker.rut, nombre: worker.nombre, obra: worker.obra_nombre, cargo: worker.cargo, paidDays, attendanceRecords: attendance.records, absentDays: attendance.absent, overtimeHours, baseContract, base, gratification, overtime, bonus, allowances: allowances.details, calculationErrors:allowances.errors, taxableGross: taxableGrossRaw, pensionTaxable, collation, transport, otherNonTaxable, totalAssets, employerCharges, employerCost, afpRate, afp, health, afc, tax, legalDiscounts, otherDiscounts, net };
 };
+export const payrollIsClosed=status=>['Cerrada','Pagada'].includes(status);
+export function closedPayrollRows(items){
+  return items.map(item=>item.calculo ? {...item.calculo} : {workerId:item.trabajador_id,nombre:item.trabajador_nombre,rut:item.trabajador_rut,calculationErrors:['La nómina cerrada no tiene un cálculo guardado. No se recalculará automáticamente.']});
+}

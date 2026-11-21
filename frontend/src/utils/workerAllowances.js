@@ -1,3 +1,4 @@
+import {workedDaysProration} from './workedDaysProration.js';
 const monthPattern = /^(19|20|21|22|23|24|25|26|27|28|29)\d{2}-(0[1-9]|1[0-2])$/;
 export const allowanceMonth = () => new Intl.DateTimeFormat('en-CA', {timeZone:'America/Santiago',year:'numeric',month:'2-digit'}).format(new Date()).slice(0,7);
 export function validateAllowances(rows = []) {
@@ -13,8 +14,15 @@ export function validateAllowances(rows = []) {
     return {nombre,monto,tipo:row.tipo,desde:row.desde,hasta:row.hasta || null,...(row.calculo ? {calculo:row.calculo} : {})};
   });
 }
-export function allowanceTotals(worker, period, days = 30, workedDays = 0) {
+export function allowanceTotals(worker, period, days = 30, workedDays = 0, periodWorkedDays = workedDays) {
+  const errors=[];
   const details = (worker?.otras_asignaciones || []).filter(row => row.desde <= period && (!row.hasta || row.hasta >= period))
-    .map(row => ({...row,amount:Math.round(Number(row.monto)*(row.calculo==='completo'?1:Math.max(0,Math.min(30,row.calculo==='marcajes'?workedDays:days))/30))}));
-  return {details,taxable:details.filter(r=>r.tipo==='imponible').reduce((s,r)=>s+r.amount,0),nonTaxable:details.filter(r=>r.tipo==='no_imponible').reduce((s,r)=>s+r.amount,0)};
+    .map(row => {
+      if(row.calculo==='marcajes'){
+        try {return {...row,amount:workedDaysProration(row.monto,workedDays,periodWorkedDays),workedDays,periodWorkedDays};}
+        catch(error){const message=`${worker.nombre || 'Trabajador'} · ${row.nombre} (${period}): ${error.message}`;errors.push(message);return {...row,amount:0,calculationError:message};}
+      }
+      return {...row,amount:Math.round(Number(row.monto)*(row.calculo==='completo'?1:Math.max(0,Math.min(30,days))/30))};
+    });
+  return {details,errors,taxable:details.filter(r=>r.tipo==='imponible').reduce((s,r)=>s+r.amount,0),nonTaxable:details.filter(r=>r.tipo==='no_imponible').reduce((s,r)=>s+r.amount,0)};
 }
