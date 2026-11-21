@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Pressable, Text, View } from 'react-native';
+import { Linking, Pressable, Text, View } from 'react-native';
 import { useAuth } from '@/auth/AuthProvider';
 import { Card, ErrorBox, Header, Loading, Screen } from '@/components/ui';
 import { fetchNotificationDetail, fetchNotificationRecord, NotificationRecordData, markNotificationRead, MobileNotification } from '@/lib/notifications';
@@ -30,8 +30,13 @@ export default function NotificationDetail() {
       if(value.evento_codigo==='enex_pendiente'){router.replace('/combustibles');return;}
       if(value.evento_codigo.startsWith('solicitudes_')&&p.solicitud_id){router.replace({pathname:'/solicitudes',params:{id:String(p.solicitud_id)}});return;}
       if(p.formulario_id){router.replace({pathname:'/formulario/[id]',params:{id:String(p.formulario_id)}});return;}
-      if(Number.isSafeInteger(work)&&work>0){router.replace({pathname:'/obra/[id]',params:{id:String(work),nombre:value.obra_nombre||String((p.notification_context as any)?.obra||''),especialidad:p.sesion_id?'1':undefined,seccion:value.evento_codigo.includes('maquinaria')?'equipos':value.evento_codigo.includes('asistencia')?'asistencia':value.evento_codigo.startsWith('obra_alerta_')?'estadisticas':'avance'}});return;}
       if(p.equipo_id){router.replace({pathname:'/equipo/[id]',params:{id:String(p.equipo_id)}});return;}
+      if(value.evento_codigo.startsWith('rrhh_')){router.replace('/personal');return;}
+      if(value.evento_codigo==='maquinaria_imputacion_pendiente'||value.evento_codigo.startsWith('mantenimiento_')){router.replace('/maquinaria');return;}
+      const workEvent=/^(obra_|avance_|especialidad_|reportes_diarios_|ep_subcontrato_|asistencia_)/.test(value.evento_codigo)||['maquinaria_reporte_pendiente','maquinaria_termino_obra'].includes(value.evento_codigo);
+      if(workEvent&&Number.isSafeInteger(work)&&work>0){router.replace({pathname:'/obra/[id]',params:{id:String(work),nombre:value.obra_nombre||String((p.notification_context as any)?.obra||''),especialidad:p.sesion_id?'1':undefined,seccion:value.evento_codigo.startsWith('ep_subcontrato_')?'subcontratos':value.evento_codigo.includes('maquinaria')?'equipos':value.evento_codigo.includes('asistencia')?'asistencia':value.evento_codigo.startsWith('obra_alerta_')?'estadisticas':'avance'}});return;}
+      // Web-only modules retain the exact delivery reference and re-check the signed-in recipient.
+      if(/^(gastos?_|dte_|facturacion_|bodega_|acreditacion_)/.test(value.evento_codigo))await Linking.openURL('https://www.obraxis.cl/dashboard?aviso_movil='+value.id);
     }).catch(e => { if (active) setError(e instanceof Error ? e.message : 'No fue posible abrir el aviso.'); });
     return () => { active = false; };
   }, [id, profile?.id]);

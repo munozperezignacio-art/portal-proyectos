@@ -134,6 +134,7 @@ function App() {
   const [oxDestination, setOxDestination] = useState(null);
   const [notificationDetail, setNotificationDetail] = useState(null);
   const [notificationRecord,setNotificationRecord]=useState(null);
+  const [mobileNotice,setMobileNotice]=useState(()=>Number(new URLSearchParams(window.location.search).get('aviso_movil')));
 
   const baseUserContext = useMemo(() => user
     ? (selectedCompanyOverride ? { ...user, empresa: selectedCompanyOverride } : user)
@@ -318,6 +319,9 @@ function App() {
   const openNotificationDestination = (notification) => {
     if(notification?.payload?.has_record){setNotificationRecord(notification);return;}
     if(notification?.evento_codigo==='enex_pendiente'){setCurrentModule('combustibles');navigateTo('/dashboard');return;}
+    if(notification?.evento_codigo==='rrhh_imputacion_pendiente'){setCurrentModule('rrhh');navigateTo('/dashboard');return;}
+    if(notification?.evento_codigo==='gastos_imputacion_pendiente'){setCurrentModule('gastos');navigateTo('/dashboard');return;}
+    if(notification?.evento_codigo==='maquinaria_imputacion_pendiente'){setCurrentModule('maquinaria');navigateTo('/dashboard');return;}
     const code = String(notification?.evento_codigo || '').toLowerCase();
     if (notification?.payload?.operational_event) {
       setSelectedObraName(notification.obra_nombre);
@@ -341,6 +345,19 @@ function App() {
     setCurrentModule(module);
     navigateTo('/dashboard');
   };
+
+  useEffect(()=>{
+    const delivery=mobileNotice;
+    if(!activeUserContext?.id||preview||!Number.isSafeInteger(delivery)||delivery<=0)return;
+    let active=true;
+    supabase.functions.invoke('notificaciones-moviles',{body:{action:'detail',perfil_id:activeUserContext.id,client_channel:'mobile',entrega_id:delivery}}).then(({data,error})=>{
+      if(!active)return;
+      setMobileNotice(null);
+      if(error||data?.error){setNotificationDetail({asunto:'No se pudo abrir el aviso',payload:{detalle:data?.error||'Comprueba que ingresaste con la empresa y el usuario destinatario.'}});return;}
+      openNotificationDestination({...data.data,_channel:'mobile'});
+    }).catch(()=>{if(active){setMobileNotice(null);setNotificationDetail({asunto:'No se pudo abrir el aviso',payload:{detalle:'No fue posible consultar el registro. Vuelve a abrir el aviso para reintentar.'}});}});
+    return()=>{active=false;};
+  },[activeUserContext?.id,activeUserContext?.empresa,preview,mobileNotice]);
 
   // Detectar si se está accediendo a un formulario o capacitación pública de prevención a través de la URL
   const urlParams = new URLSearchParams(window.location.search);
