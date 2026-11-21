@@ -1,0 +1,53 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {PGlite} from '@electric-sql/pglite';
+test('specialty role duties: two users, work/company boundary and no historical rewrites',async()=>{
+ const db=new PGlite();try{
+ await db.exec(`create schema private;create schema auth;create role anon;create role authenticated;
+ create function auth.uid() returns uuid language sql as $$select current_setting('test.uid')::uuid$$;
+ create table obras(id integer primary key,empresa text,nombre text);
+ create table usuarios(id integer,auth_user_id uuid,empresa text,nombre text,usuario text,rol text,rol_base text,obras text);
+ create table partidas_obra(id integer primary key,obra_id integer,empresa text,partida text,unidad text,es_titulo boolean);
+ create table notificaciones_reglas(id uuid,empresa text,activa boolean,evento_codigo text,hora_envio time,canal_push boolean,condiciones jsonb,obra_nombre text);
+ create table avances_produccion_partidas(id serial primary key,empresa text,obra_id integer,obra_nombre text,supervisor text,partida_id integer,partida text,unidad text,cantidad numeric,observaciones text,created_at timestamptz);
+ create function private.rrhh_partidas_permiso(text,integer,text) returns boolean language sql as $$select exists(select 1 from public.usuarios u join public.obras o on o.id=$2 where u.auth_user_id=auth.uid() and u.empresa=$1 and o.empresa=$1)$$;
+ create function private.obraxis_permission(text,text) returns boolean language sql as $$select case when $2 like 'obras.calidad.%' then current_setting('test.quality_permission',true)=$2 else current_setting('test.can_create',true)='yes' end$$;
+ insert into obras values(1,'A','Obra A'),(2,'B','Obra B');
+ insert into partidas_obra values(1,1,'A','Pilas','UND',false),(2,2,'B','Pilas','UND',false);
+ insert into usuarios values(1,'00000000-0000-4000-8000-000000000001','A','Admin','a','Administrador de Empresa',null,'Todas'),(2,'00000000-0000-4000-8000-000000000002','A','Ejecutor','e','Supervisor',null,'Todas');
+ set test.uid='00000000-0000-4000-8000-000000000001';`);
+ await db.exec(`create table roles(id integer primary key,empresa text,nombre text,archivado boolean,permisos jsonb default '{}');
+ create function private.obraxis_actor_can_manage_company(text) returns boolean language sql as $$select $1='A' and auth.uid()='00000000-0000-4000-8000-000000000001'::uuid$$;
+ insert into roles values(1,'A','Supervisor',false,'{}'),(2,'B','Supervisor',false,'{}');
+ insert into obras values(3,'A','Otra obra');
+ update usuarios set obras='Obra A' where id=2;`);
+ await db.exec(await readFile(new URL('../../supabase/schema/specialty-reporting.sql',import.meta.url),'utf8'));
+ const call=async(action,data={},work=1)=>(await db.query('select public.specialty_api($1,$2,$3) as r',[work,action,JSON.stringify(data)])).rows[0].r;
+ await call('configure',{partida_id:1,topografia:'00000000-0000-4000-8000-000000000002',activa_desde:'2026-01-01'});
+ await call('catalog',{partida_id:1,rows:[{etapa:'1',numero:'1',norte:1,este:2,longitud_diseno:6}]});
+ const before=(await db.query('select to_jsonb(t) as data from private.specialty_settings t')).rows;
+ await db.exec(await readFile(new URL('../../supabase/schema/specialty-role-duties.sql',import.meta.url),'utf8'));
+ assert.deepEqual((await db.query('select to_jsonb(t) as data from private.specialty_settings t')).rows,before);
+ const save=async(role,codes,expected)=>db.query('select public.especialidad_responsabilidades_rol($1,$2,$3,$4)',['A',role,codes,expected]);
+ await assert.rejects(save(2,['topografia'],[]),/Rol no disponible/);
+ await save(1,['topografia','ejecucion'],[]);
+ await assert.rejects(save(1,['calidad'],[]),/Otro administrador/);
+ await db.exec("set test.uid='00000000-0000-4000-8000-000000000002';set test.can_create='yes'");
+ let state=await call('state');assert.equal(state.can_topography,true);assert.equal(state.can_quality,false);assert.equal(state.can_execute,true);
+ assert.equal(state.settings[0].topografia,state.actor,'APK 33 compatibility is derived from role, not old assignment');
+ assert.equal((await call('state',{},3)).can_topography,false);
+ await assert.rejects(call('state',{},2),/No autorizado/);
+ await assert.rejects(save(1,['calidad'],['ejecucion','topografia']),/No tienes permiso/);
+ const element=state.elements[0];await call('topography',{partida_id:1,element_id:element.id,revision:0,datos:{cota_inicial:10,cota_final:4}});
+ await db.exec("set test.uid='00000000-0000-4000-8000-000000000001'");
+ assert.equal((await call('state')).can_topography,false,'admin without role duty is not topographer');
+ await assert.rejects(call('configure',{partida_id:1,topografia:'00000000-0000-4000-8000-000000000002',activa_desde:'2026-01-01'}),/por rol/);
+ await save(1,[],['ejecucion','topografia']);
+ await db.exec("set test.uid='00000000-0000-4000-8000-000000000002'");
+ state=await call('state');assert.equal(state.can_topography,false);assert.equal(state.settings[0].topografia,null);
+ await assert.rejects(call('topography',{partida_id:1,element_id:element.id,revision:1,datos:{}}),/topógrafo/);
+ assert.deepEqual((await db.query('select to_jsonb(t) as data from private.specialty_settings t')).rows,before);
+ }finally{await db.close();}
+});
+

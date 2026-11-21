@@ -20,6 +20,8 @@ export default function PermissionsGovernancePanel({ user, initialRoleId = '' })
   const [company,setCompany]=useState(null);
   const [loadError,setLoadError]=useState('');
   const initializedRole=useRef('');
+  const [roleRevision,setRoleRevision]=useState(0);
+  useEffect(()=>{const refresh=e=>{if(e.detail?.empresa===user.empresa)setRoleRevision(n=>n+1);};window.addEventListener('obraxis:permissions-updated',refresh);return()=>window.removeEventListener('obraxis:permissions-updated',refresh);},[user.empresa]);
 
   useEffect(() => {
     let active=true;
@@ -42,7 +44,7 @@ export default function PermissionsGovernancePanel({ user, initialRoleId = '' })
     };
     load();
     return ()=>{active=false;};
-  }, [user.empresa]);
+  }, [user.empresa,roleRevision]);
 
   const subjects = subjectType === 'rol' ? roles : users;
   const selected = useMemo(() => subjects.find(item => String(item.id) === String(subjectId)), [subjects, subjectId]);

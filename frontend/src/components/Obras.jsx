@@ -86,7 +86,6 @@ const ContextualEmailConfigModal = React.lazy(() => import('./ContextualEmailCon
 const LastPlannerLookahead = React.lazy(() => import('./LastPlannerLookahead'));
 const CalidadObras = React.lazy(() => import('./CalidadObras'));
 const SpecialtyReports = React.lazy(() => import('./SpecialtyReports'));
-const SpecialtySettingsEntry = React.lazy(() => import('./SpecialtyReports').then(module=>({default:module.SpecialtySettingsEntry})));
 const SpecialtyProgressDiagram = React.lazy(() => import('./SpecialtyProgressDiagram'));
 const LibroObrasDigital = React.lazy(() => import('./LibroObrasDigital'));
 const EstadosPagoObra = React.lazy(() => import('./EstadosPagoObra'));
@@ -280,7 +279,6 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const canEquipmentEdit = recordPermission('maquinaria', 'editar');
   const canEquipmentDelete = recordPermission('maquinaria', 'eliminar');
   const canEquipmentActions = canEquipmentEdit || canEquipmentDelete;
-  const canResponsibilities = recordPermission('ficha', 'configurar');
   const [specialtySettingsRevision,setSpecialtySettingsRevision]=useState(0);
   const [specialtyHistory,setSpecialtyHistory]=useState(null);
   const canPrevView = can(user, userPermissions, 'obras.prevencion.ver');
@@ -3512,7 +3510,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   <button type="button" disabled={!canAdvanceCreate} aria-expanded={avanceSubTab==='especialidad'} onClick={()=>setAvanceSubTab(avanceSubTab==='especialidad'?'registro':'especialidad')} className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition shadow-xs"><Plus className="w-4 h-4"/>Avance por especialidad</button>
                 </div>
               </div></WorkHeaderActions>
-              <div hidden={avanceSubTab!=='especialidad'}><React.Suspense fallback={<p>Cargando especialidades…</p>}>{canResponsibilities && <SpecialtySettingsEntry key={'settings:'+selectedObra.id} work={selectedObra} user={user} parts={partidasList} onSaved={()=>setSpecialtySettingsRevision(n=>n+1)}/>}<SpecialtyReports key={selectedObra.id} work={selectedObra} user={user} parts={partidasList} settingsRevision={specialtySettingsRevision} onHistory={setSpecialtyHistory} onSaved={()=>fetchObraDetails(selectedObra.nombre)}/></React.Suspense></div>
+              <div hidden={avanceSubTab!=='especialidad'}><React.Suspense fallback={<p>Cargando especialidades…</p>}><SpecialtyReports key={selectedObra.id} work={selectedObra} user={user} parts={partidasList} settingsRevision={specialtySettingsRevision} onHistory={setSpecialtyHistory} onSaved={()=>fetchObraDetails(selectedObra.nombre)}/></React.Suspense></div>
 
               {/* SUB-PESTAÑA 1: VISOR DE AVANCE FÍSICO (BARRAS DE PROGRESO DE PARTIDAS DE LA OBRA) */}
               {avanceSubTab === 'visor' && (

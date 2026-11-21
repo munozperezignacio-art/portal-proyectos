@@ -9,7 +9,7 @@ const checks=['pilas_grava','trazado_fundacion','estacas_principales','estacas_a
 export default function SpecialtyProtocols({state,cfg,sessions,elements,call,refresh,work,user,renderTopo}){
  const [sessionId,setSessionId]=useState(''),[type,setType]=useState('ejecucion'),[ids,setIds]=useState([]),[correlative,setCorrelative]=useState(''),[fixed,setFixed]=useState({}),[editing,setEditing]=useState(null),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[preview,setPreview]=useState('');
  const [pileSearch,setPileSearch]=useState('');
- const quality=cfg.calidad===state.actor,topographer=cfg.topografia===state.actor;
+ const quality=state.can_quality===true,topographer=state.can_topography===true;
  const selectedSession=sessions.find(s=>s.id===sessionId),available=elements.filter(e=>e.sesion_id===sessionId);
  useEffect(()=>{setFixed(cfg.datos_fijos||{});setSessionId('');setIds([]);setEditing(null);},[cfg.partida_id]);
  useEffect(()=>()=>{if(preview)URL.revokeObjectURL(preview);},[preview]);

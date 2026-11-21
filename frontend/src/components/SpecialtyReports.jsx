@@ -10,10 +10,6 @@ const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago',yea
 const storage={getItem:async k=>localStorage.getItem(k),setItem:async(k,v)=>localStorage.setItem(k,v)};
 const empty={settings:[],elements:[],sessions:[],protocols:[],users:[]};
 const executionFields=[['paladas','Paladas'],['volumen','Volumen m³'],['longitud','Longitud m'],['longitud_perforacion','Perforación m'],['profundidad','Profundidad m']];
-export function SpecialtySettingsEntry(props){
- const [open,setOpen]=useState(false);
- return <div className="mb-4"><button type="button" aria-expanded={open} className={button} onClick={()=>setOpen(v=>!v)}>Configurar especialidad</button>{open&&<div className="mt-2"><SpecialtyReports {...props} settingsOnly/></div>}</div>;
-}
 export default function SpecialtyReports({work,user,parts=[],quality=false,settingsOnly=false,onSaved=()=>{},settingsRevision=0,onHistory}){
  const [state,setState]=useState(empty),[partId,setPartId]=useState(''),[draft,setDraft]=useState(null),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
  const [tab,setTab]=useState(settingsOnly?'settings':quality?'protocols':'journal'),[config,setConfig]=useState({}),[selected,setSelected]=useState('');
@@ -37,7 +33,7 @@ export default function SpecialtyReports({work,user,parts=[],quality=false,setti
  activeSession&&activeSession.estado!=='abierta'?'Esta jornada ya está registrada. Consulta el historial de reportes.':
  !activeSession&&(state.reports||[]).some(r=>String(r.partida_id)===partId&&r.fecha===workDate)?'Ya existe un reporte de esta partida para la fecha seleccionada. Revisa el historial.':'';
  const start=async()=>{if(blocked)return;const next=activeSession||{id:crypto.randomUUID(),partida_id:Number(partId),fecha:workDate,revision:0,datos:{pilas:[],observaciones:''}};await edit(next);};
- const canExecute=state.can_execute===true,canTopo=cfg?.topografia===state.actor,canQuality=cfg?.calidad===state.actor;
+ const canExecute=state.can_execute===true,canTopo=state.can_topography===true,canQuality=state.can_quality===true;
  const [pileSearch,setPileSearch]=useState('');
  const rows=draft?.datos?.pilas||[];
  const updatePile=(id,key,value)=>edit({...draft,datos:{...draft.datos,pilas:rows.map(p=>p.element_id===id?{...p,[key]:value}:p)}});
@@ -48,13 +44,12 @@ export default function SpecialtyReports({work,user,parts=[],quality=false,setti
   <label className="block text-sm font-bold">Partida<select className={field} value={partId} onChange={e=>setPartId(e.target.value)}>{parts.filter(p=>!p.es_titulo).map(p=><option key={p.id} value={p.id}>{p.partida} · {p.unidad}</option>)}</select></label>
   {!settingsOnly&&<nav className="flex flex-wrap gap-2">{(quality?[['protocols','Protocolos'],['topography','Topografía pendiente'],...(state.can_configure?[['reconciliation','Conciliaciones pendientes']]:[])]:[['journal','Jornada']]).map(([key,label])=><button key={key} className={`${button} ${tab===key?'bg-indigo-100':''}`} onClick={()=>setTab(key)}>{label}</button>)}</nav>}
   {notice&&<p role="status" className="rounded-lg bg-amber-50 p-3 text-sm">{notice}</p>}
-  {!cfg&&tab!=='settings'&&<p>Esta partida todavía usa el registro por unidades. Administración puede configurarla en Responsables y avisos → Configurar especialidad.</p>}
+  {!cfg&&tab!=='settings'&&<p>Esta partida todavía usa el registro por unidades. Administración puede habilitarla en Configuración → Especialidades de obra. Las responsabilidades se seleccionan en Configuración → Roles → Responsabilidades por módulo.</p>}
   {tab==='settings'&&state.can_configure&&<div className="space-y-4">
-   <p className="text-sm">Selecciona la partida y designa a sus responsables. Las reglas de avisos se administran por separado.</p>
-   <div className="grid gap-3 md:grid-cols-3">{[['ejecucion','Ejecución y cierre'],['topografia','Topografía de terreno'],['calidad','Construcción y revisión de protocolos']].map(([key,label])=><label key={key}>{label}<select className={field} value={config[key]||''} onChange={e=>setConfig({...config,[key]:e.target.value})}><option value="">Sin asignar</option>{state.users.map(u=><option key={u.id} value={u.id}>{u.nombre}</option>)}</select></label>)}</div>
+   <p className="text-sm">Aquí se define la partida y su fecha de inicio. Ejecución, topografía y Calidad se asignan por rol en Responsabilidades por módulo, cruzadas con las obras de cada usuario.</p>
    <label className="block">Inicio del registro por especialidad<input disabled={sessions.some(s=>s.estado!=='historica')} type="date" className={field} value={config.activa_desde||''} onChange={e=>setConfig({...config,activa_desde:e.target.value})}/></label>
    <p className="text-xs text-slate-500">Los días anteriores se concilian con sus reportes existentes; no vuelven a sumarse.</p>
-   <button className={button} disabled={busy} onClick={()=>action(()=>call('configure',{...config,partida_id:Number(partId),request_id:crypto.randomUUID()}))}>Guardar especialidad y responsables</button>
+   <button className={button} disabled={busy} onClick={()=>action(()=>call('configure',{activa_desde:config.activa_desde,revision:config.revision,datos_fijos:config.datos_fijos,partida_id:Number(partId),request_id:crypto.randomUUID()}))}>Guardar configuración de especialidad</button>
    {cfg&&<p className="text-sm">El catálogo y la conciliación histórica se gestionan en Calidad → Protocolos por especialidad → Conciliaciones pendientes.</p>}
   </div>}
   {quality&&cfg&&tab==='reconciliation'&&state.can_configure&&<section className="space-y-3">

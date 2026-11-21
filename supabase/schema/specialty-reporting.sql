@@ -204,7 +204,7 @@ begin
   if not (adm or uid is not distinct from cfg.calidad or coalesce(private.obraxis_permission(w.empresa,'obras.calidad.editar'),false)) then raise exception 'Sin permiso para guardar antecedentes de Calidad';end if;
   if jsonb_typeof(p_data->'datos_fijos') is distinct from 'object' then raise exception 'Datos fijos inválidos';end if;
   for x in select value from jsonb_each(p_data->'datos_fijos') where key in ('volumen_cuchara','diametro') loop
-   if trim(both '"' from x::text)<>'' and (replace(trim(both '"' from x::text),',','.') !~ '^[0-9]+([.][0-9]+)? or replace(trim(both '"' from x::text),',','.')::numeric<=0) then raise exception 'Volumen de balde y diámetro deben ser positivos';end if;
+   if trim(both '"' from x::text)<>'' and (replace(trim(both '"' from x::text),',','.') !~ '^[0-9]+([.][0-9]+)?$' or replace(trim(both '"' from x::text),',','.')::numeric<=0) then raise exception 'Volumen de balde y diámetro deben ser positivos';end if;
   end loop;
   insert into private.specialty_quality_work(obra_id,datos) values(p_work,p_data->'datos_fijos') on conflict(obra_id) do update set datos=excluded.datos;
  elsif p_action='topography' then
