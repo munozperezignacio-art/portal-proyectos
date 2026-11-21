@@ -1,3 +1,4 @@
+import FormDesignerWorkspace, {DesignerField} from './FormDesignerWorkspace';
 import {MatrixList,newMatrixRows} from './QuestionMatrixDesigner';
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
@@ -10,6 +11,15 @@ import {
   Trash2, Share2, Download, Eye, GripVertical, ArrowUp, ArrowDown,
   GraduationCap, CheckSquare, Sparkles
 } from 'lucide-react';
+
+const FIELD_TYPE_LABELS = {
+  text: 'Texto corto', textarea: 'Texto largo', date: 'Fecha', time: 'Hora',
+  select: 'Lista desplegable', radio: 'Selección múltiple · una respuesta',
+  checkbox: 'Checkbox · varias respuestas', rating: 'Nivel de valoración',
+  photo: 'Subir imágenes', signature: 'Dibujar firma', repeater: 'Grupo repetible',
+  number: 'Número', email: 'Correo electrónico', tel: 'Teléfono',
+  attachments: 'Adjuntar varias imágenes', data_lookup: 'Datos vinculados'
+};
 
 const MACHINERY_SOURCE_COLUMNS = [
   { key: 'equipo', label: 'Equipo / patente' },
@@ -702,7 +712,8 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
           </div>
 
           <form onSubmit={handleSaveForm} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+            <FormDesignerWorkspace title={formTitle} description={formDesc}
+              settings={<>            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
               <div className="md:col-span-2 space-y-1">
                 <label className="block text-[10.5px] font-extrabold uppercase text-slate-600">Título del Formulario *</label>
                 <input
@@ -778,7 +789,8 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
               </div>
             </div>
 
-            {/* Barra de herramientas para agregar campos */}
+</>}
+              palette={<>            {/* Barra de herramientas para agregar campos */}
             <div className="space-y-3">
               <label className="block text-xs font-extrabold uppercase text-slate-700">Diseño de Campos y Preguntas</label>
               <p className="text-[11px] text-slate-500">Cada respuesta registra centro de gestión, obra vinculada y usuario responsable desde el encabezado.</p>
@@ -794,6 +806,27 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
               </div>
             </div>
 
+</>}
+              actions={<>            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <button type="button" disabled={previewLoading} onClick={() => previewFormPdf()} className="rounded-xl border border-primary px-4 py-2 text-xs font-bold text-primary">{previewLoading ? 'Generando…' : 'Vista previa PDF'}</button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('menu')}
+                className="px-5 py-2.5 rounded-xl text-xs font-extrabold text-slate-600 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-6 py-2.5 rounded-xl text-xs font-extrabold text-white bg-primary hover:bg-primary-hover transition cursor-pointer shadow-sm flex items-center gap-2"
+              >
+                <ClipboardCheck className="w-4 h-4" />
+                <span>{loading ? 'Guardando...' : editingForm ? 'Guardar cambios' : 'Guardar y Publicar Formulario'}</span>
+              </button>
+            </div>
+          </>}
+            >
             {/* Lista de Campos */}
             <p className="text-xs text-slate-500">Arrastra el agarre de cada campo para cambiar el orden, o usa las flechas. Guarda los cambios para aplicarlos al formulario y al PDF.</p>
             <div className="space-y-3">
@@ -808,13 +841,14 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                         onDragStart={event => { event.stopPropagation(); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('application/x-obraxis-field', String(field.id)); setDraggedField(field.id); }}
                         onDragEnd={() => { setDraggedField(null); setDropTarget(null); }}
                         className="cursor-grab rounded-lg p-2 text-slate-500 hover:bg-slate-100 active:cursor-grabbing"><GripVertical className="h-4 w-4" /></button>
-                      <span className="text-[10px] font-black text-primary uppercase tracking-wider">Campo #{index + 1} ({field.type})</span>
+                      <span className="min-w-0 break-words text-[10px] font-black text-primary uppercase tracking-wider">Campo #{index + 1} · {FIELD_TYPE_LABELS[field.type] || 'Campo personalizado'}</span>
                       <button type="button" aria-label={`Subir ${field.label}`} disabled={index === 0} onClick={() => moveField(field.id, formFields[index - 1]?.id)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-25"><ArrowUp className="h-4 w-4" /></button>
                       <button type="button" aria-label={`Bajar ${field.label}`} disabled={index === formFields.length - 1} onClick={() => moveField(field.id, formFields[index + 1]?.id)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-25"><ArrowDown className="h-4 w-4" /></button>
                     </div>
                     {isProtectedField(field) ? <span className="rounded-lg bg-amber-50 px-2 py-1 text-[9px] font-black uppercase text-amber-800">Campo base bloqueado</span> : <button type="button" onClick={() => handleRemoveField(field.id)} className="text-slate-400 hover:text-rose-600 transition cursor-pointer"><Trash2 className="w-4 h-4" /></button>}
                   </div>
 
+                  <DesignerField field={field}>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="md:col-span-2 space-y-1">
                       <label className="block text-[9.5px] font-bold text-slate-500 uppercase">Etiqueta de la Pregunta</label>
@@ -873,28 +907,12 @@ export default function FormulariosCapacitaciones({ user, onBack, companyBrandin
                     </div>;
                   })()}
                   {field.type === 'repeater' && <div className="space-y-2 rounded-xl bg-amber-50 p-3"><p className="text-[11px] font-semibold text-amber-900">Campos dentro del grupo. Arrastra ⠿ para ordenar:</p><div className="flex flex-wrap gap-2">{[['text','Texto corto'],['date','Fecha'],['time','Hora'],['select','Lista'],['radio','Selección múltiple · una respuesta'],['checkbox','Checkbox · varias respuestas'],['photo','Imagen'],['signature','Firma']].map(([type,label])=><button key={type} type="button" onClick={()=>addRepeaterField(field.id,type)} className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[10px] font-black text-amber-900">+ {label}</button>)}</div>{(field.subFields || []).map((sub, subIndex)=><div key={sub.id} draggable onDragStart={event=>event.dataTransfer.setData('text/plain', String(subIndex))} onDragOver={event=>event.preventDefault()} onDrop={event=>{ event.preventDefault(); moveRepeaterField(field.id, Number(event.dataTransfer.getData('text/plain')), subIndex); }} className="cursor-grab rounded-lg bg-white p-3 text-xs active:cursor-grabbing"><div className="flex items-center justify-between gap-2"><span className="flex items-center gap-2"><b className="text-slate-400">⠿</b><b className="text-slate-400">({sub.type})</b></span><button type="button" onClick={()=>removeRepeaterField(field.id,sub.id)} className="text-[10px] font-black text-rose-700">Quitar</button></div><input value={sub.label} onChange={e=>updateRepeaterSubField(field.id,sub.id,'label',e.target.value)} className="mt-2 h-9 w-full rounded-lg border border-slate-200 px-3 text-xs font-semibold"/>{['select','radio','checkbox'].includes(sub.type) && <div className="mt-2 space-y-1">{(sub.options || []).map((option, index)=><input key={index} value={option} onChange={e=>updateRepeaterOption(field.id,sub.id,index,e.target.value)} className="h-8 w-full rounded-lg border border-slate-200 px-2 text-[11px]"/>)}<button type="button" onClick={()=>addRepeaterOption(field.id,sub.id)} className="text-[10px] font-black text-primary">+ Agregar opción</button></div>}</div>)}</div>}
+                  </DesignerField>
                 </div>
               )}</MatrixList>
             </div>
 
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <button type="button" disabled={previewLoading} onClick={() => previewFormPdf()} className="rounded-xl border border-primary px-4 py-2 text-xs font-bold text-primary">{previewLoading ? 'Generando…' : 'Vista previa PDF'}</button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('menu')}
-                className="px-5 py-2.5 rounded-xl text-xs font-extrabold text-slate-600 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="px-6 py-2.5 rounded-xl text-xs font-extrabold text-white bg-primary hover:bg-primary-hover transition cursor-pointer shadow-sm flex items-center gap-2"
-              >
-                <ClipboardCheck className="w-4 h-4" />
-                <span>{loading ? 'Guardando...' : editingForm ? 'Guardar cambios' : 'Guardar y Publicar Formulario'}</span>
-              </button>
-            </div>
+            </FormDesignerWorkspace>
           </form>
         </div>
       )}
