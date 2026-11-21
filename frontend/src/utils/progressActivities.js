@@ -13,7 +13,12 @@ export function validateActivities(rows){
 }
 export function activityText(rows){return [...rows].sort((a,b)=>a.inicio.localeCompare(b.inicio)).map(r=>`- ${r.inicio} - ${r.termino} ${r.actividad}`).join('\n');}
 export function progressDate(r){return r.fecha||r.fecha_avance||new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(r.created_at));}
-export function dailyProgressMessage(work,date,rows,reports,notes=''){
- const day=reports.filter(r=>progressDate(r)===date);
- return `Reporte de avance · ${work}\n${date.split('-').reverse().join('-')}\n\nActividades del día:\n${activityText(rows)}\n\nAvance del día:\n${day.map(r=>`- ${r.partida}: ${r.cantidad} ${r.unidad||''}`).join('\n')||'Sin avance cuantificado registrado.'}\n\nObservaciones:\n${notes.trim()||[...new Set(day.map(r=>r.observaciones).filter(Boolean))].join('\n')||'Sin observaciones.'}`;
+import {progressShareMessage} from './progressShare.mjs';
+export function progressEntries(parts,reports){
+ const norm=s=>String(s||'').trim().toLocaleLowerCase();
+ const entries=parts.filter(p=>!p.es_titulo&&!['TITULO','GRUPO'].includes(p.unidad)).map(part=>({part,history:reports.filter(r=>r.partida_id!=null?String(r.partida_id)===String(part.id):norm(r.partida)===norm(part.partida)&&parts.filter(p=>norm(p.partida)===norm(part.partida)).length===1)}));
+ const matched=new Set(entries.flatMap(e=>e.history));
+ for(const r of reports.filter(r=>!matched.has(r))){let e=entries.find(e=>e.legacy===norm(r.partida));if(!e){e={part:{partida:r.partida,unidad:r.unidad},history:[],legacy:norm(r.partida)};entries.push(e);}e.history.push(r);}
+ return entries;
 }
+export function dailyProgressMessage(work,date,rows,reports,notes,parts=[]){return progressShareMessage(work,date,activityText(rows),progressEntries(parts,reports),notes);}

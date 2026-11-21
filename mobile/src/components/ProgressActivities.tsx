@@ -6,18 +6,18 @@ export type Activity={inicio:string;termino:string;actividad:string;partida_id:n
 export const activityText=(rows:Activity[])=>[...rows].sort((a,b)=>a.inicio.localeCompare(b.inicio)).map(r=>`- ${r.inicio} - ${r.termino} ${r.actividad}`).join('\n');
 type State={revision:number;can_write:boolean;entries:Activity[];catalog:{nombre:string}[];parts:{id:number;partida:string}[]};
 const ignoreSaved=()=>{};
-export function ProgressActivities({workId,date,onSaved=ignoreSaved}:{workId:number;date:string;onSaved?:(text:string,ready:boolean)=>void}){
+export function ProgressActivities({reportId,onSaved=ignoreSaved}:{reportId:number;onSaved?:(text:string,ready:boolean)=>void}){
  const {colors:c}=useTheme();const [state,setState]=useState<State|null>(null),[rows,setRows]=useState<Activity[]>([]),[busy,setBusy]=useState(true),[dirty,setDirty]=useState(false),[error,setError]=useState(''),[pick,setPick]=useState<number|null>(null),[time,setTime]=useState<{index:number;field:'inicio'|'termino'}|null>(null);
  useEffect(()=>{let live=true;setBusy(true);setState(null);setRows([]);setDirty(false);onSaved('',false);
-  Promise.resolve(supabase.rpc('progress_activities',{p_work:workId,p_date:date})).then(({data,error})=>{if(!live)return;if(error)setError(error.message);else{setState(data);setRows(data.entries);onSaved(activityText(data.entries),data.entries.length>0);}}).catch(e=>{if(live)setError(e.message);}).finally(()=>{if(live)setBusy(false);});return()=>{live=false;};
- },[workId,date,onSaved]);
+  Promise.resolve(supabase.rpc('report_progress_activities',{p_report:reportId})).then(({data,error})=>{if(!live)return;if(error)setError(error.message);else{setState(data);setRows(data.entries);onSaved(activityText(data.entries),data.entries.length>0);}}).catch(e=>{if(live)setError(e.message);}).finally(()=>{if(live)setBusy(false);});return()=>{live=false;};
+ },[reportId,onSaved]);
  const input={borderWidth:1,borderColor:c.line,borderRadius:12,padding:12,color:c.ink,backgroundColor:c.surface};
  const button={padding:12,borderRadius:12,backgroundColor:c.soft};
  function change(next:Activity[]){setRows(next);setDirty(true);onSaved('',false);}
  function update(index:number,values:Partial<Activity>){change(rows.map((r,i)=>i===index?{...r,...values}:r));}
- async function save(){setBusy(true);setError('');try{const {data,error}=await supabase.rpc('progress_activities',{p_work:workId,p_date:date,p_entries:rows,p_revision:state?.revision});if(error)throw error;setState(data);setRows(data.entries);setDirty(false);onSaved(activityText(data.entries),data.entries.length>0);}catch(e:any){setError(e.message);}finally{setBusy(false);}}
+ async function save(){setBusy(true);setError('');try{const {data,error}=await supabase.rpc('report_progress_activities',{p_report:reportId,p_entries:rows,p_revision:state?.revision});if(error)throw error;setState(data);setRows(data.entries);setDirty(false);onSaved(activityText(data.entries),data.entries.length>0);}catch(e:any){setError(e.message);}finally{setBusy(false);}}
  const enabled=!!state?.can_write&&!busy;
- return <View style={{gap:10}}><Text accessibilityRole="header" style={{color:c.ink,fontWeight:'700',fontSize:17}}>Registro de actividades</Text><Text style={{color:c.muted}}>Inicio, término y actividad. Los tiempos quedan guardados por obra y día.</Text>
+ return <View style={{gap:10}}><Text accessibilityRole="header" style={{color:c.ink,fontWeight:'700',fontSize:17}}>Registro de actividades</Text><Text style={{color:c.muted}}>Inicio, término y actividad. Los tiempos quedan guardados en este reporte.</Text>
   {rows.map((r,i)=><View key={i} style={{...input,gap:8,backgroundColor:c.soft}}><View style={{flexDirection:'row',gap:8}}>{(['inicio','termino'] as const).map(field=><Pressable key={field} disabled={!enabled} accessibilityLabel={`${field} actividad ${i+1}`} style={{...input,flex:1}} onPress={()=>setTime({index:i,field})}><Text style={{color:c.muted}}>{field==='inicio'?'Inicio':'Término'}</Text><Text style={{color:c.ink}}>{r[field]||'Elegir hora'}</Text></Pressable>)}</View>
    <Pressable disabled={!enabled} style={input} onPress={()=>setPick(i)}><Text style={{color:c.blue}}>Elegir partida o actividad guardada</Text></Pressable>
    <TextInput accessibilityLabel={`Actividad ${i+1}`} editable={enabled} style={input} maxLength={300} value={r.actividad} placeholder="Ej.: Charla y HCR" placeholderTextColor={c.muted} onChangeText={actividad=>update(i,{actividad,partida_id:null})}/>

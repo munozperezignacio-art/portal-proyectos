@@ -1,5 +1,6 @@
 import WorkFleetStatistics from './WorkFleetStatistics';
 import ProgressActivities from './ProgressActivities';
+import ReportActivitiesAction from './ReportActivitiesAction';
 import { CHILEAN_HOLIDAYS } from '../utils/chileanHolidays';
 import React, { useState, useEffect, useRef } from 'react';
 import WorkBudgetMargin from './WorkBudgetMargin';
@@ -3667,8 +3668,6 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   </div>
 
                   <AdvanceReportDateFilter date={advanceReportDate} order={advanceReportOrder} onDateChange={setAdvanceReportDate} onOrderChange={setAdvanceReportOrder} shown={visibleAdvanceReports.length} total={reportesAvanceList.length}/>
-                  <label className="block text-sm font-semibold text-blue-950">Fecha del registro de actividades<input type="date" value={avanceFecha} onChange={e=>setAvanceFecha(e.target.value)} className="ml-3 rounded-xl border border-slate-300 bg-white p-2"/></label>
-                  {avanceFecha&&<ProgressActivities work={selectedObra} date={avanceFecha} reports={reportesAvanceList}/>}
 
                   {reportesAvanceList.length === 0 ? (
                     <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl space-y-2">
@@ -3713,8 +3712,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                     {jornada.datos.observaciones && jornada.datos.observaciones!==r.observaciones && <p>Comentarios generales: {jornada.datos.observaciones}</p>}
                                   </details>}
                                 </td>
-                                <td className="p-2.5 font-mono font-bold text-emerald-700">{r.cantidad} {r.unidad || 'UND'}</td>
-                                <td className="p-2.5 text-slate-700 italic">{r.observaciones || 'Sin comentarios'}</td>
+                                <td className="p-2.5 font-mono font-bold text-emerald-700">{Number(r.cantidad||0).toLocaleString('es-CL',{minimumFractionDigits:2,maximumFractionDigits:2})} {r.unidad || 'UND'}</td>
+                                <td className="p-2.5 text-slate-700 italic">{r.observaciones || 'Sin comentarios'}<ReportActivitiesAction work={selectedObra} report={r} reports={reportesAvanceList} parts={partidasList}/></td>
                                 {canAdvanceActions && (
                                   <td className="p-2.5 text-center">
                                     <div className="flex items-center justify-center gap-1">
@@ -8827,7 +8826,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
               </div>
 
               {/* LISTA DINÁMICA DE PARTIDAS */}
-              {avanceFecha&&<ProgressActivities work={selectedObra} date={avanceFecha} share={false}/>}
+              {editingRecordId&&avanceFecha&&<ProgressActivities reportId={editingRecordId} work={selectedObra} date={avanceFecha} share={false}/>}
               <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
                 {avanceItems.map((item, idx) => (
                   <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3 relative">

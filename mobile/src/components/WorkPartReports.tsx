@@ -11,7 +11,7 @@ import { useTheme, useThemedStyles } from '@/theme/ThemeProvider';
 type Row=Record<string,any>;
 const reportDate=(r:Row)=>String(r.fecha||r.fecha_avance||r.created_at||'').slice(0,10);
 const displayDate=(value:string)=>/^\d{4}-\d{2}-\d{2}$/.test(value)?`${value.slice(8,10)}/${value.slice(5,7)}/${value.slice(0,4)}`:'Sin fecha informada';
-const quantity=(value:unknown)=>Number.isFinite(Number(value))?Number(value).toLocaleString('es-CL',{maximumFractionDigits:3}):'—';
+const quantity=(value:unknown)=>Number.isFinite(Number(value))?Number(value).toLocaleString('es-CL',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';
 
 export function WorkPartReports({parts,reports,cutoff,workId,workName}:{parts:Row[];reports:Row[];cutoff:string;workId:number;workName:string}) {
   const {colors}=useTheme();const s=useThemedStyles(styles);const insets=useSafeAreaInsets();
@@ -36,7 +36,7 @@ export function WorkPartReports({parts,reports,cutoff,workId,workName}:{parts:Ro
             <View style={s.row}><Ionicons name="person-outline" size={15} color={colors.muted}/><Text style={[s.meta,s.flex]}>{item.supervisor||item.responsable||'Sin responsable informado'}</Text></View>
             <Text style={s.note}>{String(item.observaciones||item.observacion||item.comentario||'Sin observaciones.').trim()||'Sin observaciones.'}</Text>
             {reportDate(item)>cutoff&&<Badge tone="amber">Fecha posterior al corte · no suma al avance</Badge>}
-            <ShareDailyProgress date={productionDate(item)} workId={workId} workName={workName} entries={entries}/>
+            <ShareDailyProgress reportId={Number(item.id)} date={productionDate(item)} workId={workId} workName={workName} entries={entries}/>
           </View>}/>
         </>}
       </View></View>
