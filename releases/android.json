@@ -3,15 +3,15 @@
   "platform": "android",
   "packageName": "cl.obraxis.terreno",
   "version": "1.0.15",
-  "build": 28,
-  "apkUrl": "https://expo.dev/artifacts/eas/GGsqHaJLFqwsWIE5jU12U8wnZvev9PIQDYoWZPPM1zE.apk",
-  "sha256": "a84143478b2befef1356f42285f1208f7e77c767c58182abd68bb460245cc819",
-  "commit": "096dfb88b476e6f4675ddbe6cfb32e70d2517a02",
-  "sourceHash": "3a58d2f584ef4281388e0ae04393e9032820162fdc7f316465e0dc7490f119ee",
-  "publishedAt": "2026-11-17T16:16:59.896Z",
+  "build": 33,
+  "apkUrl": "https://expo.dev/artifacts/eas/l9gSRPRqEbSAiAryljlNJrP9lJGoWuDWWz-kIXSToZE.apk",
+  "sha256": "e00ab6a8de5b2728206753abf0b9973317d4cc0b5aca4e108b07c060e5e1099a",
+  "commit": "a52cddf7dec6ccbd3cbac21b0a9cc35c876011ae",
+  "sourceHash": "8916b5a0395a621a4bb3d6b342a5db223daeab4013429b0d21f2803cc4c7d31e",
+  "publishedAt": "2026-11-21T13:12:45.490Z",
   "notes": [
-    "Combustibles para usuarios con patentes asignadas.",
-    "Tarjetas de inicio uniformes.",
-    "Guardar en verde y Cancelar con estilo neutro."
+    "Registro de actividades por reporte y formato de WhatsApp con dos decimales.",
+    "Notificaciones con contexto y acceso al registro correspondiente.",
+    "Estación de servicio en movimientos de combustible y jornadas con vigencia."
   ]
 }
