@@ -43,7 +43,11 @@ export async function readNotificationRecord(db,delivery,profile,mayRead){
  const {data,error}=await query;if(error)throw error;
  if(!data?.length)throw Error('El registro ya no existe o no tienes acceso.');
  const works=String(profile.obras||'').split(',').map(s=>s.trim().toLocaleLowerCase('es-CL'));
- for(const row of data){const work=row.obra_nombre||delivery.obra_nombre;if(work&&!works.includes('todas')&&!works.includes(work.trim().toLocaleLowerCase('es-CL'))&&!/superusuario|superadmin/i.test(profile.rol_base||profile.rol||''))throw Error('No tienes acceso asignado a esta obra.');}
+ for(const row of data){
+  let work=row.obra_nombre||delivery.obra_nombre;
+  if(ref.table==='prevencion_respuestas'&&row.obra_id){const result=await db.from('obras').select('id,nombre').eq('id',row.obra_id).eq('empresa',profile.empresa).maybeSingle();if(result.error||!result.data)throw Error('No tienes acceso asignado a esta obra.');work=result.data.nombre;}
+  if(work&&!works.includes('todas')&&!works.includes(work.trim().toLocaleLowerCase('es-CL'))&&!/superusuario|superadmin/i.test(profile.rol_base||profile.rol||''))throw Error('No tienes acceso asignado a esta obra.');
+ }
  const labels={obra_nombre:'Obra',proyecto_nombre:'Obra',equipo_patente:'Código / patente',equipo_tipo:'Equipo',fecha:'Fecha',created_at:'Registrado el',horometro_inicial:'Horómetro inicial',horometro_final:'Horómetro final',horas_trabajadas:'Horas trabajadas',combustible_cargado:'Combustible (L)',operador:'Operador',observaciones:'Observaciones',tipo:'Tipo',horometro:'Horómetro',descripcion:'Descripción',proveedor:'Proveedor',responsable:'Responsable',severidad:'Severidad',detuvo_equipo:'Detuvo el equipo',horas_fuera_servicio:'Horas fuera de servicio',causa:'Causa',solucion:'Solución',supervisor:'Supervisor',frente:'Frente',partida:'Partida',unidad:'Unidad',cantidad:'Cantidad',guia:'Guía',tipo_movimiento:'Movimiento',material:'Material',inspector:'Informante'};
  const records=data.map(row=>{
   const fields=Object.entries(row).filter(([key,value])=>labels[key]&&value!==null).map(([key,value])=>({label:labels[key],value}));
