@@ -9,7 +9,7 @@ export async function loadEarningsExport(db,{empresa,obra,workIds=null,workerIds
  const people=new Map(workers.filter(w=>workerIds===null||workerIds.includes(String(w.id))).map(w=>[String(w.id),w]));
  const earnings=[];
  for(const h of haberes){if(!earningOverlaps(h.referencia,from,to)||workerIds!==null&&!workerIds.includes(String(h.trabajador_id)))continue;const w=people.get(String(h.trabajador_id))||{id:h.trabajador_id,...h.maestro_personal};people.set(String(w.id),w);earnings.push({worker:w,date:h.referencia,name:h.concepto,amount:h.monto,proportional:h.proporcional,workId:h.obra_id,work:obra?.nombre||h.obras?.nombre||'Obra '+h.obra_id});}
- if(!obra&&workIds===null&&includePayroll){
+ if(!obra&&includePayroll){
   const saved=await exportPages(()=>db.from('rrhh_nomina_items').select('id,trabajador_id,novedades,rrhh_nominas_mensuales!inner(empresa,periodo)').eq('rrhh_nominas_mensuales.empresa',empresa).gte('rrhh_nominas_mensuales.periodo',from.slice(0,7)).order('id'));
   const payroll=new Map();
   const add=(id,items)=>{const worker=people.get(String(id));if(!worker)return;for(const [k,h] of Object.entries(items||{})){if(!h.date||k.startsWith('[')&&JSON.parse(k).length===4)continue;payroll.set(JSON.stringify([id,k]),{worker,...h,work:'Nómina RRHH'});}};

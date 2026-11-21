@@ -6,7 +6,7 @@ export function earningsRoster({workers,links,attendance,work,from,to}){
 export async function loadEarningsRoster(db,work,from,to){
  const all=async make=>{const rows=[];for(let i=0;;i+=500){const {data,error}=await make().order('id').range(i,i+499);if(error)throw error;rows.push(...data);if(data.length<500)return rows;}};
  const [workers,links,attendance]=await Promise.all([
-  all(()=>db.from('maestro_personal').select('id,empresa,nombre,rut,obra_nombre,centro_gestion_id,fecha_asig,fecha_inicio_contrato,fecha_vencimiento_contrato').eq('empresa',work.empresa)),
+  all(()=>db.from('maestro_personal').select('id,empresa,nombre,rut,estado,obra_nombre,centro_gestion_id,fecha_asig,fecha_inicio_contrato,fecha_vencimiento_contrato').eq('empresa',work.empresa)),
   all(()=>db.from('rrhh_personal_centros_detalle').select('id,empresa,trabajador_id,centro_gestion_id,fecha_inicio,fecha_termino').eq('empresa',work.empresa)),
   all(()=>db.from('asistencia_personal').select('id,empresa,obra_id,rut,fecha_marcacion').eq('empresa',work.empresa).eq('obra_id',work.id).gte('fecha_marcacion',from).lte('fecha_marcacion',to)),
  ]);return earningsRoster({workers,links,attendance,work,from,to});
