@@ -45,7 +45,7 @@ export const calculatePayroll = (worker, attendance, parameters, novelty = {}) =
   const overtime = round(hourly * (parameters.factorHoraExtra || 1.5) * overtimeHours);
   const additional = type => Object.values(novelty.haberes_detallados || {}).reduce((sum, h) => sum + (h.type === type ? num(h.amount) : 0), 0);
   const bonus = round(novelty.bonos ?? attendance.bonus) + additional('Imponible');
-  const allowances = allowanceTotals(worker, parameters.periodo || '', paidDays);
+  const allowances = allowanceTotals(worker, parameters.periodo || '', paidDays, attendance.present || 0);
   const gratificationBase=base+(parameters.gratificarHaberesVariables ? overtime+bonus+allowances.taxable : 0);
   const gratification = worker.gratificacion === 'Sin Gratificación' ? 0 : Math.min(round(gratificationBase * 0.25), gratificationCap);
   const taxableGrossRaw = base + gratification + overtime + bonus + allowances.taxable;

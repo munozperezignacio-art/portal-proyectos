@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {validateAllowances,allowanceTotals} from './workerAllowances.js';
-import {calculatePayroll} from './payrollChile.js';
+import {calculatePayroll,attendanceSummary} from './payrollChile.js';
 import {laborCostPreview} from './laborCostPreview.js';
 const rows=[{nombre:'Responsabilidad',monto:90000,tipo:'imponible',desde:'2026-11',hasta:null},{nombre:'Viático',monto:60000,tipo:'no_imponible',desde:'2026-11',hasta:'2026-12'}];
 test('validates explicit type, positive integer amounts and validity',()=>{
@@ -28,4 +28,18 @@ test('payroll includes monthly allowances once, separate from discretionary bonu
 test('daily preview keeps recurring and discretionary inputs separate',()=>{
  const result=laborCostPreview({listo:true,base:20000,gratificacion:0,colacion:0,movilizacion:0,asignaciones_imponibles:3000,asignaciones_no_imponibles:2000},{taxable:100,nonTaxable:200},{sueldo_base:600000},{horas_semanales:42,factor_hora_extra:1.5,cargas_empleador_pct:10});
  assert.equal(result.total,27610);assert.equal(result.haber_imponible,100);
+});
+test('each allocation saves its mode; worked days are unique marks, not paid days',()=>{
+ const selected=validateAllowances(rows.map((r,i)=>({...r,calculo:i?'completo':'marcajes'})));
+ assert.deepEqual(validateAllowances(JSON.parse(JSON.stringify(selected))),selected);
+ assert.throws(()=>validateAllowances([{...rows[0],calculo:'other'}]));
+ const worker={id:1,rut:'1-9',sueldo_base:600000,gratificacion:'Sin Gratificación',otras_asignaciones:selected};
+ const marks=['2026-11-01','2026-11-02','2026-11-02'].map(fecha_marcacion=>({rut:'19',fecha_marcacion,asistencia:'PRESENTE'}));
+ marks.push({rut:'19',fecha_marcacion:'2026-11-03',asistencia:'AUSENTE'},{rut:'29',fecha_marcacion:'2026-11-04',asistencia:'PRESENTE'});
+ const attendance=attendanceSummary(worker,marks,'2026-11');assert.equal(attendance.present,2);
+ const payroll=calculatePayroll(worker,attendance,{periodo:'2026-11'},{dias_pagados:30});
+ assert.deepEqual(payroll.allowances.map(r=>r.amount),[6000,60000]);
+ assert.deepEqual(allowanceTotals(worker,'2026-11',0,0).details.map(r=>r.amount),[0,60000]);
+ assert.deepEqual(allowanceTotals(worker,'2026-11',30,31).details.map(r=>r.amount),[90000,60000]);
+ assert.equal(allowanceTotals(worker,'2027-01',30,30).nonTaxable,0);
 });

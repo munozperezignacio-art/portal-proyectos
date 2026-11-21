@@ -17,6 +17,22 @@ export async function loadEarningsExport(db,{empresa,obra,workIds=null,workerIds
   for(const [id,n] of Object.entries(novelties))add(id,n.haberes_detallados);
   earnings.push(...[...payroll.values()].filter(h=>earningOverlaps(h.date,from,to)));
  }
+ // Fetch only allocations for the already-authorized roster; never salary fields.
+ const ids=[...people.keys()];
+ if(ids.length){
+  const allocations=await exportPages(()=>db.from('maestro_personal').select('id,otras_asignaciones').eq('empresa',empresa).in('id',ids).order('id'));
+  for(const person of allocations){const worker=people.get(String(person.id));if(!worker)continue;
+   for(const row of person.otras_asignaciones||[]){
+    // Older allocations retain their paid-days calculation in payroll until explicitly configured.
+    if(!['marcajes','completo'].includes(row.calculo))continue;
+    let month=from.slice(0,7);
+    while(month<=to.slice(0,7)){
+     if(row.desde<=month&&(!row.hasta||row.hasta>=month))earnings.push({worker,date:month,name:row.nombre,amount:row.monto,proportional:row.calculo==='marcajes',calculation:'monthly_marks',work:'Asignación mensual personal'});
+     const [year,m]=month.split('-').map(Number);month=m===12?`${year+1}-01`:`${year}-${String(m+1).padStart(2,'0')}`;
+    }
+   }
+  }
+ }
  let markFrom=from,markTo=to;
  for(const h of earnings.filter(h=>h.proportional)){const [a,b]=earningDates(h.date);if(a<markFrom)markFrom=a;if(b>markTo)markTo=b;}
  const allMarks=await exportPages(()=>scoped(db.from('asistencia_personal').select('id,obra_id,obra_nombre,rut,trabajador,fecha_marcacion,asistencia,otras_horas,horas_extras_auto,horas_extras_manual').eq('empresa',empresa).gte('fecha_marcacion',markFrom).lte('fecha_marcacion',markTo)).order('id'));

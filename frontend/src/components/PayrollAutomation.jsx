@@ -35,8 +35,15 @@ export default function PayrollAutomation({ user, personal, obras = [], centrosG
       if(prepared.error){setMessage(prepared.error.message);setLoading(false);return;}
     }
     const start = `${period}-01`, endDate = new Date(`${period}-01T12:00:00`); endDate.setMonth(endDate.getMonth() + 1); endDate.setDate(0);
+    const loadAttendance=async()=>{
+      const rows=[];
+      for(let offset=0;;offset+=500){
+        const {data,error}=await supabase.from('asistencia_personal').select('*').eq('empresa',user.empresa).gte('fecha_marcacion',start).lte('fecha_marcacion',endDate.toISOString().slice(0,10)).order('id').range(offset,offset+499);
+        if(error)return {data:[],error};rows.push(...data);if(data.length<500)return {data:rows,error:null};
+      }
+    };
     const [attendanceResult, runResult] = await Promise.all([
-      supabase.from('asistencia_personal').select('*').eq('empresa', user.empresa).gte('fecha_marcacion', start).lte('fecha_marcacion', endDate.toISOString().slice(0, 10)),
+      loadAttendance(),
       supabase.from('rrhh_nominas_mensuales').select('*,rrhh_nomina_items(*)').eq('empresa', user.empresa).eq('periodo', period).maybeSingle()
     ]);
     setAttendance(attendanceResult.data || []);

@@ -11,6 +11,10 @@ export function earningForExport(earning,marks,from,to){
  const [start,end]=earningDates(earning.date),vigencia=`Vigencia: ${start} al ${end}`;
  if(!earning.proportional)return {...earning,note:`${vigencia}. Monto completo`};
  const days=[...new Set(marks.filter(m=>rut(m.rut)&&rut(m.rut)===rut(earning.worker.rut)&&(!earning.workId||String(m.obra_id)===String(earning.workId))&&m.fecha_marcacion>=start&&m.fecha_marcacion<=end&&/^(presente|asisti|trabaj)/i.test(m.asistencia||'')).map(m=>m.fecha_marcacion))];
+ if(earning.calculation==='monthly_marks'){
+  const included=Math.min(30,days.filter(d=>d>=from&&d<=to).length);
+  return {...earning,amount:Math.round(Number(earning.amount)*included/30),note:`${vigencia}. Asignación mensual según marcajes: ${included}/30 días; base $${earning.amount}`};
+ }
  if(!days.length)throw Error(`No se puede calcular «${earning.name}» de ${earning.worker.nombre}: no hay días trabajados registrados en su vigencia (${start} al ${end}).`);
  const included=days.filter(d=>d>=from&&d<=to).length;
  return {...earning,amount:Math.round(Number(earning.amount)*included/days.length),note:`${vigencia}. Proporcional: ${included}/${days.length} días trabajados; base $${earning.amount}`};

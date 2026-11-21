@@ -23,3 +23,14 @@ test('loader keeps long overlapping assignments and scopes works/workers before 
  const db={from(table){let filters=[];const q={select:()=>q,eq:(k,v)=>{if(k!=='empresa')filters.push(r=>String(r[k])===String(v));return q;},gte:(k,v)=>{filters.push(r=>r[k]>=v);return q;},lte:(k,v)=>{filters.push(r=>r[k]<=v);return q;},in:(k,v)=>{filters.push(r=>v.map(String).includes(String(r[k])));return q;},order:()=>q,range:async(a,b)=>({data:(table==='rrhh_haberes_obra'?rows:[]).filter(r=>filters.every(f=>f(r))).slice(a,b+1)})};return q;}};
  const result=await loadEarningsExport(db,{empresa:'TEST',workers:[worker],workIds:['32'],workerIds:['1'],from,to});assert.equal(result.earnings.length,1);assert.equal(result.earnings[0].amount,100);
 });
+test('configured personal monthly allocations export full or actual marked days, one per month',async()=>{
+ const allocations=[{nombre:'Fijo',monto:200000,desde:'2026-10',calculo:'completo'},{nombre:'Variable',monto:300000,desde:'2026-10',calculo:'marcajes'}];
+ const marks=['2026-10-22','2026-10-22','2026-11-02'].map(fecha_marcacion=>({id:1,rut:'19',asistencia:'PRESENTE',fecha_marcacion}));
+ const db={from(table){const q={select:()=>q,eq:()=>q,in:()=>q,gte:()=>q,lte:()=>q,order:()=>q,range:async()=>({data:table==='maestro_personal'?[{id:1,otras_asignaciones:allocations}]:table==='asistencia_personal'?marks:[]})};return q;}};
+ const result=await loadEarningsExport(db,{empresa:'TEST',workers:[worker],workIds:['32'],workerIds:['1'],from,to});
+ assert.equal(result.earnings.length,4);assert.equal(result.earnings.reduce((s,h)=>s+h.amount,0),420000);
+ const book=loncoWorkbook(X,'2026-11',[worker],result.marks,result.earnings,from,to);
+ const reopened=X.read(X.write(book,{type:'buffer',bookType:'xlsx'}),{type:'buffer'});
+ assert.equal(reopened.Sheets.RESUMEN.H6.v,420000);
+ assert.equal(earningForExport({worker,date:'2026-11',name:'Vacío',amount:300000,proportional:true,calculation:'monthly_marks'},[],from,to).amount,0);
+});
