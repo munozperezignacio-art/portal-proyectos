@@ -1,4 +1,5 @@
 import WorkFleetStatistics from './WorkFleetStatistics';
+import ProgressActivities from './ProgressActivities';
 import { CHILEAN_HOLIDAYS } from '../utils/chileanHolidays';
 import React, { useState, useEffect, useRef } from 'react';
 import WorkBudgetMargin from './WorkBudgetMargin';
@@ -3666,6 +3667,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   </div>
 
                   <AdvanceReportDateFilter date={advanceReportDate} order={advanceReportOrder} onDateChange={setAdvanceReportDate} onOrderChange={setAdvanceReportOrder} shown={visibleAdvanceReports.length} total={reportesAvanceList.length}/>
+                  <label className="block text-sm font-semibold text-blue-950">Fecha del registro de actividades<input type="date" value={avanceFecha} onChange={e=>setAvanceFecha(e.target.value)} className="ml-3 rounded-xl border border-slate-300 bg-white p-2"/></label>
+                  {avanceFecha&&<ProgressActivities work={selectedObra} date={avanceFecha} reports={reportesAvanceList}/>}
 
                   {reportesAvanceList.length === 0 ? (
                     <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl space-y-2">
@@ -8824,6 +8827,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
               </div>
 
               {/* LISTA DINÁMICA DE PARTIDAS */}
+              {avanceFecha&&<ProgressActivities work={selectedObra} date={avanceFecha} share={false}/>}
               <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
                 {avanceItems.map((item, idx) => (
                   <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3 relative">

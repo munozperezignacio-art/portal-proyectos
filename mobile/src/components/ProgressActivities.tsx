@@ -1,0 +1,32 @@
+import {useEffect,useState} from 'react';
+import {Modal,Pressable,ScrollView,Text,TextInput,View} from 'react-native';
+import {supabase} from '@/lib/supabase';
+import {useTheme} from '@/theme/ThemeProvider';
+export type Activity={inicio:string;termino:string;actividad:string;partida_id:number|null;minutos?:number};
+export const activityText=(rows:Activity[])=>[...rows].sort((a,b)=>a.inicio.localeCompare(b.inicio)).map(r=>`- ${r.inicio} - ${r.termino} ${r.actividad}`).join('\n');
+type State={revision:number;can_write:boolean;entries:Activity[];catalog:{nombre:string}[];parts:{id:number;partida:string}[]};
+const ignoreSaved=()=>{};
+export function ProgressActivities({workId,date,onSaved=ignoreSaved}:{workId:number;date:string;onSaved?:(text:string,ready:boolean)=>void}){
+ const {colors:c}=useTheme();const [state,setState]=useState<State|null>(null),[rows,setRows]=useState<Activity[]>([]),[busy,setBusy]=useState(true),[dirty,setDirty]=useState(false),[error,setError]=useState(''),[pick,setPick]=useState<number|null>(null),[time,setTime]=useState<{index:number;field:'inicio'|'termino'}|null>(null);
+ useEffect(()=>{let live=true;setBusy(true);setState(null);setRows([]);setDirty(false);onSaved('',false);
+  Promise.resolve(supabase.rpc('progress_activities',{p_work:workId,p_date:date})).then(({data,error})=>{if(!live)return;if(error)setError(error.message);else{setState(data);setRows(data.entries);onSaved(activityText(data.entries),data.entries.length>0);}}).catch(e=>{if(live)setError(e.message);}).finally(()=>{if(live)setBusy(false);});return()=>{live=false;};
+ },[workId,date,onSaved]);
+ const input={borderWidth:1,borderColor:c.line,borderRadius:12,padding:12,color:c.ink,backgroundColor:c.surface};
+ const button={padding:12,borderRadius:12,backgroundColor:c.soft};
+ function change(next:Activity[]){setRows(next);setDirty(true);onSaved('',false);}
+ function update(index:number,values:Partial<Activity>){change(rows.map((r,i)=>i===index?{...r,...values}:r));}
+ async function save(){setBusy(true);setError('');try{const {data,error}=await supabase.rpc('progress_activities',{p_work:workId,p_date:date,p_entries:rows,p_revision:state?.revision});if(error)throw error;setState(data);setRows(data.entries);setDirty(false);onSaved(activityText(data.entries),data.entries.length>0);}catch(e:any){setError(e.message);}finally{setBusy(false);}}
+ const enabled=!!state?.can_write&&!busy;
+ return <View style={{gap:10}}><Text accessibilityRole="header" style={{color:c.ink,fontWeight:'700',fontSize:17}}>Registro de actividades</Text><Text style={{color:c.muted}}>Inicio, término y actividad. Los tiempos quedan guardados por obra y día.</Text>
+  {rows.map((r,i)=><View key={i} style={{...input,gap:8,backgroundColor:c.soft}}><View style={{flexDirection:'row',gap:8}}>{(['inicio','termino'] as const).map(field=><Pressable key={field} disabled={!enabled} accessibilityLabel={`${field} actividad ${i+1}`} style={{...input,flex:1}} onPress={()=>setTime({index:i,field})}><Text style={{color:c.muted}}>{field==='inicio'?'Inicio':'Término'}</Text><Text style={{color:c.ink}}>{r[field]||'Elegir hora'}</Text></Pressable>)}</View>
+   <Pressable disabled={!enabled} style={input} onPress={()=>setPick(i)}><Text style={{color:c.blue}}>Elegir partida o actividad guardada</Text></Pressable>
+   <TextInput accessibilityLabel={`Actividad ${i+1}`} editable={enabled} style={input} maxLength={300} value={r.actividad} placeholder="Ej.: Charla y HCR" placeholderTextColor={c.muted} onChangeText={actividad=>update(i,{actividad,partida_id:null})}/>
+   <Text style={{color:c.muted}}>{r.minutos&&!dirty?`${r.minutos} min`:''}</Text>{enabled&&<Pressable accessibilityLabel={`Quitar actividad ${i+1}`} style={button} onPress={()=>change(rows.filter((_,j)=>j!==i))}><Text style={{color:'#b91c1c'}}>Quitar actividad</Text></Pressable>}
+  </View>)}
+  {busy&&<Text style={{color:c.muted}}>Cargando…</Text>}{enabled&&<Pressable style={button} onPress={()=>change([...rows,{inicio:rows.at(-1)?.termino||'',termino:'',actividad:'',partida_id:null}])}><Text style={{color:c.blue,fontWeight:'700'}}>+ Agregar actividad</Text></Pressable>}
+  {state?.can_write&&<Pressable disabled={busy||!dirty} style={{...button,backgroundColor:c.blue,opacity:busy||!dirty?0.5:1}} onPress={save}><Text style={{color:'white',fontWeight:'700'}}>Guardar actividades</Text></Pressable>}
+  {dirty&&<Text style={{color:c.muted}}>Guarda las actividades antes de compartir.</Text>}{!!error&&<Text accessibilityRole="alert" style={{color:'#b91c1c'}}>{error}</Text>}
+  <Modal transparent visible={pick!==null} onRequestClose={()=>setPick(null)}><View style={{flex:1,justifyContent:'center',padding:20,backgroundColor:c.overlay}}><View style={{backgroundColor:c.surface,borderRadius:20,padding:16,maxHeight:'80%',gap:10}}><Text style={{color:c.ink,fontWeight:'700'}}>Elegir actividad</Text><ScrollView>{state?.parts.map(p=><Pressable key={`p${p.id}`} style={button} onPress={()=>{update(pick!,{actividad:p.partida,partida_id:p.id});setPick(null);}}><Text style={{color:c.ink}}>{p.partida}</Text></Pressable>)}{state?.catalog.map(p=><Pressable key={p.nombre} style={button} onPress={()=>{update(pick!,{actividad:p.nombre,partida_id:null});setPick(null);}}><Text style={{color:c.ink}}>{p.nombre}</Text></Pressable>)}</ScrollView><Pressable style={button} onPress={()=>setPick(null)}><Text style={{color:c.blue}}>Cancelar</Text></Pressable></View></View></Modal>
+  <Modal transparent visible={time!==null} onRequestClose={()=>setTime(null)}><View style={{flex:1,justifyContent:'center',padding:20,backgroundColor:c.overlay}}><View style={{backgroundColor:c.surface,borderRadius:20,padding:16,maxHeight:'75%',gap:12}}><Text style={{color:c.ink,fontWeight:'700'}}>Selecciona hora y minuto</Text>{time&&<View style={{flexDirection:'row',maxHeight:300,gap:12}}>{[24,60].map((count,k)=><ScrollView key={k} style={{flex:1}}>{Array.from({length:count},(_,n)=>String(n).padStart(2,'0')).map(v=><Pressable key={v} style={button} onPress={()=>{const values=(rows[time.index][time.field]||'00:00').split(':');values[k]=v;update(time.index,{[time.field]:values.join(':')});}}><Text style={{color:c.ink,fontWeight:(rows[time.index][time.field]||'').split(':')[k]===v?'800':'400'}}>{v}{k===0?' h':' min'}</Text></Pressable>)}</ScrollView>)}</View>}<Text style={{color:c.ink}}>{time?rows[time.index][time.field]:''}</Text><Pressable style={button} onPress={()=>setTime(null)}><Text style={{color:c.blue}}>Listo</Text></Pressable></View></View></Modal>
+ </View>;
+}
