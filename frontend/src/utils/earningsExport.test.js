@@ -25,12 +25,24 @@ test('loader keeps long overlapping assignments and scopes works/workers before 
 });
 test('configured personal monthly allocations export full or actual marked days, one per month',async()=>{
  const allocations=[{nombre:'Fijo',monto:200000,desde:'2026-10',calculo:'completo'},{nombre:'Variable',monto:300000,desde:'2026-10',calculo:'marcajes'}];
- const marks=['2026-10-22','2026-10-22','2026-11-02'].map(fecha_marcacion=>({id:1,rut:'19',asistencia:'PRESENTE',fecha_marcacion}));
- const db={from(table){const q={select:()=>q,eq:()=>q,in:()=>q,gte:()=>q,lte:()=>q,order:()=>q,range:async()=>({data:table==='maestro_personal'?[{id:1,otras_asignaciones:allocations}]:table==='asistencia_personal'?marks:[]})};return q;}};
+ const marks=['2026-10-10','2026-10-22','2026-10-22','2026-11-02','2026-11-21','2026-11-22'].map(fecha_marcacion=>({id:1,rut:'19',asistencia:'PRESENTE',fecha_marcacion}));
+ const bounds={};
+ const db={from(table){const q={select:()=>q,eq:()=>q,in:()=>q,gte:(key,value)=>{if(table==='asistencia_personal')bounds.from=value;return q;},lte:(key,value)=>{if(table==='asistencia_personal')bounds.to=value;return q;},order:()=>q,range:async()=>({data:table==='maestro_personal'?[{id:1,otras_asignaciones:allocations}]:table==='asistencia_personal'?marks:[]})};return q;}};
  const result=await loadEarningsExport(db,{empresa:'TEST',workers:[worker],workIds:['32'],workerIds:['1'],from,to});
- assert.equal(result.earnings.length,4);assert.equal(result.earnings.reduce((s,h)=>s+h.amount,0),420000);
+ assert.deepEqual(bounds,{from:'2026-10-01',to:'2026-11-30'});
+ assert.equal(result.earnings.length,4);assert.equal(result.earnings.reduce((s,h)=>s+h.amount,0),650000);
+ assert.deepEqual(result.earnings.filter(h=>h.proportional).map(h=>h.amount),[150000,100000]);
+ assert.match(result.earnings.find(h=>h.proportional).note,/1\/2 días trabajados/);
  const book=loncoWorkbook(X,'2026-11',[worker],result.marks,result.earnings,from,to);
  const reopened=X.read(X.write(book,{type:'buffer',bookType:'xlsx'}),{type:'buffer'});
- assert.equal(reopened.Sheets.RESUMEN.H6.v,420000);
- assert.equal(earningForExport({worker,date:'2026-11',name:'Vacío',amount:300000,proportional:true,calculation:'monthly_marks'},[],from,to).amount,0);
+ assert.equal(reopened.Sheets.RESUMEN.H6.v,650000);
+ assert.throws(()=>earningForExport({worker,date:'2026-11',name:'Vacío',amount:300000,proportional:true,calculation:'monthly_marks'},[],from,to),/no hay días trabajados/);
+});
+test('monthly marks use the complete period denominator without a 30-day cap',()=>{
+ const h={worker,date:'2026-10',name:'Mensual',amount:310000,proportional:true,calculation:'monthly_marks'};
+ const marks=Array.from({length:31},(_,i)=>({rut:'19',asistencia:'PRESENTE',fecha_marcacion:`2026-10-${String(i+1).padStart(2,'0')}`}));
+ assert.equal(earningForExport(h,marks,'2026-10-01','2026-10-31').amount,310000);
+ assert.equal(earningForExport(h,marks,'2026-10-21','2026-10-31').amount,110000);
+ assert.match(earningForExport(h,marks,'2026-10-21','2026-10-31').note,/11\/31/);
+ assert.equal(earningForExport(h,marks.slice(0,2),'2026-10-21','2026-10-31').amount,0);
 });
