@@ -1,4 +1,5 @@
 import { notificationRecipient } from "../_shared/notificationRecipients.mjs";
+import {enrichNotification,readNotificationRecord} from '../_shared/notificationContext.mjs';
 import {presentNotification} from '../_shared/notificationText.mjs';
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 
@@ -16,9 +17,9 @@ Deno.serve(async req => {
     const { data: auth, error: authError } = await db.auth.getUser(token);
     if (authError || !auth.user) return reply({ error: "Sesion no valida" }, 401);
     const body = await req.json();
-    const { data: profile } = await db.from("usuarios").select("id,auth_user_id,usuario,nombre,correo,empresa,rol,rol_base,obras").eq("auth_user_id", auth.user.id).eq("id", body.perfil_id).maybeSingle();
+    const { data: profile } = await db.from("usuarios").select("id,auth_user_id,usuario,nombre,correo,empresa,rol,rol_base,obras,permisos").eq("auth_user_id", auth.user.id).eq("id", body.perfil_id).maybeSingle();
     if (!profile) return reply({ error: "Perfil no autorizado" }, 403);
-    const {data:role}=await db.from('roles').select('id').eq('empresa',profile.empresa).eq('nombre',profile.rol).eq('archivado',false).maybeSingle();
+    const {data:role}=await db.from('roles').select('id,permisos').eq('empresa',profile.empresa).eq('nombre',profile.rol).eq('archivado',false).maybeSingle();
     const preference=role?await db.from('role_notifications').select('settings').eq('empresa',profile.empresa).eq('role_id',role.id).maybeSingle():{data:null};
     if(preference.error)throw preference.error;
     profile.notification_settings=preference.data?.settings||{};
@@ -37,13 +38,19 @@ Deno.serve(async req => {
       await db.from("notificaciones_dispositivos").update({ activo: false, updated_at: new Date().toISOString() }).eq("auth_user_id", auth.user.id).eq("perfil_id", String(profile.id)).eq("dispositivo_id", String(body.dispositivo_id || ""));
       return reply({ ok: true });
     }
-    if (body.action === "read" || body.action === "detail") {
+    if (body.action === "read" || body.action === "detail" || body.action === "record") {
       const deliveryId = Number(body.entrega_id);
       const { data: delivery } = await db.from("notificaciones_entregas").select("*,notificaciones_reglas(*)").eq("id", deliveryId).eq("empresa", profile.empresa).maybeSingle();
       if (!delivery || !isRecipient(delivery, profile, body.client_channel === 'web' ? 'web' : 'mobile')) return reply({ error: "Notificacion no autorizada" }, 403);
+      if (body.action === "record") {
+        const userDb=createClient(url,Deno.env.get("SUPABASE_ANON_KEY")!,{global:{headers:{Authorization:"Bearer "+token}},auth:{persistSession:false}});
+        const permissions={...role?.permisos,...profile.permisos};
+        const mayRead=(key:string)=>Object.hasOwn(permissions,key)?permissions[key]===true:true;
+        return reply({data:await readNotificationRecord(userDb,delivery,profile,mayRead)});
+      }
       if (body.action === "detail") {
         const { notificaciones_reglas: _rule, ...detail } = delivery;
-        return reply({ data: presentNotification(detail) });
+        return reply({ data: presentNotification(await enrichNotification(db,detail,profile.empresa)) });
       }
       const { error: readError } = await db.from("notificaciones_lecturas").upsert({ entrega_id: deliveryId, auth_user_id: auth.user.id, leida_at: new Date().toISOString() });
       if (readError) throw readError;
@@ -58,10 +65,11 @@ Deno.serve(async req => {
       if (general.error || direct.error) throw general.error || direct.error;
       const deliveries = [...new Map([...(general.data || []), ...(direct.data || [])].map(row => [row.id, row])).values()];
       const allowed = deliveries.filter(row => isRecipient(row, profile, body.client_channel === 'web' ? 'web' : 'mobile')).sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 60);
+      const contextCache=new Map();
       const ids = allowed.map(row => row.id);
       const { data: reads } = ids.length ? await db.from("notificaciones_lecturas").select("entrega_id,leida_at").eq("auth_user_id", auth.user.id).in("entrega_id", ids) : { data: [] };
       const readMap = new Map((reads || []).map(row => [row.entrega_id, row.leida_at]));
-      return reply({ data: allowed.map(({ notificaciones_reglas: _rule, ...row }) => ({ ...presentNotification(row), leida_at: readMap.get(row.id) || null })) });
+      return reply({ data: await Promise.all(allowed.map(async ({ notificaciones_reglas: _rule, ...row }) => ({ ...presentNotification(await enrichNotification(db,row,profile.empresa,contextCache)), leida_at: readMap.get(row.id) || null }))) });
     }
     return reply({ error: "Accion no valida" }, 400);
   } catch (error) { return reply({ error: error instanceof Error ? error.message : String(error) }, 400); }

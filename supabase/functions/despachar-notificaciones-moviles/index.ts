@@ -1,4 +1,5 @@
 import {dispatchRoleEmails} from '../_shared/roleNotificationEmails.ts';
+import {enrichNotification} from '../_shared/notificationContext.mjs';
 import {notificationText} from '../_shared/notificationText.mjs';
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 import { notificationRecipient, pushEnabled } from "../_shared/notificationRecipients.mjs";
@@ -11,6 +12,7 @@ Deno.serve(async req => {
     await dispatchRoleEmails(db);
     const since = new Date(Date.now() - 7 * 86400000).toISOString();
     let sent = 0, errors = 0, cursor = 0;
+    const contextCache=new Map();
     // Keyset pagination prevents processed events from starving newer ones.
     for (;;) {
       const { data: deliveries, error } = await db.from("notificaciones_entregas")
@@ -41,8 +43,8 @@ Deno.serve(async req => {
           try {
             const message = {
               to: device.expo_push_token, sound: "default", channelId: "operacion", priority: "high",
-              ...notificationText(delivery),
-              // Do not send project names, amounts, report text or people to the push provider.
+              ...notificationText(await enrichNotification(db,delivery,delivery.empresa,contextCache)),
+              // Context names requested by the company; no amounts, RUTs or free-text report contents.
               data: { entregaId: delivery.id, route: "/notificacion/" + delivery.id }
             };
             const response = await fetch("https://exp.host/--/api/v2/push/send", {

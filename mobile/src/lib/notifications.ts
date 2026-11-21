@@ -64,6 +64,13 @@ export async function fetchNotificationDetail(profileId: string | number, delive
   return data.data as MobileNotification;
 }
 
+export type NotificationRecordData={type:string;records:{id:number;fields:{label:string;value:unknown}[]}[]};
+export async function fetchNotificationRecord(profileId:string|number,deliveryId:number){
+  const {data,error}=await supabase.functions.invoke('notificaciones-moviles',{body:{action:'record',perfil_id:profileId,entrega_id:deliveryId}});
+  if(error||data?.error)throw new Error(data?.error||'No fue posible abrir el registro.');
+  return data.data as NotificationRecordData|null;
+}
+
 export async function scheduleMaintenanceSummary(count:number) {
   const previous = await AsyncStorage.getItem(MAINTENANCE_KEY); if (previous) await Notifications.cancelScheduledNotificationAsync(previous).catch(() => undefined);
   if (!count) { await AsyncStorage.removeItem(MAINTENANCE_KEY); return; }

@@ -1,0 +1,8 @@
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="fixture"></div><script type="module">
+import React,{useState} from 'react';import {createRoot} from 'react-dom/client';import PlatformNotificationCenter from '../../src/components/PlatformNotificationCenter.jsx';import NotificationRecord from '../../src/components/NotificationRecord.jsx';import {supabase} from '../../src/supabaseClient';import '../../src/index.css';
+const item={id:101,evento_codigo:'obra_reporte_maquinaria',asunto:'Reporte de maquinaria registrado',obra_nombre:'Lonco',created_at:'2026-11-20T12:00:00Z',payload:{has_record:true,notification_context:{obra:'Lonco',equipo:'Excavadora · EXC-02'},detalle:'Lonco · Excavadora · EXC-02. Reporte registrado.'}};
+window.calls=[];const invoke=async(name,{body})=>{window.calls.push(body);if(body.action==='inbox')return {data:{data:[item]}};if(body.action==='record')return {data:{data:{type:'maquinaria_uso_diario',records:[{id:41,fields:[{label:'Obra',value:'Lonco'},{label:'Código / patente',value:'EXC-02'},{label:'Horómetro final',value:8822.4}]}]}}};return {data:{ok:true}};};
+Object.defineProperty(supabase,'functions',{value:{invoke},configurable:true});
+function Fixture(){const [selected,setSelected]=useState(null);return React.createElement(React.Fragment,null,React.createElement(PlatformNotificationCenter,{user:{id:1},onNavigate:setSelected}),selected&&React.createElement(NotificationRecord,{user:{id:1},notification:selected,onClose:()=>setSelected(null)}));}
+createRoot(document.getElementById('fixture')).render(React.createElement(Fixture));
+</script></body></html>

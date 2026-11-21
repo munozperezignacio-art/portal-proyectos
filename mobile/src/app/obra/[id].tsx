@@ -34,8 +34,12 @@ export default function WorkDetail() {
   const {colors}=useTheme();
   const s=useThemedStyles(createStyles);
 
-  const { id, nombre, especialidad } = useLocalSearchParams<{ id: string; nombre: string; especialidad?:string }>();
+  const { id, nombre, especialidad, seccion } = useLocalSearchParams<{ id: string; nombre: string; especialidad?:string;seccion?:string }>();
   const { profile } = useAuth();
+  useEffect(()=>{
+    const permissions:Record<string,string>={avance:'obras.avances.ver',equipos:'obras.maquinaria.ver',asistencia:'obras.personal.ver',subcontratos:'obras.subcontratos.ver',estadisticas:'obras.gestion.ver'};
+    if(seccion&&permissions[seccion]&&can(profile,permissions[seccion]))setTab(seccion);
+  },[seccion,profile]);
   const authorized = canAccessWork(profile, nombre);
   const [tab, setTab] = useState(() => can(profile,'obras.avances.ver') ? 'avance' : can(profile,'obras.maquinaria.ver') ? 'equipos' : can(profile,'obras.personal.ver') ? 'asistencia' : can(profile,'obras.subcontratos.ver') ? 'subcontratos' : 'estadisticas'); const [loading, setLoading] = useState(true); const [error, setError] = useState('');
   const [expandedAttendance, setExpandedAttendance] = useState<string | null>(null);

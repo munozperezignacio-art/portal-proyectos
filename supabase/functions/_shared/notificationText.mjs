@@ -228,11 +228,17 @@ export const NOTIFICATION_TEXT = {
 const aliases={avance_registrado:'obra_reporte_avance',maquinaria_registrada:'obra_reporte_maquinaria'};
 export function notificationText(delivery){
  const code=aliases[delivery?.evento_codigo]||delivery?.evento_codigo;
- return NOTIFICATION_TEXT[code]||{title:'Obraxis · Notificación',body:'Hay una actualización disponible. Abre tu bandeja para revisarla.'};
+ const text=NOTIFICATION_TEXT[code]||{title:'Obraxis · Notificación',body:'Hay una actualización disponible.'};
+ const context=delivery?.payload?.notification_context||{};
+ const names=['obra','equipo','formulario'].map(key=>typeof context[key]==='string'?context[key].replace(/[\r\n\t]/g,' ').trim().slice(0,100):'').filter(Boolean);
+ return {...text,body:names.length?`${names.join(' · ')}. ${text.body}`:text.body};
 }
 const genericDetails=new Set(['','Tienes un nuevo aviso. Consulta el registro con tus permisos habituales.','Tienes un nuevo aviso en Obraxis. Abre la app para consultar el detalle.']);
 export function presentNotification(delivery){
  const text=notificationText(delivery);
- return {...delivery,asunto:delivery.asunto||text.title.replace('Obraxis · ',''),payload:{...delivery.payload,detalle:genericDetails.has(delivery.payload?.detalle||'')?text.body:delivery.payload.detalle}};
+ const original=delivery.payload?.detalle||'';
+ const missing=Object.values(delivery.payload?.notification_context||{}).filter(name=>typeof name==='string'&&!original.includes(name));
+ const detail=genericDetails.has(original)?text.body:[missing.join(' · '),original].filter(Boolean).join('. ');
+ return {...delivery,asunto:delivery.asunto||text.title.replace('Obraxis · ',''),payload:{...delivery.payload,detalle:detail}};
 }
 

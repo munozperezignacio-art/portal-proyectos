@@ -34,10 +34,12 @@ test('SQL routing: role settings, tenant/work/form filtering, dedup and email qu
  insert into prevencion_formularios values(11,'TEST'),(12,'OTHER');
  `);
  await db.exec(readFileSync(new URL('../../../supabase/schema/role-notifications.sql',import.meta.url),'utf8'));
+ await db.exec(readFileSync(new URL('../../../supabase/schema/notification-record-references.sql',import.meta.url),'utf8'));
  const save=(role,settings,expected={})=>db.query("select save_role_notifications('TEST',$1,$2,$3)",[role,JSON.stringify(settings),JSON.stringify(expected)]);
  await save(1,{obra_reporte_avance:pref({email:true})});await save(2,{obra_reporte_avance:pref({works:'all',mobile:true,web:false})});
- await db.query("select private.emit_work_notification('TEST',1,'report:1','obra_reporte_avance','Nuevo reporte','{}')");
+ await db.query(`select private.emit_work_notification('TEST',1,'report:1','obra_reporte_avance','Nuevo reporte','{"reporte_ids":[5]}')`);
  let rows=(await db.query('select * from notificaciones_entregas')).rows;assert.equal(rows.length,3);assert.equal(rows.filter(r=>r.canal==='Correo').length,1);assert.deepEqual(rows.filter(r=>r.canal==='Plataforma').map(r=>r.destinatario).sort(),['1','3']);
+ assert.deepEqual(rows[0].payload.reporte_ids,[5]);
  await db.query("select private.emit_work_notification('TEST',1,'report:1','obra_reporte_avance','Nuevo reporte','{}')");assert.equal((await db.query('select * from notificaciones_entregas')).rows.length,3);
  await assert.rejects(save(1,{}),/Recarga/);
  await assert.rejects(save(2,{prevencion_registro_recibido:pref({forms:'selected',form_ids:['12']})},{obra_reporte_avance:pref({works:'all',mobile:true,web:false})}),/Formulario ajeno/);
