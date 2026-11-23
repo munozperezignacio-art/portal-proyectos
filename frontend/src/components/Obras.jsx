@@ -776,6 +776,11 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   // Estados para Cuadrillas y Arriendos
   const [cuadrillasList, setCuadrillasList] = useState([]);
   const [showCuadrillaModal, setShowCuadrillaModal] = useState(false);
+  const [crewSaving,setCrewSaving]=useState(false);
+  const [crewError,setCrewError]=useState('');
+  const [crewNotice,setCrewNotice]=useState('');
+  const [crewFrom,setCrewFrom]=useState(()=>new Date().toLocaleDateString('en-CA',{timeZone:'America/Santiago'}));
+  const [crewReason,setCrewReason]=useState('');
   const [cuadrillaData, setCuadrillaData] = useState({ nombre: '', lider: '', especialidad: 'Hormigón', miembros: [] });
 
   const [arriendosList, setArriendosList] = useState([]);
@@ -2531,14 +2536,20 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const handleEditCuadrilla = (c) => {
     if (!canPersonnelEdit) return alert('No tienes permiso para editar cuadrillas.');
     setEditingRecordId(c.id);
+    setCrewError('');setCrewReason('');setCrewFrom(new Date().toLocaleDateString('en-CA',{timeZone:'America/Santiago'}));
     setCuadrillaData({
       id: c.id,
+      version_integrantes: c.version_integrantes || 0,
       nombre: c.nombre,
       lider: c.lider || '',
       especialidad: c.especialidad || 'General',
       miembros: c.miembros || []
     });
     setShowCuadrillaModal(true);
+  };
+  const handleNewCuadrilla=()=>{
+    setCuadrillaData({nombre:'',lider:'',especialidad:'Hormigón',miembros:[]});setCrewError('');setCrewReason('');
+    setCrewFrom(new Date().toLocaleDateString('en-CA',{timeZone:'America/Santiago'}));setShowCuadrillaModal(true);
   };
 
   const handleEditArriendo = (a) => {
@@ -2790,21 +2801,21 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
   const handleSaveCuadrilla = async (e) => {
     e.preventDefault();
-    if (!cuadrillaData.nombre.trim()) return;
-    const newCuadrilla = {
-      empresa: user?.empresa || 'Obraxis',
-      obra_id: selectedObra?.id || null,
-      obra_nombre: selectedObra?.nombre || '',
-      nombre: cuadrillaData.nombre.trim(),
-      lider: cuadrillaData.lider.trim() || 'Sin líder',
-      especialidad: cuadrillaData.especialidad || 'General',
-      miembros: cuadrillaData.miembros || []
-    };
-    const { data, error } = await supabase.from('obra_cuadrillas').insert(newCuadrilla).select().single();
-    if (error) return setErrorMsg(`No fue posible guardar la cuadrilla: ${error.message}`);
-    setCuadrillasList(prev => [...prev, data]);
-    setShowCuadrillaModal(false);
-    setCuadrillaData({ nombre: '', lider: '', especialidad: 'Hormigón', miembros: [] });
+    if (crewSaving || !cuadrillaData.nombre.trim()) return;
+    setCrewSaving(true);setCrewError('');
+    try {
+      const {data,error}=await supabase.rpc('guardar_cuadrilla_vigencia',{
+        p_empresa:user.empresa,p_obra:selectedObra.id,p_id:cuadrillaData.id||null,p_version:cuadrillaData.version_integrantes||0,
+        p_nombre:cuadrillaData.nombre.trim(),p_lider:cuadrillaData.lider.trim()||'Sin líder',p_especialidad:cuadrillaData.especialidad||'General',
+        p_miembros:cuadrillaData.miembros||[],p_desde:crewFrom,p_motivo:crewReason.trim()
+      });
+      if(error)throw error;
+      setCuadrillasList(prev=>[...prev.filter(c=>c.id!==data.cuadrilla.id),data.cuadrilla]);
+      setShowCuadrillaModal(false);
+      setSuccessMsg(`Cuadrilla guardada desde ${crewFrom}. ${data.reportes_vinculados} reportes vinculados considerados para imputación automática. Se conservan las aprobaciones manuales.`);
+      setCrewNotice(`Cuadrilla guardada desde ${crewFrom}. ${data.reportes_vinculados} reportes vinculados considerados para imputación automática. Se conservan las aprobaciones manuales.`);
+      setCuadrillaData({nombre:'',lider:'',especialidad:'Hormigón',miembros:[]});setCrewReason('');
+    }catch(error){setCrewError(error.message);}finally{setCrewSaving(false);}
   };
 
   // Handlers para Arriendos de Maquinaria
@@ -4137,10 +4148,11 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
               <div className="flex justify-between items-center bg-white p-4 border border-slate-200 rounded-2xl shadow-xs">
                 <div>
                   <h3 className="font-bold text-slate-800 text-sm">Cuadrillas de Trabajo de Obra</h3>
+                  {crewNotice&&<p role="status" className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">{crewNotice}</p>}
                   <p className="text-[11px] text-slate-500">Agrupación de personal asignado a la obra por especialidad y capataz</p>
                 </div>
                 <button
-                  onClick={() => setShowCuadrillaModal(true)}
+                  onClick={handleNewCuadrilla}
                   className="bg-amber-900 hover:bg-amber-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <Plus className="w-4 h-4" />
@@ -4152,7 +4164,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 <div className="p-8 text-center bg-white border border-slate-200 rounded-2xl space-y-2">
                   <Users className="w-8 h-8 text-slate-300 mx-auto" />
                   <p className="text-xs text-slate-500 font-semibold">No se han registrado cuadrillas en esta obra aún.</p>
-                  <button onClick={() => setShowCuadrillaModal(true)} className="text-xs text-amber-900 font-bold hover:underline cursor-pointer">
+                  <button onClick={handleNewCuadrilla} className="text-xs text-amber-900 font-bold hover:underline cursor-pointer">
                     + Crear la primera cuadrilla seleccionando personal asignado
                   </button>
                 </div>
@@ -9407,13 +9419,23 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       {/* Modal: Crear / Asignar Cuadrilla de Trabajo */}
       {showCuadrillaModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-md max-h-[90dvh] overflow-y-auto p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
             <div className="flex justify-between items-center mb-3">
-              <h3 className="font-bold text-slate-800 text-sm">Crear Cuadrilla de Trabajo</h3>
-              <button onClick={() => setShowCuadrillaModal(false)} className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer">✕</button>
+              <h3 className="font-bold text-slate-800 text-sm">{cuadrillaData.id?'Editar':'Crear'} Cuadrilla de Trabajo</h3>
+              <button disabled={crewSaving} aria-label="Cerrar cuadrilla" onClick={() => setShowCuadrillaModal(false)} className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer">✕</button>
             </div>
 
             <form onSubmit={handleSaveCuadrilla} className="space-y-3 text-xs">
+              {crewError&&<p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-800">{crewError}</p>}
+              <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                <label className="block font-bold">Aplicar integrantes desde
+                  <input required type="date" max={new Date().toLocaleDateString('en-CA',{timeZone:'America/Santiago'})} value={crewFrom} onChange={e=>setCrewFrom(e.target.value)} className="mt-1 block w-full rounded-lg border border-amber-300 bg-white p-2.5"/>
+                </label>
+                <p>Recalcula automáticamente desde esa fecha solo los reportes ya vinculados a esta cuadrilla. No cambia sus avances, los costos totales ni las imputaciones aprobadas manualmente. Una cuadrilla nueva no vincula reportes anteriores.</p>
+                <label className="block font-bold">Motivo del cambio
+                  <input required minLength={5} maxLength={1000} value={crewReason} onChange={e=>setCrewReason(e.target.value)} className="mt-1 block w-full rounded-lg border border-amber-300 bg-white p-2.5"/>
+                </label>
+              </div>
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nombre de la Cuadrilla</label>
                 <input
@@ -9497,8 +9519,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 type="submit"
                 className="w-full bg-amber-900 hover:bg-amber-800 text-white font-bold py-2.5 rounded-xl text-xs cursor-pointer shadow-xs transition"
               >
-                Guardar Cuadrilla de Trabajo
+                {crewSaving?'Guardando…':'Guardar Cuadrilla de Trabajo'}
               </button>
+              <button type="button" disabled={crewSaving} onClick={()=>setShowCuadrillaModal(false)} className="w-full rounded-xl border border-slate-300 bg-white py-2.5 font-bold text-slate-700">Cancelar</button>
             </form>
           </div>
         </div>
