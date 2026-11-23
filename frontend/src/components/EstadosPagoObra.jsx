@@ -110,8 +110,14 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
         const updateError = updates.find(result => result.error)?.error;
         if (updateError) throw updateError;
       }
-      setPartidas(loadedPartidas);
-      setAvances((avancesResult.data || []).filter(r => String(r.obra_nombre || r.obra || '').trim() === obraNombre));
+      let dependencyBudget=[];
+      if(relationResult.data?.presupuesto_id){
+        const result=await supabase.from('presupuestos_items').select('id,partida,avance_depende_de').eq('presupuesto_id',relationResult.data.presupuesto_id);
+        if(result.error)throw result.error;dependencyBudget=result.data||[];
+      }
+      const resolvedParts=resolveWorkDependencies(loadedPartidas,dependencyBudget);
+      setPartidas(resolvedParts);
+      setAvances(dependentProgress(resolvedParts,(avancesResult.data || []).filter(r => String(r.obra_nombre || r.obra || '').trim() === obraNombre)));
       setRdis(rdiResult.data || []);
       setEstados(enrichedStates);
       setCondiciones(condicionesResult.data || null);
@@ -378,3 +384,4 @@ export default function EstadosPagoObra({ user, obraNombre, obra }) {
   </div>;
 }
 import WorkHeaderActions from './WorkHeaderActions';
+import {dependentProgress,resolveWorkDependencies} from '../utils/dependentProgress';

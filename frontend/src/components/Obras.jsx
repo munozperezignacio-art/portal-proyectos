@@ -1,4 +1,5 @@
 import WorkFleetStatistics from './WorkFleetStatistics';
+import {dependentProgress,resolveWorkDependencies,inheritProgressPlan} from '../utils/dependentProgress';
 import ProgressActivities from './ProgressActivities';
 import ReportActivitiesAction from './ReportActivitiesAction';
 import { CHILEAN_HOLIDAYS } from '../utils/chileanHolidays';
@@ -1222,6 +1223,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const [maquinariaHistorialList, setMaquinariaHistorialList] = useState([]);
   const [maquinariaUsoObra, setMaquinariaUsoObra] = useState([]);
   const [partidasList, setPartidasList] = useState([]);
+  const calculatedAdvances=React.useMemo(()=>dependentProgress(partidasList,reportesAvanceList),[partidasList,reportesAvanceList]);
   const budgetDisplayOptions={mode:budgetCurrencyView,overrides:partidasCostos,projectCurrency:workBudgetFinancials.currency,quotes:budgetDisplayQuotes};
   const budgetDisplayTotals=budgetViewTotals(partidasList,budgetDisplayOptions);
   useEffect(()=>{
@@ -1846,7 +1848,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         setLinkedBudgetId(relation?.presupuesto_id || null);
         if (relation?.presupuesto_id) {
           const [{ data: budgetRows }, { data: scheduleRows }] = await Promise.all([
-            supabase.from('presupuestos_items').select('codigo,partida').eq('presupuesto_id', relation.presupuesto_id),
+            supabase.from('presupuestos_items').select('id,codigo,partida,avance_depende_de').eq('presupuesto_id', relation.presupuesto_id),
             supabase.from('planificacion_cronogramas').select('*').eq('presupuesto_id', relation.presupuesto_id)
           ]);
           linkedBudgetItems = budgetRows || [];
@@ -1873,7 +1875,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         : partidasQuery.eq('empresa', user?.empresa || 'Obraxis').eq('obra_nombre', obraNombre);
       const { data: allPart, error: partidasError } = await partidasQuery.order('orden', { ascending: true });
       if (partidasError) throw partidasError;
-      const listPart = allPart || [];
+      const listPart = resolveWorkDependencies(allPart || [],linkedBudgetItems);
 
       const projectStartDate = getObraDateRange(selectedObra).start;
       const normalizePlanningText = value => String(value || '').trim().toLocaleLowerCase('es-CL').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -1904,9 +1906,11 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         };
       });
 
-      setPartidasList(normalizedListPart);
+      setPartidasList(inheritProgressPlan(normalizedListPart));
     } catch (e) {
       console.warn('Aviso partidas:', e);
+      setPartidasList([]);
+      setErrorMsg('No se pudieron cargar las partidas: '+e.message);
       notificationSourcesValid = false;
     }
 
@@ -2212,6 +2216,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       // La observación es común a todas las partidas de este envío.
       for (let i = 0; i < avanceItems.length; i++) {
         const item = avanceItems[i];
+        if(partidasList.some(p=>p.partida===item.partida&&p.avance_depende_de))throw new Error('Esta partida tiene avance proporcional. Registra el avance en su partida de referencia.');
         if (!item.partida) {
           throw new Error(`Partida #${i + 1}: Debes seleccionar una partida.`);
         }
@@ -3529,7 +3534,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     };
 
                     const isTitleRow = (partida) => partida.unidad === 'TITULO' || partida.unidad === 'GRUPO' || partida.es_titulo;
-                    const getExecutedQty = (partida) => reportesAvanceList
+                    const getExecutedQty = (partida) => calculatedAdvances
                       .filter(r => isMatchPartida(r.partida, partida.partida))
                       .reduce((sum, r) => sum + (parseFloat(r.cantidad) || 0), 0);
                     const getUnitPrice = (partida) => parseFloat(partidasCostos[partida.partida] !== undefined ? partidasCostos[partida.partida] : partida.pu) || 0;
@@ -4864,7 +4869,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 const targetNames = targetPartidas.map(p => p.partida);
 
                 // 2. Reportes de Avance hasta la fecha de corte
-                const filteredAvances = (reportesAvanceList || []).filter(r => {
+                const filteredAvances = (calculatedAdvances || []).filter(r => {
                   const fRep = r.fecha || r.fecha_avance || (r.created_at ? String(r.created_at).substring(0, 10) : '');
                   return fRep <= fCorteStr && (targetNames.length === 0 || targetPartidas.some(p => isMatchPartidaName(r.partida, p.partida)));
                 });
@@ -4933,7 +4938,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   const mStr = m.dateStr;
 
                   // Real Acumulado a la fecha
-                  const revAtM = (reportesAvanceList || []).filter(r => {
+                  const revAtM = (calculatedAdvances || []).filter(r => {
                     const fRep = r.fecha || r.fecha_avance || (r.created_at ? String(r.created_at).substring(0, 10) : '');
                     return fRep <= mStr && (targetNames.length === 0 || targetPartidas.some(p => isMatchPartidaName(r.partida, p.partida)));
                   });
@@ -4971,7 +4976,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 }
 
                 const last5DaysData = last5BusinessDays.map(dStr => {
-                  const repsDay = (reportesAvanceList || []).filter(r => {
+                  const repsDay = (calculatedAdvances || []).filter(r => {
                     const fRep = r.fecha || r.fecha_avance || (r.created_at ? String(r.created_at).substring(0, 10) : '');
                     return fRep === dStr && (targetNames.length === 0 || targetPartidas.some(p => isMatchPartidaName(r.partida, p.partida)));
                   });
@@ -5056,7 +5061,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 const CPI = marginMetrics.cpi;
                 const scheduleClose = scheduleClosing({ cutoff: fCorteStr, workId: selectedObra.id, completion: workCompletion, plannedAt: getPlannedValueAt,
                   earnedAt: date => targetPartidas.reduce((sum,p) => {
-                    const quantity = (reportesAvanceList || []).filter(r => (r.fecha || r.fecha_avance || String(r.created_at || '').slice(0,10)) <= date && isMatchPartidaName(r.partida,p.partida)).reduce((s,r)=>s+(parseFloat(r.cantidad)||0),0);
+                    const quantity = (calculatedAdvances || []).filter(r => (r.fecha || r.fecha_avance || String(r.created_at || '').slice(0,10)) <= date && isMatchPartidaName(r.partida,p.partida)).reduce((s,r)=>s+(parseFloat(r.cantidad)||0),0);
                     const price = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (parseFloat(p.pu)||0);
                     return sum + Math.round(Math.min(parseFloat(p.cantidad)||0,quantity)*price);
                   },0)
@@ -5718,7 +5723,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
                                 const ptEV = targetPartidas.reduce((sum, p) => {
                                   const pu = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (parseFloat(p.pu) || 0);
-                                  const pReps = (reportesAvanceList || []).filter(r => {
+                                  const pReps = (calculatedAdvances || []).filter(r => {
                                     const fRep = r.fecha || r.fecha_avance || (r.created_at ? String(r.created_at).substring(0, 10) : '');
                                     return fRep <= ptDate && isMatchPartidaName(r.partida, p.partida);
                                   });
@@ -5802,7 +5807,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                               {(() => {
                                 const partidasParaComparar = targetPartidas.filter(p => !p.es_titulo).map(p => {
                                   const pu = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (parseFloat(p.pu) || parseFloat(p.costo_por_dia) || 0);
-                                  const pReps = (reportesAvanceList || []).filter(r => {
+                                  const pReps = (calculatedAdvances || []).filter(r => {
                                     const fRep = r.fecha || r.fecha_avance || (r.created_at ? String(r.created_at).substring(0, 10) : '');
                                     return fRep <= fCorteStr && isMatchPartidaName(r.partida, p.partida);
                                   });
@@ -6400,7 +6405,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   const fechaInicio = p.fecha_inicio ? String(p.fecha_inicio).split('T')[0] : fInicioObraDefault;
                   const fechaTermino = isGroup ? '' : addChileanBusinessDays(fechaInicio, duracionDias);
                   // La planificación se alimenta directamente desde los reportes reales de avance.
-                  const avanceAcumulado = isGroup ? 0 : (reportesAvanceList || [])
+                  const avanceAcumulado = isGroup ? 0 : (calculatedAdvances || [])
                     .filter(report => matchesWorkReport(report, p))
                     .reduce((sum, report) => sum + (parseFloat(report.cantidad) || 0), 0);
                   const avancePct = cant > 0 ? Math.min(100, Math.round((avanceAcumulado / cant) * 100)) : 0;
@@ -6832,7 +6837,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                         <div className="flex items-center justify-center gap-2">
                                           <span className="font-mono text-[10px] font-bold text-indigo-900">{(() => {
                                             const partida = partidasList.find(p => String(p.partida).trim().toLowerCase() === String(act.nombre || act.tarea || '').trim().toLowerCase());
-                                            return partida ? reportedProgress(partida, reportesAvanceList).toFixed(1) : (act.avance_pct || 0);
+                                            return partida ? reportedProgress(partida, calculatedAdvances).toFixed(1) : (act.avance_pct || 0);
                                           })()}%</span>
                                           <button
                                             onClick={() => setPlanificacionList(prev => prev.filter((_, i) => i !== idx))}
@@ -6858,7 +6863,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
             </div>
           )}
 
-          {obraActiveSubmodule === 'gestion_obra' && canObraGestionView && gestionObraTab === 'flujo_caja' && <FlujoCajaObra obra={selectedObra} user={user} partidas={partidasList} costos={[...costosList,...machineryCharges]} liquidaciones={liquidacionesList} avances={reportesAvanceList} />}
+          {obraActiveSubmodule === 'gestion_obra' && canObraGestionView && gestionObraTab === 'flujo_caja' && <FlujoCajaObra obra={selectedObra} user={user} partidas={partidasList} costos={[...costosList,...machineryCharges]} liquidaciones={liquidacionesList} avances={calculatedAdvances} />}
 
           {/* VISTA DEDICADA 13: CONTROL DE COSTOS DE OBRA */}
           {obraActiveSubmodule === 'gestion_obra' && canObraGestionView && gestionObraTab === 'costos' && (
@@ -8879,8 +8884,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                           >
                             <option value="">-- Seleccionar Partida --</option>
                             {partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo)).map((p, pIdx) => (
-                              <option key={p.id || pIdx} value={p.partida}>
-                                {p.partida} {p.unidad ? `(${p.unidad})` : ''} {p.cantidad ? `- Presupuestado: ${p.cantidad} ${p.unidad || ''}` : ''}
+                              <option key={p.id || pIdx} value={p.partida} disabled={!!p.avance_depende_de}>
+                                {p.partida} {p.avance_depende_de?'· Avance automático':''} {p.unidad ? `(${p.unidad})` : ''} {p.cantidad ? `- Presupuestado: ${p.cantidad} ${p.unidad || ''}` : ''}
                               </option>
                             ))}
                           </select>

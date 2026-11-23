@@ -12,6 +12,7 @@ import { canConfigureEmails, getUserLevel } from '../utils/userLevel';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
 import { buildBudgetHierarchy, getBudgetGroupTotal, isBudgetGroup } from '../utils/budgetHierarchy';
+import {dependentProgress} from '../utils/dependentProgress';
 
 const ContextualEmailConfigModal = React.lazy(() => import('./ContextualEmailConfigModal'));
 const BudgetExcelImporter = React.lazy(() => import('./BudgetExcelImporter'));
@@ -268,6 +269,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
 
   // Estados del Presupuesto (Crear/Detalle)
   const [itemsPresupuesto, setItemsPresupuesto] = useState([]);
+  const budgetBaseline = React.useRef([]);
   const handleReorderBudgetItem = (fromIdx, toIdx) => {
     if (fromIdx === toIdx || toIdx < 0 || toIdx >= itemsPresupuesto.length) return;
     setItemsPresupuesto(prev => {
@@ -711,6 +713,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
         .order('id', { ascending: true });
       if (error) throw error;
       setItemsPresupuesto(data || []);
+      budgetBaseline.current = data || [];
     } catch (err) {
       console.error('Error cargando ítems de presupuesto:', err.message);
       setItemsPresupuesto([]);
@@ -810,6 +813,22 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
         };
       });
 
+      // A dependent item follows the source period, regardless of its own units.
+      const planned=new Set();
+      const inheritSchedule=(task,path=[])=>{
+        if(planned.has(task.presupuesto_item_id))return;
+        if(path.includes(task.presupuesto_item_id))throw new Error('Dependencia circular de avance');
+        const item=sortedItems.find(p=>p.id===task.presupuesto_item_id);
+        if(item?.avance_depende_de){
+          const source=mergedList.find(p=>String(p.presupuesto_item_id)===String(item.avance_depende_de));
+          if(!source)throw new Error('Falta la partida de referencia en la planificación');
+          inheritSchedule(source,[...path,task.presupuesto_item_id]);
+          task.fecha_inicio=source.fecha_inicio;task.fecha_fin=source.fecha_fin;task.duracion=source.duracion;
+          task.rendimiento_meta=0;
+        }
+        planned.add(task.presupuesto_item_id);
+      };
+      mergedList.forEach(task=>inheritSchedule(task));
       // Agregar hitos (que no coinciden con códigos de partidas de presupuesto)
       (cronoData || []).forEach(c => {
         if (!mergedList.some(m => m.id === c.id)) {
@@ -1108,9 +1127,11 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
     setSuccessMsg('');
 
     try {
+      dependentProgress(itemsPresupuesto,[]); // Validate references and cycles before any write.
       const cleanDbPayload = (p, orden) => ({
         presupuesto_id: parseInt(selectedProyectoId, 10) || selectedProyectoId,
         codigo: p.codigo || '',
+        avance_depende_de: p.avance_depende_de ? Number(p.avance_depende_de) : null,
         partida: p.partida || p.descripcion || p.nombre || 'Partida Presupuestada',
         unidad: p.unidad || 'UND',
         cantidad: parseFloat(p.cantidad) || 0,
@@ -1171,6 +1192,14 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
       for (const item of toUpdate) {
         const payload = cleanDbPayload(item, item.orden);
         delete payload.presupuesto_id;
+        const original = budgetBaseline.current.find(p => String(p.id) === String(item.id));
+        if (original) {
+          const baseline = cleanDbPayload(original, budgetBaseline.current.indexOf(original));
+          for (const key of Object.keys(payload)) {
+            if (JSON.stringify(payload[key]) === JSON.stringify(baseline[key])) delete payload[key];
+          }
+        }
+        if (!Object.keys(payload).length) continue;
         const { error: updateError } = await supabase
           .from('presupuestos_items')
           .update(payload)
@@ -1191,36 +1220,19 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
         }
       }
 
-      // Sincronizar automáticamente partidas_obra para cualquier Obra vinculada (para Registrar Avance)
-      try {
-        const { data: bData } = await supabase.from('presupuestos_proyectos').select('nombre').eq('id', selectedProyectoId).eq('empresa', user?.empresa || 'Obraxis').single();
-        if (bData && bData.nombre) {
-          const cleanBName = bData.nombre.trim().toLowerCase().replace(/^obra\s+/i, '');
-          const empresaActual = user?.empresa || 'Obraxis';
-          const { data: allObras } = await supabase.from('obras').select('id,nombre,empresa').eq('empresa', empresaActual);
-          const matchObra = (allObras || []).find(o => o.nombre && o.nombre.trim().toLowerCase().includes(cleanBName));
-
-          if (matchObra) {
-            await supabase.from('partidas_obra').delete().eq('empresa', empresaActual).eq('obra_id', matchObra.id);
-            const partidasObraPayload = itemsPresupuesto.map(it => {
-              const isCap = isChapterRow(it, itemsPresupuesto);
-              return {
-                obra_id: matchObra.id,
-                empresa: empresaActual,
-                obra_nombre: matchObra.nombre,
-                partida: it.partida || it.descripcion || it.nombre || 'Partida Presupuestada',
-                unidad: isCap ? 'TITULO' : (it.unidad || 'UND'),
-                cantidad: isCap ? 0 : (parseFloat(it.cantidad) || 0),
-                cantidad_presupuestada: isCap ? 0 : (parseFloat(it.cantidad) || 0),
-                costo_por_dia: isCap ? 0 : (parseFloat(it.costo_unitario || it.pu) || 0),
-                rendimiento_meta: isCap ? 0 : (parseFloat(it.rendimiento_meta || it.rendimiento) || 10)
-              };
-            });
-            await supabase.from('partidas_obra').insert(partidasObraPayload);
-          }
-        }
-      } catch (errSync) {
-        console.warn('Aviso sincronización presupuesto -> obra:', errSync);
+      // Sync only explicit budget links; never delete work items or their history.
+      const {data: savedItems,error: savedError}=await supabase.from('presupuestos_items').select('*').eq('presupuesto_id',selectedProyectoId);
+      if(savedError)throw savedError;
+      for(const item of savedItems||[]){
+        const original=budgetBaseline.current.find(p=>String(p.id)===String(item.id));
+        if(!original)continue;
+        const changes={};
+        if((Number(item.cantidad)||0)!==(Number(original.cantidad)||0))changes.cantidad_presupuestada=Number(item.cantidad)||0;
+        if((Number(item.costo_unitario)||0)!==(Number(original.costo_unitario)||0))changes.costo_por_dia=Number(item.costo_unitario)||0;
+        if((Number(item.rendimiento_meta)||0)!==(Number(original.rendimiento_meta)||0))changes.rendimiento_meta=Number(item.rendimiento_meta)||0;
+        if(!Object.keys(changes).length)continue;
+        const {error: syncError}=await supabase.from('partidas_obra').update(changes).eq('empresa',user.empresa).eq('presupuesto_item_id',item.id);
+        if(syncError)throw syncError;
       }
 
       setSuccessMsg('Presupuesto guardado exitosamente. Partidas vinculadas a Planificación y Avances de Obra.');
@@ -2546,7 +2558,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
       
       let autoTiempo = parseFloat(apuForm.tiempo_estimado) || 0;
       const parsedRendimiento = parseFloat(apuForm.rendimiento_meta) || 0;
-      if (parsedRendimiento > 0) {
+      if (parsedRendimiento > 0 && !apuItem.avance_depende_de) {
         autoTiempo = (parseFloat(apuItem.cantidad) || 0) / parsedRendimiento;
       }
 
@@ -3192,6 +3204,13 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
                                         className={`w-full bg-transparent border-0 focus:ring-0 focus:outline-none p-1.5 text-xs text-slate-800 uppercase ${isChapter ? 'font-extrabold text-slate-900' : 'text-slate-700'}`}
                                       />
                                     </div>
+                                    {!isChapter && <label className="mt-2 block text-[10px] font-bold text-slate-600">Avance de la partida
+                                      <select aria-label={`Avance de ${item.partida}`} disabled={!canEdit} value={item.avance_depende_de||''} onChange={e=>handleUpdateBudgetField(item.id,'avance_depende_de',e.target.value?Number(e.target.value):null)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-xs">
+                                        <option value="">Propio · registro directo</option>
+                                        {itemsPresupuesto.filter(p=>p.id!==item.id&&!isChapterRow(p,itemsPresupuesto)&&!String(p.id).startsWith('temp-')&&Number(p.cantidad)>0).map(p=><option key={p.id} value={p.id}>Proporcional a {p.codigo} · {p.partida} ({p.unidad})</option>)}
+                                      </select>
+                                      {item.avance_depende_de&&<span className="mt-1 block font-normal text-indigo-700">Cantidad propia × % de referencia. Sin rendimiento de avance ni registro manual; no cambia el precio.</span>}
+                                    </label>}
                                   </td>
                                   <td className="p-2">
                                     {!isChapter && (
@@ -5960,7 +5979,7 @@ export default function PresupuestosPlanif({ user, companyBranding, onBack }) {
                       {!isCostMode ? (
                         <div>
                           <label className="block text-[9px] font-bold uppercase text-slate-450 mb-1">
-                            Rendimiento
+                            {apuItem.avance_depende_de?'Rendimiento de costo APU':'Rendimiento'}
                           </label>
                           <input
                             type="number"
