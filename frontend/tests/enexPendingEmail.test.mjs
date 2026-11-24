@@ -4,8 +4,22 @@ import {readFile} from 'node:fs/promises';
 import {PGlite} from '@electric-sql/pglite';
 import {renderEnexPendingEmail} from '../../supabase/functions/_shared/enexPendingEmail.mjs';
 import {dispatchRoleEmails} from '../../supabase/functions/_shared/roleNotificationEmails.ts';
+import {emailBranding} from '../src/utils/emailBranding.js';
 
 const sample={company:'EMINSG',name:'Responsable de prueba',day:'2026-11-24',count:3,oldest:'2026-11-20',vehicles:[{vehicle:'TEST-01',portal:'transporte',count:2},{vehicle:'TEST-02',portal:'empresa',count:1}]};
+test('approved advance-report format uses company inline logo and Obraxis footer',()=>{
+ const branding={logo_base64:'data:image/jpeg;base64,AAAA\nBBBB'};
+ const result=renderEnexPendingEmail(sample,branding);
+ assert.deepEqual(result.attachments,emailBranding({companyName:sample.company,companyBranding:branding}).attachments);
+ assert.match(result.html,/src="cid:company-logo" alt="EMINSG"/);
+ assert.match(result.html,/background-color:#1e3a8a/);
+ assert.match(result.html,/Enviado desde/);
+ assert.doesNotMatch(result.html,/data:image|#36118c|obraxis-primary.png/);
+ assert.ok(result.html.indexOf('cid:company-logo')<result.html.indexOf('Control de Combustibles'));
+ assert.equal(renderEnexPendingEmail(sample,{logo_base64:'javascript:alert(1)'}).attachments,undefined);
+ const single=renderEnexPendingEmail({...sample,count:1,vehicles:[sample.vehicles[0]]});
+ assert.match(single.subject,/1 carga pendiente/);assert.match(single.html,/1 carga en 1 vehículo/);
+});
 test('email renders current owner summary, escapes names and has text alternative',()=>{
  const result=renderEnexPendingEmail({...sample,name:'<script>alert(1)</script>'});
  assert.match(result.subject,/3 cargas pendientes/);assert.match(result.text,/TEST-01/);
@@ -86,7 +100,7 @@ for(const scenario of ['accept','empty','uncertain','reject'])test(`worker ${sce
  const pref={email:true,web:true,mobile:true,works:'all',forms:'all',equipment:'all'};
  const row={id:91,empresa:'EMINSG',destinatario:'one@example.invalid',evento_codigo:'enex_pendiente',asunto:'Old count',payload:{role_notification:true,role_name:'Supervisor',role_id:1,channels:pref,works_scope:'all'}};
  const db={rpc:async(name,args)=>{assert.equal(name,'enex_claim_pending_email');assert.equal(args.p_delivery,91);return {data:scenario==='empty'?null:sample};},from(table){let update=null;const filters={};const q={select:()=>q,eq:(k,v)=>{filters[k]=v;return q;},not:()=>q,order:()=>q,limit:()=>q,maybeSingle:()=>q,update:v=>{update=v;return q;},then:resolve=>{
- let data;if(table==='config_empresa')data={};else if(table==='usuarios')data={id:1,empresa:'EMINSG',correo:'one@example.invalid',rol:'Supervisor',obras:''};else if(table==='role_notifications')data={settings:{enex_pendiente:pref}};else if(update){if(filters.estado&&state.status!==filters.estado)data=[];else{state.status=update.estado;state.detail=update.error_detalle;state.payload=update.payload;data=[{id:91}];}}else data=state.status==='Pendiente'?[row]:[];return Promise.resolve(resolve({data}));}};return q;}};
- globalThis.fetch=async(url,options)=>{state.sends++;const mail=JSON.parse(options.body);assert.deepEqual(mail.to,['one@example.invalid']);assert.match(mail.subject,/3 cargas/);assert.match(mail.text,/TEST-01/);assert.match(mail.html,/Responsable de prueba/);if(scenario==='uncertain')throw Error('timeout');return {ok:scenario!=='reject',json:async()=>scenario==='reject'?{error:'rejected'}:{id:'fake-provider-id'}};};
+ let data;if(table==='config_empresa')data=filters.empresa==='EMINSG'?{logo_base64:'data:image/jpeg;base64,AAAA'}:{};else if(table==='usuarios')data={id:1,empresa:'EMINSG',correo:'one@example.invalid',rol:'Supervisor',obras:''};else if(table==='role_notifications')data={settings:{enex_pendiente:pref}};else if(update){if(filters.estado&&state.status!==filters.estado)data=[];else{state.status=update.estado;state.detail=update.error_detalle;state.payload=update.payload;data=[{id:91}];}}else data=state.status==='Pendiente'?[row]:[];return Promise.resolve(resolve({data}));}};return q;}};
+ globalThis.fetch=async(url,options)=>{state.sends++;const mail=JSON.parse(options.body);assert.deepEqual(mail.to,['one@example.invalid']);assert.match(mail.subject,/3 cargas/);assert.match(mail.text,/TEST-01/);assert.match(mail.html,/Responsable de prueba/);assert.match(mail.html,/src="cid:company-logo"/);assert.deepEqual(mail.attachments,[{filename:'company-logo.jpeg',content:'AAAA',content_id:'company-logo'}]);if(scenario==='uncertain')throw Error('timeout');return {ok:scenario!=='reject',json:async()=>scenario==='reject'?{error:'rejected'}:{id:'fake-provider-id'}};};
  try{await dispatchRoleEmails(db);await dispatchRoleEmails(db);assert.equal(state.sends,scenario==='empty'?0:1);assert.equal(state.status,scenario==='accept'?'Enviada':scenario==='empty'?'Omitida':'Error');if(scenario==='accept'){assert.equal(state.payload.delivery_confirmed,false);assert.equal(state.payload.provider_id,'fake-provider-id');}}finally{globalThis.fetch=oldFetch;globalThis.Deno=oldDeno;}
 });
