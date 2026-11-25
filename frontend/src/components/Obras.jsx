@@ -9541,7 +9541,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       {/* Modal: Asignar Nuevo Trabajador a la Obra (RRHH) */}
       {showAddWorkerModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
             <div className="flex justify-between items-center mb-3">
               <h3 className="font-bold text-slate-800 text-sm">Asignar Trabajador a la Obra</h3>
               <button onClick={() => setShowAddWorkerModal(false)} className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer">✕</button>
@@ -10244,7 +10244,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
 
       {showPartidaModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
             <div className="flex justify-between items-center mb-3 border-b pb-2">
               <h3 className="font-extrabold text-slate-800 text-sm">
                 {partidaFormData.es_titulo || partidaFormData.unidad === 'TITULO' ? '📁 Insertar Título o Grupo de Obra' : (editingPartida ? 'Editar Partida de Obra' : 'Crear Nueva Partida de Obra')}
