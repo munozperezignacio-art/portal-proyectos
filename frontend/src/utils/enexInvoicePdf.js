@@ -8,10 +8,11 @@ export function invoicePdfLines(items){
  return lines.sort((a,b)=>b.y-a.y).map(l=>l.items.sort((a,b)=>a.transform[4]-b.transform[4]).map(i=>i.str.trim()).join(' ').replace(/\s+/g,' ').trim());
 }
 export const normalizeInvoiceRut=value=>String(value||'').replace(/[.\s,]/g,'').toUpperCase();
-export function parseInvoicePeso(value){
- const raw=String(value).trim();
- if(!/^-?(?:\d+|\d{1,3}(?:\.\d{3})+)$/.test(raw))throw Error('Use pesos enteros, sin decimales');
- const n=Number(raw.replaceAll('.',''));if(!Number.isSafeInteger(n)||Math.abs(n)>1e12)throw Error('Importe fuera de rango');return n;
+export function parseInvoicePeso(value,label='Importe'){
+ const raw=String(value??'').trim();
+ if(!raw)throw Error(`${label}: falta completar el monto. Si no corresponde, ingrese 0 tras revisar el PDF.`);
+ if(!/^-?(?:\d+|\d{1,3}(?:\.\d{3})+)$/.test(raw))throw Error(`${label}: formato no válido. Use pesos enteros, con puntos de miles opcionales (ej.: 1.234.567).`);
+ const n=Number(raw.replaceAll('.',''));if(!Number.isSafeInteger(n)||Math.abs(n)>1e12)throw Error(`${label}: importe fuera de rango`);return n;
 }
 export function parseInvoiceLiters(value){
  const raw=String(value).trim();
