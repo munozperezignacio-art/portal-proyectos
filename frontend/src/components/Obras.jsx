@@ -59,6 +59,7 @@ import AttendancePersonSelect from './AttendancePersonSelect';
 import {projectName,migrateProjectStorage} from '../utils/projectProfile';
 import { plannedValueAt, physicalProgressAt, dailyBudgetRate, plannedCurveFinish } from '../utils/plannedProgress';
 import { scheduleDelay } from '../utils/scheduleDelay';
+import WorkProgressReference from './WorkProgressReference';
 import { forecastModel } from '../utils/forecastModel';
 import { scheduledProjectedCosts } from '../utils/projectedWorkCosts';
 import PartidaProgressSummary from './PartidaProgressSummary';
@@ -6449,6 +6450,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                 <span className="shrink-0 text-slate-400 text-xs">└─</span>
                                 <span className="min-w-0 break-words">{p.partida}</span>
                                 </div>
+                                <WorkProgressReference part={p} parts={partidasList} budgetId={linkedBudgetId} canEdit={can(user,userPermissions,'presupuestos.presupuestos.editar')} onSaved={()=>fetchObraDetails(selectedObra.nombre)} />
                               </td>
                               <td className="p-2.5 whitespace-nowrap font-mono text-slate-600">{p.unidad || 'UND'}</td>
                               <td className="p-2.5 text-right whitespace-nowrap font-mono font-bold text-slate-800">{p.cantidad || 0}</td>
@@ -6456,7 +6458,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                 <span className="whitespace-nowrap font-mono font-bold text-slate-800">{formatBudgetViewAmount(displayPrice.unitPrice,displayPrice.currency,{unit:true})}</span>
                               </td>
                               <td className="p-2.5 whitespace-nowrap font-mono text-slate-700 font-bold">
-                                {['GL', 'GLB'].includes(p.unidad)
+                                {p.avance_depende_de ? 'Según partida de referencia' : ['GL', 'GLB'].includes(p.unidad)
                                   ? `${Math.max(1, Math.ceil((Number(p.cantidad || p.cantidad_presupuestada) || 1) / (Number(p.rendimiento_meta || p.rendimiento) || 10)))} días`
                                   : `${p.rendimiento || '20'} ${p.unidad || 'UND'} / ${p.unidad_tiempo || 'Día'}`}
                               </td>
