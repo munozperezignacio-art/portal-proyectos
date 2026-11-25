@@ -35,8 +35,9 @@ Deno.serve(async(req)=>{
       if(eq.error||!eq.data||!checklistCandidates(eq.data,[form]).includes(form.id))return json({error:'El formulario no corresponde al equipo del QR'},403);
       const config=await db.from('maquinaria_reporte_equipo').select('qr_activo').eq('equipo_id',eq.data.id).maybeSingle();
       if(config.error||config.data?.qr_activo===false)return json({error:'QR no disponible'},403);
-      const person=await db.rpc('equipo_qr_persona',{p_empresa:form.empresa,p_rut:rut});
-      if(person.error||person.data?.length!==1)return json({error:'RUT no disponible en el personal activo'},403);
+      qrDate=clean(body.qrContext.fecha,10)||new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago'}).format(new Date());
+      const person=await db.rpc('equipo_qr_actor',{p_empresa:form.empresa,p_rut:rut,p_equipo:eq.data.id,p_fecha:qrDate});
+      if(person.error||person.data?.length!==1)return json({error:'RUT no habilitado para este equipo y fecha. Revisa personal o la autorización del operador externo.'},403);
       qrEquipment=eq.data;qrActor={...person.data[0],rut};
       qrDate=clean(body.qrContext.fecha,10)||new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago'}).format(new Date());
       const selectedWork=await db.rpc('equipo_obra_registro',{p_equipo:eq.data.id,p_fecha:qrDate,p_obra:Number(body.qrContext.obra_id)||null});

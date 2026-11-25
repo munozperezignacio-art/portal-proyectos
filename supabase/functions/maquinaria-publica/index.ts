@@ -55,9 +55,10 @@ Deno.serve(async (req: Request) => {
     }
     const rut=normalizeRut(body.rut);
     if(!rut)return reply({error:'Ingresa un RUT válido para continuar.'},400,origin);
-    const person=await db.rpc('equipo_qr_persona',{p_empresa:equipment.empresa,p_rut:rut});
+    const actorDate=clean(body.fecha,10)||new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago'}).format(new Date());
+    const person=await db.rpc('equipo_qr_actor',{p_empresa:equipment.empresa,p_rut:rut,p_equipo:equipment.id,p_fecha:actorDate});
     if(person.error)return reply({error:'No se pudo comprobar el personal. Intenta nuevamente.'},503,origin);
-    if(person.data?.length!==1)return reply({error:'El RUT no corresponde a una ficha activa única del personal de esta empresa. Solicita revisar la ficha en Recursos Humanos.'},403,origin);
+    if(person.data?.length!==1)return reply({error:'RUT no habilitado. Solicita revisar la ficha de personal o la autorización del operador externo para este equipo y fecha.'},403,origin);
     const actor=person.data[0];
     if(action==='verificar_fecha'){
       const date=clean(body.fecha,10);
@@ -67,7 +68,7 @@ Deno.serve(async (req: Request) => {
       if(history.error)return reply({error:'No se pudo verificar el día anterior.'},503,origin);
       return reply({reporte_anterior:Boolean(history.data?.length)},200,origin);
     }
-    if(action==='identificar')return reply({nombre:actor.nombre,cargo:actor.cargo,rut},200,origin);
+    if(action==='identificar')return reply({nombre:actor.nombre,cargo:actor.cargo,rut,externo:actor.externo===true,proveedor:actor.proveedor||null},200,origin);
     if(action==='checklist'){
       const forms=await db.from('prevencion_formularios').select('id,empresa,titulo,publico_token,campos').eq('empresa',equipment.empresa);
       if(forms.error)return reply({error:'No se pudo consultar los formularios.'},503,origin);
@@ -76,7 +77,7 @@ Deno.serve(async (req: Request) => {
       if(!form?.publico_token)return reply({error:'Este equipo aún no tiene un checklist compatible vinculado. No se usará el de otra maquinaria.'},409,origin);
       return reply({formToken:form.publico_token},200,origin);
     }
-    const author=`${actor.nombre} · ${actor.cargo||'Sin cargo'} · RUT ${rut} (identidad declarada)`;
+    const author=`${actor.nombre} · ${actor.cargo||'Sin cargo'}${actor.externo?' · Externo: '+actor.proveedor:''} · RUT ${rut} (identidad declarada)`;
     if(action==='mantencion'){
       if(!/^[0-9a-f-]{36}$/i.test(String(body.solicitud_id||'')))return reply({error:'Solicitud inválida'},400,origin);
       const saved=await db.rpc('equipo_qr_mantencion',{p_equipo:equipment.id,p_solicitud:body.solicitud_id,p_datos:{fecha:body.fecha,obra_id:body.obra_id||null,horometro:body.horometro,tipo:body.tipo,descripcion:clean(body.descripcion,4000),nombre:actor.nombre,cargo:actor.cargo,rut,autor_declarado:author}});
@@ -84,7 +85,7 @@ Deno.serve(async (req: Request) => {
       return reply({ok:true,id:saved.data.id},200,origin);
     }
     // Resolve from the verified personnel record, never from a client-supplied operator ID/name.
-    const operator=await db.from('maquinaria_operadores').select('id').eq('empresa',equipment.empresa).eq('trabajador_id',actor.id).eq('activo',true).maybeSingle();
+    const operator=actor.externo?{data:{id:actor.operador_id},error:null}:await db.from('maquinaria_operadores').select('id').eq('empresa',equipment.empresa).eq('trabajador_id',actor.id).eq('activo',true).maybeSingle();
     if(operator.error)return reply({error:'No se pudo comprobar la habilitación del operador. Intenta nuevamente.'},503,origin);
     if(!operator.data)return reply({error:'Tu RUT está registrado en el personal, pero no estás habilitado como operador. Solicita al responsable revisar Maquinaria > Operadores.'},403,origin);
     body.operador=actor.nombre; body.operador_id=operator.data.id; body.autor_declarado=author;

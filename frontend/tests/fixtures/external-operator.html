@@ -1,0 +1,9 @@
+<html><body><div id="root"></div><script type="module">
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import ExternalOperatorEditor from '/src/components/ExternalOperatorEditor.jsx';
+import EquipmentQrPortal from '/src/components/EquipmentQrPortal.jsx';
+const root=createRoot(document.getElementById('root'));
+const showQr=()=>root.render(React.createElement(EquipmentQrPortal,{equipment:{empresa:'TEST',patente:'TEST-01',tipo:'Excavadora'},identify:async rut=>({nombre:'Externo de prueba',cargo:'Operador',externo:true,proveedor:'Proveedor test',session:rut}),openAction:async action=>{window.openedAction=action;}},()=>React.createElement('p',null,'Registro del equipo')));
+root.render(React.createElement(ExternalOperatorEditor,{company:'TEST',onSaved:showQr,onCancel:()=>{window.cancelled=true;}}));
+</script></body></html>

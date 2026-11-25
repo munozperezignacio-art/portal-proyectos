@@ -1,0 +1,57 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {PGlite} from '@electric-sql/pglite';
+
+test('external operators: scoped RUT access, validity, report snapshot and no personnel writes',async()=>{
+ const db=new PGlite();
+ try{
+ await db.exec(`create schema auth; create schema private;
+ create role anon; create role authenticated; create role service_role;
+ create function auth.uid() returns uuid language sql as $$select nullif(current_setting('test.uid',true),'')::uuid$$;
+ create function private.obraxis_actor_can_access_company(text) returns boolean language sql as $$select $1='TEST'$$;
+ create function private.obraxis_permission(text,text) returns boolean language sql as $$select current_setting('test.admin',true)='yes'$$;
+ create table public.usuarios(id integer,auth_user_id uuid);
+ create table public.maquinaria_reporte_config(empresa text,responsable_id integer);
+ create table public.maestro_personal(id integer primary key,empresa text,nombre text,cargo text,rut text,estado text);
+ create table public.inventario_maquinaria(id integer primary key,empresa text);
+ insert into public.inventario_maquinaria values(1,'TEST'),(2,'TEST'),(3,'OTHER');
+ create table public.maquinaria_operadores(id uuid primary key default gen_random_uuid(),empresa text not null,trabajador_id integer not null references maestro_personal(id),nombre text not null,activo boolean not null default true,unique(empresa,trabajador_id));
+ alter table public.maquinaria_operadores enable row level security;
+ create table public.maquinaria_uso_diario(id serial,empresa text,operador_id uuid,equipo_id text,fecha date,reporte_datos jsonb);
+ create function public.equipo_qr_persona(text,text) returns jsonb language sql as $$select coalesce(jsonb_agg(jsonb_build_object('id',id,'nombre',nombre,'cargo',cargo)),'[]'::jsonb) from public.maestro_personal where empresa=$1 and rut=$2 and estado='activo'$$;
+ `);
+ await db.exec(readFileSync(new URL('../../supabase/schema/equipment-external-operators.sql',import.meta.url),'utf8'));
+ const today=(await db.query("select (now() at time zone 'America/Santiago')::date::text d")).rows[0].d;
+ const data={nombre:'Operador de prueba',rut_externo:'12.345.678-5',cargo_externo:'Operador',proveedor:'Proveedor de prueba',equipos_autorizados:[1],vigente_desde:'2020-01-01'};
+ const save=d=>db.query('select public.guardar_operador_externo($1,$2::jsonb) result',['TEST',JSON.stringify(d)]);
+ await assert.rejects(save(data),/Sin acceso/);
+ await db.exec("set test.uid='00000000-0000-0000-0000-000000000001'; set test.admin='no'");
+ await assert.rejects(save(data),/Requiere responsable/);
+ await db.exec("set test.admin='yes'");
+ await assert.rejects(save({...data,equipos_autorizados:[3]}),/Selecciona equipos/);
+ await assert.rejects(save({...data,rut_externo:'12345678-9'}),/verificador/);
+ await assert.rejects(save({...data,proveedor:''}),/Completa nombre/);
+ const id=(await save(data)).rows[0].result.id;
+ await assert.rejects(save(data),/ya existe/);
+ const actor=async(company,equipment,date=today)=>(await db.query('select public.equipo_qr_actor($1,$2,$3,$4::date) result',[company,'123456785',equipment,date])).rows[0].result;
+ assert.equal((await actor('TEST',1))[0].operador_id,id);
+ assert.deepEqual(await actor('TEST',2),[]);
+ assert.deepEqual(await actor('OTHER',3),[]);
+ assert.deepEqual(await actor('TEST',1,'2019-12-31'),[]);
+ await db.query("insert into maquinaria_uso_diario(empresa,operador_id,equipo_id,fecha) values('TEST',$1,'1',$2)",[id,today]);
+ assert.equal((await db.query('select reporte_datos from maquinaria_uso_diario')).rows[0].reporte_datos.operador_proveedor,data.proveedor);
+ await assert.rejects(db.query("insert into maquinaria_uso_diario(empresa,operador_id,equipo_id,fecha) values('TEST',$1,'2',$2)",[id,today]),/no habilitado/);
+ await db.query('update maquinaria_operadores set activo=false where id=$1',[id]);
+ assert.deepEqual(await actor('TEST',1),[]);
+ await db.query("update maquinaria_operadores set activo=true,vigente_hasta='2020-12-31' where id=$1",[id]);
+ assert.deepEqual(await actor('TEST',1),[]);
+ assert.deepEqual(await actor('TEST',1,'2020-02-01'),[],'expired authorization cannot backdate to bypass expiry');
+ assert.equal((await db.query('select count(*)::int n from maestro_personal')).rows[0].n,0);
+ await db.exec("insert into maestro_personal values(1,'TEST','Interno','Operador','123456785','activo')");
+ assert.equal((await actor('TEST',1))[0].nombre,'Interno');
+ await assert.rejects(save(data),/ya tiene ficha/);
+ const privileges=(await db.query("select has_function_privilege('anon','public.equipo_qr_actor(text,text,integer,date)','execute') a,has_function_privilege('authenticated','public.equipo_qr_actor(text,text,integer,date)','execute') b,has_function_privilege('service_role','public.equipo_qr_actor(text,text,integer,date)','execute') c")).rows[0];
+ assert.deepEqual(privileges,{a:false,b:false,c:true});
+ } finally {await db.close();}
+});

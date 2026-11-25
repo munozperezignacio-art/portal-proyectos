@@ -50,12 +50,13 @@ export default function EquipmentQrPortal({ equipment, identify, openAction, chi
         <h2 className="text-lg font-bold">Identifícate para continuar</h2>
         <label className="block text-sm font-semibold" htmlFor="equipment-qr-rut">Tu RUT</label>
         <input id="equipment-qr-rut" autoComplete="off" autoCapitalize="characters" maxLength={16} required disabled={busy} value={rut} onChange={event => setRut(event.target.value)} placeholder="12.345.678-5" className="w-full rounded-xl border-2 border-slate-300 bg-white p-3 focus:border-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
-        <p className="text-sm text-slate-600">Usaremos el nombre y cargo registrados en el personal de {equipment.empresa}. No necesitas una cuenta de Obraxis.</p>
+        <p className="text-sm text-slate-600">Usaremos el nombre y cargo de tu ficha de personal o de operador externo autorizado para este equipo. No necesitas una cuenta de Obraxis.</p>
         <button disabled={busy} className="w-full rounded-xl bg-indigo-900 px-4 py-3 font-semibold text-white disabled:opacity-50">{busy ? 'Comprobando…' : 'Continuar'}</button>
       </form> : <>
         <section className="rounded-xl border border-blue-200 bg-blue-50 p-4" aria-label="Persona que registra">
           <p className="font-semibold">{identity.nombre}</p><p className="text-sm">{identity.cargo || 'Cargo no registrado'}</p>
-          <p className="mt-2 text-xs text-slate-600">RUT coincidente con la nómina. Identidad declarada, no autenticada.</p>
+          {identity.externo&&<p className="text-sm">Operador externo · {identity.proveedor}</p>}
+          <p className="mt-2 text-xs text-slate-600">RUT coincidente con una ficha habilitada. Identidad declarada, no autenticada.</p>
           {!selected && <button disabled={busy} onClick={() => { setIdentity(null); setRut(''); setError(''); }} className="mt-3 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold">Cambiar persona</button>}
         </section>
         {selected ? <>

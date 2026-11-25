@@ -1,5 +1,18 @@
 # Publicación de Obraxis Terreno
 
+## Pendiente para la próxima APK (25-11-2026)
+
+- Por solicitud del usuario, no generar una APK solo por la confirmación de fecha
+  de reportes de maquinaria. Esperar otro cambio móvil y agrupar ambas mejoras
+  en la próxima publicación autorizada.
+- Incluir el cambio de `src/components/MachineryUsageForm.tsx` del commit
+  `31f5b9e`: confirmar equipo y fecha antes de enviar, avisar si falta el reporte
+  del día anterior y permitir volver a revisar o confirmar el envío.
+- La web y el QR ya recibieron esta mejora; su distribución en Android queda
+  pendiente de compilar, probar y publicar mediante el proceso indicado abajo.
+
+## Proceso de publicación
+
 Para generar APK usa únicamente `npm run mobile:apk` desde la raíz del repositorio.
 `npm run mobile:apk:check` comprueba los requisitos sin iniciar una compilación.
 
