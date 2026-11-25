@@ -36,6 +36,16 @@ try{for(const width of [1280,390]){
   assert.equal(s[kind==='consumo'?'K29':'S20'].v,5387591);
  }
  await page.reload();await page.getByRole('button',{name:'Ver y descargar'}).click();await page.getByRole('button',{name:/Descargar consumo/}).waitFor();assert.equal(issues,1);
+ if(width===1280){
+  const record=(await db.query('select * from enex_invoices')).rows[0];
+  record.reconciliation.groups=Array.from({length:10},()=>record.reconciliation.groups).flat();
+  for(const kind of ['consumo','cargo']){
+   const bytes=await page.evaluate(async({record,kind})=>{const {createEnexInvoiceForm}=await import('/src/utils/enexInvoiceForms.js');return Array.from(await createEnexInvoiceForm(record,kind,await(await fetch(`/templates/enex/${kind}.xlsx`)).arrayBuffer()));},{record,kind});
+   const wb=XLSX.read(new Uint8Array(bytes),{type:'array'});assert.equal(wb.SheetNames.length,kind==='cargo'?3:2);
+   assert.equal(wb.SheetNames.reduce((sum,n)=>sum+wb.Sheets[n][kind==='cargo'?'S23':'T29'].v,0),58117670);
+  }
+  console.log('PASS overflow: 20 groups, multiple complete form pages, no truncation or duplicated totals');
+ }
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);assert.deepEqual(errors,[]);
  await page.screenshot({path:`test-results/enex-invoices/${width}.png`,fullPage:true});console.log(`PASS ${width}px: PDF read, 28 guides, preview, issue, two XLSX exact totals, reload, no duplicate`);
  await page.close();await db.close();
