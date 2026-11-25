@@ -11,20 +11,29 @@ test('no reports: programme, month-end, finite quantity, costs = sales minus mar
  assert.equal(result.rows[0].close,'2026-11-30');
  assert.equal(result.rows[1].close,'2026-12-31');
 });
-test('five closed business days include missing reports; today is not in the trend',()=>{
+test('two reports use programme, not an immature trend',()=>{
  const reports=[{partida_id:1,cantidad:10,fecha:'2026-11-19'},{partida_id:1,cantidad:20,fecha:'2026-11-20'}];
  const before=structuredClone(reports);
  const result=run({reports});
  assert.deepEqual(result.recent,['2026-11-19','2026-11-18','2026-11-17','2026-11-16','2026-11-13']);
- assert.equal(result.rows[0].ingreso,420); // 30 done + six future working days * 2
+ assert.equal(result.rows[0].ingreso,900); // 30 done + six future working days * 10
  assert.equal(result.rows.reduce((s,r)=>s+r.ingreso,0),1000);
  assert.deepEqual(reports,before);
 });
 test('no recent production does not manufacture completion; unknown margin stays unknown',()=>{
- const result=run({reports:[{partida_id:1,cantidad:10,fecha:'2026-11-02'}],marginRatio:null});
+ const result=run({reports:Array.from({length:5},(_,i)=>({id:i,partida_id:1,cantidad:2,fecha:'2026-11-02'})),marginRatio:null});
  assert.equal(result.rows[0].ingreso,100);
  assert.equal(result.rows[0].egreso,null);
  assert.equal(result.warnings.length,1);
+});
+
+test('threshold is per item: four valid reports use plan, fifth enables trend',()=>{
+ const reports=['2026-11-13','2026-11-16','2026-11-17','2026-11-18','2026-11-19'].map((fecha,id)=>({id,fecha,partida_id:1,cantidad:2}));
+ const four=run({reports:[...reports.slice(0,4),{partida_id:2,fecha:'2026-11-19',cantidad:2},{partida_id:1,fecha:'2026-11-20',cantidad:0}]});
+ assert.equal(four.rows[0].ingreso,680);
+ const five=run({reports});
+ assert.equal(five.rows[0].ingreso,220);
+ assert.equal(five.rows.reduce((s,r)=>s+r.ingreso,0),1000);
 });
 test('overproduction and future reports never exceed quantity; negative margin preserved',()=>{
  const result=run({reports:[{partida_id:1,cantidad:150,fecha:'2026-11-19'},{partida_id:1,cantidad:80,fecha:'2026-12-01'}],marginRatio:-0.1});

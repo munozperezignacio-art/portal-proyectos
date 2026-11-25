@@ -35,8 +35,10 @@ export function monthlyCashForecast({ parts, reports, cutoff, marginRatio, isBus
     }
     const window = recent.filter(d => d >= start);
     const recentQuantity = own.filter(r => window.includes(reportDay(r))).reduce((sum,r) => sum + Math.max(0, Number(r.cantidad) || 0), 0);
-    // An unstarted item uses the programme; an active item includes zero-report days.
-    const rate = own.length && window.length ? recentQuantity / window.length : plannedRate;
+    // Require five valid, closed reports for THIS item, not five across the work.
+    // Today's/future reports and empty/invalid quantities cannot establish a trend.
+    const trendReports = own.filter(r => reportDay(r) < cutoff && Number.isFinite(Number(r.cantidad)) && Number(r.cantidad) > 0);
+    const rate = trendReports.length >= 5 && window.length ? recentQuantity / window.length : plannedRate;
     if (remaining > 0 && rate <= 0) { warnings.push(`${p.partida}: sin producción en los últimos cinco días laborables; saldo sin fecha estimable`); continue; }
     let date = start > cutoff ? start : shiftDay(cutoff, 1);
     for (let guard = 0; remaining > 0.0000001 && guard < 3660; date = shiftDay(date,1), guard++) {
