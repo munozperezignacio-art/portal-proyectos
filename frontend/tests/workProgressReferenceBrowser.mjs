@@ -34,6 +34,9 @@ try{
   DOM.createRoot(mount).render(React.createElement(Component,{initialObraName:'Prueba',user:{empresa:'TEST',rol:'Superusuario',obras:'Todas',_rolePreview:true,permisos:{'obras.gestion.ver':true,'presupuestos.presupuestos.editar':true}},onBack(){}}));
  },assets);
  await page.getByRole('heading',{name:'Plan y control de obra',exact:false}).click();
+ assert.equal(await page.getByLabel('Avance de Apoyo',{exact:true}).count(),0,'no selector in the budget table');
+ assert.equal(await page.getByText('Avance según Pilas',{exact:true}).count(),0,'no note on an independent item');
+ await page.getByTitle('Editar partida',{exact:true}).nth(1).click();
  const select=page.getByLabel('Avance de Apoyo',{exact:true});await select.waitFor();
  await select.selectOption('11');
  await page.getByRole('button',{name:'Cancelar',exact:true}).click();
@@ -43,5 +46,6 @@ try{
  await page.getByText('Referencia guardada.',{exact:true}).waitFor();
  assert.equal(await select.inputValue(),'11');
  assert.deepEqual(await page.evaluate(()=>window.referenceWrites),[{table:'presupuestos_items',id:2,payload:{avance_depende_de:1}}]);
- console.log('PASS real Obras budget screen: selector, cancel, save and reload; reference-only write; units UND/m³.');
+ await page.getByText('Avance según Pilas',{exact:true}).waitFor();
+ console.log('PASS reference selector only in edit; conditional compact note; cancel, save and reload; reference-only write; units UND/m³.');
 }finally{await browser.close();}

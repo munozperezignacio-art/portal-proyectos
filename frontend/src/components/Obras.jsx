@@ -6455,7 +6455,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                 <span className="shrink-0 text-slate-400 text-xs">└─</span>
                                 <span className="min-w-0 break-words">{p.partida}</span>
                                 </div>
-                                <WorkProgressReference part={p} parts={partidasList} budgetId={linkedBudgetId} canEdit={can(user,userPermissions,'presupuestos.presupuestos.editar')} onSaved={()=>fetchObraDetails(selectedObra.nombre)} />
+                                {p.avance_depende_de && <p className="mt-1 text-[10px] font-normal text-slate-500">Avance según {partidasList.find(reference=>String(reference.id)===String(p.avance_depende_de))?.partida || 'partida de referencia'}</p>}
                               </td>
                               <td className="p-2.5 whitespace-nowrap font-mono text-slate-600">{p.unidad || 'UND'}</td>
                               <td className="p-2.5 text-right whitespace-nowrap font-mono font-bold text-slate-800">{p.cantidad || 0}</td>
@@ -9541,7 +9541,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
       {/* Modal: Asignar Nuevo Trabajador a la Obra (RRHH) */}
       {showAddWorkerModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
             <div className="flex justify-between items-center mb-3">
               <h3 className="font-bold text-slate-800 text-sm">Asignar Trabajador a la Obra</h3>
               <button onClick={() => setShowAddWorkerModal(false)} className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer">✕</button>
@@ -10453,6 +10453,11 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     onCurrencyChange={moneda_pu=>setPartidaFormData(current=>({...current,moneda_pu,cambio_pu_clp:''}))}
                     onRateChange={cambio_pu_clp=>setPartidaFormData(current=>({...current,cambio_pu_clp}))}/>
                   <p className="text-[10px] text-slate-500">El precio se conserva en la moneda seleccionada. Los cálculos de obra utilizan su equivalente en CLP.</p>
+                  {editingPartida && <WorkProgressReference
+                    part={partidasList.find(part=>String(part.id)===String(editingPartida.id)) || editingPartida}
+                    parts={partidasList} budgetId={linkedBudgetId}
+                    canEdit={can(user,userPermissions,'presupuestos.presupuestos.editar')}
+                    onSaved={()=>fetchObraDetails(selectedObra.nombre)} />}
                   {/* Rendimiento y Unidad de Tiempo */}
                   <div className="grid grid-cols-2 gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                     <div>
