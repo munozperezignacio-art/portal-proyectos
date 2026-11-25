@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {PGlite} from '@electric-sql/pglite';
 import {reconcileEnexInvoice} from '../src/utils/enexInvoiceReconciliation.js';
 export const invoice={empresa:'TEST',portal:'transporte',document:'123',issuer_rut:'92011000-2',receiver_rut:'96725910-1',date:'2026-11-16',due_date:'2026-12-16',account:'2003',guides:['100','200'],liters_milli:300000,fuel_net:300000,shellcard_net:500,net:300500,vat:57095,specific_tax:-100,exempt:0,total:357495};
-export async function database(){
+export async function database(includeDrafts=true){
  const db=new PGlite();
  await db.exec(`create role anon;create role authenticated;create schema auth;create schema private;create schema storage;
  create function auth.uid() returns uuid language sql stable as $$select coalesce(nullif(current_setting('test.uid',true),''),'00000000-0000-0000-0000-000000000001')::uuid$$;
@@ -21,7 +21,7 @@ export async function database(){
  insert into public.enex_movements values('00000000-0000-0000-0000-000000000100','TEST','transporte','100','ABC',200000),('00000000-0000-0000-0000-000000000200','TEST','transporte','200','XYZ',100000);
  insert into public.enex_assignments values('00000000-0000-0000-0000-000000000100','TEST',null,1),('00000000-0000-0000-0000-000000000200','TEST',null,2);
  insert into public.facturacion_centros_gestion values(1,'TEST','001','Terreno',true),(2,'TEST','820','CAM Coquimbo',true);`);
- for(const file of ['enex-invoice-rules.sql','enex-invoices.sql'])await db.exec(await readFile(new URL('../../supabase/schema/'+file,import.meta.url),'utf8'));
+ for(const file of ['enex-invoice-rules.sql','enex-invoices.sql',...(includeDrafts?['enex-invoice-drafts.sql']:[])])await db.exec(await readFile(new URL('../../supabase/schema/'+file,import.meta.url),'utf8'));
  return db;
 }
 if(process.argv[1]?.endsWith('enexInvoicesDatabase.test.mjs'))test('SQL reconciliation, immutable issuance, company isolation, duplicates and source preservation',async()=>{

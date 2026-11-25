@@ -134,14 +134,17 @@ begin
  if existing.empresa=p_invoice->>'empresa' and existing.invoice=p_invoice then return existing;end if;
  raise exception 'Identificador de emisión ya utilizado';end if;
  if exists(select 1 from public.enex_invoices where empresa=p_invoice->>'empresa' and issuer_rut=p_invoice->>'issuer_rut' and document=p_invoice->>'document') then raise exception 'Esta factura ya fue emitida. Descárguela desde el historial';end if;
+ if exists(select 1 from public.enex_invoice_drafts where id=p_id and (empresa is distinct from p_invoice->>'empresa' or invoice is distinct from p_invoice)) then raise exception 'La factura pendiente cambió. Reábrala y vuelva a revisar';end if;
+ if exists(select 1 from public.enex_invoice_drafts where empresa=p_invoice->>'empresa' and issuer_rut=p_invoice->>'issuer_rut' and document=p_invoice->>'document' and id<>p_id) then raise exception 'Esta factura ya está guardada. Emítala desde Facturas pendientes';end if;
  result:=private.enex_invoice_reconcile(p_invoice);
  if result->>'ready'<>'true' then raise exception 'La factura tiene guías pendientes o incompatibles. Vuelva a conciliar';end if;
  if result is distinct from p_expected then raise exception 'Las asignaciones o reglas cambiaron. Vuelva a conciliar y revisar';end if;
  path:=(p_invoice->>'empresa')||'/'||p_id::text||'/source.pdf';
- if not exists(select 1 from storage.objects where bucket_id='enex-invoices' and name=path and owner_id=auth.uid()::text) then raise exception 'PDF original no disponible para esta emisión';end if;
+ if not exists(select 1 from storage.objects where bucket_id='enex-invoices' and name=path and (owner_id=auth.uid()::text or exists(select 1 from public.enex_invoice_drafts d where d.id=p_id and d.empresa=p_invoice->>'empresa' and d.invoice=p_invoice and d.source_path=path))) then raise exception 'PDF original no disponible para esta emisión';end if;
  insert into public.enex_invoices(id,empresa,issuer_rut,document,portal,source_path,invoice,reconciliation)
  values(p_id,p_invoice->>'empresa',p_invoice->>'issuer_rut',p_invoice->>'document',p_invoice->>'portal',path,p_invoice,result) returning * into existing;
  insert into public.enex_invoice_guides(empresa,portal,document,invoice_id) select existing.empresa,existing.portal,g,p_id from jsonb_array_elements_text(p_invoice->'guides') g;
+ update public.enex_invoice_drafts set emitted_at=existing.issued_at where id=p_id;
  return existing;
 end;$$;
 revoke all on function private.enex_invoice_issue(uuid,jsonb,jsonb) from public,anon,authenticated;

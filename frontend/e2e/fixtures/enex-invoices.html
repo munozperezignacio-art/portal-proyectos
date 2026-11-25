@@ -1,6 +1,6 @@
 <!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Prueba local facturas</title><div id="root"></div><script type="module">
 import React from 'react';import{createRoot}from'react-dom/client';import EnexInvoices from '../../src/components/EnexInvoices.jsx';import '../../src/components/EnexFuel.css';
 async function request(body){return (await fetch('/test-invoices',{method:'POST',body:JSON.stringify(body)})).json();}
-const db={rpc:(name,args)=>request({name,args}),from:table=>{const q={table,filters:[]};const b={select:()=>b,eq:(k,v)=>{q.filters.push([k,v]);return b;},order:()=>b,range:(start,end)=>request({...q,start,end})};return b;},storage:{from:()=>({upload:(path)=>request({upload:path}),download:async()=>({error:{message:'fixture only'}})})}};
+const db={rpc:(name,args)=>request({name,args}),from:table=>{const q={table,filters:[]};const b={select:()=>b,eq:(k,v)=>{q.filters.push([k,v]);return b;},is:(k,v)=>{q.filters.push([k,v]);return b;},order:()=>b,range:(start,end)=>request({...q,start,end}),maybeSingle:()=>request({...q,single:true})};return b;},storage:{from:()=>({upload:(path)=>request({upload:path}),download:async()=>({error:{message:'fixture only'}})})}};
 createRoot(document.getElementById('root')).render(React.createElement('main',{className:'enex-fuel',style:{padding:16,maxWidth:1200,margin:'auto'}},React.createElement(EnexInvoices,{company:'TEST',canImport:true,db})));
 </script></html>
