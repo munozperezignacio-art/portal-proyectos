@@ -1071,6 +1071,161 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const { canvasRef, hasSignature, clearSignature, handleStartDraw, handleDraw, handleStopDraw } = useSignatureCanvas(
     `${activeModal}:${selectedObra?.id}:${asistenciaData.trabajador}:${asistenciaData.rut}:${asistenciaData.asistencia}:${asistenciaMode}:${asistenciaFecha}:${isBulkAttendance}:${attendanceWorkerIds.join(',')}`
   );
+  const financialProjectionAt = cutoff => {
+                // Proyección de gastos por partidas ejecutables a fecha de corte
+                const fCorteStr = cutoff;
+                const dCorte = new Date(fCorteStr);
+
+                const executableParts = partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo));
+
+                // 1. PRESUPUESTO DE VENTA PROYECTADO (AVANCE TEÓRICO AL CORTE SEGÚN PLANIFICACIÓN EN DÍAS LABORALES CHILE)
+                const totalVentaProyectadaObra = executableParts.reduce((acc, p) => {
+                  const cantTotal = parseFloat(p.cantidad) || 0;
+                  const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
+                  const puVal = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (p.pu || 0);
+
+                  const startDatePartida = getPartidaScheduledStart(p);
+                  let diasEfectivosCorte = 0;
+
+                  if (startDatePartida && fCorteStr && startDatePartida > fCorteStr) {
+                    diasEfectivosCorte = 0;
+                  } else {
+                    const diasBus = countChileanBusinessDays(startDatePartida, fCorteStr);
+                    const diasTotalesPartida = Number(p.duracion_programada) || (rend > 0 ? Math.ceil(cantTotal / rend) : 1);
+                    diasEfectivosCorte = Math.min(diasBus, diasTotalesPartida);
+                  }
+
+                  const cantAvanceAlCorte = diasEfectivosCorte === 0 ? 0 : Math.min(cantTotal, Math.round(diasEfectivosCorte * rend));
+                  return acc + Math.round(cantAvanceAlCorte * puVal);
+                }, 0);
+
+                // 2. COSTO PROYECTADO DE PARTIDAS AL CORTE
+                const totalProyectadoPartidas = executableParts.reduce((acc, p) => {
+                  const cantTotal = parseFloat(p.cantidad) || 0;
+                  const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
+
+                  const startDatePartida = getPartidaScheduledStart(p);
+                  let diasEfectivosCorte = 0;
+
+                  if (startDatePartida && fCorteStr && startDatePartida > fCorteStr) {
+                    diasEfectivosCorte = 0;
+                  } else {
+                    const diasBus = countChileanBusinessDays(startDatePartida, fCorteStr);
+                    const diasTotalesPartida = Number(p.duracion_programada) || (rend > 0 ? Math.ceil(cantTotal / rend) : 1);
+                    diasEfectivosCorte = Math.min(diasBus, diasTotalesPartida);
+                  }
+
+                  if (diasEfectivosCorte === 0) return acc;
+
+                  const projItems = proyeccionesList.filter(x => x.partida === p.partida);
+                  if (projItems.length > 0) {
+                    const sumPartida = projItems.reduce((pAcc, proj) => {
+                      if (proj.tipo_proyeccion === 'TIEMPO') {
+                        return pAcc + Math.round(diasEfectivosCorte * dailyTimeRate(proj));
+                      } else {
+                        const tasa = parseFloat(proj.tasa_rendimiento_insumo) || 1;
+                        const pu = parseFloat(proj.precio_unitario_insumo) || 5000;
+                        const insumosAlCorte = diasEfectivosCorte * (rend * tasa);
+                        return pAcc + Math.round(insumosAlCorte * pu);
+                      }
+                    }, 0);
+                    return acc + sumPartida;
+                  }
+                  return acc + Math.round(diasEfectivosCorte * 20000);
+                }, 0);
+
+                const totalPersonalProyectado = (personalAsignadoList || []).reduce((acc, p) => {
+                  const custom = customSalariesMap[p.nombre];
+                  const sBase = custom?.sueldo_base || parseFloat(p.sueldo_base) || 1200000;
+                  const hExtras = custom?.horas_extras || 0;
+                  const asig = custom?.asignaciones || 0;
+                  const cEmpresa = Math.round((sBase + hExtras) * 1.25) + asig;
+                  const valorDia = Math.round(cEmpresa / 30);
+
+                  const rawAsigDate = p.fecha_asig ? String(p.fecha_asig).split('T')[0] : (selectedObra?.fecha_inicio ? String(selectedObra.fecha_inicio).split('T')[0] : (fechaInicioReal || getObraDateRange(selectedObra).start));
+                  let diasTrab = 0;
+                  if (rawAsigDate && fCorteStr && rawAsigDate <= fCorteStr) {
+                    const dAsig = new Date(rawAsigDate);
+                    if (!isNaN(dAsig.getTime()) && !isNaN(dCorte.getTime())) {
+                      const diffDays = Math.floor((dCorte.getTime() - dAsig.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                      diasTrab = Math.max(1, diffDays);
+                    } else {
+                      diasTrab = 1;
+                    }
+                  }
+                  return acc + (diasTrab * valorDia);
+                }, 0);
+
+                const combinedEquipFleet = [
+                  ...(maquinariaList || []),
+                  ...(arriendosList || []).map(a => ({
+                    nombre: a.equipo,
+                    equipo: a.equipo,
+                    patente: a.patente,
+                    proveedor: a.proveedor,
+                    costo_interno: a.costo,
+                    costo: a.costo,
+                    unidad_costo_interno: a.unidad_costo || '$/mes',
+                    tipo_condicion_minima: a.tipo_condicion_minima || 'sin_minimo',
+                    cantidad_minima: a.cantidad_minima || 0,
+                    modalidad_dias: a.modalidad_dias || 'laborales',
+                    fecha_asig: a.fechaInicio || a.created_at,
+                    fecha_inicio: a.fechaInicio || a.created_at,
+                    isArriendo: true
+                  }))
+                ];
+
+                const totalMaquinariaProyectado = combinedEquipFleet.reduce((acc, m) => {
+                  if(String(m.unidad_costo_interno||'').startsWith('UF/'))return acc+machineryCharges.filter(r=>String(r.equipo_id)===String(m.id)&&r.fecha<=fCorteStr).reduce((sum,r)=>sum+(Number(r.monto)||0),0);
+                  const tarifaBase = parseFloat(m.costo_mensual || m.valor_arriendo_mensual || m.costo_arriendo || m.costo_interno || m.costo) || 1500000;
+                  const unidad = m.unidad_costo_interno || m.unidad_costo || m.unidad_tarifa || '$/mes';
+                  const tipoMin = m.tipo_condicion_minima || m.tipo_minimo || 'sin_minimo';
+                  const cantMin = parseFloat(m.cantidad_minima || m.minimo_garantizado || 0);
+                  const modDias = m.modalidad_dias || 'laborales';
+
+                  let valorDia = 0;
+                  if (unidad === '$/mes') {
+                    if (tipoMin === 'dias_mes' && cantMin > 0) {
+                      valorDia = Math.round(tarifaBase / Math.min(30, cantMin));
+                    } else {
+                      valorDia = Math.round(tarifaBase / 30);
+                    }
+                  } else if (unidad === '$/hr') {
+                    let hrsDia = 8;
+                    if (tipoMin === 'horas_dia' && cantMin > 0) {
+                      hrsDia = Math.max(hrsDia, cantMin);
+                    } else if (tipoMin === 'horas_mes' && cantMin > 0) {
+                      hrsDia = cantMin / 30;
+                    }
+                    valorDia = Math.round(tarifaBase * hrsDia);
+                  } else {
+                    valorDia = Math.round(tarifaBase);
+                  }
+
+                  const rawAsigDate = m.fecha_asig || m.fecha_asignacion || m.fecha_inicio || m.created_at ? String(m.fecha_asig || m.fecha_asignacion || m.fecha_inicio || m.created_at).split('T')[0] : (selectedObra?.fecha_inicio ? String(selectedObra.fecha_inicio).split('T')[0] : getObraDateRange(selectedObra).start);
+                  let diasMaq = 0;
+                  if (rawAsigDate && fCorteStr && rawAsigDate <= fCorteStr) {
+                    if (modDias === 'laborales') {
+                      diasMaq = countChileanBusinessDays(rawAsigDate, fCorteStr);
+                    } else {
+                      const dAsig = new Date(rawAsigDate);
+                      if (!isNaN(dAsig.getTime()) && !isNaN(dCorte.getTime())) {
+                        const diffDays = Math.floor((dCorte.getTime() - dAsig.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                        diasMaq = Math.max(1, diffDays);
+                      } else {
+                        diasMaq = 1;
+                      }
+                    }
+                  }
+                  return acc + (diasMaq * valorDia);
+                }, 0);
+
+                const totalCostoProyectado = totalProyectadoPartidas + totalPersonalProyectado + totalMaquinariaProyectado;
+                const margenProyectado = totalVentaProyectadaObra - totalCostoProyectado;
+                const pctMargen = totalVentaProyectadaObra > 0 ? ((margenProyectado / totalVentaProyectadaObra) * 100).toFixed(1) : '0';
+
+    return { totalVentaProyectadaObra, totalCostoProyectado, margenProyectado, pctMargen };
+  };
   const getPartidaScheduledStart = (partidaObj, fInicioFallback) => {
     if (!partidaObj) return fInicioFallback || new Date().toISOString().substring(0, 10);
 
@@ -6875,7 +7030,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
             </div>
           )}
 
-          {obraActiveSubmodule === 'gestion_obra' && canObraGestionView && gestionObraTab === 'flujo_caja' && <FlujoCajaObra obra={selectedObra} user={user} partidas={partidasList} costos={[...costosList,...machineryCharges]} liquidaciones={liquidacionesList} avances={calculatedAdvances} />}
+          {obraActiveSubmodule === 'gestion_obra' && canObraGestionView && gestionObraTab === 'flujo_caja' && (() => { const cutoff = fechaCorteProyeccion || new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago'}).format(new Date()); const financial = financialProjectionAt(cutoff); return <FlujoCajaObra obra={selectedObra} user={user} partidas={partidasList.map(p=>({...p, scheduledStart:getPartidaScheduledStart(p), pu:partidasCostos[p.partida] ?? p.pu}))} costos={[...costosList,...machineryCharges]} liquidaciones={liquidacionesList} avances={calculatedAdvances} cutoff={cutoff} marginRatio={financial.totalVentaProyectadaObra > 0 ? financial.margenProyectado / financial.totalVentaProyectadaObra : null} />; })()}
 
           {/* VISTA DEDICADA 13: CONTROL DE COSTOS DE OBRA */}
           {obraActiveSubmodule === 'gestion_obra' && canObraGestionView && gestionObraTab === 'costos' && (
@@ -6985,158 +7140,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                 const totalCostosReales = totalFacturas + totalLiquidacionesReales + totalPersonalIncurrido;
                 const saldoReal = totalPres - totalCostosReales;
 
-                // Proyección de gastos por partidas ejecutables a fecha de corte
-                const fCorteStr = fechaCorteProyeccion || new Date().toISOString().substring(0, 10);
-                const dCorte = new Date(fCorteStr);
-
-                const executableParts = partidasList.filter(p => !(p.unidad === 'TITULO' || p.unidad === 'GRUPO' || p.es_titulo));
-
-                // 1. PRESUPUESTO DE VENTA PROYECTADO (AVANCE TEÓRICO AL CORTE SEGÚN PLANIFICACIÓN EN DÍAS LABORALES CHILE)
-                const totalVentaProyectadaObra = executableParts.reduce((acc, p) => {
-                  const cantTotal = parseFloat(p.cantidad) || 0;
-                  const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
-                  const puVal = partidasCostos[p.partida] !== undefined ? partidasCostos[p.partida] : (p.pu || 0);
-
-                  const startDatePartida = getPartidaScheduledStart(p);
-                  let diasEfectivosCorte = 0;
-
-                  if (startDatePartida && fCorteStr && startDatePartida > fCorteStr) {
-                    diasEfectivosCorte = 0;
-                  } else {
-                    const diasBus = countChileanBusinessDays(startDatePartida, fCorteStr);
-                    const diasTotalesPartida = Number(p.duracion_programada) || (rend > 0 ? Math.ceil(cantTotal / rend) : 1);
-                    diasEfectivosCorte = Math.min(diasBus, diasTotalesPartida);
-                  }
-
-                  const cantAvanceAlCorte = diasEfectivosCorte === 0 ? 0 : Math.min(cantTotal, Math.round(diasEfectivosCorte * rend));
-                  return acc + Math.round(cantAvanceAlCorte * puVal);
-                }, 0);
-
-                // 2. COSTO PROYECTADO DE PARTIDAS AL CORTE
-                const totalProyectadoPartidas = executableParts.reduce((acc, p) => {
-                  const cantTotal = parseFloat(p.cantidad) || 0;
-                  const rend = parseFloat(p.rendimiento_meta || p.rendimiento) || 10;
-
-                  const startDatePartida = getPartidaScheduledStart(p);
-                  let diasEfectivosCorte = 0;
-
-                  if (startDatePartida && fCorteStr && startDatePartida > fCorteStr) {
-                    diasEfectivosCorte = 0;
-                  } else {
-                    const diasBus = countChileanBusinessDays(startDatePartida, fCorteStr);
-                    const diasTotalesPartida = Number(p.duracion_programada) || (rend > 0 ? Math.ceil(cantTotal / rend) : 1);
-                    diasEfectivosCorte = Math.min(diasBus, diasTotalesPartida);
-                  }
-
-                  if (diasEfectivosCorte === 0) return acc;
-
-                  const projItems = proyeccionesList.filter(x => x.partida === p.partida);
-                  if (projItems.length > 0) {
-                    const sumPartida = projItems.reduce((pAcc, proj) => {
-                      if (proj.tipo_proyeccion === 'TIEMPO') {
-                        return pAcc + Math.round(diasEfectivosCorte * dailyTimeRate(proj));
-                      } else {
-                        const tasa = parseFloat(proj.tasa_rendimiento_insumo) || 1;
-                        const pu = parseFloat(proj.precio_unitario_insumo) || 5000;
-                        const insumosAlCorte = diasEfectivosCorte * (rend * tasa);
-                        return pAcc + Math.round(insumosAlCorte * pu);
-                      }
-                    }, 0);
-                    return acc + sumPartida;
-                  }
-                  return acc + Math.round(diasEfectivosCorte * 20000);
-                }, 0);
-
-                const totalPersonalProyectado = (personalAsignadoList || []).reduce((acc, p) => {
-                  const custom = customSalariesMap[p.nombre];
-                  const sBase = custom?.sueldo_base || parseFloat(p.sueldo_base) || 1200000;
-                  const hExtras = custom?.horas_extras || 0;
-                  const asig = custom?.asignaciones || 0;
-                  const cEmpresa = Math.round((sBase + hExtras) * 1.25) + asig;
-                  const valorDia = Math.round(cEmpresa / 30);
-
-                  const rawAsigDate = p.fecha_asig ? String(p.fecha_asig).split('T')[0] : (selectedObra?.fecha_inicio ? String(selectedObra.fecha_inicio).split('T')[0] : (fechaInicioReal || getObraDateRange(selectedObra).start));
-                  let diasTrab = 0;
-                  if (rawAsigDate && fCorteStr && rawAsigDate <= fCorteStr) {
-                    const dAsig = new Date(rawAsigDate);
-                    if (!isNaN(dAsig.getTime()) && !isNaN(dCorte.getTime())) {
-                      const diffDays = Math.floor((dCorte.getTime() - dAsig.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                      diasTrab = Math.max(1, diffDays);
-                    } else {
-                      diasTrab = 1;
-                    }
-                  }
-                  return acc + (diasTrab * valorDia);
-                }, 0);
-
-                const combinedEquipFleet = [
-                  ...(maquinariaList || []),
-                  ...(arriendosList || []).map(a => ({
-                    nombre: a.equipo,
-                    equipo: a.equipo,
-                    patente: a.patente,
-                    proveedor: a.proveedor,
-                    costo_interno: a.costo,
-                    costo: a.costo,
-                    unidad_costo_interno: a.unidad_costo || '$/mes',
-                    tipo_condicion_minima: a.tipo_condicion_minima || 'sin_minimo',
-                    cantidad_minima: a.cantidad_minima || 0,
-                    modalidad_dias: a.modalidad_dias || 'laborales',
-                    fecha_asig: a.fechaInicio || a.created_at,
-                    fecha_inicio: a.fechaInicio || a.created_at,
-                    isArriendo: true
-                  }))
-                ];
-
-                const totalMaquinariaProyectado = combinedEquipFleet.reduce((acc, m) => {
-                  if(String(m.unidad_costo_interno||'').startsWith('UF/'))return acc+machineryCharges.filter(r=>String(r.equipo_id)===String(m.id)&&r.fecha<=fCorteStr).reduce((sum,r)=>sum+(Number(r.monto)||0),0);
-                  const tarifaBase = parseFloat(m.costo_mensual || m.valor_arriendo_mensual || m.costo_arriendo || m.costo_interno || m.costo) || 1500000;
-                  const unidad = m.unidad_costo_interno || m.unidad_costo || m.unidad_tarifa || '$/mes';
-                  const tipoMin = m.tipo_condicion_minima || m.tipo_minimo || 'sin_minimo';
-                  const cantMin = parseFloat(m.cantidad_minima || m.minimo_garantizado || 0);
-                  const modDias = m.modalidad_dias || 'laborales';
-
-                  let valorDia = 0;
-                  if (unidad === '$/mes') {
-                    if (tipoMin === 'dias_mes' && cantMin > 0) {
-                      valorDia = Math.round(tarifaBase / Math.min(30, cantMin));
-                    } else {
-                      valorDia = Math.round(tarifaBase / 30);
-                    }
-                  } else if (unidad === '$/hr') {
-                    let hrsDia = 8;
-                    if (tipoMin === 'horas_dia' && cantMin > 0) {
-                      hrsDia = Math.max(hrsDia, cantMin);
-                    } else if (tipoMin === 'horas_mes' && cantMin > 0) {
-                      hrsDia = cantMin / 30;
-                    }
-                    valorDia = Math.round(tarifaBase * hrsDia);
-                  } else {
-                    valorDia = Math.round(tarifaBase);
-                  }
-
-                  const rawAsigDate = m.fecha_asig || m.fecha_asignacion || m.fecha_inicio || m.created_at ? String(m.fecha_asig || m.fecha_asignacion || m.fecha_inicio || m.created_at).split('T')[0] : (selectedObra?.fecha_inicio ? String(selectedObra.fecha_inicio).split('T')[0] : getObraDateRange(selectedObra).start);
-                  let diasMaq = 0;
-                  if (rawAsigDate && fCorteStr && rawAsigDate <= fCorteStr) {
-                    if (modDias === 'laborales') {
-                      diasMaq = countChileanBusinessDays(rawAsigDate, fCorteStr);
-                    } else {
-                      const dAsig = new Date(rawAsigDate);
-                      if (!isNaN(dAsig.getTime()) && !isNaN(dCorte.getTime())) {
-                        const diffDays = Math.floor((dCorte.getTime() - dAsig.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                        diasMaq = Math.max(1, diffDays);
-                      } else {
-                        diasMaq = 1;
-                      }
-                    }
-                  }
-                  return acc + (diasMaq * valorDia);
-                }, 0);
-
-                const totalCostoProyectado = totalProyectadoPartidas + totalPersonalProyectado + totalMaquinariaProyectado;
-                const margenProyectado = totalVentaProyectadaObra - totalCostoProyectado;
-                const pctMargen = totalVentaProyectadaObra > 0 ? ((margenProyectado / totalVentaProyectadaObra) * 100).toFixed(1) : '0';
-
+                const { totalVentaProyectadaObra, totalCostoProyectado, margenProyectado, pctMargen } = financialProjectionAt(fechaCorteProyeccion || new Date().toISOString().slice(0,10));
                 if (costosSubTab === 'reales') {
                   return (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
