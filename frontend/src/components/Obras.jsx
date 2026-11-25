@@ -6510,6 +6510,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                                         moneda_pu: p.moneda_pu || 'CLP',
                                         cambio_pu_clp: p.cambio_pu_clp || '',
                                         rendimiento: p.rendimiento || '10',
+                                        avance_depende_de: p.avance_depende_de || '',
                                         unidad_tiempo: p.unidad_tiempo || 'Día'
                                       });
                                       setShowPartidaModal(true);
@@ -10268,6 +10269,8 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                   const duration = Number(partidaFormData.duracion_global || Math.ceil(cantVal / (Number(partidaFormData.rendimiento) || 10)));
                   if (isGlobal && (!Number.isFinite(duration) || duration < 1)) throw new Error('Indica una duración de al menos un día.');
                   const rendVal = isGlobal ? (cantVal || 1) / duration : (parseFloat(partidaFormData.rendimiento) || 10);
+                  const referenceId = partidaFormData.avance_depende_de ? Number(partidaFormData.avance_depende_de) : null;
+                  if(referenceId) inheritProgressPlan([...partidasList.filter(p=>String(p.id)!==String(editingPartida?.id)),{id:editingPartida?.id||'new',cantidad_presupuestada:cantVal,avance_depende_de:referenceId}]);
 
                   // Esqueleto estricto coincidente con el esquema SQL de partidas_obra
                   const dbPayload = {
@@ -10283,7 +10286,9 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     moneda_pu: currency,
                     pu_original: puVal,
                     cambio_pu_clp: rate,
-                    rendimiento_meta: rendVal
+                    rendimiento_meta: rendVal,
+                    avance_depende_de: referenceId,
+                    avance_referencia_propia: true
                   };
 
                   let savedPart = { 
@@ -10453,13 +10458,14 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     onCurrencyChange={moneda_pu=>setPartidaFormData(current=>({...current,moneda_pu,cambio_pu_clp:''}))}
                     onRateChange={cambio_pu_clp=>setPartidaFormData(current=>({...current,cambio_pu_clp}))}/>
                   <p className="text-[10px] text-slate-500">El precio se conserva en la moneda seleccionada. Los cálculos de obra utilizan su equivalente en CLP.</p>
-                  {editingPartida && <WorkProgressReference
-                    part={partidasList.find(part=>String(part.id)===String(editingPartida.id)) || editingPartida}
-                    parts={partidasList} budgetId={linkedBudgetId}
+                  <WorkProgressReference
+                    part={{...partidaFormData,id:editingPartida?.id}}
+                    parts={partidasList} value={partidaFormData.avance_depende_de}
+                    onChange={avance_depende_de=>setPartidaFormData(current=>({...current,avance_depende_de}))}
                     canEdit={can(user,userPermissions,'presupuestos.presupuestos.editar')}
-                    onSaved={()=>fetchObraDetails(selectedObra.nombre)} />}
+                    />
                   {/* Rendimiento y Unidad de Tiempo */}
-                  <div className="grid grid-cols-2 gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                  <div hidden={!!partidaFormData.avance_depende_de} className={partidaFormData.avance_depende_de?'hidden':'grid grid-cols-2 gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200'}>
                     <div>
                       <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">{['GL', 'GLB'].includes(partidaFormData.unidad) ? 'Duración (días)' : 'Rendimiento Estimado'}</label>
                       <input

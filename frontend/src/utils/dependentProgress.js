@@ -2,6 +2,7 @@
 export function resolveWorkDependencies(parts,budget) {
  const match=(p,b)=>p.presupuesto_item_id!=null?String(p.presupuesto_item_id)===String(b.id):String(p.partida).trim().toLowerCase()===String(b.partida).trim().toLowerCase();
  return parts.map(p=>{
+  if(p.avance_referencia_propia)return p;
   const candidates=budget.filter(b=>match(p,b));
   if(candidates.length!==1){if(candidates.some(b=>b.avance_depende_de))throw Error(`La partida ${p.partida} tiene más de una coincidencia en el presupuesto`);return p;}
   const b=candidates[0];if(!b.avance_depende_de)return p;
@@ -39,8 +40,13 @@ export function inheritProgressPlan(parts) {
   const source=parts.find(x=>String(x.id)===String(p.avance_depende_de));
   if(!source)throw Error('Falta la referencia del avance');
   const s=resolve(source,[...path,p.id]);
-  const rate=Number(s.rendimiento_meta||s.rendimiento||0)*Number(p.cantidad_presupuestada??p.cantidad)/Number(s.cantidad_presupuestada??s.cantidad);
-  const result={...p,fecha_inicio:s.fecha_inicio,fecha_termino:s.fecha_termino,duracion_programada:s.duracion_programada,rendimiento:rate,rendimiento_meta:rate,origen_planificacion:`Proporcional a ${s.partida}`};
+  const sourceQuantity=Number(s.cantidad_presupuestada??s.cantidad);
+  const quantity=Number(p.cantidad_presupuestada??p.cantidad);
+  if(!(sourceQuantity>0)||!(quantity>0))throw Error('Ambas partidas deben tener cantidad positiva');
+  const sourceRate=Number(s.rendimiento_meta||s.rendimiento||0);
+  const duration=Number(s.duracion_programada)>0?Number(s.duracion_programada):sourceRate>0?Math.max(1,Math.ceil(sourceQuantity/sourceRate)):null;
+  const rate=duration?quantity/duration:0;
+  const result={...p,fecha_inicio:s.fecha_inicio,fecha_termino:s.fecha_termino,duracion_programada:duration,rendimiento:rate,rendimiento_meta:rate,origen_planificacion:`Proporcional a ${s.partida}`};
   cache.set(p.id,result);return result;
  };
  return parts.map(p=>resolve(p));

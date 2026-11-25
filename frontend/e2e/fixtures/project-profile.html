@@ -12,6 +12,9 @@ const budgetRows=[
   {id:3,obra_id:123,obra_nombre:'Proyecto inicial',empresa:'TEST',orden:2,partida:'Servicio camión aljibe',unidad:'GL',cantidad_presupuestada:1,costo_por_dia:177.48,rendimiento_meta:1},
   {id:4,obra_id:123,obra_nombre:'Proyecto inicial',empresa:'TEST',orden:3,partida:'MANTA CONTROL DE EROSIÓN TEMPORAL FIBRA DE COCO',unidad:'TITULO',es_titulo:true,cantidad_presupuestada:0}
 ];
+const dependent=new URLSearchParams(location.search).has('dependent');
+if(dependent){Object.assign(budgetRows[1],{cantidad_presupuestada:100,rendimiento_meta:10});Object.assign(budgetRows[2],{cantidad_presupuestada:500,unidad:'M2'});}
+window.partSaves=[];
 if(new URLSearchParams(location.search).has('currencies')){
   Object.assign(budgetRows[1],{moneda_pu:'UF',pu_original:0.041,cambio_pu_clp:41183.94,costo_por_dia:1688.54154});
   Object.assign(budgetRows[2],{moneda_pu:'UF',pu_original:177.48,cambio_pu_clp:41183.94,costo_por_dia:7309325.6712});
@@ -40,9 +43,10 @@ const attendanceFixture=new URLSearchParams(location.search).has('attendance');
 window.attendanceSaves=[];window.attendanceRows=attendanceFixture?[{id:91,empresa:'TEST',obra_id:123,obra_nombre:work.nombre,trabajador:'Persona principal',rut:'2-7',fecha_marcacion:'2026-10-01',asistencia:'PRESENTE',ingreso:'08:00',salida:'19:00',colacion:'SI',otras_horas:1.25,horas_extras_auto:1,verificado_qr:false}]:[];
 Object.defineProperty(supabase,'functions',{value:{invoke:async()=>({data:{ok:true},error:null})}});
 supabase.from=table=>{
+  let targetId=null;
   let single=false;
   let mutation=null;
-  const result=()=>{if(table==='arriendos_maquinaria'){
+  const result=()=>{if(table==='partidas_obra'&&dependent&&mutation){const payload=Array.isArray(mutation.data)?mutation.data[0]:mutation.data;window.partSaves.push(payload);const row=mutation.action==='insert'?{...payload,id:99}:Object.assign(budgetRows.find(p=>p.id===Number(targetId)),payload);if(mutation.action==='insert')budgetRows.push(row);return {data:single?row:[row],error:null};}if(table==='arriendos_maquinaria'){
     if(mutation){const payload=Array.isArray(mutation.data)?mutation.data[0]:mutation.data;window.rentalSaves.push(payload);window.rentalRows=[{...payload,id:44}];}
     return {data:single?window.rentalRows[0]:window.rentalRows,error:null};
   }
@@ -56,7 +60,7 @@ supabase.from=table=>{
     if(table==='obra_liquidaciones'&&chartCosts)return {data:[{id:9,fecha:chartToday,periodo:chartToday.slice(0,7),monto_real:200,obra_liquidaciones_partidas:[{partida_id:2,partida:budgetRows[1].partida,monto_imputado:200}]}],error:null};
     return {data:table==='asistencia_personal'?window.attendanceRows:table==='obras'?[work]:table==='usuarios'?user:table==='partidas_obra'&&budget?budgetRows:table==='maestro_personal'&&multiCenterWork?workStaff:table==='rrhh_personal_centros_detalle'&&multiCenterWork?workLinks:single?null:[],error:null};};
   const chain=new Proxy({}, {get:(_target,key)=>key==='then'?(resolve=>Promise.resolve(result()).then(resolve)):
-    (...args)=>{if(key==='single'||key==='maybeSingle')single=true;if(key==='insert'||key==='update'||key==='upsert')mutation={action:key,data:args[0]};return chain;}});
+    (...args)=>{if(key==='eq'&&args[0]==='id')targetId=args[1];if(key==='single'||key==='maybeSingle')single=true;if(key==='insert'||key==='update'||key==='upsert')mutation={action:key,data:args[0]};return chain;}});
   return chain;
 };
 supabase.rpc=async(name,args)=>{

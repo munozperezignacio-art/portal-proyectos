@@ -1,0 +1,32 @@
+import {test,expect} from '@playwright/test';
+test('create and edit work-local reference, proportional duration, cancel and persistence',async({page})=>{
+ page.on('dialog',d=>d.accept());
+ await page.goto('/e2e/fixtures/project-profile.html?budget&dependent');
+ await page.getByRole('button').filter({has:page.getByRole('heading',{name:'Plan y Control de Obra',exact:true})}).click();
+ const table=page.getByRole('table',{name:'Partidas del presupuesto de obra'});
+ await table.locator('tbody tr').filter({hasText:'Servicio camión aljibe'}).getByTitle('Editar partida',{exact:true}).click();
+ await expect(page.getByLabel('Avance de la partida')).toBeEnabled();
+ await expect(page.getByText('Vincula primero el presupuesto a esta obra.')).toHaveCount(0);
+ await page.getByLabel('Avance de la partida').selectOption('2');
+ await expect(page.getByRole('status')).toContainText('Duración: 10 días · Rendimiento: 50 M2 / día');
+ await expect(page.locator('form').getByText('Rendimiento Estimado',{exact:true})).not.toBeVisible();
+ await page.getByRole('button',{name:'Guardar Partida de Obra',exact:true}).click();
+ await expect.poll(()=>page.evaluate(()=>window.partSaves.length)).toBe(1);
+ expect(await page.evaluate(()=>window.partSaves[0].avance_depende_de)).toBe(2);
+ await expect(table.getByText(/Avance según Ingeniería/)).toBeVisible();
+ await table.locator('tbody tr').filter({hasText:'Servicio camión aljibe'}).getByTitle('Editar partida',{exact:true}).click();
+ await expect(page.getByLabel('Avance de la partida')).toHaveValue('2');
+ await page.getByRole('button',{name:'✕',exact:true}).click();
+ await page.getByRole('button',{name:/Nueva Partida|Agregar Partida/i}).first().click();
+ await expect(page.getByRole('heading',{name:'Crear Nueva Partida de Obra'})).toBeVisible();
+ await page.getByPlaceholder('Ej. Excavaciones e Instalación de Moldajes').fill('Control proporcional');
+ await page.getByLabel('Avance de la partida').selectOption('2');
+ // Quantity is the first numeric input in the creation form.
+ const form=page.locator('form').filter({has:page.getByLabel('Avance de la partida')});
+ await form.locator('input[type=number]').first().fill('500');
+ await expect(page.getByRole('status')).toContainText('Duración: 10 días');
+ await page.getByRole('button',{name:'Guardar Partida de Obra',exact:true}).click();
+ await expect.poll(()=>page.evaluate(()=>window.partSaves.length)).toBe(2);
+ expect(await page.evaluate(()=>window.partSaves[1].avance_depende_de)).toBe(2);
+ await expect(table.getByText('Control proporcional',{exact:true})).toBeVisible();
+});
