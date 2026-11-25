@@ -47,3 +47,8 @@
 .enex-assignment-dialog fieldset { display:grid; gap:16px; }
 .enex-assignment-dialog label { display:grid; gap:6px; }
 .enex-assignment-dialog :is(select,input) { width:100%; min-height:44px; }
+.enex-invoice-rules { display:grid; gap:16px; }
+.enex-invoice-rules .enex-muted { flex-basis:100%; }
+.enex-invoices>section { min-width:0; }
+.enex-fuel .enex-secondary { background:white; border-color:#cbd5e1; color:var(--enex-brand); justify-self:start; }
+.enex-invoices,.enex-invoice-review{display:grid;gap:18px;min-width:0}.enex-invoices h3{display:flex;align-items:center;gap:8px;font-size:17px;font-weight:750;color:#172554}.enex-invoice-title{display:flex;gap:16px;justify-content:space-between;flex-wrap:wrap;align-items:center}.enex-invoice-fields{width:100%;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}.enex-invoice-guides{flex-basis:100%!important}.enex-invoices textarea{width:100%;border:1px solid #cbd5e1;background:white;border-radius:10px;padding:12px;color:#334155}.enex-invoice-actions,.enex-invoice-confirm{display:flex;gap:12px;flex-wrap:wrap;align-items:center}.enex-invoices button{display:inline-flex;align-items:center;gap:8px}.enex-invoices a{color:#1e3a8a;text-decoration:underline}.enex-invoices ul{padding-left:20px;list-style:disc}.enex-invoices caption{text-align:left;padding:12px;font-weight:700}.enex-invoices td{white-space:normal!important}.enex-invoice-confirm{border:1px solid #dbeafe;background:#eff6ff;padding:16px;border-radius:14px}.enex-invoices :is(input,select,textarea):focus-visible{outline:2px solid #6366f1;outline-offset:2px}

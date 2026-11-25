@@ -3,6 +3,8 @@ import {Fuel} from 'lucide-react';
 import './EnexFuel.css';
 import AssignmentWindow from './EnexAssignmentWindow';
 import EnexOwners from './EnexOwners';
+import EnexInvoiceRules from './EnexInvoiceRules';
+import EnexInvoices from './EnexInvoices';
 import {groupFuelByVehicle} from '../utils/enexStatistics';
 import {supabase} from '../supabaseClient';
 import useUserPermissions from '../utils/useUserPermissions';
@@ -56,8 +58,8 @@ export default function EnexFuel({user}) {
  }
  return <section className="enex-fuel" aria-label="Combustible Enex" aria-busy={busy}>
   <header className="enex-heading"><div className="enex-icon"><Fuel size={24}/></div><div><span className="enex-eyebrow">MAQUINARIA Y EQUIPOS · {user.empresa}</span><h2>Combustible Enex</h2><p>Consulta el consumo y asigna cada carga a su obra o centro de gestión.</p></div></header>
-  <nav aria-label="Combustibles" className="enex-tabs">{['Movimientos',...(allowed('editar')?['Responsables']:[]),'Estadísticas'].map(t=><button key={t} aria-pressed={tab===t} onClick={()=>setTab(t)}>{t}</button>)}</nav>
-  {tab==='Responsables'&&allowed('editar')?<EnexOwners company={user.empresa} vehicles={groupFuelByVehicle(rows)}/>:<>
+  <nav aria-label="Combustibles" className="enex-tabs">{['Movimientos',...(allowed('editar')?['Responsables']:[]),'Estadísticas','Facturas',...(allowed('editar')?['Configuración']:[])].map(t=><button key={t} aria-pressed={tab===t} onClick={()=>setTab(t)}>{t}</button>)}</nav>
+  {tab==='Facturas'?<EnexInvoices key={user.empresa} company={user.empresa} canImport={allowed('importar')}/>:tab==='Configuración'&&allowed('editar')?<EnexInvoiceRules key={user.empresa} company={user.empresa} canEdit={allowed('editar')}/>:tab==='Responsables'&&allowed('editar')?<EnexOwners company={user.empresa} vehicles={groupFuelByVehicle(rows)}/>:<>
   <div className="enex-metrics">{[['Cargas registradas',total.count.toLocaleString('es-CL')],['Litros cargados',(total.liters_milli/1000).toLocaleString('es-CL',{minimumFractionDigits:3})],['Consumo del portal',`$${Math.abs(total.amount_signed).toLocaleString('es-CL')}`],['Por asignar',total.pending.toLocaleString('es-CL')]].map(([label,value])=><div className="enex-metric" key={label}><span>{label}</span><strong>{busy?'…':value}</strong></div>)}</div>
   <p className="enex-info">Movimientos originales: no generan costos contables ni alteran registros de uso. Importes del portal, con moneda e impuestos pendientes de confirmar.</p>
   {error&&<p role="alert" className="text-red-700">{error}</p>}{notice&&<p role="status">{notice}</p>}

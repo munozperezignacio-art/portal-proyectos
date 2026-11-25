@@ -1,0 +1,12 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:20px;background:#f8fafc"><div id="root"></div><script type="module">
+import React from 'react';import {createRoot} from 'react-dom/client';
+import '../../src/index.css';import '../../src/components/EnexFuel.css';
+import EnexInvoiceRules from '../../src/components/EnexInvoiceRules.jsx';
+const db={from(table){const query={table,filters:[]};const api={
+  select(){return api;},eq(key,value){query.filters.push([key,value]);return api;},
+  insert(value){query.insert=value;return api;},update(value){query.update=value;return api;},
+  async maybeSingle(){return fetch('/test-invoice-rules',{method:'POST',body:JSON.stringify(query)}).then(r=>r.json());},
+};return api;}};
+createRoot(document.getElementById('root')).render(React.createElement('div',{className:'enex-fuel'},
+  React.createElement(EnexInvoiceRules,{company:'TEST',canEdit:true,db})));
+</script></body></html>
