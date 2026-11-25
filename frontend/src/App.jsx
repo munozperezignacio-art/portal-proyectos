@@ -12,6 +12,7 @@ import { recoverFromStaleChunk } from './utils/staleChunkRecovery';
 import useUserPermissions from './utils/useUserPermissions';
 import RoleExplorer from './components/RoleExplorer';
 import {moduleHasViewAccess} from './utils/companyPermissions';
+import {ENEX_PENDING_PATH, isEnexPendingDestination, canOpenPersonalFuel} from './utils/enexNavigation';
 
 // Cada módulo operativo se descarga solo cuando el usuario lo abre. Esto acelera el ingreso al portal y al dashboard.
 // Si Vercel publica una versión nueva mientras el portal está abierto, los archivos con hash de la versión anterior pueden dejar de existir.
@@ -96,18 +97,19 @@ function App() {
 
   const navigateTo = (newPath) => {
     window.history.pushState({}, '', newPath);
-    setPath(newPath);
+    setPath(newPath.split('?')[0]);
   };
 
   // Escuchar popstate
   useEffect(() => {
     const handlePopState = () => {
       setPath(window.location.pathname);
+      setCurrentModule(isEnexPendingDestination(window.location.search) ? 'combustibles' : 'dashboard');
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
-  const [currentModule, setCurrentModule] = useState('dashboard');
+  const [currentModule, setCurrentModule] = useState(() => isEnexPendingDestination(window.location.search) ? 'combustibles' : 'dashboard');
   const [notificationRequestId, setNotificationRequestId] = useState(null);
   const [companyBranding, setCompanyBranding] = useState(() => {
     try {
@@ -300,11 +302,12 @@ function App() {
   };
 
   const handleLoginSuccess = (userData) => {
+    const pendingDestination = isEnexPendingDestination(window.location.search);
     setUser(userData);
     localStorage.setItem('obraxis_user', JSON.stringify(userData));
-    setCurrentModule('dashboard');
+    setCurrentModule(pendingDestination ? 'combustibles' : 'dashboard');
     setSelectedObraName(null);
-    navigateTo('/dashboard');
+    navigateTo(pendingDestination ? ENEX_PENDING_PATH : '/dashboard');
   };
 
   const handleLogout = async () => {
@@ -318,7 +321,7 @@ function App() {
 
   const openNotificationDestination = (notification) => {
     if(notification?.payload?.has_record){setNotificationRecord(notification);return;}
-    if(notification?.evento_codigo==='enex_pendiente'){setCurrentModule('combustibles');navigateTo('/dashboard');return;}
+    if(notification?.evento_codigo==='enex_pendiente'){setCurrentModule('combustibles');navigateTo(ENEX_PENDING_PATH);return;}
     if(notification?.evento_codigo==='rrhh_imputacion_pendiente'){setCurrentModule('rrhh');navigateTo('/dashboard');return;}
     if(notification?.evento_codigo==='gastos_imputacion_pendiente'){setCurrentModule('gastos');navigateTo('/dashboard');return;}
     if(notification?.evento_codigo==='maquinaria_imputacion_pendiente'){setCurrentModule('maquinaria');navigateTo('/dashboard');return;}
@@ -589,7 +592,8 @@ function App() {
     .filter(module => `${module.title} ${module.description}`.toLowerCase().includes(moduleSearch.trim().toLowerCase()))
     .sort((left, right) => Number(favorites.includes(right.id)) - Number(favorites.includes(left.id)) || left.title.localeCompare(right.title));
   const canAccessAdmin=(modulosPermitidos.includes('admin') || (user.rol_base || user.rol || '').toLowerCase()==='superusuario') && moduleHasViewAccess(activeUserContext,modulePermissions,'admin');
-  const canAccessCurrentModule=currentModule==='dashboard' || (currentModule==='admin'?canAccessAdmin:visibleModules.some(module=>module.id===currentModule));
+  const personalFuelAccess = canOpenPersonalFuel(activeUserContext, Boolean(preview));
+  const canAccessCurrentModule=currentModule==='dashboard' || (currentModule==='combustibles'?personalFuelAccess:currentModule==='admin'?canAccessAdmin:visibleModules.some(module=>module.id===currentModule));
 
   return (
     <div className="min-h-screen flex bg-slate-50 text-slate-800 font-sans">
@@ -661,7 +665,7 @@ function App() {
         </div>
 
         {/* Menu Navigation Links */}
-        {!preview&&activeUserContext.empresa==='EMINSG'&&<button className="mx-4 my-2 rounded-lg border p-2 text-sm font-bold" onClick={()=>setCurrentModule('combustibles')}>Combustibles · Mis pendientes</button>}
+        {personalFuelAccess&&<button className="mx-4 my-2 rounded-lg border p-2 text-sm font-bold" onClick={()=>{setCurrentModule('combustibles');navigateTo(ENEX_PENDING_PATH);}}>Combustibles · Mis pendientes</button>}
         <RoleExplorer key={user.id+':'+user.empresa} user={user} name={preview?.role.nombre||''} onChange={switchRole}/>
         <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
           {/* Dashboard/Inicio */}

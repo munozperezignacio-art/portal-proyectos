@@ -24,7 +24,7 @@ export function renderEnexPendingEmail(summary, branding = null) {
  const text = [`OBRAXIS | Combustibles`,`${company} · ${date(day)}`,`Hola, ${name}.`,heading,
   'Asigna cada carga a la obra o al centro de gestión correspondiente. Puedes hacerlo desde la web o desde Combustibles en la aplicación.',
   ...detail,`Pendiente más antiguo: ${date(oldest)}.`,
-  'Abrir Obraxis: https://www.obraxis.cl/dashboard','En la web: Combustibles · Mis pendientes.',
+  'Abrir mis pendientes: https://www.obraxis.cl/dashboard?modulo=combustibles','Si no tienes una sesión activa, inicia sesión con tu empresa y usuario. Después se abrirán tus cargas pendientes.',
   'Este resumen incluye únicamente las cargas pendientes de los vehículos que tienes asignados.',reminder,
   'Enviado desde Obraxis · Gestión inteligente para construir mejor.'
  ].join('\n\n');
@@ -52,8 +52,8 @@ export function renderEnexPendingEmail(summary, branding = null) {
   <p style="color:#334155;font-size:13px;line-height:1.7"><strong>Pendiente más antiguo:</strong> ${esc(date(oldest))}.</p>
   <p style="color:#334155;font-size:13px;line-height:1.7"><strong>Importante:</strong> Este resumen incluye únicamente las cargas pendientes de los vehículos que tienes asignados.</p>
   <div style="text-align:center;margin-top:24px;padding-top:16px;border-top:1px solid #f1f5f9">
-   <a href="https://www.obraxis.cl/dashboard" style="background-color:#1e3a8a;color:#ffffff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:12px;display:inline-block">Ver pendientes en Obraxis</a>
-   <p style="font-size:11px;color:#64748b;margin:10px 0 0">En la web: Combustibles · Mis pendientes.</p>
+   <a href="https://www.obraxis.cl/dashboard?modulo=combustibles" style="background-color:#1e3a8a;color:#ffffff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:12px;display:inline-block">Ver pendientes en Obraxis</a>
+   <p style="font-size:11px;color:#64748b;margin:10px 0 0">Inicia sesión si se solicita. Después se abrirán tus cargas pendientes.</p>
   </div>
   <p style="font-size:11px;color:#64748b;line-height:1.6;margin:20px 0 0">${reminder}</p>
  </div>
