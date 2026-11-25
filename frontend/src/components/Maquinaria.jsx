@@ -4,6 +4,7 @@ import { equipmentLocationFields } from '../utils/equipmentLocation.mjs';
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import {useMachineryCharge} from '../utils/useMachineryCharge';
+import {useReportDateConfirmation} from '../utils/useReportDateConfirmation';
 import ModuleHeader from './ModuleHeader';
 import { 
   Truck, Search, Plus, Edit, Trash2, QrCode,
@@ -85,6 +86,7 @@ const colorForEquipment = (equipment, index = 0) => equipment?.color_calendario 
 
 export default function Maquinaria({ companyBranding, user, onBack }) {
   const machineryCharge=useMachineryCharge();
+  const reportDateConfirmation=useReportDateConfirmation();
   const { permissions, loading: permissionsLoading } = useUserPermissions(user);
   const canView = can(user, permissions, 'maquinaria.inventario.ver');
   const canCreate = can(user, permissions, 'maquinaria.inventario.crear');
@@ -528,6 +530,7 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
       created_at: new Date().toISOString()
     };
 
+    if(!await reportDateConfirmation.confirm({date:newLog.fecha,equipment:newLog.equipo_patente,equipmentId:newLog.equipo_id,company:newLog.empresa}))return;
     try {
       const result = await machineryCharge.save(choice=>supabase.from('maquinaria_uso_diario').insert([{...newLog,obra_cargo_diario:choice}]));
       if(!result)return;
@@ -954,6 +957,7 @@ export default function Maquinaria({ companyBranding, user, onBack }) {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 p-4 sm:p-6 font-sans">
       {machineryCharge.dialog}
+      {reportDateConfirmation.dialog}
       
       {/* 1. Encabezado Oficial Estándar Obraxis */}
       <ModuleHeader className="mb-6" title="Gestión de Maquinaria y Equipos" subtitle="Inventario, asignaciones en faena, horómetros, reservas de obras futuras y arriendos a terceros." Icon={Truck} onBack={() => { if (activeSection !== '') { setActiveSection(''); setSuccessMsg(''); setErrorMsg(''); } else { onBack(); } }} />

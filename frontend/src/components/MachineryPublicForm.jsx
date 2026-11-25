@@ -5,6 +5,7 @@ import EquipmentQrPortal from './EquipmentQrPortal';
 import EquipmentFormHeader from './EquipmentFormHeader';
 import PublicFormFiller from './PublicFormFiller';
 import EquipmentWorkSelector from './EquipmentWorkSelector';
+import {useReportDateConfirmation} from '../utils/useReportDateConfirmation';
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date());
 async function qrRequest(body) {
  const {data,error}=await supabase.functions.invoke('maquinaria-publica',{body});
@@ -40,6 +41,7 @@ function QrMaintenance({token,identity,equipment}) {
  </form></>;
 }
 function MachineryDailyReport({ token, identity }) {
+  const dateConfirmation=useReportDateConfirmation();
   const [work,setWork]=useState(null),[workReady,setWorkReady]=useState(false);
   const [equipment,setEquipment]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[receipt,setReceipt]=useState(null),[operators,setOperators]=useState([]);
   const request=useRef(crypto.randomUUID());
@@ -51,6 +53,7 @@ function MachineryDailyReport({ token, identity }) {
     if(active){setOperators(data.operadores||[]);setEquipment(data.equipo);set('horometro_inicial',String(data.equipo.horometro_inicial));}
   }catch(e){if(active)setError(e.message);}})();return()=>{active=false;};},[token]);
   const submit=async event=>{event.preventDefault();if(busy||!workReady)return;setBusy(true);setError('');try{
+    if(!await dateConfirmation.confirm({date:form.fecha,equipment:equipment.patente,check:async()=>{const r=await qrRequest({action:'verificar_fecha',token,rut:identity.rut,fecha:form.fecha});return r.reporte_anterior;}}))return;
     const {data,error:failure}=await supabase.functions.invoke('maquinaria-publica',{body:{...form,rut:identity.rut,unidad:equipment.unidad,obra_id:work?.id||null,obra_nombre:work?.nombre||'',action:'registrar',token,solicitud_id:request.current,hubo_combustible:form.hubo_combustible==='si',hubo_falla:form.hubo_falla==='si',detuvo_equipo:form.detuvo_equipo==='si'}});
     if(failure){const response=await failure.context?.json?.().catch(()=>null);throw new Error(response?.error||'No se confirmó el envío. Puedes reintentar sin duplicarlo.');}
     if(data?.error)throw new Error(data.error);setReceipt(data.id);
@@ -59,6 +62,7 @@ function MachineryDailyReport({ token, identity }) {
   const choice=(key,label)=><label className="block text-sm font-semibold">{label}<select required disabled={busy} value={form[key]} onChange={e=>set(key,e.target.value)} className="mt-1 w-full rounded-xl border bg-white p-3"><option value="">Seleccionar</option><option value="no">No</option><option value="si">Sí</option></select></label>;
   const section='space-y-4 border-b border-slate-200 pb-5 last:border-0';
   return <div className="w-full space-y-5 text-slate-900">
+    {dateConfirmation.dialog}
     <EquipmentFormHeader title="Reporte diario de maquinaria" company={equipment?.empresa} code={equipment?.codigo} revision={equipment?.revision}/>
     {error&&<p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-800">{error}</p>}
     {receipt?<section role="status" className={section}><h2 className="font-bold">Reporte #{receipt} recibido</h2><p>Los datos quedaron guardados. La consulta y descarga están disponibles para usuarios autorizados en Obraxis.</p></section>:equipment?<form onSubmit={submit} className="space-y-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

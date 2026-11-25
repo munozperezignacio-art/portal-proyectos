@@ -11,6 +11,7 @@ import {scheduleClosing} from '../utils/scheduleClosing';
 import { supabase } from '../supabaseClient';
 import { MATERIAL_UNITS, materialMovement } from '../utils/materialMovement';
 import {useMachineryCharge} from '../utils/useMachineryCharge';
+import {useReportDateConfirmation} from '../utils/useReportDateConfirmation';
 import { 
   Building2, ArrowLeft, Users, Truck, Wrench, FileSpreadsheet, 
   ExternalLink, Calendar, Plus, UserCheck, ArrowRightLeft, FileText, AlertCircle, AlertTriangle, Camera,
@@ -241,6 +242,7 @@ function ObraGpsMapPicker({ lat, lng, radius, onChange, canEdit }) {
 
 function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChange, oxDestination, onOXDestinationHandled, onProjectRenamed }) {
   const machineryCharge=useMachineryCharge();
+  const reportDateConfirmation=useReportDateConfirmation();
   const [machineryCharges,setMachineryCharges]=useState([]);
   const [sharedEquipmentDays,setSharedEquipmentDays]=useState([]);
   const [machineryChargeError,setMachineryChargeError]=useState('');
@@ -976,6 +978,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
     const final = Number(usoEquipoFormData.lectura_final);
     if (!final || final < inicial) { setErrorMsg(`La lectura final debe ser igual o mayor que ${inicial.toLocaleString('es-CL')}.`); return; }
     const payload = { equipo_id: equipo.id, equipo_patente: equipo.patente || '', equipo_tipo: equipo.tipo || 'Equipo', obra_nombre: selectedObra?.nombre || '', fecha: usoEquipoFormData.fecha, horometro_inicial: inicial, horometro_final: final, horas_trabajadas: final - inicial, combustible_cargado: Number(usoEquipoFormData.combustible) || 0, operador: usoEquipoFormData.operador || user?.nombre || user?.usuario || '', observaciones: usoEquipoFormData.observaciones.trim(), empresa: user?.empresa || 'OBRAXIS' };
+    if(!await reportDateConfirmation.confirm({date:payload.fecha,equipment:payload.equipo_patente,equipmentId:payload.equipo_id,company:payload.empresa}))return;
     const result=await machineryCharge.save(choice=>supabase.from('maquinaria_uso_diario').insert([{...payload,obra_cargo_diario:choice}]).select().single());
     if(!result)return;
     const { data, error }=result;
@@ -3087,6 +3090,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
         operador:maqData.operador,horometro_inicial:inicial,horometro_final:final,horas_trabajadas:final-inicial,
         combustible_cargado:Number(maqData.litrosCombustible)||0,
         observaciones:[maqData.observaciones,`Supervisor: ${user.usuario||user.nombre||''}`,`Paralización: ${maqData.paralizacion}`,`Horómetro combustible: ${maqData.horometroCombustible||0}`].join('\n')};
+      if(!await reportDateConfirmation.confirm({date:payload.fecha,equipment:payload.equipo_patente,equipmentId:payload.equipo_id,company:payload.empresa}))return;
       const result=await machineryCharge.save(choice=>supabase.from('maquinaria_uso_diario').insert([{...payload,obra_cargo_diario:choice}]));
       if(!result)return;
       const {error}=result;
@@ -3147,6 +3151,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   return (
     <div className="space-y-4">
       {machineryCharge.dialog}
+      {reportDateConfirmation.dialog}
       {selectedObra&&machineryChargeError&&<p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{machineryChargeError}</p>}
       {selectedObra&&machineryCharges.some(c=>c.monto==null)&&<p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Hay cargos de maquinaria pendientes de valoración: falta tarifa, horas o la UF exacta de su fecha. No se suman como cero ni se sustituyen por la UF de hoy; los totales solo incluyen cargos valorados. Los días futuros en UF se valorarán cuando exista su cotización.</p>}
       

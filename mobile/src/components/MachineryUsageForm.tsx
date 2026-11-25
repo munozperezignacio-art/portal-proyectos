@@ -35,6 +35,15 @@ export function MachineryUsageForm({equipment,initialEquipment,profile,onSaved}:
     setBusy(true);setError('');
     const payload={...form,unidad:config.unidad,obra_nombre:selected.obra_nombre||'',horometro_inicial:selected.horometro_inicial??0,hubo_combustible:form.hubo_combustible==='si',hubo_falla:form.hubo_falla==='si',detuvo_equipo:form.detuvo_equipo==='si'};
     try {
+      const selectedDate=String(form.fecha);
+      const parsed=Date.parse(selectedDate+'T12:00:00Z');
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)||!Number.isFinite(parsed))throw new Error('Selecciona una fecha válida.');
+      const previous=new Date(parsed-86400000).toISOString().slice(0,10);
+      const history=await supabase.from('maquinaria_uso_diario').select('id').eq('empresa',profile.empresa).eq('equipo_id',String(selected.id)).eq('fecha',previous).limit(1);
+      const format=(d:string)=>d.split('-').reverse().join('/');
+      const warning=history.error?'No se pudo comprobar el reporte del día anterior. ':!history.data?.length?`No hay reporte para el día anterior (${format(previous)}). `:'';
+      const confirmed=await new Promise<boolean>(resolve=>Alert.alert('Confirmar fecha del reporte',`${selected.patente} · Fecha: ${format(selectedDate)}. ${warning}¿Confirmas que la fecha es correcta?`,[{text:'Volver y revisar',style:'cancel',onPress:()=>resolve(false)},{text:'Confirmar y enviar',onPress:()=>resolve(true)}],{cancelable:true,onDismiss:()=>resolve(false)}));
+      if(!confirmed)return;
       const send=(choice:string|null)=>supabase.rpc('registrar_reporte_maquinaria',{p_equipo_id:selected.id,p_datos:{...payload,obra_cargo_diario:choice},p_solicitud:request});
       let result=await send(null);
       if(result.error?.message==='MAQUINARIA_DESTINO_REQUERIDO') {

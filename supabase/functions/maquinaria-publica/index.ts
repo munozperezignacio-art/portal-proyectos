@@ -24,7 +24,7 @@ Deno.serve(async (req: Request) => {
     if (raw.length > 20000) return reply({ error: 'Formulario demasiado extenso.' }, 400, origin);
     const body = JSON.parse(raw);
     const action = clean(body?.action, 20), token = clean(body?.token, 160);
-    if (!/^[a-f0-9]{48}$/.test(token) || !['cargar','identificar','registrar','checklist','mantencion'].includes(action)) return reply({ error: "Enlace inválido." }, 404, origin);
+    if (!/^[a-f0-9]{48}$/.test(token) || !['cargar','identificar','registrar','checklist','mantencion','verificar_fecha'].includes(action)) return reply({ error: "Enlace inválido." }, 404, origin);
     const ip = clean(req.headers.get("x-forwarded-for")?.split(",")[0] || "unknown", 80);
     const [tokenHash, ipHash] = await Promise.all([digest(token), digest(ip)]);
     const since = new Date(Date.now() - 15 * 60 * 1000).toISOString();
@@ -59,6 +59,14 @@ Deno.serve(async (req: Request) => {
     if(person.error)return reply({error:'No se pudo comprobar el personal. Intenta nuevamente.'},503,origin);
     if(person.data?.length!==1)return reply({error:'El RUT no corresponde a una ficha activa única del personal de esta empresa. Solicita revisar la ficha en Recursos Humanos.'},403,origin);
     const actor=person.data[0];
+    if(action==='verificar_fecha'){
+      const date=clean(body.fecha,10);
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!Number.isFinite(Date.parse(date+'T12:00:00Z')))return reply({error:'Fecha inválida.'},400,origin);
+      const previous=new Date(Date.parse(date+'T12:00:00Z')-86400000).toISOString().slice(0,10);
+      const history=await db.from('maquinaria_uso_diario').select('id').eq('empresa',equipment.empresa).eq('equipo_id',String(equipment.id)).eq('fecha',previous).limit(1);
+      if(history.error)return reply({error:'No se pudo verificar el día anterior.'},503,origin);
+      return reply({reporte_anterior:Boolean(history.data?.length)},200,origin);
+    }
     if(action==='identificar')return reply({nombre:actor.nombre,cargo:actor.cargo,rut},200,origin);
     if(action==='checklist'){
       const forms=await db.from('prevencion_formularios').select('id,empresa,titulo,publico_token,campos').eq('empresa',equipment.empresa);

@@ -1,0 +1,7 @@
+<!doctype html><html lang="es"><body><div id="root"></div><script type="module">
+import React from 'react';
+import DOM from 'react-dom/client';
+import {useReportDateConfirmation} from '/src/utils/useReportDateConfirmation.jsx';
+function Test(){const confirmation=useReportDateConfirmation();return React.createElement(React.Fragment,null,confirmation.dialog,React.createElement('button',{onClick:async()=>{if(await confirmation.confirm({date:'2026-11-25',equipment:'EXC-04',check:async()=>false}))window.sent=(window.sent||0)+1;}},'Enviar reporte'));}
+DOM.createRoot(document.getElementById('root')).render(React.createElement(Test));
+</script></body></html>
