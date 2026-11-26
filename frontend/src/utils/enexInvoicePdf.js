@@ -30,15 +30,18 @@ export function extractInvoiceDraft(lines){
  draft.date=dates[0]||'';draft.due_date=dates.find(d=>d>draft.date)||'';
  // ENEX prints its guide list as standalone rows of 7–10 digit numbers.
  // No slicing arbitrary barcode digits, dates, customer IDs or invoice totals.
- const productIndex=clean.findIndex(l=>/Shellcard/i.test(l));
+ const productIndex=clean.findIndex(l=>/Petr[oó]leo Diesel\s+G-/i.test(l));
  if(productIndex>=0){const end=clean.findIndex((l,i)=>i>productIndex&&/MONTO NETO|TOTAL A PAGAR/.test(l));draft.guides=clean.slice(productIndex+1,end<0?undefined:end).filter(l=>/^\d{7,10}(?:\s+\d{7,10})*$/.test(l)).join(' ');}
+ let fuelMilliliters=0,fuelPesos=0,fuelRows=0,invalidFuelRow=false;
  for(const line of clean){
   const money=line.match(/-?\d{1,3}(?:\.\d{3})+(?![\d,])/g)||[];
   const last=money.at(-1);
   if(/Petr[oó]leo Diesel/i.test(line)){
-   draft.fuel_net=last||'';
-   // Quantity immediately following the product description, before unit price.
-   draft.liters=line.match(/Diesel\s+G-B\s+(?:LT\s+)?(\d[\d.]*(?:,\d{1,3})?)/i)?.[1]||'';
+   // Read the SALE columns once, not the repeated dispatch quantity or IE tax bases.
+   // G-B and G-A1 can coexist; all fuel rows must parse before publishing a sum.
+   const row=line.match(/Petr[oó]leo Diesel\s+G-[A-Z0-9]+\s+(?:LT\s+)?(\d[\d.]*(?:,\d{1,3})?)\s+-?\d[\d.]*(?:,\d+)?\s+(-?(?:\d+|\d{1,3}(?:\.\d{3})+))\s*$/i);
+   if(row){try{fuelMilliliters+=parseInvoiceLiters(row[1]);fuelPesos+=parseInvoicePeso(row[2]);fuelRows++;}catch{invalidFuelRow=true;}}
+   else invalidFuelRow=true;
   }
   if(/Shellcard/i.test(line))draft.shellcard_net=last||'';
   if(/MONTO NETO/i.test(line))draft.net=last||'';
@@ -46,6 +49,13 @@ export function extractInvoiceDraft(lines){
   if(/IMP\. ESPEC\. DIESEL/i.test(line))draft.specific_tax=last||'';
   if(/MONTO EXENTO/i.test(line))draft.exempt=last||'';
   if(/TOTAL A PAGAR/i.test(line)&&last)draft.total=last;
+ }
+ if(fuelRows&&!invalidFuelRow&&Number.isSafeInteger(fuelMilliliters)&&Number.isSafeInteger(fuelPesos)){
+  draft.liters=(fuelMilliliters/1000).toLocaleString('es-CL',{maximumFractionDigits:3});
+  draft.fuel_net=fuelPesos.toLocaleString('es-CL');
+  // Absence is only zero when the printed net equals the complete fuel subtotal.
+  // Otherwise leave the adjustment empty for review; never infer a missing charge.
+  if(!clean.some(l=>/Shellcard/i.test(l))&&draft.net&&parseInvoicePeso(draft.net)===fuelPesos)draft.shellcard_net='0';
  }
  return draft;
 }
