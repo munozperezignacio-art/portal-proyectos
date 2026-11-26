@@ -17,8 +17,9 @@ try{for(const width of [1440,390]){
   supabase.rpc=async(name,p)=>{if(name!=='specialty_api')throw Error('Unexpected RPC');window.calls.push(p);if(p.p_action==='configure')state.settings=[{partida_id:1,activa_desde:p.p_data.activa_desde,revision:1}];return {data:p.p_action==='state'?{...state}:{ok:true},error:null};};
   const Component=(await import('/src/components/SpecialtyReports.jsx')).default;
   document.getElementById('root').style.display='none';const mount=document.createElement('div');document.body.append(mount);
-  (DOM.default||DOM).createRoot(mount).render((React.default||React).createElement(Component,{work:{id:1},user:{id:1,empresa:'TEST'},parts:[{id:1,partida:'Pilas',unidad:'UND'}],settingsOnly:true}));
+  (DOM.default||DOM).createRoot(mount).render((React.default||React).createElement(Component,{work:{id:1,nombre:'Obra de prueba'},user:{id:1,empresa:'TEST'},parts:[{id:1,partida:'Pilas',unidad:'UND'}],quality:true}));
  });
+ await page.getByRole('button',{name:'Configurar especialidad y cargar coordenadas'}).click();
  await page.getByRole('button',{name:'Guardar configuración de especialidad'}).click();
  await page.getByLabel('Archivo Excel de coordenadas').setInputFiles({name:'coordenadas.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer});
  await page.getByRole('button',{name:'Cargar coordenadas de esta etapa'}).click();

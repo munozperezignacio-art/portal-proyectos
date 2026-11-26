@@ -4,7 +4,6 @@ import { sendSystemEmail } from '../utils/emailService';
 import { generateInitialPassword, escapeCredentialText } from '../utils/initialPassword';
 import { formatRut } from '../utils/rutUtils';
 import PermissionsGovernancePanel from './PermissionsGovernancePanel';
-import SpecialtyConfiguration from './SpecialtyConfiguration';
 import UserRoleAccess from './UserRoleAccess';
 import {deriveRoleNavigation,inheritsRoleAccess,userNavigationPayload} from '../utils/roleNavigation';
 import NotificationMaster from './NotificationMaster';
@@ -1340,7 +1339,6 @@ function ConfigCorreos({ user, onBack }) {
 
       {/* Tabs Layout */}
       <div className="flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-xs">
-        <button type="button" onClick={()=>setActiveTab('especialidades')} className={`rounded-xl px-4 py-2.5 text-xs font-bold whitespace-nowrap ${activeTab==='especialidades'?'bg-slate-950 text-white':'text-slate-600 hover:bg-slate-100'}`}>Especialidades de obra</button>
         <button
           onClick={() => setActiveTab('notificaciones')}
           className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
@@ -1436,9 +1434,7 @@ function ConfigCorreos({ user, onBack }) {
 
       <button type="button" onClick={() => setActiveTab('centros')} className="rounded-xl border bg-white px-4 py-2.5 text-xs font-bold">Centros de gestión</button>
       {/* RENDER SECCIONES */}
-      {activeTab === 'especialidades' ? (
-        <SpecialtyConfiguration user={user}/>
-      ) : activeTab === 'notificaciones' ? (
+      {activeTab === 'notificaciones' ? (
         <NotificationMaster user={user} obras={obras} roles={rolesList} />
       ) : activeTab === 'centros' ? (
         <ManagementCenters user={user} />
