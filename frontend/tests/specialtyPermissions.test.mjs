@@ -1,0 +1,68 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {PGlite} from '@electric-sql/pglite';
+import * as XLSX from 'xlsx';
+import {parsePileWorkbook} from '../src/utils/specialtyWorkbook.js';
+
+test('coordinates accept design-only workbook',()=>{
+ const b=XLSX.utils.book_new();
+ XLSX.utils.book_append_sheet(b,XLSX.utils.aoa_to_sheet([['','Numero','Etapa','Norte','Este'],['',1,'A',123,456]]),'DISEÑO');
+ const result=parsePileWorkbook(XLSX.write(b,{type:'buffer',bookType:'xlsx'}));
+ assert.equal(result.catalog.length,1);assert.deepEqual(result.history,[]);
+});
+
+test('permissions independent from duties; configure/import/report and preserve normal progress',async()=>{
+ const db=new PGlite();try{
+ await db.exec(`create schema private;create schema auth;create role anon;create role authenticated;
+ create function auth.uid() returns uuid language sql as $$select current_setting('test.uid')::uuid$$;
+ create table obras(id integer primary key,empresa text,nombre text);
+ create table usuarios(id integer,auth_user_id uuid,empresa text,nombre text,usuario text,rol text,rol_base text,obras text);
+ create table roles(id integer primary key,empresa text,nombre text,archivado boolean,permisos jsonb default '{}');
+ create table partidas_obra(id integer primary key,obra_id integer,empresa text,partida text,unidad text,es_titulo boolean);
+ create table notificaciones_reglas(id uuid,empresa text,activa boolean,evento_codigo text,hora_envio time,canal_push boolean,condiciones jsonb,obra_nombre text);
+ create table avances_produccion_partidas(id serial primary key,empresa text,obra_id integer,obra_nombre text,supervisor text,partida_id integer,partida text,unidad text,cantidad numeric,observaciones text,created_at timestamptz);
+ create function private.rrhh_partidas_permiso(text,integer,text) returns boolean language sql as $$select exists(select 1 from public.usuarios u join public.obras o on o.id=$2 and o.empresa=u.empresa where u.auth_user_id=auth.uid() and u.empresa=$1 and (u.obras='Todas' or u.obras=o.nombre))$$;
+ create function private.obraxis_permission(text,text) returns boolean language sql as $$select coalesce(current_setting('test.permissions',true)::jsonb->$2='true',false)$$;
+ create function private.obraxis_actor_can_manage_company(text) returns boolean language sql as $$select true$$;
+ insert into obras values(1,'A','Obra A'),(2,'A','No asignada'),(3,'B','Otra empresa');
+ insert into partidas_obra values(1,1,'A','Pilas','UND',false);
+ insert into usuarios values(1,'00000000-0000-4000-8000-000000000001','A','Prueba','prueba','Rol configurable','Superusuario','Obra A');
+ insert into roles values(1,'A','Rol configurable',false,'{}');
+ set test.uid='00000000-0000-4000-8000-000000000001';set test.permissions='{}';`);
+ for(const file of ['specialty-reporting.sql','specialty-role-duties.sql','specialty-permissions-separate-duties.sql'])await db.exec(await readFile(new URL('../../supabase/schema/'+file,import.meta.url),'utf8'));
+ const perms=async keys=>db.query("select set_config('test.permissions',$1,false)",[JSON.stringify(Object.fromEntries(keys.map(k=>[k,true])))]);
+ const call=async(a,d={},w=1)=>(await db.query('select public.specialty_api($1,$2,$3) r',[w,a,JSON.stringify(d)])).rows[0].r;
+ const config={partida_id:1,activa_desde:'2026-01-01',datos_fijos:{volumen_cuchara:1}};
+ await assert.rejects(call('configure',config),/permiso Configurar/);
+ // Mark every duty, but grant no permissions: still blocked.
+ await db.exec(`update roles set permisos='{"responsabilidad.especialidad.ejecucion":true,"responsabilidad.especialidad.topografia":true,"responsabilidad.especialidad.calidad":true}'`);
+ let s=await call('state');assert.equal(s.can_execute,false);assert.equal(s.can_topography,false);assert.equal(s.can_quality,false);
+ await assert.rejects(call('configure',config),/permiso Configurar/);
+ await db.exec("update roles set permisos='{}'");
+ await perms(['obras.especialidad.configurar']);
+ await call('configure',config);assert.equal((await call('state')).can_configure,true);
+ const catalog={partida_id:1,rows:[{numero:'1',etapa:'A',norte:1,este:2,longitud_diseno:5}]};
+ await assert.rejects(call('catalog',catalog),/permiso Importar/);
+ await perms(['obras.especialidad.importar']);await call('catalog',catalog);
+ await assert.rejects(call('state',{},2),/No autorizado/);await assert.rejects(call('state',{},3),/No autorizado/);
+ // Configuring a specialty does not disable normal reporting on other dates.
+ await db.exec("insert into avances_produccion_partidas(obra_id,partida_id,partida,created_at,cantidad) values(1,1,'Pilas','2026-01-02T12:00:00Z',1)");
+ s=await call('state');const element_id=s.elements[0].id;
+ const payload={id:'10000000-0000-4000-8000-000000000001',partida_id:1,fecha:'2026-01-03',revision:0,datos:{pilas:[{element_id,terminada:true,paladas:2,volumen:2,longitud:5}]}};
+ await assert.rejects(call('save',payload),/permiso para registrar/);
+ await perms(['obras.avances.crear']);s=await call('state');assert.equal(s.can_execute,true);
+ await call('save',payload);await call('close',{...payload,revision:1});
+ await call('close',{...payload,revision:1});
+ assert.equal((await db.query('select count(*)::int n from avances_produccion_partidas')).rows[0].n,2);
+ await assert.rejects(db.exec("insert into avances_produccion_partidas(obra_id,partida_id,partida,created_at,cantidad) values(1,1,'Pilas','2026-01-03T12:00:00Z',1)"),/Ya existe una jornada/);
+ await perms(['obras.topografia.editar']);await call('topography',{partida_id:1,element_id,revision:0,datos:{cota_inicial:10,cota_final:5}});
+ const protocol={id:payload.id,protocol_id:'20000000-0000-4000-8000-000000000001',tipo:'ejecucion',correlativo:'TEST',estado:'borrador',element_ids:[element_id],fijos:{plano:'P',mandante:'M'}};
+ await assert.rejects(call('protocol',protocol),/permiso/);
+ await perms(['obras.calidad.crear']);await call('protocol',protocol);
+ await assert.rejects(call('protocol',{...protocol,estado:'aprobado',revision:1}),/permiso/);
+ await perms(['obras.calidad.aprobar']);await call('protocol',{...protocol,estado:'aprobado',revision:1});
+ assert.equal((await db.query('select count(*)::int n from avances_produccion_partidas')).rows[0].n,2);
+ assert.deepEqual((await db.query('select permisos from roles')).rows[0].permisos,{});
+ }finally{await db.close();}
+});

@@ -17,6 +17,8 @@ export const PERMISSIONS_CATALOG = [
     { id: 'haberes', label: 'Haberes de obra (registrar, editar y descargar)', actions: ['crear', 'editar', 'descargar'] },
     { id: 'ficha', label: 'Ficha de la obra', actions: ['ver', 'crear', 'editar', 'eliminar', 'configurar'] },
     { id: 'avances', label: 'Avances', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'revisar', 'descargar'] },
+    { id: 'especialidad', label: 'Especialidades de obra y coordenadas', actions: ['configurar', 'importar'] },
+    { id: 'topografia', label: 'Mediciones de topografía por especialidad', actions: ['editar'] },
     { id: 'gestion', label: 'Presupuesto, programación y costos', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'descargar', 'configurar'] },
     { id: 'estados_pago', label: 'Estados de Pago', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'revisar', 'aprobar', 'descargar', 'configurar'] },
     { id: 'libro_obra', label: 'Libro de Obra', actions: ['ver', 'crear', 'editar', 'eliminar', 'enviar', 'revisar', 'aprobar', 'descargar', 'configurar'] },

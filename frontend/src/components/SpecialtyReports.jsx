@@ -33,25 +33,27 @@ export default function SpecialtyReports({work,user,parts=[],quality=false,setti
  activeSession&&activeSession.estado!=='abierta'?'Esta jornada ya está registrada. Consulta el historial de reportes.':
  !activeSession&&(state.reports||[]).some(r=>String(r.partida_id)===partId&&r.fecha===workDate)?'Ya existe un reporte de esta partida para la fecha seleccionada. Revisa el historial.':'';
  const start=async()=>{if(blocked)return;const next=activeSession||{id:crypto.randomUUID(),partida_id:Number(partId),fecha:workDate,revision:0,datos:{pilas:[],observaciones:''}};await edit(next);};
- const canExecute=state.can_execute===true,canTopo=state.can_topography===true,canQuality=state.can_quality===true;
+ const canExecute=state.can_execute===true,canTopo=state.can_topography===true;
  const [pileSearch,setPileSearch]=useState('');
  const rows=draft?.datos?.pilas||[];
  const updatePile=(id,key,value)=>edit({...draft,datos:{...draft.datos,pilas:rows.map(p=>p.element_id===id?{...p,[key]:value}:p)}});
  const diagram=pileDiagram(elements,rows.filter(p=>p.terminada).map(p=>p.element_id));
- if(settingsOnly&&!state.can_configure)return <p role="status">{notice||(!state.actor?'Cargando configuración…':'No tienes permiso para configurar esta especialidad.')}</p>;
+ if(settingsOnly&&!state.can_configure&&!state.can_import)return <p role="status">{notice||(!state.actor?'Cargando configuración…':'Tu rol necesita el permiso Obras → Especialidades de obra y coordenadas → Configurar o Importar.')}</p>;
  return <section className="rounded-2xl border border-indigo-200 bg-white p-5 space-y-4">
   <div><h3 className="text-lg font-bold text-indigo-950">{settingsOnly?'Configuración por partida':quality?'Protocolos por especialidad':'Reportes por especialidad'}</h3><p className="text-sm text-slate-500">Pilas de grava · Ejecución diaria, topografía y Calidad con responsables independientes.</p></div>
   <label className="block text-sm font-bold">Partida<select className={field} value={partId} onChange={e=>setPartId(e.target.value)}>{parts.filter(p=>!p.es_titulo).map(p=><option key={p.id} value={p.id}>{p.partida} · {p.unidad}</option>)}</select></label>
   {!settingsOnly&&<nav className="flex flex-wrap gap-2">{(quality?[['protocols','Protocolos'],['topography','Topografía pendiente'],...(state.can_configure?[['reconciliation','Conciliaciones pendientes']]:[])]:[['journal','Jornada']]).map(([key,label])=><button key={key} className={`${button} ${tab===key?'bg-indigo-100':''}`} onClick={()=>setTab(key)}>{label}</button>)}</nav>}
   {notice&&<p role="status" className="rounded-lg bg-amber-50 p-3 text-sm">{notice}</p>}
-  {!cfg&&tab!=='settings'&&<p>Esta partida todavía usa el registro por unidades. Administración puede habilitarla en Configuración → Especialidades de obra. Las responsabilidades se seleccionan en Configuración → Roles → Responsabilidades por módulo.</p>}
+  {!cfg&&tab!=='settings'&&<p>Falta configurar el detalle por pila de esta partida en Configuración → Especialidades de obra. El reporte normal de avance sigue disponible. Los permisos se habilitan en Roles; las responsabilidades solo asignan seguimiento de pendientes.</p>}
   {tab==='settings'&&state.can_configure&&<div className="space-y-4">
-   <p className="text-sm">Aquí se define la partida y su fecha de inicio. Ejecución, topografía y Calidad se asignan por rol en Responsabilidades por módulo, cruzadas con las obras de cada usuario.</p>
+   <p className="text-sm">Configura el detalle por pila sin deshabilitar los reportes normales. Los permisos de cada rol autorizan las acciones en sus obras asignadas; las responsabilidades solo determinan el seguimiento de pendientes.</p>
    <label className="block">Inicio del registro por especialidad<input disabled={sessions.some(s=>s.estado!=='historica')} type="date" className={field} value={config.activa_desde||''} onChange={e=>setConfig({...config,activa_desde:e.target.value})}/></label>
    <p className="text-xs text-slate-500">Los días anteriores se concilian con sus reportes existentes; no vuelven a sumarse.</p>
    <button className={button} disabled={busy} onClick={()=>action(()=>call('configure',{activa_desde:config.activa_desde,revision:config.revision,datos_fijos:config.datos_fijos,partida_id:Number(partId),request_id:crypto.randomUUID()}))}>Guardar configuración de especialidad</button>
-   {cfg&&<p className="text-sm">El catálogo y la conciliación histórica se gestionan en Calidad → Protocolos por especialidad → Conciliaciones pendientes.</p>}
+   {cfg&&<p className="text-sm">Si ya registraste cantidades, vincula sus pilas en Calidad → Protocolos por especialidad → Conciliaciones pendientes. Esa vinculación no suma avance nuevamente.</p>}
   </div>}
+  {settingsOnly&&cfg&&state.can_import&&<SpecialtyWorkbookImport key={partId} work={work} partId={Number(partId)} state={state} call={call} onSaved={refresh} catalogOnly/>}
+  {settingsOnly&&!cfg&&!state.can_configure&&<p>La partida aún no está configurada. Un rol con permiso Configurar debe definir primero su fecha de inicio.</p>}
   {quality&&cfg&&tab==='reconciliation'&&state.can_configure&&<section className="space-y-3">
    <h4 className="font-bold">Avances por cantidad pendientes de identificar</h4>
    <PendingReports key={partId} reports={state.reports} sessions={sessions} config={cfg} elements={elements} call={call} refresh={refresh}/>

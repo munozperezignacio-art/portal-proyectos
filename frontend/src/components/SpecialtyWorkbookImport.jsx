@@ -1,6 +1,6 @@
 import React,{useState} from 'react';
 import {parsePileWorkbook} from '../utils/specialtyWorkbook';
-export default function SpecialtyWorkbookImport({work,partId,state,call,onSaved}){
+export default function SpecialtyWorkbookImport({partId,state,call,onSaved,catalogOnly=false}){
  const [book,setBook]=useState(null),[stage,setStage]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);
  const run=async fn=>{setBusy(true);try{await fn();await onSaved();}catch(e){setMessage(e.message);}finally{setBusy(false);}};
  const catalog=book?.catalog.filter(e=>e.etapa===stage)||[];
@@ -17,8 +17,8 @@ export default function SpecialtyWorkbookImport({work,partId,state,call,onSaved}
   }
   setMessage(`${done} jornadas conciliadas sin sumar nuevamente. ${errors.join('\n')}`);
  };
- return <div className="rounded-xl border p-4 space-y-3"><h4 className="font-bold">Catálogo e historial desde Excel</h4><input type="file" accept=".xlsx" disabled={busy} onChange={e=>{const f=e.target.files?.[0];if(f)run(async()=>{const b=parsePileWorkbook(await f.arrayBuffer());setBook(b);setStage(b.stages[0]||'');setMessage('Archivo revisado. Selecciona la etapa que corresponde a esta partida.');});}}/>
- {book&&<><select className="border rounded p-2" value={stage} onChange={e=>setStage(e.target.value)}>{book.stages.map(s=><option key={s}>{s}</option>)}</select><p>{catalog.length} pilas del catálogo · {book.history.filter(r=>r.etapa===stage).length} registros históricos.</p><button disabled={busy} className="border rounded p-2 mr-2" onClick={()=>run(async()=>{await call('catalog',{partida_id:partId,rows:catalog,request_id:crypto.randomUUID()});setMessage('Catálogo cargado. Los elementos existentes idénticos se conservan.');})}>Cargar catálogo de esta etapa</button><button disabled={busy} className="border rounded p-2" onClick={()=>run(reconcile)}>Conciliar historial con reportes existentes</button></>}
+ return <div className="rounded-xl border p-4 space-y-3"><h4 className="font-bold">{catalogOnly?'Cargar coordenadas de pilas desde Excel':'Catálogo e historial desde Excel'}</h4><p className="text-sm text-slate-500">Usa la hoja DISEÑO del formato de pilas: B número, C etapa, D norte, E este y M longitud de diseño (opcional). Para cargar coordenadas no se requiere la hoja AVANCE. Las pilas existentes no se sobrescriben.</p><label className="block text-sm font-bold">Archivo Excel de coordenadas<input className="mt-2 block w-full" type="file" accept=".xlsx" disabled={busy} onChange={e=>{const f=e.target.files?.[0];if(f)run(async()=>{setBook(null);const b=parsePileWorkbook(await f.arrayBuffer());setBook(b);setStage(b.stages[0]||'');setMessage('Archivo revisado. Selecciona la etapa que corresponde a esta partida.');});}}/></label>
+ {book&&<><select aria-label="Etapa de coordenadas" className="border rounded p-2" value={stage} onChange={e=>setStage(e.target.value)}>{book.stages.map(s=><option key={s}>{s}</option>)}</select><p>{catalog.length} pilas del catálogo · {book.history.filter(r=>r.etapa===stage).length} registros históricos.</p>{state.can_import&&<button disabled={busy||!catalog.length} className="border rounded p-2 mr-2" onClick={()=>run(async()=>{await call('catalog',{partida_id:partId,rows:catalog,request_id:crypto.randomUUID()});setMessage('Catálogo cargado. Los elementos existentes idénticos se conservan.');})}>Cargar coordenadas de esta etapa</button>}{!catalogOnly&&state.can_configure&&<button disabled={busy} className="border rounded p-2" onClick={()=>run(reconcile)}>Conciliar historial con reportes existentes</button>}</>}
  {message&&<p role="status" className="whitespace-pre-wrap text-sm bg-amber-50 p-3">{message}</p>}
  </div>;
 }

@@ -1,0 +1,34 @@
+import {chromium} from 'playwright';
+import * as XLSX from 'xlsx';
+import assert from 'node:assert/strict';
+const book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([['','Numero','Etapa','Norte','Este'],['',1,'A',123,456]]),'DISEÑO');
+const buffer=XLSX.write(book,{type:'buffer',bookType:'xlsx'});
+const browser=await chromium.launch({headless:true});
+try{for(const width of [1440,390]){
+ const page=await browser.newPage({viewport:{width,height:950}}),errors=[];
+ page.on('pageerror',e=>errors.push(e.message));
+ await page.route('https://**/*',r=>r.abort());
+ await page.goto(process.argv[2]||'http://127.0.0.1:4181/');
+ await page.evaluate(async()=>{
+  const React=await import('/node_modules/.vite/deps/react.js'),DOM=await import('/node_modules/.vite/deps/react-dom_client.js');
+  const {supabase}=await import('/src/supabaseClient.js');
+  const state={actor:'test',can_configure:true,can_import:true,can_execute:true,settings:[],elements:[],sessions:[],protocols:[],reports:[],users:[]};
+  window.calls=[];
+  supabase.rpc=async(name,p)=>{if(name!=='specialty_api')throw Error('Unexpected RPC');window.calls.push(p);if(p.p_action==='configure')state.settings=[{partida_id:1,activa_desde:p.p_data.activa_desde,revision:1}];return {data:p.p_action==='state'?{...state}:{ok:true},error:null};};
+  const Component=(await import('/src/components/SpecialtyReports.jsx')).default;
+  document.getElementById('root').style.display='none';const mount=document.createElement('div');document.body.append(mount);
+  (DOM.default||DOM).createRoot(mount).render((React.default||React).createElement(Component,{work:{id:1},user:{id:1,empresa:'TEST'},parts:[{id:1,partida:'Pilas',unidad:'UND'}],settingsOnly:true}));
+ });
+ await page.getByRole('button',{name:'Guardar configuración de especialidad'}).click();
+ await page.getByLabel('Archivo Excel de coordenadas').setInputFiles({name:'coordenadas.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer});
+ await page.getByRole('button',{name:'Cargar coordenadas de esta etapa'}).click();
+ await page.getByRole('status').filter({hasText:'Catálogo cargado'}).waitFor();
+ const calls=await page.evaluate(()=>window.calls);
+ assert.equal(calls.filter(c=>c.p_action==='configure').length,1);
+ assert.equal(calls.find(c=>c.p_action==='catalog').p_data.rows[0].norte,123);
+ assert.equal(await page.getByText('Esta partida todavía usa el registro por unidades',{exact:false}).count(),0);
+ assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ assert.deepEqual(errors,[]);
+ console.log(`${width}: PASS configure → Excel design-only → catalog request, no overflow`);
+ await page.close();
+}}finally{await browser.close();}
