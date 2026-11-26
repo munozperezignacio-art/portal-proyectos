@@ -1,0 +1,22 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {PGlite} from '@electric-sql/pglite';
+test('daily equipment uniqueness preserves legacy history and rejects conflicting dates',async()=>{
+ const db=new PGlite();
+ await db.exec(`create role anon;create role authenticated;create schema private;
+ create table maquinaria_uso_diario(id bigint primary key,empresa text,equipo_id text,fecha date,obra_nombre text);
+ insert into maquinaria_uso_diario values(64,'EMINSG','69','2026-11-25','A'),(65,'EMINSG','69','2026-11-25','A'),(66,'EMINSG','69','2026-11-25','A');`);
+ await db.exec(await readFile(new URL('../../supabase/schema/machinery-one-report-per-day.sql',import.meta.url),'utf8'));
+ await assert.rejects(db.exec(`insert into maquinaria_uso_diario values(67,'EMINSG','69','2026-11-25','Other')`),/Solo se permite/);
+ assert.equal((await db.query('select count(*)::int as n from maquinaria_uso_diario')).rows[0].n,3);
+ await db.exec(`update maquinaria_uso_diario set obra_nombre='B' where id=64;
+ insert into maquinaria_uso_diario values(68,'EMINSG','69','2026-11-26','A'),(69,'EMINSG','70','2026-11-25','A'),(70,'OTHER','69','2026-11-25','A');`);
+ await assert.rejects(db.exec(`update maquinaria_uso_diario set fecha='2026-11-25' where id=68`),/Solo se permite/);
+ await db.exec(`delete from maquinaria_uso_diario where id=65`);
+ await assert.rejects(db.exec(`insert into maquinaria_uso_diario values(71,'EMINSG','69','2026-11-25','A')`),/Solo se permite/);
+ await db.exec(`delete from maquinaria_uso_diario where id in(64,66);insert into maquinaria_uso_diario values(71,'EMINSG','69','2026-11-25','A');`);
+ await db.exec(`begin;insert into maquinaria_uso_diario values(72,'EMINSG','69','2026-11-27','A');rollback;insert into maquinaria_uso_diario values(72,'EMINSG','69','2026-11-27','A');`);
+ assert.equal((await db.query(`select reportes from private.maquinaria_reporte_dia where empresa='EMINSG' and equipo_id='69' and fecha='2026-11-25'`)).rows[0].reportes,1);
+ await db.close();
+});
