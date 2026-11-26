@@ -34,6 +34,13 @@ try{for(const width of [1440,390]){
  if(process.env.COORDINATES_TEST_FILE)assert.equal(rows.length,277);
  assert.equal(await page.getByText('Esta partida todavía usa el registro por unidades',{exact:false}).count(),0);
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ const alignment=await page.getByRole('table',{name:'Vista previa de coordenadas'}).evaluate(table=>{
+  const heads=[...table.querySelectorAll('th')],cells=[...table.querySelector('tbody tr').children];
+  return heads.every((h,i)=>Math.abs(h.getBoundingClientRect().left-cells[i].getBoundingClientRect().left)<1&&getComputedStyle(h).textAlign===getComputedStyle(cells[i]).textAlign&&getComputedStyle(h).paddingLeft===getComputedStyle(cells[i]).paddingLeft);
+ });
+ assert.equal(alignment,true,'Headers must align with the data below');
+ assert.equal(await page.getByLabel('Archivo Excel de coordenadas').evaluate(el=>getComputedStyle(el).borderTopStyle),'dashed');
+ await page.locator('.specialty-workbook-import').screenshot({path:`C:/Users/ignac/AppData/Local/Temp/coordinates-preview-${width}.png`});
  assert.deepEqual(errors,[]);
  console.log(`${width}: PASS configure → Excel design-only → catalog request, no overflow`);
  await page.close();

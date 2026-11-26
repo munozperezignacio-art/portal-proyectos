@@ -1,0 +1,54 @@
+.specialty-workbook-import {
+  border-color: #e2e8f0;
+  background: #fff;
+  color: #334155;
+  border-radius: 1rem;
+}
+.specialty-workbook-import h4 { color: #172554; }
+.specialty-workbook-import label { font-weight: 600; font-size: .875rem; }
+.specialty-workbook-import input,
+.specialty-workbook-import select {
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: .75rem;
+  padding: .75rem;
+  margin-top: .5rem;
+  background: #fff;
+  font-weight: 400;
+}
+.specialty-workbook-import input[type="file"] {
+  background: #f8fafc;
+  border: 1px dashed #94a3b8;
+  cursor: pointer;
+}
+.specialty-workbook-import input[type="file"]::file-selector-button {
+  border: 1px solid #c7d2fe;
+  border-radius: .625rem;
+  background: #eef2ff;
+  color: #1e3a8a;
+  padding: .625rem .875rem;
+  margin-right: .75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.specialty-workbook-import input:focus-visible,
+.specialty-workbook-import select:focus-visible,
+.specialty-workbook-import button:focus-visible { outline: 2px solid #6366f1; outline-offset: 2px; }
+.specialty-workbook-import .coordinate-preview { border: 1px solid #e2e8f0; border-radius: .75rem; }
+.specialty-workbook-import table { border-collapse: collapse; width: 100%; min-width: 440px; }
+.specialty-workbook-import caption { text-align: left; padding: .75rem 1rem; color: #475569; font-weight: 600; }
+.specialty-workbook-import table th,
+.specialty-workbook-import table td {
+  text-align: left;
+  padding: .75rem 1rem;
+  vertical-align: middle;
+  border-bottom: 1px solid #e2e8f0;
+  font-variant-numeric: tabular-nums;
+}
+.specialty-workbook-import table th { background: #f1f5f9; color: #1e293b; font-weight: 700; }
+.specialty-workbook-import tbody tr:nth-child(even) { background: #f8fafc; }
+.specialty-workbook-import tbody tr:last-child td { border-bottom: 0; }
+.specialty-workbook-import > button { border: 1px solid #c7d2fe; border-radius: .75rem; padding: .75rem 1rem; background: #1e3a8a; color: white; font-weight: 700; }
+.specialty-workbook-import > button:disabled { cursor: not-allowed; background: #e2e8f0; color: #64748b; border-color: #cbd5e1; opacity: 1; }
+.specialty-workbook-import [role="status"] { border-radius: .75rem; border: 1px solid #fde68a; }
