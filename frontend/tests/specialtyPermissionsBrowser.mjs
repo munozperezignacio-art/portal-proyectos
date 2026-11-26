@@ -1,8 +1,9 @@
 import {chromium} from 'playwright';
 import * as XLSX from 'xlsx';
 import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
 const book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([['','Numero','Etapa','Norte','Este'],['',1,'A',123,456]]),'DISEÑO');
-const buffer=XLSX.write(book,{type:'buffer',bookType:'xlsx'});
+const buffer=process.env.COORDINATES_TEST_FILE?await readFile(process.env.COORDINATES_TEST_FILE):XLSX.write(book,{type:'buffer',bookType:'xlsx'});
 const browser=await chromium.launch({headless:true});
 try{for(const width of [1440,390]){
  const page=await browser.newPage({viewport:{width,height:950}}),errors=[];
@@ -22,11 +23,15 @@ try{for(const width of [1440,390]){
  await page.getByRole('button',{name:'Configurar especialidad y cargar coordenadas'}).click();
  await page.getByRole('button',{name:'Guardar configuración de especialidad'}).click();
  await page.getByLabel('Archivo Excel de coordenadas').setInputFiles({name:'coordenadas.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer});
+ await page.getByLabel('Frente de trabajo',{exact:true}).selectOption('Frente Principal');
  await page.getByRole('button',{name:'Cargar coordenadas de esta etapa'}).click();
  await page.getByRole('status').filter({hasText:'Catálogo cargado'}).waitFor();
  const calls=await page.evaluate(()=>window.calls);
  assert.equal(calls.filter(c=>c.p_action==='configure').length,1);
- assert.equal(calls.find(c=>c.p_action==='catalog').p_data.rows[0].norte,123);
+ const rows=calls.find(c=>c.p_action==='catalog').p_data.rows;
+ assert.equal(rows[0].norte,process.env.COORDINATES_TEST_FILE?5004.33:123);
+ assert.equal(rows[0].frente,'Frente Principal');
+ if(process.env.COORDINATES_TEST_FILE)assert.equal(rows.length,277);
  assert.equal(await page.getByText('Esta partida todavía usa el registro por unidades',{exact:false}).count(),0);
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  assert.deepEqual(errors,[]);

@@ -21,7 +21,7 @@ test('permissions independent from duties; configure/import/report and preserve 
  create table roles(id integer primary key,empresa text,nombre text,archivado boolean,permisos jsonb default '{}');
  create table partidas_obra(id integer primary key,obra_id integer,empresa text,partida text,unidad text,es_titulo boolean);
  create table notificaciones_reglas(id uuid,empresa text,activa boolean,evento_codigo text,hora_envio time,canal_push boolean,condiciones jsonb,obra_nombre text);
- create table avances_produccion_partidas(id serial primary key,empresa text,obra_id integer,obra_nombre text,supervisor text,partida_id integer,partida text,unidad text,cantidad numeric,observaciones text,created_at timestamptz);
+ create table avances_produccion_partidas(id serial primary key,empresa text,obra_id integer,obra_nombre text,supervisor text,partida_id integer,partida text,unidad text,cantidad numeric,observaciones text,created_at timestamptz,frente text);
  create function private.rrhh_partidas_permiso(text,integer,text) returns boolean language sql as $$select exists(select 1 from public.usuarios u join public.obras o on o.id=$2 and o.empresa=u.empresa where u.auth_user_id=auth.uid() and u.empresa=$1 and (u.obras='Todas' or u.obras=o.nombre))$$;
  create function private.obraxis_permission(text,text) returns boolean language sql as $$select coalesce(current_setting('test.permissions',true)::jsonb->$2='true',false)$$;
  create function private.obraxis_actor_can_manage_company(text) returns boolean language sql as $$select true$$;
@@ -30,7 +30,7 @@ test('permissions independent from duties; configure/import/report and preserve 
  insert into usuarios values(1,'00000000-0000-4000-8000-000000000001','A','Prueba','prueba','Rol configurable','Superusuario','Obra A');
  insert into roles values(1,'A','Rol configurable',false,'{}');
  set test.uid='00000000-0000-4000-8000-000000000001';set test.permissions='{}';`);
- for(const file of ['specialty-reporting.sql','specialty-role-duties.sql','specialty-permissions-separate-duties.sql'])await db.exec(await readFile(new URL('../../supabase/schema/'+file,import.meta.url),'utf8'));
+ for(const file of ['specialty-reporting.sql','specialty-role-duties.sql','specialty-permissions-separate-duties.sql','specialty-coordinate-fronts.sql'])await db.exec(await readFile(new URL('../../supabase/schema/'+file,import.meta.url),'utf8'));
  const perms=async keys=>db.query("select set_config('test.permissions',$1,false)",[JSON.stringify(Object.fromEntries(keys.map(k=>[k,true])))]);
  const call=async(a,d={},w=1)=>(await db.query('select public.specialty_api($1,$2,$3) r',[w,a,JSON.stringify(d)])).rows[0].r;
  const config={partida_id:1,activa_desde:'2026-01-01',datos_fijos:{volumen_cuchara:1}};
@@ -45,6 +45,15 @@ test('permissions independent from duties; configure/import/report and preserve 
  const catalog={partida_id:1,rows:[{numero:'1',etapa:'A',norte:1,este:2,longitud_diseno:5}]};
  await assert.rejects(call('catalog',catalog),/permiso Importar/);
  await perms(['obras.especialidad.importar']);await call('catalog',catalog);
+ await assert.rejects(call('catalog',{partida_id:1,rows:[{numero:'2',etapa:'A',norte:2,este:3,frente:'No existe'}]}),/no coincide/);
+ const input=process.env.COORDINATES_TEST_FILE;
+ if(input){
+  const actual=parsePileWorkbook(await readFile(input));assert.equal(actual.sheet,'Coordenadas');assert.equal(actual.catalog.length,277);
+  const rows=actual.catalog.map(r=>({...r,etapa:'General',frente:'Frente Principal'}));
+  await call('catalog',{partida_id:1,rows});await call('catalog',{partida_id:1,rows});
+  assert.equal((await call('state')).elements.filter(e=>e.etapa==='General').length,277);
+  await assert.rejects(call('catalog',{partida_id:1,rows:[{...rows[0],norte:999}]}),/no se sobrescribió/);
+ }
  await assert.rejects(call('state',{},2),/No autorizado/);await assert.rejects(call('state',{},3),/No autorizado/);
  // Configuring a specialty does not disable normal reporting on other dates.
  await db.exec("insert into avances_produccion_partidas(obra_id,partida_id,partida,created_at,cantidad) values(1,1,'Pilas','2026-01-02T12:00:00Z',1)");
@@ -64,5 +73,13 @@ test('permissions independent from duties; configure/import/report and preserve 
  await perms(['obras.calidad.aprobar']);await call('protocol',{...protocol,estado:'aprobado',revision:1});
  assert.equal((await db.query('select count(*)::int n from avances_produccion_partidas')).rows[0].n,2);
  assert.deepEqual((await db.query('select permisos from roles')).rows[0].permisos,{});
+ await db.exec("insert into avances_produccion_partidas(obra_id,partida_id,partida,frente,created_at,cantidad) values(1,1,'Pilas','Norte','2026-01-01T12:00:00Z',1),(1,1,'Pilas','Sur','2026-01-01T12:00:00Z',1)");
+ await perms(['obras.especialidad.importar']);
+ await call('catalog',{partida_id:1,rows:['Norte','Sur'].map((frente,i)=>({numero:String(i),etapa:'Frentes',norte:i,este:i,frente}))});
+ const piles=(await call('state')).elements.filter(e=>e.etapa==='Frentes').map(e=>({element_id:e.id,terminada:true,paladas:1,longitud:5}));
+ await perms(['obras.avances.crear']);
+ const multi={id:'30000000-0000-4000-8000-000000000001',partida_id:1,fecha:'2026-01-04',revision:0,datos:{pilas:piles}};
+ await call('close',multi);await call('close',multi);
+ assert.deepEqual((await db.query('select frente,cantidad from avances_produccion_partidas where specialty_session_id=$1 order by frente',[multi.id])).rows,[{frente:'Norte',cantidad:'1'},{frente:'Sur',cantidad:'1'}]);
  }finally{await db.close();}
 });
