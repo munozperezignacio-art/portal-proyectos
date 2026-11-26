@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { rutKey, lookupWorker } from "./workerLookup.mjs";
 
 const origins = new Set(["https://obraxis.cl", "https://www.obraxis.cl"]);
 const cors = (origin: string | null) => ({
@@ -12,7 +13,6 @@ const reply = (body: unknown, status = 200, origin: string | null = null) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors(origin), "Content-Type": "application/json" } });
 const clean = (value: unknown, max = 300) => String(value ?? "").trim().slice(0, max);
 const digest = async (value: string) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)))).map((x) => x.toString(16).padStart(2, "0")).join("");
-const rutKey = (value: unknown) => clean(value, 20).replace(/[^0-9kK]/g, "").toUpperCase();
 const validRut = (value: unknown) => {
   const rut = rutKey(value);
   if (!/^\d{7,8}[0-9K]$/.test(rut)) return false;
@@ -72,8 +72,10 @@ Deno.serve(async (request: Request) => {
 
     const rut = rutKey(body?.rut);
     if (!validRut(rut)) return reply({ error: "RUT inválido" }, 400, origin);
-    const { data: workers } = await db.from("maestro_personal").select("nombre,rut,cargo").eq("empresa", work.empresa).eq("obra_nombre", work.nombre);
-    const worker = (workers || []).find((item: { rut?: string }) => rutKey(item.rut) === rut);
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+    const part = (type: string) => parts.find((item) => item.type === type)?.value || "";
+    const localDate = `${part("year")}-${part("month")}-${part("day")}`;
+    const worker = await lookupWorker(db, work, rut, localDate);
     if (!worker) {
       await log(false);
       return reply({ error: "El trabajador no está asignado a esta obra" }, 404, origin);
@@ -96,9 +98,6 @@ Deno.serve(async (request: Request) => {
     const signature = validSignature(body?.firma_base64);
     if (!signature) return reply({ error: "La firma manuscrita es obligatoria" }, 400, origin);
 
-    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
-    const part = (type: string) => parts.find((item) => item.type === type)?.value || "";
-    const localDate = `${part("year")}-${part("month")}-${part("day")}`;
     const { data: existing } = await db.from("asistencia_personal").select("id,ingreso,salida").eq("empresa", work.empresa).eq("obra_id", work.id).eq("rut_normalizado", rut).eq("fecha_marcacion", localDate).order("created_at", { ascending: false }).limit(1).maybeSingle();
     const now = new Intl.DateTimeFormat("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
     let type = "INGRESO";
