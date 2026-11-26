@@ -4,12 +4,21 @@ import './SpecialtyWorkbookImport.css';
 export default function SpecialtyWorkbookImport({partId,state,call,onSaved,catalogOnly=false}){
  const [book,setBook]=useState(null),[stage,setStage]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);
  const [missingStage,setMissingStage]=useState('General'),[frontMap,setFrontMap]=useState({});
+ const [completed,setCompleted]=useState(null);
  const run=async fn=>{setBusy(true);try{await fn();await onSaved();}catch(e){setMessage(e.message);}finally{setBusy(false);}};
  const catalog=book?.catalog.filter(e=>e.etapa===stage)||[];
  const fronts=state.fronts||['Frente Principal'];
  const sourceFronts=[...new Set(catalog.map(r=>r.frente||''))];
  const targetFront=source=>frontMap[source]||fronts.find(f=>normalizeFront(f)===normalizeFront(source))||'';
  const ready=catalog.length&&sourceFronts.every(f=>targetFront(f))&&(stage||missingStage.trim());
+ const upload=async()=>{
+  setBusy(true);setMessage('');
+  try{
+   await call('catalog',{partida_id:partId,rows:catalog.map(r=>({...r,etapa:r.etapa||missingStage.trim(),frente:targetFront(r.frente||'')})),request_id:crypto.randomUUID()});
+   setCompleted({count:catalog.length,stage:stage||missingStage.trim()});
+   try{await onSaved();}catch{setMessage('La carga está guardada. Actualiza la página para refrescar el listado.');}
+  }catch(e){setMessage(e.message);}finally{setBusy(false);}
+ };
  const reconcile=async()=>{
   const groups=new Map();for(const row of book.history.filter(e=>e.etapa===stage)){if(!groups.has(row.fecha))groups.set(row.fecha,[]);groups.get(row.fecha).push(row);}
   let done=0;const errors=[];
@@ -23,6 +32,14 @@ export default function SpecialtyWorkbookImport({partId,state,call,onSaved,catal
   }
   setMessage(`${done} jornadas conciliadas sin sumar nuevamente. ${errors.join('\n')}`);
  };
+ if(completed)return <section className="specialty-import-success" role="status" aria-live="polite">
+  <h4>✓ Carga de coordenadas completada</h4>
+  <p>{completed.count} pilas confirmadas en el catálogo · Etapa {completed.stage}.</p>
+  <p>Las pilas que ya existían se conservaron sin duplicarlas.</p>
+  {message&&<p>{message}</p>}
+  <button type="button" disabled={busy} onClick={()=>{setCompleted(null);setBook(null);setFrontMap({});setMessage('');}}>Cargar otro archivo</button>
+  {!catalogOnly&&book?.history.length>0&&<button type="button" disabled={busy} onClick={()=>{setCompleted(null);setMessage('Coordenadas cargadas. Puedes continuar con la conciliación del historial.');}}>Continuar con el historial</button>}
+ </section>;
  return <div className="specialty-workbook-import rounded-xl border p-4 space-y-3"><h4 className="font-bold">{catalogOnly?'Cargar coordenadas de pilas desde Excel':'Catálogo e historial desde Excel'}</h4><p className="text-sm text-slate-500">Selecciona tu Excel con número de pila o punto, Norte y Este. Reconocemos los encabezados sin cambiar hojas ni mover columnas. Etapa, frente y longitud son opcionales en el archivo. Las pilas existentes no se sobrescriben.</p><label className="block text-sm font-bold">Archivo Excel de coordenadas<input className="mt-2 block w-full" type="file" accept=".xlsx" disabled={busy} onChange={e=>{const f=e.target.files?.[0];if(f)run(async()=>{setBook(null);setFrontMap({});const b=parsePileWorkbook(await f.arrayBuffer());setBook(b);setStage(b.stages[0]||'');setMessage('Archivo reconocido. Revisa los puntos y confirma el frente antes de cargar.');});}}/></label>
  {book&&<>
  <p className="text-sm">Hoja reconocida: <b>{book.sheet}</b> · {catalog.length} puntos</p>
@@ -30,7 +47,7 @@ export default function SpecialtyWorkbookImport({partId,state,call,onSaved,catal
  {sourceFronts.map(source=><label className="block" key={source}>{source?`Frente del Excel: ${source}`:'Frente de trabajo (el Excel no lo incluye)'}<select aria-label={source?`Vincular frente ${source}`:'Frente de trabajo'} className="border rounded p-2 w-full" value={targetFront(source)} onChange={e=>setFrontMap({...frontMap,[source]:e.target.value})}><option value="">Selecciona el mismo frente del reporte de avance</option>{fronts.map(f=><option key={f} value={f}>{f}</option>)}</select></label>)}
  <p className="text-xs text-slate-500">Se usan los nombres de frente registrados en los avances de esta obra. No se crean frentes por diferencias de escritura.</p>
  <div className="coordinate-preview overflow-x-auto"><table aria-label="Vista previa de coordenadas" className="text-sm w-full"><caption>Vista previa · primeras {Math.min(5,catalog.length)} de {catalog.length} pilas</caption><thead><tr><th scope="col">Pila</th><th scope="col">Norte</th><th scope="col">Este</th><th scope="col">Frente</th></tr></thead><tbody>{catalog.slice(0,5).map(r=><tr key={r.sourceRow}><td>{r.numero}</td><td>{r.norte}</td><td>{r.este}</td><td>{targetFront(r.frente||'')||'Por seleccionar'}</td></tr>)}</tbody></table></div>
- {state.can_import&&<button disabled={busy||!ready} className="border rounded p-2 mr-2 disabled:opacity-50" onClick={()=>run(async()=>{await call('catalog',{partida_id:partId,rows:catalog.map(r=>({...r,etapa:r.etapa||missingStage.trim(),frente:targetFront(r.frente||'')})),request_id:crypto.randomUUID()});setMessage('Catálogo cargado. Los elementos existentes idénticos se conservan.');})}>Cargar coordenadas de esta etapa</button>}{!catalogOnly&&state.can_configure&&book.history.length>0&&<button disabled={busy} className="border rounded p-2" onClick={()=>run(reconcile)}>Conciliar historial con reportes existentes</button>}</>}
+ {state.can_import&&<button disabled={busy||!ready} className="border rounded p-2 mr-2 disabled:opacity-50" onClick={upload}>{busy?'Cargando coordenadas…':'Cargar coordenadas de esta etapa'}</button>}{!catalogOnly&&state.can_configure&&book.history.length>0&&<button disabled={busy} className="border rounded p-2" onClick={()=>run(reconcile)}>Conciliar historial con reportes existentes</button>}</>}
  {message&&<p role="status" className="whitespace-pre-wrap text-sm bg-amber-50 p-3">{message}</p>}
  </div>;
 }

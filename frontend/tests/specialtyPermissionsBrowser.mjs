@@ -25,7 +25,9 @@ try{for(const width of [1440,390]){
  await page.getByLabel('Archivo Excel de coordenadas').setInputFiles({name:'coordenadas.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer});
  await page.getByLabel('Frente de trabajo',{exact:true}).selectOption('Frente Principal');
  await page.getByRole('button',{name:'Cargar coordenadas de esta etapa'}).click();
- await page.getByRole('status').filter({hasText:'Catálogo cargado'}).waitFor();
+ await page.getByRole('status').filter({hasText:'Carga de coordenadas completada'}).waitFor();
+ assert.equal(await page.getByRole('button',{name:'Cargar coordenadas de esta etapa'}).count(),0);
+ assert.equal(await page.getByLabel('Archivo Excel de coordenadas').count(),0);
  const calls=await page.evaluate(()=>window.calls);
  assert.equal(calls.filter(c=>c.p_action==='configure').length,1);
  const rows=calls.find(c=>c.p_action==='catalog').p_data.rows;
@@ -34,6 +36,8 @@ try{for(const width of [1440,390]){
  if(process.env.COORDINATES_TEST_FILE)assert.equal(rows.length,277);
  assert.equal(await page.getByText('Esta partida todavía usa el registro por unidades',{exact:false}).count(),0);
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ await page.getByRole('button',{name:'Cargar otro archivo'}).click();
+ await page.getByLabel('Archivo Excel de coordenadas').setInputFiles({name:'coordenadas.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer});
  const alignment=await page.getByRole('table',{name:'Vista previa de coordenadas'}).evaluate(table=>{
   const heads=[...table.querySelectorAll('th')],cells=[...table.querySelector('tbody tr').children];
   return heads.every((h,i)=>Math.abs(h.getBoundingClientRect().left-cells[i].getBoundingClientRect().left)<1&&getComputedStyle(h).textAlign===getComputedStyle(cells[i]).textAlign&&getComputedStyle(h).paddingLeft===getComputedStyle(cells[i]).paddingLeft);
@@ -41,6 +45,12 @@ try{for(const width of [1440,390]){
  assert.equal(alignment,true,'Headers must align with the data below');
  assert.equal(await page.getByLabel('Archivo Excel de coordenadas').evaluate(el=>getComputedStyle(el).borderTopStyle),'dashed');
  await page.locator('.specialty-workbook-import').screenshot({path:`C:/Users/ignac/AppData/Local/Temp/coordinates-preview-${width}.png`});
+ await page.evaluate(async()=>{const {supabase}=await import('/src/supabaseClient.js');const original=supabase.rpc;supabase.rpc=(name,p)=>p.p_action==='catalog'?Promise.resolve({data:null,error:{message:'Error de carga de prueba'}}):original(name,p);});
+ await page.getByLabel('Frente de trabajo',{exact:true}).selectOption('Frente Principal');
+ await page.getByRole('button',{name:'Cargar coordenadas de esta etapa'}).click();
+ await page.getByRole('status').filter({hasText:'Error de carga de prueba'}).waitFor();
+ assert.equal(await page.getByLabel('Archivo Excel de coordenadas').count(),1);
+ assert.equal(await page.getByText('Carga de coordenadas completada',{exact:false}).count(),0);
  assert.deepEqual(errors,[]);
  console.log(`${width}: PASS configure → Excel design-only → catalog request, no overflow`);
  await page.close();

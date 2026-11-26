@@ -52,3 +52,8 @@
 .specialty-workbook-import > button { border: 1px solid #c7d2fe; border-radius: .75rem; padding: .75rem 1rem; background: #1e3a8a; color: white; font-weight: 700; }
 .specialty-workbook-import > button:disabled { cursor: not-allowed; background: #e2e8f0; color: #64748b; border-color: #cbd5e1; opacity: 1; }
 .specialty-workbook-import [role="status"] { border-radius: .75rem; border: 1px solid #fde68a; }
+.specialty-import-success { padding: 1.25rem; border: 1px solid #a7f3d0; border-radius: 1rem; background: #ecfdf5; color: #065f46; }
+.specialty-import-success h4 { font-weight: 700; margin-bottom: .5rem; }
+.specialty-import-success p { font-size: .875rem; margin-bottom: .5rem; }
+.specialty-import-success button { margin-top: .5rem; margin-right: .5rem; padding: .625rem 1rem; border: 1px solid #cbd5e1; border-radius: .75rem; background: white; color: #1e3a8a; font-weight: 600; cursor: pointer; }
+.specialty-import-success button:focus-visible { outline: 2px solid #6366f1; outline-offset: 2px; }
