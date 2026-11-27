@@ -23,7 +23,7 @@ try {for(const width of [1440,390]){
   (DOM.default||DOM).createRoot(mount).render((React.default||React).createElement(Component,{
    state:{protocol_create:true,protocol_edit:true,protocols:[{id:'old',sesion_id:'a',tipo:'ejecucion',fecha:'2026-11-16',correlativo:'1',estado:'borrador',revision:3,snapshot:{pilas:[],fijos:{finos:'< 2%'}}}],fronts:['Frente Principal']},
    cfg:{partida_id:1,datos_fijos:{}},sessions,elements:[{id:'p',sesion_id:'b',numero:13,etapa:'General'}],
-   call:async(action,data)=>window.calls.push({action,data}),refresh:async()=>{},work:{nombre:'Prueba'},user:{empresa:'TEST'},renderTopo:e=>(React.default||React).createElement(Pile,{key:e.id,element:{...e,topografia:{referencia:'Referencia antigua',cota_diseno:'98.5'}},onSave:async data=>window.calls.push({action:'topography',data})})
+   call:async(action,data)=>window.calls.push({action,data}),refresh:async()=>{},work:{nombre:'Prueba'},user:{empresa:'TEST'},renderTopo:e=>(React.default||React).createElement(Pile,{key:e.id,mode:'controls',element:{...e,topografia:{referencia:'Referencia antigua',cota_diseno:'98.5'}},onSave:async data=>window.calls.push({action:'topography',data})})
   }));
  });
  await page.getByText('Antecedentes del proyecto',{exact:true}).click();
@@ -41,17 +41,18 @@ try {for(const width of [1440,390]){
  await page.getByLabel('Jornada del protocolo').selectOption('b');
  assert.equal(await page.getByLabel('Correlativo automático',{exact:false}).inputValue(),'2');
  await page.getByRole('checkbox').check();
- await page.getByText('Mediciones, BST / CST y comentarios por pila',{exact:true}).click();
+ await page.getByText('BST / CST y comentarios por pila',{exact:true}).click();
  await page.locator('.protocol-pile > summary').click();
+ assert.equal(await page.getByLabel('Cota inicial (m)',{exact:true}).count(),0);
  assert.equal(await page.getByLabel('referencia',{exact:true}).count(),0);
  await page.getByRole('button',{name:'Agregar BST / CST',exact:true}).click();
- await page.getByRole('button',{name:'Guardar datos de la pila',exact:true}).click();
+ await page.getByRole('button',{name:'Guardar BST / CST y comentario',exact:true}).click();
  await page.getByRole('alert').filter({hasText:'Selecciona BST o CST'}).waitFor();
  await page.getByLabel('Tipo de ensayo',{exact:true}).selectOption('BST');
  await page.getByLabel('Deformación (cm)',{exact:true}).fill('0,2');
  await page.getByLabel('Profundidad de control (m)',{exact:true}).fill('1.5');
  await page.getByLabel('Comentarios de esta pila',{exact:true}).fill('Control de pila 13');
- await page.getByRole('button',{name:'Guardar datos de la pila',exact:true}).click();
+ await page.getByRole('button',{name:'Guardar BST / CST y comentario',exact:true}).click();
  const pileCall=(await page.evaluate(()=>window.calls)).find(c=>c.action==='topography');
  assert.equal(pileCall.data.tipo_control,'BST');
  assert.equal(pileCall.data.deformacion,'0.2');
@@ -75,5 +76,23 @@ try {for(const width of [1440,390]){
  assert.deepEqual(errors,[]);
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  console.log(width+': protocol form and payload PASS');
+ await page.evaluate(async()=>{
+  const React=await import('/node_modules/.vite/deps/react.js'),DOM=await import('/node_modules/.vite/deps/react-dom_client.js');
+  const Pile=(await import('/src/components/SpecialtyPileTopography.jsx')).default;
+  const mount=document.createElement('div');mount.id='topography-test';document.body.append(mount);
+  (DOM.default||DOM).createRoot(mount).render((React.default||React).createElement(Pile,{element:{numero:99,etapa:'Prueba',topografia:{tipo_control:'BST',deformacion:'',profundidad_control:'',observaciones:'Conservar comentario'}},onSave:async data=>window.topographySaved=data}));
+ });
+ const topography=page.locator('#topography-test');
+ await topography.locator('summary').click();
+ assert.equal(await topography.getByLabel('Tipo de ensayo',{exact:true}).count(),0);
+ assert.equal(await topography.getByRole('button',{name:'Agregar BST / CST'}).count(),0);
+ await topography.getByLabel('Cota inicial (m)',{exact:true}).fill('99.48');
+ await topography.getByRole('button',{name:'Guardar topografía',exact:true}).click();
+ const saved=await page.evaluate(()=>window.topographySaved);
+ assert.equal(saved.cota_inicial,'99.48');
+ assert.equal(saved.tipo_control,'BST');
+ assert.equal(saved.profundidad_control,'');
+ assert.equal(saved.observaciones,'Conservar comentario');
+ console.log(width+': independent topography save preserves incomplete BST PASS');
  await page.close();
 }}finally{await browser.close();await server.close();}
