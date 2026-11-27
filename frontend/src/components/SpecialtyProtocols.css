@@ -1,6 +1,14 @@
 .specialty-protocols .protocol-section{border:1px solid #dce2ec;border-radius:16px;padding:20px;background:#fff;margin-bottom:16px}
 .specialty-protocols .protocol-background{background:#f5f7ff;border-color:#d5dcf7}
 .specialty-protocols .protocol-aggregate{background:#fffcf2;border-color:#efe1b4}
+.specialty-protocols .protocol-topography{background:#f0faf8;border-color:#bce3dc}
+.specialty-protocols .protocol-save{display:flex;justify-content:flex-end;margin:16px 0}
+.specialty-protocols .protocol-save button{background:#243b88;color:white;border-color:#243b88}
+.protocol-pile{border:1px solid #d5dce8;border-radius:14px;background:white;padding:16px;margin:12px 0}
+.protocol-pile h4{margin-top:16px;font-weight:700}
+.protocol-pile .protocol-control{background:#faf5ff;border:1px solid #ddd0ed;border-radius:12px;padding:14px;margin:16px 0}
+.protocol-pile textarea{display:block;width:100%;border:1px solid #cbd5e1;border-radius:10px;padding:12px;margin-top:8px;background:white}
+.protocol-history{font-size:12px;color:#64748b;margin:12px 0}
 .specialty-protocols summary{font-weight:750;color:#252957;cursor:pointer;padding:4px 0}
 .specialty-protocols .protocol-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:20px 0}
 .specialty-protocols label{font-size:14px;font-weight:600;color:#334155}

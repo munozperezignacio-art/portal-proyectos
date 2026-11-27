@@ -15,6 +15,7 @@ try {for(const width of [1440,390]){
   await import('/src/index.css');
   const React=await import('/node_modules/.vite/deps/react.js'),DOM=await import('/node_modules/.vite/deps/react-dom_client.js');
   const Component=(await import('/src/components/SpecialtyProtocols.jsx')).default;
+  const Pile=(await import('/src/components/SpecialtyPileTopography.jsx')).default;
   document.getElementById('root').style.display='none';
   const mount=document.createElement('div');document.body.append(mount);
   window.calls=[];
@@ -22,7 +23,7 @@ try {for(const width of [1440,390]){
   (DOM.default||DOM).createRoot(mount).render((React.default||React).createElement(Component,{
    state:{protocol_create:true,protocol_edit:true,protocols:[{id:'old',sesion_id:'a',tipo:'ejecucion',fecha:'2026-11-16',correlativo:'1',estado:'borrador',revision:3,snapshot:{pilas:[],fijos:{finos:'< 2%'}}}],fronts:['Frente Principal']},
    cfg:{partida_id:1,datos_fijos:{}},sessions,elements:[{id:'p',sesion_id:'b',numero:13,etapa:'General'}],
-   call:async(action,data)=>window.calls.push({action,data}),refresh:async()=>{},work:{nombre:'Prueba'},user:{empresa:'TEST'},renderTopo:()=>null
+   call:async(action,data)=>window.calls.push({action,data}),refresh:async()=>{},work:{nombre:'Prueba'},user:{empresa:'TEST'},renderTopo:e=>(React.default||React).createElement(Pile,{key:e.id,element:{...e,topografia:{referencia:'Referencia antigua',cota_diseno:'98.5'}},onSave:async data=>window.calls.push({action:'topography',data})})
   }));
  });
  await page.getByText('Antecedentes del proyecto',{exact:true}).click();
@@ -30,11 +31,35 @@ try {for(const width of [1440,390]){
  await page.getByText('Información del árido · valores editables',{exact:true}).click();
  assert.equal(await page.getByLabel('Finos (%)',{exact:true}).inputValue(),'< 5%');
  await page.getByLabel('Finos (%)',{exact:true}).fill('< 4%');
+ await page.getByText('Información de topografía',{exact:true}).click();
+ await page.getByLabel('Plataforma: cota de proyecto / control (m)',{exact:true}).fill('99.48');
+ const topographyBox=await page.locator('.protocol-topography').boundingBox();
+ const saveBox=await page.getByRole('button',{name:'Guardar configuración',exact:true}).boundingBox();
+ assert.ok(saveBox.y>=topographyBox.y+topographyBox.height,'Save must follow all three settings blocks');
+ await page.getByRole('button',{name:'Guardar configuración',exact:true}).click();
+ assert.equal((await page.evaluate(()=>window.calls))[0].data.datos_fijos.plataforma_proyecto,'99.48');
  await page.getByLabel('Jornada del protocolo').selectOption('b');
  assert.equal(await page.getByLabel('Correlativo automático',{exact:false}).inputValue(),'2');
  await page.getByRole('checkbox').check();
+ await page.getByText('Mediciones, BST / CST y comentarios por pila',{exact:true}).click();
+ await page.locator('.protocol-pile > summary').click();
+ assert.equal(await page.getByLabel('referencia',{exact:true}).count(),0);
+ await page.getByRole('button',{name:'Agregar BST / CST',exact:true}).click();
+ await page.getByRole('button',{name:'Guardar datos de la pila',exact:true}).click();
+ await page.getByRole('alert').filter({hasText:'Selecciona BST o CST'}).waitFor();
+ await page.getByLabel('Tipo de ensayo',{exact:true}).selectOption('BST');
+ await page.getByLabel('Deformación (cm)',{exact:true}).fill('0,2');
+ await page.getByLabel('Profundidad de control (m)',{exact:true}).fill('1.5');
+ await page.getByLabel('Comentarios de esta pila',{exact:true}).fill('Control de pila 13');
+ await page.getByRole('button',{name:'Guardar datos de la pila',exact:true}).click();
+ const pileCall=(await page.evaluate(()=>window.calls)).find(c=>c.action==='topography');
+ assert.equal(pileCall.data.tipo_control,'BST');
+ assert.equal(pileCall.data.deformacion,'0.2');
+ assert.equal(pileCall.data.referencia,'Referencia antigua');
+ assert.equal(pileCall.data.cota_diseno,'98.5');
+ await page.locator('.protocol-pile').screenshot({path:`C:/Users/ignac/AppData/Local/Temp/pile-control-${width}.png`});
  await page.getByRole('button',{name:'Crear protocolo',exact:true}).click();
- const calls=await page.evaluate(()=>window.calls);
+ const calls=(await page.evaluate(()=>window.calls)).filter(c=>c.action==='protocol');
  assert.equal(calls[0].data.correlativo,'2');
  assert.equal(calls[0].data.fijos.finos,'< 4%');
  assert.equal(calls[0].data.fijos.estructura,'Frente Principal');
@@ -45,8 +70,8 @@ try {for(const width of [1440,390]){
  assert.equal(await page.getByLabel('Finos (%)',{exact:true}).inputValue(),'< 2%');
  assert.equal(await page.getByLabel('Correlativo automático',{exact:false}).inputValue(),'1');
  assert.equal(await page.getByLabel('Jornada del protocolo').isDisabled(),true);
- assert.equal((await page.evaluate(()=>window.calls)).length,1,'Opening an existing draft must not write data');
- await page.locator('.specialty-protocols').screenshot({path:`C:/Users/ignac/AppData/Local/Temp/protocol-setup-${width}.png`});
+ assert.equal((await page.evaluate(()=>window.calls)).length,3,'Opening an existing draft must not write data');
+ await page.locator('.specialty-protocols').first().screenshot({path:`C:/Users/ignac/AppData/Local/Temp/protocol-setup-${width}.png`});
  assert.deepEqual(errors,[]);
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  console.log(width+': protocol form and payload PASS');

@@ -6,6 +6,7 @@ const bounds={ejecucion:[[112.58,54.956,728.62,539.496],[124.7,54.956,716.38,539
 const date=v=>v?String(v).slice(0,10).split('-').reverse().join('-'):'';
 const number=(v,d=2)=>v==null||v===''?'':Number.isFinite(Number(v))?Number(v).toLocaleString('es-CL',{minimumFractionDigits:d,maximumFractionDigits:d}):String(v);
 const diff=(a,b)=>a==null||a===''||b==null||b===''?'':number(Number(a)-Number(b),3);
+export const projectControlElevation=(fixed,topography)=>fixed.usar_cota_plataforma===true?(fixed.plataforma_proyecto??''):topography.cota_diseno;
 export function createSpecialtyProtocolPdf(protocol,companyLogo=null,backgrounds){
  if(backgrounds?.length!==2||backgrounds.some(b=>!b?.length))throw new Error('No se cargó la plantilla original del protocolo.');
  if(!['ejecucion','topografia'].includes(protocol.tipo))throw new Error('Tipo de protocolo no reconocido.');
@@ -55,16 +56,27 @@ export function createSpecialtyProtocolPdf(protocol,companyLogo=null,backgrounds
     const controls=piles.filter(hasControl);
     controls.forEach((p,i)=>{const row=41+i%3,cols=i<3?['C','D','F']:['J','K','M'],t=p.topografia;
      const measured=t.deformacion!=null&&t.deformacion!==''?number(t.deformacion):[['CST',t.cst],['BST',t.bst]].filter(([,v])=>v!=null&&v!=='').map(([label,v],_,values)=>`${values.length>1?`${label} `:''}${number(v)}`).join(' / ');
-     [p.numero,measured,number(t.profundidad_control)].forEach((v,j)=>put(cols[j]+row,v));});
+     [p.numero,t.tipo_control?`${t.tipo_control}: ${measured}`:measured,number(t.profundidad_control)].forEach((v,j)=>put(cols[j]+row,v));});
    }else if(execution)sketch('P11','AC45',piles);
    else if(!templatePage){
-    piles.forEach((p,i)=>{const row=24+i,t=p.topografia;[p.numero,number(p.norte,3),number(p.este,3),number(t.cota_diseno,3),number(t.norte_real,3),number(t.este_real,3),number(t.cota_real,3),diff(t.norte_real,p.norte),diff(t.este_real,p.este),diff(t.cota_real,t.cota_diseno)].forEach((v,j)=>put(String.fromCharCode(66+j)+row,v));});put('B55',piles.length,{bold:true});
+    piles.forEach((p,i)=>{const row=24+i,t=p.topografia,design=projectControlElevation(f,t);[p.numero,number(p.norte,3),number(p.este,3),number(design,3),number(t.norte_real,3),number(t.este_real,3),number(t.cota_real,3),diff(t.norte_real,p.norte),diff(t.este_real,p.este),diff(t.cota_real,design)].forEach((v,j)=>put(String.fromCharCode(66+j)+row,v));});put('B55',piles.length,{bold:true});
    }else{
     for(const [cell,key]of Object.entries({N9:'terreno_natural_real',O9:'terreno_natural_proyecto',N10:'plataforma_real',O10:'plataforma_proyecto',N11:'sello_real',O11:'sello_proyecto'}))put(cell,f[key]);
     (f.puntos_referencia||[]).slice(0,4).forEach((p,i)=>{['referencia','norte','este','elevacion'].forEach((key,j)=>put(['P','R','T','V'][j]+(8+i),p[key]));});
     const checks=['pilas_grava','trazado_fundacion','estacas_principales','estacas_auxiliares','dimension_excavacion','verticalidad_paredes','estabilidad_paredes','anclaje','taludes_seguridad','sello_fundacion','perfiles_hincado','material_excavado'];
     checks.forEach((key,i)=>{const v=f.autocontrol?.[key],col=['si','no','na'].indexOf(v);if(col>=0)put((i<6?['N','O','P']:['T','U','V'])[col]+(16+i%6),'X',{bold:true});});sketch('L24','V48',piles);
    }
+  }
+ }
+ // Per-pile comments have no cell in the original template. Keep them attributed
+ // to their pile in a clearly identified annex, without overwriting the sketch.
+ if(f.usar_cota_plataforma===true){
+  const comments=s.pilas.filter(p=>String(p.topografia?.observaciones||'').trim());
+  let y=size[1],annex=0;
+  const page=()=>{doc.addPage(size,execution?'landscape':'portrait');annex++;doc.setFont('helvetica','bold');doc.setFontSize(12);doc.setTextColor(25);doc.text('Comentarios por pila - Anexo '+annex,35,35);doc.setFontSize(9);doc.setFont('helvetica','normal');doc.text(`${s.obra} | Protocolo ${protocol.correlativo} | ${date(protocol.fecha)}`,35,52);y=78;};
+  for(const p of comments){
+   doc.setFontSize(10);const lines=doc.splitTextToSize(`Pila ${p.numero} (${p.etapa||''}): ${p.topografia.observaciones}`,size[0]-70);
+   for(const line of lines){if(y>size[1]-45)page();doc.setFontSize(10);doc.text(line,35,y);y+=14;}y+=12;
   }
  }
  return doc;

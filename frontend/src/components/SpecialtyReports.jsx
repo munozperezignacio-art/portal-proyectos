@@ -3,6 +3,7 @@ import {supabase} from '../supabaseClient';
 import {createJournalStore,pileDiagram} from '../../../mobile/src/lib/specialtyJournal.mjs';
 import SpecialtyProtocols from './SpecialtyProtocols';
 import SpecialtyWorkbookImport from './SpecialtyWorkbookImport';
+import SpecialtyPileTopography from './SpecialtyPileTopography';
 
 const field='rounded-lg border border-slate-300 bg-white p-2 text-sm w-full';
 const button='rounded-lg border border-indigo-200 px-3 py-2 text-sm font-bold text-indigo-900 disabled:opacity-40';
@@ -125,6 +126,5 @@ function TopoInbox({sessions,elements,disabled,onSave}){
  {rows.slice(0,limit).map(e=><TopoRow key={e.id+':'+e.revision_topografia} element={e} historical={historical.get(e.id)} disabled={disabled} onSave={datos=>onSave(e,datos)}/>)}{rows.length>limit&&<button className={button} onClick={()=>setLimit(limit+40)}>Ver más pilas</button>}</div>;
 }
 function TopoRow({element,disabled,onSave,historical={}}){
- const [data,setData]=useState(element.topografia||{});
- return <details className="rounded-xl border p-3"><summary>{element.etapa} · Pila {element.numero}</summary>{historicalFields.some(k=>!missing(historical[k]))&&<div className="my-2 rounded-lg bg-slate-50 p-2"><strong>Referencia del Excel histórico</strong><p>{historicalFields.filter(k=>!missing(historical[k])).map(k=>k.replaceAll('_',' ')+': '+historical[k]).join(' · ')}</p><button className={button} disabled={disabled} onClick={()=>setData(prev=>({...prev,...Object.fromEntries(historicalFields.filter(k=>missing(prev[k])&&!missing(historical[k])).map(k=>[k,String(historical[k]).replace(',','.')]))}))}>Copiar datos faltantes para revisar</button></div>}<div className="grid gap-2 md:grid-cols-3 mt-3">{['cota_inicial','cota_final','norte_real','este_real','cota_real','cota_diseno','deformacion','cst','bst','profundidad_control','referencia','observaciones'].map(k=><label key={k} className="text-xs">{k.replaceAll('_',' ')}<input className={field} disabled={disabled} value={data[k]??''} onChange={e=>setData({...data,[k]:['referencia','observaciones'].includes(k)?e.target.value:e.target.value.replace(',','.')})}/></label>)}</div><button disabled={disabled} className={`${button} mt-2`} onClick={()=>onSave(data)}>Guardar topografía</button></details>;
+ return <SpecialtyPileTopography element={element} disabled={disabled} onSave={onSave} historical={historical}/>;
 }

@@ -1,6 +1,6 @@
 export const protocolDefaults = values => ({
   graduacion: '3/8" a 1 1/2"', chancado: '> 75%', desgaste: '< 30%',
-  finos: '< 5%', criterio_control: '< 5 mm', ...values,
+  finos: '< 5%', criterio_control: '< 5 mm', ...values, usar_cota_plataforma: true,
 });
 
 export function protocolDayNumber(sessions, sessionId) {
