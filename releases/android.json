@@ -2,17 +2,17 @@
   "schema": 1,
   "platform": "android",
   "packageName": "cl.obraxis.terreno",
-  "version": "1.0.16",
-  "build": 34,
-  "apkUrl": "https://expo.dev/artifacts/eas/6SO63gWqm6rSXxxmzHShU_l4sP2ntQZSFwhMs3JekEE.apk",
-  "sha256": "08b1dbdf7a7762b66ea4d81c0a0ce29ac2b5fb439fbd9071a1c0e5e5817e0d5c",
-  "commit": "ed606445f75dc9e8fe35d54e46186d76c7da473d",
-  "sourceHash": "ed95dfae0b24240a5b3dd5358f6074f6bbb3244529d9f179bca83c50e45de5ac",
-  "publishedAt": "2026-11-28T14:59:12.905Z",
+  "version": "1.0.17",
+  "build": 35,
+  "apkUrl": "https://expo.dev/artifacts/eas/VPN-Bor6Pa8HJ6XE0YHeWNJjVsGNLgi9QHjI2zKL-6k.apk",
+  "sha256": "d462752792800ca8dd41ada875f703c790b816e0b60654141a7b086fef7064ec",
+  "commit": "56c1f5098627a3df535e8a721102e01389d7307f",
+  "sourceHash": "e9532cd01832f5f1c280535dc4bd6da78eac24e3db64c8f1733ab229bb7cb6be",
+  "publishedAt": "2026-11-28T17:14:15.993Z",
   "notes": [
-    "Pilas de grava: accesos de ejecución y topografía según especialidad y permisos; mediciones vinculadas a cada pila sin importar el orden.",
-    "Prevención de obra: consulta de formularios respondidos y acceso a sus respuestas.",
-    "Protocolos con revisión obligatoria de la versión guardada antes de aprobar.",
-    "Incluye confirmación de fecha y aviso de reporte anterior faltante en maquinaria."
+    "Ejecución y Topografía: una sola selección, sin menús duplicados ni resumen de partidas durante el registro.",
+    "Busca y agrega cada pila para ingresar sus datos inmediatamente, sin recorrer el catálogo.",
+    "Búsqueda exacta por número, orden numérico y frente de trabajo, probada con las 290 pilas de Asturias.",
+    "Cota medida (NPT). Conserva borradores, mediciones y reintentos sin duplicar."
   ]
 }
