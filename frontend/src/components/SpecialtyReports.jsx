@@ -12,7 +12,7 @@ const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santiago',yea
 const storage={getItem:async k=>localStorage.getItem(k),setItem:async(k,v)=>localStorage.setItem(k,v)};
 const empty={settings:[],elements:[],sessions:[],protocols:[],users:[]};
 const executionFields=[['paladas','Paladas'],['volumen','Volumen m³'],['longitud','Longitud m'],['longitud_perforacion','Perforación m'],['profundidad','Profundidad m']];
-export default function SpecialtyReports({work,user,parts=[],quality=false,settingsOnly=false,onSaved=()=>{},settingsRevision=0,onHistory,onAddSpecialty}){
+export default function SpecialtyReports({work,user,parts=[],quality=false,settingsOnly=false,assignmentOnly=false,onSaved=()=>{},settingsRevision=0,onHistory}){
  const [state,setState]=useState(empty),[partId,setPartId]=useState(''),[draft,setDraft]=useState(null),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
  const [tab,setTab]=useState(settingsOnly?'settings':quality?'protocols':'journal'),[config,setConfig]=useState({}),[selected,setSelected]=useState('');
  const call=useCallback(async(action,data={})=>{const r=await supabase.rpc('specialty_api',{p_work:work.id,p_action:action,p_data:data});if(r.error)throw r.error;return r.data;},[work.id]);
@@ -42,22 +42,22 @@ export default function SpecialtyReports({work,user,parts=[],quality=false,setti
  const diagram=pileDiagram(elements,rows.filter(p=>p.terminada).map(p=>p.element_id));
  if(settingsOnly&&!state.can_configure&&!state.can_import)return <p role="status">{notice||(!state.actor?'Cargando configuración…':'Tu rol necesita el permiso Obras → Especialidades de obra y coordenadas → Configurar o Importar.')}</p>;
  if(settingsOnly&&!parts.some(p=>!p.es_titulo))return <p>No hay partidas compatibles para configurar Pilas de grava. Agrega una partida medida en unidades al presupuesto de esta obra.</p>;
- return <section className={quality?'space-y-4':'rounded-2xl border border-slate-200 bg-white p-5 space-y-4'}>
-  {!quality&&<div><h3 className="text-lg font-bold text-slate-900">{settingsOnly?'Configuración por partida':'Reportes por especialidad'}</h3></div>}
-  <div className="rounded-xl border border-slate-200 bg-white p-4">{quality&&parts.filter(p=>!p.es_titulo).length===1?<div><span className="block text-xs font-bold text-slate-500">Partida asociada</span><strong className="text-sm text-slate-900">{parts.find(p=>!p.es_titulo)?.partida} · {parts.find(p=>!p.es_titulo)?.unidad}</strong></div>:<label className="block text-sm font-bold">Partida asociada<select className={field} value={partId} onChange={e=>setPartId(e.target.value)}>{parts.filter(p=>!p.es_titulo).map(p=><option key={p.id} value={p.id}>{p.partida} · {p.unidad}</option>)}</select></label>}</div>
+ return <section className={quality||assignmentOnly?'space-y-4':'rounded-2xl border border-slate-200 bg-white p-5 space-y-4'}>
+  {!quality&&!assignmentOnly&&<div><h3 className="text-lg font-bold text-slate-900">{settingsOnly?'Configuración por partida':'Reportes por especialidad'}</h3></div>}
+  <div className={assignmentOnly?'':'rounded-xl border border-slate-200 bg-white p-4'}>{quality&&parts.filter(p=>!p.es_titulo).length===1?<div><span className="block text-xs font-bold text-slate-500">Partida asociada</span><strong className="text-sm text-slate-900">{parts.find(p=>!p.es_titulo)?.partida} · {parts.find(p=>!p.es_titulo)?.unidad}</strong></div>:<label className="block text-sm font-bold">Partida asociada<select className={field} value={partId} onChange={e=>setPartId(e.target.value)}>{parts.filter(p=>!p.es_titulo).map(p=><option key={p.id} value={p.id}>{p.partida} · {p.unidad}</option>)}</select></label>}</div>
   {!settingsOnly&&<QualityWorkflowTabs value={tab} onChange={setTab} items={quality?[...(state.can_configure||state.can_import||state.protocol_edit||state.can_quality?[['settings','Configurar']]:[]),['protocols','Protocolos'],['topography','Topografía'],...(state.can_configure?[['reconciliation','Conciliaciones']]:[]),['review','Revisar y emitir protocolos']]:[['journal','Jornada'],...(state.can_configure||state.can_import?[['settings','Configurar']]:[])]}/>}
   {notice&&<p role="status" className="rounded-lg bg-amber-50 p-3 text-sm">{notice}</p>}
   {!cfg&&tab!=='settings'&&<p>Falta configurar el detalle por pila de esta partida. {state.can_configure?'Usa «Configurar especialidad y cargar coordenadas» aquí, en esta obra.':'Un usuario con permiso Configurar puede hacerlo desde esta misma obra.'} El reporte normal de avance sigue disponible.</p>}
   {tab==='settings'&&state.can_configure&&<div className="space-y-4">
-   {quality&&onAddSpecialty&&<button type="button" className={button} onClick={onAddSpecialty}>Agregar especialidad</button>}
-   <p className="text-sm">Configura el detalle por pila sin deshabilitar los reportes normales. Los permisos de cada rol autorizan las acciones en sus obras asignadas; las responsabilidades solo determinan el seguimiento de pendientes.</p>
+   {quality&&<h4 className="font-bold text-slate-900">Configurar Pilas de grava</h4>}
+   {!assignmentOnly&&<p className="text-sm">Configura el detalle por pila sin deshabilitar los reportes normales. Los permisos de cada rol autorizan las acciones en sus obras asignadas; las responsabilidades solo determinan el seguimiento de pendientes.</p>}
    <label className="block">Inicio del registro por especialidad<input disabled={sessions.some(s=>s.estado!=='historica')} type="date" className={field} value={config.activa_desde||''} onChange={e=>setConfig({...config,activa_desde:e.target.value})}/></label>
    <p className="text-xs text-slate-500">Los días anteriores se concilian con sus reportes existentes; no vuelven a sumarse.</p>
-   <button className={button} disabled={busy} onClick={()=>action(()=>call('configure',{activa_desde:config.activa_desde,revision:config.revision,datos_fijos:config.datos_fijos,partida_id:Number(partId),request_id:crypto.randomUUID()}))}>Guardar configuración de especialidad</button>
-   {cfg&&<p className="text-sm">Si ya registraste cantidades, vincula sus pilas en Calidad → Protocolos por especialidad → Conciliaciones pendientes. Esa vinculación no suma avance nuevamente.</p>}
+   <div className={assignmentOnly?'flex justify-end gap-2 border-t border-slate-200 pt-4':''}><button className={assignmentOnly?'rounded-xl bg-blue-900 px-4 py-3 text-sm font-bold text-white disabled:opacity-50':button} disabled={busy} onClick={()=>action(()=>call('configure',{activa_desde:config.activa_desde,revision:config.revision,datos_fijos:config.datos_fijos,partida_id:Number(partId),request_id:crypto.randomUUID()}))}>Guardar configuración de especialidad</button></div>
+   {cfg&&!assignmentOnly&&<p className="text-sm">Si ya registraste cantidades, vincula sus pilas en la pestaña Conciliaciones. Esa vinculación no suma avance nuevamente.</p>}
   </div>}
-  {tab==='settings'&&cfg&&state.can_import&&<SpecialtyWorkbookImport key={partId} work={work} partId={Number(partId)} state={state} call={call} onSaved={refresh} catalogOnly/>}
-  {tab==='settings'&&!cfg&&<p>Primero guarda la configuración de esta partida. A continuación podrás cargar aquí su archivo de coordenadas.</p>}
+  {tab==='settings'&&cfg&&state.can_import&&!assignmentOnly&&<SpecialtyWorkbookImport key={partId} work={work} partId={Number(partId)} state={state} call={call} onSaved={refresh} catalogOnly/>}
+  {tab==='settings'&&!cfg&&!assignmentOnly&&<p>Primero guarda la configuración de esta partida. A continuación podrás cargar aquí su archivo de coordenadas.</p>}
   {quality&&cfg&&tab==='reconciliation'&&state.can_configure&&<section className="space-y-3">
    <h4 className="font-bold">Avances por cantidad pendientes de identificar</h4>
    <PendingReports key={partId} reports={state.reports} sessions={sessions} config={cfg} elements={elements} call={call} refresh={refresh}/>

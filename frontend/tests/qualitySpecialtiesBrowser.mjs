@@ -31,7 +31,8 @@ try{for(const width of [1440,390]){
    const p=route.request().postDataJSON();
    if(p.p_action==='configure'){nativeWrites.push(p.p_data);pileSettings=[{partida_id:p.p_data.partida_id,activa_desde:p.p_data.activa_desde,revision:1,datos_fijos:{}}];await route.fulfill({json:{ok:true}});}
    else await route.fulfill({json:{actor:'test',settings:pileSettings,elements:[],sessions:[],protocols:[],users:[],can_configure:true,can_import:true}});
-  }else await route.abort();
+  }else if(route.request().url().includes('/rpc/work_fronts_api'))await route.fulfill({json:{fronts:['Frente Principal'],can_edit:true}});
+  else await route.abort();
  });
  const html=await server.transformIndexHtml('/','<html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body><div id="root"></div></body></html>');
  await page.route(server.resolvedUrls.local[0],r=>r.fulfill({contentType:'text/html',body:html}));
@@ -63,6 +64,20 @@ try{for(const width of [1440,390]){
  assert.equal(await page.getByLabel('Jornada del protocolo').count(),0,'Review does not contain the create form');
  await page.screenshot({path:`C:/Users/ignac/AppData/Local/Temp/quality-workflow-${width}.png`,fullPage:true});
  await page.getByRole('button',{name:'Configurar',exact:true}).click();
+ const header=page.getByRole('heading',{name:'Especialidades de la obra',exact:true}).locator('..');
+ assert.equal(await header.getByRole('button',{name:'Agregar especialidad',exact:true}).count(),1,'Add belongs to work specialty header');
+ await header.getByRole('button',{name:'Asignar especialidades y partidas',exact:true}).click();
+ const assignment=page.getByRole('dialog',{name:'Asignar especialidades a la obra'});
+ await assignment.waitFor();
+ const modalClasses=await assignment.getAttribute('class');
+ for(const token of ['max-w-2xl','max-h-[94dvh]','rounded-2xl','p-5','sm:p-6','shadow-2xl','backdrop:bg-slate-950/50'])assert.ok(modalClasses.includes(token),`Match Ficha del proyecto: ${token}`);
+ assert.equal(await assignment.getByRole('button',{name:'Cerrar asignación de especialidades'}).textContent(),'✕');
+ assert.ok(await assignment.evaluate(el=>el.scrollWidth<=el.clientWidth),'Modal has no horizontal overflow');
+ assert.equal(await assignment.locator('input[type=file]').count(),0,'Assignment dialog must not contain coordinate import');
+ await page.screenshot({path:`C:/Users/ignac/AppData/Local/Temp/specialty-assignment-${width}.png`,fullPage:true});
+ await page.keyboard.press('Escape');
+ await assignment.waitFor({state:'hidden'});
+ await page.screenshot({path:`C:/Users/ignac/AppData/Local/Temp/specialty-header-${width}.png`,fullPage:true});
  await page.getByRole('button',{name:'Agregar especialidad',exact:true}).click();
  await page.getByLabel('Especialidad a configurar',{exact:true}).selectOption('new');
  await page.getByLabel('Nombre de la especialidad',{exact:true}).fill(`Hormigón ${width}`);
