@@ -2,16 +2,17 @@
   "schema": 1,
   "platform": "android",
   "packageName": "cl.obraxis.terreno",
-  "version": "1.0.15",
-  "build": 33,
-  "apkUrl": "https://expo.dev/artifacts/eas/l9gSRPRqEbSAiAryljlNJrP9lJGoWuDWWz-kIXSToZE.apk",
-  "sha256": "e00ab6a8de5b2728206753abf0b9973317d4cc0b5aca4e108b07c060e5e1099a",
-  "commit": "a52cddf7dec6ccbd3cbac21b0a9cc35c876011ae",
-  "sourceHash": "8916b5a0395a621a4bb3d6b342a5db223daeab4013429b0d21f2803cc4c7d31e",
-  "publishedAt": "2026-11-21T13:12:45.490Z",
+  "version": "1.0.16",
+  "build": 34,
+  "apkUrl": "https://expo.dev/artifacts/eas/6SO63gWqm6rSXxxmzHShU_l4sP2ntQZSFwhMs3JekEE.apk",
+  "sha256": "08b1dbdf7a7762b66ea4d81c0a0ce29ac2b5fb439fbd9071a1c0e5e5817e0d5c",
+  "commit": "ed606445f75dc9e8fe35d54e46186d76c7da473d",
+  "sourceHash": "ed95dfae0b24240a5b3dd5358f6074f6bbb3244529d9f179bca83c50e45de5ac",
+  "publishedAt": "2026-11-28T14:59:12.905Z",
   "notes": [
-    "Registro de actividades por reporte y formato de WhatsApp con dos decimales.",
-    "Notificaciones con contexto y acceso al registro correspondiente.",
-    "Estación de servicio en movimientos de combustible y jornadas con vigencia."
+    "Pilas de grava: accesos de ejecución y topografía según especialidad y permisos; mediciones vinculadas a cada pila sin importar el orden.",
+    "Prevención de obra: consulta de formularios respondidos y acceso a sus respuestas.",
+    "Protocolos con revisión obligatoria de la versión guardada antes de aprobar.",
+    "Incluye confirmación de fecha y aviso de reporte anterior faltante en maquinaria."
   ]
 }
