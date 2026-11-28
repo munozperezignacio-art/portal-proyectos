@@ -18,6 +18,8 @@ await db.exec(await readFile(new URL('../../supabase/schema/quality-specialties.
 const server=await createServer({server:{host:'127.0.0.1',port:0}});await server.listen();
 const browser=await chromium.launch({headless:true});
 try{for(const width of [1440,390]){
+ await db.exec('begin');
+ let pileSettings=[];const nativeWrites=[];
  const page=await browser.newPage({viewport:{width,height:1100}}),errors=[];
  page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
  await page.route('https://**/*',async route=>{
@@ -26,7 +28,9 @@ try{for(const width of [1440,390]){
    try{const r=await db.query('select public.quality_specialties_api($1,$2,$3) r',[p.p_work,p.p_action,JSON.stringify(p.p_data)]);await route.fulfill({json:r.rows[0].r});}
    catch(e){await route.fulfill({status:400,json:{message:e.message}});}
   }else if(route.request().url().includes('/rpc/specialty_api')){
-   await route.fulfill({json:{actor:'test',settings:[],elements:[],sessions:[],protocols:[],users:[],can_configure:true,can_import:true}});
+   const p=route.request().postDataJSON();
+   if(p.p_action==='configure'){nativeWrites.push(p.p_data);pileSettings=[{partida_id:p.p_data.partida_id,activa_desde:p.p_data.activa_desde,revision:1,datos_fijos:{}}];await route.fulfill({json:{ok:true}});}
+   else await route.fulfill({json:{actor:'test',settings:pileSettings,elements:[],sessions:[],protocols:[],users:[],can_configure:true,can_import:true}});
   }else await route.abort();
  });
  const html=await server.transformIndexHtml('/','<html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body><div id="root"></div></body></html>');
@@ -38,8 +42,19 @@ try{for(const width of [1440,390]){
   document.getElementById('root').style.display='none';const mount=document.createElement('div');document.body.append(mount);
   (DOM.default||DOM).createRoot(mount).render((React.default||React).createElement(Component,{work:{id:1,nombre:'Obra de prueba'},user:{empresa:'TEST'},parts:[{id:1,partida:'Pilas existentes',unidad:'UND'},{id:2,partida:'Hormigón losa',unidad:'m³'},{id:3,partida:'Excavación',unidad:'m³'}]}));
  });
+ await page.getByText('Esta obra no tiene especialidades configuradas.').waitFor();
+ assert.equal(await page.getByRole('button',{name:'Topografía pendiente',exact:true}).count(),0);
+ assert.equal(await page.getByLabel('Especialidad',{exact:true}).count(),0);
+ await page.getByRole('button',{name:'Configurar especialidad',exact:true}).click();
+ assert.equal(await page.getByLabel('Nombre de la especialidad',{exact:true}).count(),0);
+ assert.equal(await page.locator('select').filter({has:page.locator('option[value="1"]')}).locator('option').count(),1,'Only compatible unit part appears for native setup');
+ await page.getByRole('button',{name:'Guardar configuración de especialidad',exact:true}).click();
  await page.getByRole('button',{name:'Configurar especialidad y cargar coordenadas'}).waitFor();
+ assert.equal(nativeWrites.length,1);
+ assert.equal(nativeWrites[0].partida_id,1);
+ assert.equal(await page.locator('select').filter({has:page.locator('option[value="1"]')}).locator('option').count(),1,'Native protocols only show configured parts');
  await page.getByRole('button',{name:'Agregar especialidad',exact:true}).click();
+ await page.getByLabel('Especialidad a configurar',{exact:true}).selectOption('new');
  await page.getByLabel('Nombre de la especialidad',{exact:true}).fill(`Hormigón ${width}`);
  await page.getByRole('checkbox',{name:'Hormigón losa · m³'}).check();
  await page.getByRole('button',{name:'Guardar especialidad y partidas'}).click();
@@ -71,4 +86,5 @@ try{for(const width of [1440,390]){
  await page.getByRole('button',{name:'Configurar especialidad y cargar coordenadas'}).waitFor();
  assert.deepEqual(errors,[]);console.log(`PASS ${width}: create specialty/link part/configure format/create/edit/approve/PDF/return to piles`);
  await page.close();
+ await db.exec('rollback');
  }}finally{await browser.close();await server.close();await db.close();}

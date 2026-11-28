@@ -24,7 +24,7 @@ export default function SpecialtyReports({work,user,parts=[],quality=false,setti
  useEffect(()=>{if(settingsOnly||quality)return;let active=true;journal.read().then(s=>{if(active)setDraft(s.draft||null);});return()=>{active=false;};},[journal,settingsOnly,quality]);
  const sync=useCallback(async()=>{try{const response=await journal.sync();const local=await journal.read();setDraft(local.draft||null);if(response){setNotice(response.cancelled?'Jornada cancelada sin registrar avance':local.draft?'Guardado y sincronizado':'Jornada cerrada. Avance consolidado una sola vez.');if(!local.draft){await refresh();onSaved();}}}catch(e){setDraft((await journal.read()).draft||null);setNotice(`Borrador conservado en este dispositivo. ${e.message}`);}},[journal,refresh,onSaved]);
  useEffect(()=>{if(!draft)return;const timer=setInterval(sync,5000);return()=>clearInterval(timer);},[draft,sync]);
- const action=async fn=>{setBusy(true);try{await fn();await refresh();if(settingsOnly)onSaved();}catch(e){setNotice(e.message);}finally{setBusy(false);}};
+ const action=async fn=>{setBusy(true);try{await fn();await refresh();if(settingsOnly)await onSaved();}catch(e){setNotice(e.message);}finally{setBusy(false);}};
  const edit=async next=>{setDraft(next);try{await journal.edit(next);setNotice('Guardado en este dispositivo');}catch(e){setNotice(`No se pudo guardar localmente: ${e.message}`);}};
  const elements=state.elements.filter(e=>String(e.partida_id)===partId);
  const sessions=state.sessions.filter(s=>String(s.partida_id)===partId);
@@ -40,6 +40,7 @@ export default function SpecialtyReports({work,user,parts=[],quality=false,setti
  const updatePile=(id,key,value)=>edit({...draft,datos:{...draft.datos,pilas:rows.map(p=>p.element_id===id?{...p,[key]:value}:p)}});
  const diagram=pileDiagram(elements,rows.filter(p=>p.terminada).map(p=>p.element_id));
  if(settingsOnly&&!state.can_configure&&!state.can_import)return <p role="status">{notice||(!state.actor?'Cargando configuración…':'Tu rol necesita el permiso Obras → Especialidades de obra y coordenadas → Configurar o Importar.')}</p>;
+ if(settingsOnly&&!parts.some(p=>!p.es_titulo))return <p>No hay partidas compatibles para configurar Pilas de grava. Agrega una partida medida en unidades al presupuesto de esta obra.</p>;
  return <section className="rounded-2xl border border-indigo-200 bg-white p-5 space-y-4">
   <div><h3 className="text-lg font-bold text-indigo-950">{settingsOnly?'Configuración por partida':quality?'Protocolos por especialidad':'Reportes por especialidad'}</h3><p className="text-sm text-slate-500">Pilas de grava · Ejecución diaria, topografía y Calidad con responsables independientes.</p></div>
   <label className="block text-sm font-bold">Partida<select className={field} value={partId} onChange={e=>setPartId(e.target.value)}>{parts.filter(p=>!p.es_titulo).map(p=><option key={p.id} value={p.id}>{p.partida} · {p.unidad}</option>)}</select></label>
