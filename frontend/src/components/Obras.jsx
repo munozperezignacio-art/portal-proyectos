@@ -1,4 +1,5 @@
 import WorkFleetStatistics from './WorkFleetStatistics';
+import {WorkFrontInput} from './WorkFronts';
 import {dependentProgress,resolveWorkDependencies,inheritProgressPlan} from '../utils/dependentProgress';
 import ProgressActivities from './ProgressActivities';
 import ReportActivitiesAction from './ReportActivitiesAction';
@@ -8875,7 +8876,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div>
                         <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Frente de Trabajo</label>
-                        <input
+                        <WorkFrontInput workId={selectedObra?.id}
                           type="text"
                           required
                           value={item.frente}
