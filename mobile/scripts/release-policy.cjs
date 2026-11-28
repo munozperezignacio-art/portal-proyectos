@@ -22,7 +22,10 @@ const runtimeFile = file => !/^(tests\/|\.vscode\/|\.claude\/|README\.md$|\.giti
 function checkSource(mobileRoot, env = process.env) {
   if (env.EAS_NO_VCS || env.EAS_PROJECT_ROOT) throw new Error('No se permiten variables que cambien el origen de la compilación. Ejecuta npm run mobile:apk desde el proyecto original.');
   const repo = git(mobileRoot, 'rev-parse', '--show-toplevel');
-  if (fs.realpathSync(path.join(repo, 'mobile')) !== fs.realpathSync(mobileRoot)) throw new Error('El móvil debe pertenecer al proyecto original; no compiles desde una copia parcial.');
+  // Native resolution obtains the actual filesystem casing on Windows, including
+  // redirected temporary folders. Do not lowercase paths: distinct directories
+  // on case-sensitive filesystems must still be rejected.
+  if (fs.realpathSync.native(path.join(repo, 'mobile')) !== fs.realpathSync.native(mobileRoot)) throw new Error('El móvil debe pertenecer al proyecto original; no compiles desde una copia parcial.');
   if (git(repo, 'branch', '--show-current') !== 'main') throw new Error('La APK debe salir de main, con todas las mejoras integradas.');
   const pending = git(repo, 'status', '--porcelain=v1', '-z', '--untracked-files=all', '--', 'mobile');
   if (pending) throw new Error(`Hay cambios del móvil sin guardar en la versión. Inclúyelos antes de compilar:\n${splitZero(pending).join('\n')}`);

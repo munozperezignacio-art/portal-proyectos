@@ -43,6 +43,14 @@ test('rechaza copias sin Git, variables para cambiar el origen y mejoras ignorad
   f.write('assets/ignored.png','imagen pendiente');
   assert.throws(()=>checkSource(f.mobile,{}),/ignorados/);
 });
+test('Windows acepta variantes de escritura de la misma carpeta, no otra carpeta', { skip: process.platform !== 'win32' }, t => {
+  const f=fixture(t);
+  const alternate=f.mobile.replace(/mobile$/, 'MOBILE').replace(/\\/g, '/');
+  assert.equal(checkSource(alternate,{}).commit,f.commit);
+  const other=path.join(f.root,'mobile-copy');fs.mkdirSync(other);
+  assert.throws(()=>checkSource(other,{}),/proyecto original/);
+});
+
 test('un inventario incompleto o manipulado no se acepta', t => {
   const f=fixture(t);
   createManifest(f.mobile,f.commit,f.files.filter(file=>file!=='package-lock.json'));
