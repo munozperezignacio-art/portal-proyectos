@@ -90,6 +90,7 @@ const ContextualEmailConfigModal = React.lazy(() => import('./ContextualEmailCon
 const LastPlannerLookahead = React.lazy(() => import('./LastPlannerLookahead'));
 const CalidadObras = React.lazy(() => import('./CalidadObras'));
 const SpecialtyReports = React.lazy(() => import('./SpecialtyReports'));
+const SpecialtyAdvanceActions = React.lazy(() => import('./SpecialtyAdvanceActions'));
 const SpecialtyProgressDiagram = React.lazy(() => import('./SpecialtyProgressDiagram'));
 const LibroObrasDigital = React.lazy(() => import('./LibroObrasDigital'));
 const EstadosPagoObra = React.lazy(() => import('./EstadosPagoObra'));
@@ -295,6 +296,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
   const canObraFichaEdit = can(user, userPermissions, 'obras.ficha.editar');
   const savingProfile = React.useRef(false);
   const canObraAvancesView = can(user, userPermissions, 'obras.avances.ver');
+  const canObraTopographyEdit = recordPermission('topografia', 'editar');
   const canObraGestionView = can(user, userPermissions, 'obras.gestion.ver');
   const canViewSalary = recordPermission('sueldos','ver');
   const canObraPersonalView = can(user, userPermissions, 'obras.personal.ver');
@@ -3656,13 +3658,13 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
           {obraActiveSubmodule === 'solicitudes' && <Solicitudes key={`${user.id}:${selectedObra.id}`} user={user} obra={selectedObra}/>}
 
           {/* VISTA DEDICADA 1: REPORTE DE AVANCE & VISOR DE AVANCE */}
-          {obraActiveSubmodule === 'avance' && canObraAvancesView && (
+          {obraActiveSubmodule === 'avance' && (canObraAvancesView||canObraTopographyEdit) && (
             <div className="space-y-6 animate-in fade-in duration-200">
               
               {/* Header con boton de ingreso y sub-pestañas */}
               <WorkHeaderActions><div className="flex flex-wrap items-center gap-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                  {canObraAvancesView&&<div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
                     <button
                       onClick={() => setAvanceSubTab('visor')}
                       className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${avanceSubTab === 'visor' ? 'bg-white text-blue-950 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
@@ -3675,23 +3677,23 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
                     >
                       📋 Registro de Reportes
                     </button>
-                  </div>
+                  </div>}
 
-                  <button
+                  {canAdvanceCreate&&<button
                     disabled={!canAdvanceCreate}
                     onClick={() => { setEditingRecordId(null); setAvanceItems([{ frente: 'Frente Principal', partida_id: null, partida: '', unidad: 'UND', cantidad: '', cuadrilla_id: '', observaciones: '' }]); setActiveModal('avance'); setSuccessMsg(''); setErrorMsg(''); }}
                     className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition shadow-xs"
                   >
                     <Plus className="w-4 h-4" />
                     <span>Ingresar Reporte de Avance</span>
-                  </button>
-                  <button type="button" disabled={!canAdvanceCreate} aria-expanded={avanceSubTab==='especialidad'} onClick={()=>setAvanceSubTab(avanceSubTab==='especialidad'?'registro':'especialidad')} className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition shadow-xs"><Plus className="w-4 h-4"/>Avance por especialidad</button>
+                  </button>}
+                  <React.Suspense fallback={null}><SpecialtyAdvanceActions workId={selectedObra.id} parts={partidasList} history={specialtyHistory} mode={avanceSubTab} onChange={setAvanceSubTab}/></React.Suspense>
                 </div>
               </div></WorkHeaderActions>
-              <div hidden={avanceSubTab!=='especialidad'}><React.Suspense fallback={<p>Cargando especialidades…</p>}><SpecialtyReports key={selectedObra.id} work={selectedObra} user={user} parts={partidasList} settingsRevision={specialtySettingsRevision} onHistory={setSpecialtyHistory} onSaved={()=>fetchObraDetails(selectedObra.nombre)}/></React.Suspense></div>
+              <div hidden={!['especialidad','topografia'].includes(avanceSubTab)}><React.Suspense fallback={<p>Cargando especialidades…</p>}><SpecialtyReports key={selectedObra.id} work={selectedObra} user={user} parts={partidasList} mode={avanceSubTab==='topografia'?'topography':'journal'} active={['especialidad','topografia'].includes(avanceSubTab)} settingsRevision={specialtySettingsRevision} onHistory={setSpecialtyHistory} onSaved={()=>fetchObraDetails(selectedObra.nombre)}/></React.Suspense></div>
 
               {/* SUB-PESTAÑA 1: VISOR DE AVANCE FÍSICO (BARRAS DE PROGRESO DE PARTIDAS DE LA OBRA) */}
-              {avanceSubTab === 'visor' && (
+              {avanceSubTab === 'visor' && canObraAvancesView && (
                 <div className="space-y-4">
                   {/* CALCULO DE AVANCE GLOBAL REAL */}
                   {(() => {
@@ -3832,7 +3834,7 @@ function Obras({ user, onBack, initialObraName, companyBranding, onOXContextChan
               )}
 
               {/* SUB-PESTAÑA 2: PESTAÑA / TABLA DE REGISTRO DE REPORTES (DÍA, SUPERVISOR, FRENTE, PARTIDA, CANTIDAD, COMENTARIOS) */}
-              {avanceSubTab === 'registro' && (
+              {avanceSubTab === 'registro' && canObraAvancesView && (
                 <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
                   <div className="flex justify-between items-center border-b pb-3">
                     <div>

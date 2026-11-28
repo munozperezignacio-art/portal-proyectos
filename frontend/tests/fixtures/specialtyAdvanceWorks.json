@@ -1,0 +1,206 @@
+[
+  {
+    "id": 98,
+    "nombre": "IP- MERCARDO TALCAHUANO",
+    "parts": [
+      {
+        "id": 197,
+        "unidad": "UND",
+        "partida": "Instalación Pilas de grava Impact",
+        "es_titulo": false
+      }
+    ],
+    "settings": [
+      {
+        "revision": 1,
+        "partida_id": 197,
+        "datos_fijos": {},
+        "activa_desde": "2026-11-16"
+      }
+    ],
+    "piles": 277,
+    "elements": [
+      {
+        "id": "118fae67-4648-4b0a-9606-2c70c1749301",
+        "etapa": "General",
+        "frente": "Frente Principal",
+        "numero": "1",
+        "sesion_id": null,
+        "partida_id": 197,
+        "topografia": {},
+        "revision_topografia": 0
+      },
+      {
+        "id": "1c99182c-fcd1-439c-94f4-2a6d64925329",
+        "etapa": "General",
+        "frente": "Frente Principal",
+        "numero": "2",
+        "sesion_id": "d954d1fe-dbeb-4ef4-995e-9aaa65a05aba",
+        "partida_id": 197,
+        "topografia": {},
+        "revision_topografia": 0
+      },
+      {
+        "id": "ae31b528-6b5a-46ac-b2c6-0c29e5d8345b",
+        "etapa": "General",
+        "frente": "Frente Principal",
+        "numero": "3",
+        "sesion_id": null,
+        "partida_id": 197,
+        "topografia": {},
+        "revision_topografia": 0
+      },
+      {
+        "id": "add6cea5-35aa-4816-8444-268724696906",
+        "etapa": "General",
+        "frente": "Frente Principal",
+        "numero": "4",
+        "sesion_id": null,
+        "partida_id": 197,
+        "topografia": {},
+        "revision_topografia": 0
+      },
+      {
+        "id": "1a42fb81-77f8-4fe5-b7f3-98e412c6a240",
+        "etapa": "General",
+        "frente": "Frente Principal",
+        "numero": "5",
+        "sesion_id": null,
+        "partida_id": 197,
+        "topografia": {},
+        "revision_topografia": 0
+      }
+    ]
+  },
+  {
+    "id": 99,
+    "nombre": "IP- MTV LIBERTAD",
+    "parts": [
+      {
+        "id": 208,
+        "unidad": "GL",
+        "partida": "Prueba de carga o modulo",
+        "es_titulo": false
+      },
+      {
+        "id": 206,
+        "unidad": "GL",
+        "partida": "Logistica cuadrilla IMPACT",
+        "es_titulo": false
+      },
+      {
+        "id": 207,
+        "unidad": "UND",
+        "partida": "Instalación Pilas de Grava IMPACT",
+        "es_titulo": false
+      }
+    ],
+    "settings": [
+      {
+        "revision": 1,
+        "partida_id": 207,
+        "datos_fijos": {},
+        "activa_desde": "2026-11-23"
+      }
+    ],
+    "piles": 0,
+    "elements": []
+  },
+  {
+    "id": 100,
+    "nombre": "IP- ASTURIAS III",
+    "parts": [
+      {
+        "id": 198,
+        "unidad": "GL",
+        "partida": "Logistica de transportes",
+        "es_titulo": false
+      },
+      {
+        "id": 199,
+        "unidad": "UND",
+        "partida": "Instalación Pilas de grava IMPACT",
+        "es_titulo": false
+      },
+      {
+        "id": 209,
+        "unidad": "ML",
+        "partida": "Suministro Grava Chancada",
+        "es_titulo": false
+      },
+      {
+        "id": 200,
+        "unidad": "GL",
+        "partida": "Prueba de Modulo",
+        "es_titulo": false
+      },
+      {
+        "id": 201,
+        "unidad": "UND",
+        "partida": "Geomalla TX 160",
+        "es_titulo": false
+      }
+    ],
+    "settings": [
+      {
+        "revision": 1,
+        "partida_id": 199,
+        "datos_fijos": {},
+        "activa_desde": "2026-11-23"
+      }
+    ],
+    "piles": 290,
+    "elements": [
+      {
+        "id": "dbef1bef-f23c-4785-a189-3aa1802404b5",
+        "etapa": "General",
+        "frente": "TORRE A",
+        "numero": "1",
+        "sesion_id": null,
+        "partida_id": 199,
+        "topografia": {},
+        "revision_topografia": 0
+      },
+      {
+        "id": "3c4724f4-4f53-4f34-90ff-e5680a67191e",
+        "etapa": "General",
+        "frente": "TORRE A",
+        "numero": "2",
+        "sesion_id": null,
+        "partida_id": 199,
+        "topografia": {},
+        "revision_topografia": 0
+      },
+      {
+        "id": "f5000b98-5ad3-47da-bf4a-e469548b188f",
+        "etapa": "General",
+        "frente": "TORRE A",
+        "numero": "3",
+        "sesion_id": null,
+        "partida_id": 199,
+        "topografia": {},
+        "revision_topografia": 0
+      },
+      {
+        "id": "d8405be2-a08b-4f13-8a16-f3d7d4b66bb3",
+        "etapa": "General",
+        "frente": "TORRE A",
+        "numero": "4",
+        "sesion_id": null,
+        "partida_id": 199,
+        "topografia": {},
+        "revision_topografia": 0
+      },
+      {
+        "id": "1177ac21-ea55-45af-83db-c504827768f7",
+        "etapa": "General",
+        "frente": "TORRE A",
+        "numero": "5",
+        "sesion_id": null,
+        "partida_id": 199,
+        "topografia": {},
+        "revision_topografia": 0
+      }
+    ]
+  }
+]
