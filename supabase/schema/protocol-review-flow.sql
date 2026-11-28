@@ -35,7 +35,7 @@ begin
  select coalesce(nombre,usuario,auth.uid()::text) into actor_name from public.usuarios where auth_user_id=auth.uid() and empresa=w.empresa limit 1;
  if p_kind='pilas' then select * into rec from private.specialty_protocols where id=p_id and obra_id=p_work for update;
  else select * into rec from private.quality_specialty_protocols where id=p_id and obra_id=p_work for update;end if;
- if rec.id is null or rec.estado<>'borrador' or rec.revision<>p_revision then raise exception 'Borrador ajeno, aprobado o modificado; actualiza antes de revisar';end if;
+ if rec.id is null or rec.estado<>'borrador' or rec.revision is distinct from p_revision then raise exception 'Borrador ajeno, aprobado o modificado; actualiza antes de revisar';end if;
  if p_kind='pilas' then update private.specialty_protocols set revisado_por=actor_name,revisado_at=now(),revision_revisada=revision where id=p_id;
  else update private.quality_specialty_protocols set revisado_por=actor_name,revisado_at=now(),revision_revisada=revision where id=p_id;end if;
  insert into private.specialty_audit(obra_id,actor,accion,referencia) values(p_work,auth.uid(),'protocol_review',p_kind||':'||p_id||':'||p_revision);

@@ -74,7 +74,9 @@ test('permissions independent from duties; configure/import/report and preserve 
  await perms(['obras.calidad.aprobar']);await assert.rejects(call('protocol',{...protocol,estado:'aprobado',revision:1}),/revisar/);
  const review=()=>db.query('select public.protocol_review_api(1,$1,$2,1)',['pilas',protocol.protocol_id]);
  await assert.rejects(review(),/permiso Revisar/);
- await perms(['obras.calidad.ver','obras.calidad.revisar']);await review();
+ await perms(['obras.calidad.ver','obras.calidad.revisar']);
+ await assert.rejects(db.query('select public.protocol_review_api(1,$1,$2,null)',['pilas',protocol.protocol_id]),/modificado/);
+ await review();
  await perms(['obras.calidad.aprobar']);await call('protocol',{...protocol,estado:'aprobado',revision:1});
  const edited={...protocol,protocol_id:'20000000-0000-4000-8000-000000000002',correlativo:'TEST2'};
  await perms(['obras.calidad.crear']);await call('protocol',edited);
