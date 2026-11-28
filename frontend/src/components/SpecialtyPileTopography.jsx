@@ -1,6 +1,6 @@
 import React,{useState} from 'react';
 import './SpecialtyProtocols.css';
-const fields=[['cota_inicial','Cota inicial (m)'],['cota_final','Cota final (m)'],['norte_real','Norte medido (m)'],['este_real','Este medido (m)'],['cota_real','Cota medida (m)']];
+const fields=[['cota_inicial','Cota inicial (m)'],['cota_final','Cota final (m)'],['norte_real','Norte medido (m)'],['este_real','Este medido (m)'],['cota_real','Cota medida (NPT)']];
 const historicKeys=[...fields.map(([k])=>k),'cota_diseno','deformacion','cst','bst','profundidad_control'];
 const present=v=>v!=null&&String(v).trim()!=='';
 export default function SpecialtyPileTopography({element,disabled,onSave,historical={},mode='topography'}){

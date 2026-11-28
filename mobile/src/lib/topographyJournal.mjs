@@ -1,6 +1,6 @@
 export const topographyFields = [
  ['cota_inicial','Cota inicial (m)'],['cota_final','Cota final (m)'],
- ['norte_real','Norte medido (m)'],['este_real','Este medido (m)'],['cota_real','Cota medida (m)'],
+ ['norte_real','Norte medido (m)'],['este_real','Este medido (m)'],['cota_real','Cota medida (NPT)'],
 ];
 export function topographyPayload(element, row, date) {
  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||new Date(date+'T12:00:00Z').toISOString().slice(0,10)!==date)throw new Error('Indica una fecha válida: AAAA-MM-DD.');
