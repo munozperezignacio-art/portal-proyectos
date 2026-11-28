@@ -2,6 +2,7 @@ import React,{useEffect,useState} from 'react';
 import {loadSpecialtyProtocolPdf,downloadSpecialtyProtocol} from '../utils/specialtyProtocolPdf';
 import {protocolDefaults,protocolDayNumber} from '../utils/specialtyProtocolSetup';
 import './SpecialtyProtocols.css';
+import ProtocolReviewAction from './ProtocolReviewAction';
 const input='w-full rounded-lg border border-slate-300 p-2 text-sm bg-white';
 const button='rounded-lg border border-indigo-200 px-3 py-2 text-sm font-bold text-indigo-900 disabled:opacity-40';
 const common=[['plano','Plano / revisión'],['direccion','Dirección'],['mandante','Mandante'],['estructura','Estructura'],['cota_local','Referencia cota local (m)'],['cota_referencia','Referencia cota absoluta (msnm)'],['cargo_elaborador','Cargo de quien elabora'],['cargo_aprobador','Cargo de quien aprueba']];
@@ -60,9 +61,10 @@ export default function SpecialtyProtocols({state,cfg,sessions,elements,call,ref
   </fieldset>}
   {showReview&&!state.protocols.some(p=>sessions.some(s=>s.id===p.sesion_id))&&<p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500">No hay protocolos guardados para esta partida. Créalo en la pestaña Protocolos.</p>}
   {showReview&&state.protocols.filter(p=>sessions.some(s=>s.id===p.sesion_id)).map(p=><article key={p.id} className="rounded-xl border border-slate-200 bg-white p-4 space-y-2"><strong>{p.correlativo} · {p.tipo==='ejecucion'?'Ejecución':'Topografía'}</strong><p className="text-sm">{p.fecha.split('-').reverse().join('-')} · {p.snapshot.pilas.length} pilas · {p.estado}</p><div className="flex flex-wrap gap-2">
-   <button className={button} disabled={busy} onClick={()=>showPreview(p)}>Vista previa PDF</button><button className={button} disabled={busy} onClick={()=>run(()=>downloadSpecialtyProtocol(p))}>Descargar PDF</button>
+   <button className={button} disabled={busy} onClick={()=>showPreview(p)}>Vista previa PDF</button>{state.protocol_download&&<button className={button} disabled={busy} onClick={()=>run(()=>downloadSpecialtyProtocol(p))}>Descargar PDF</button>}
+   <ProtocolReviewAction workId={work.id} kind="pilas" protocol={p} allowed={state.protocol_review} onSaved={refresh}/>
    {p.estado==='borrador'&&state.protocol_edit&&<button className={button} onClick={()=>edit(p)}>Editar borrador</button>}
-   {p.estado==='borrador'&&quality&&<button className={button} disabled={busy} onClick={()=>{if(window.confirm('¿Aprobar el protocolo? Quedará bloqueado para conservar su trazabilidad.'))run(()=>call('protocol',{id:p.sesion_id,protocol_id:p.id,tipo:p.tipo,correlativo:p.correlativo,estado:'aprobado',revision:p.revision,element_ids:p.snapshot.pilas.map(e=>e.id),fijos:p.snapshot.fijos,request_id:crypto.randomUUID()}));}}>Aprobar protocolo</button>}
+   {p.estado==='borrador'&&quality&&<button className={button} disabled={busy||p.revision_revisada!==p.revision||!p.revisado_at} onClick={()=>{if(window.confirm('¿Aprobar el protocolo? Quedará bloqueado para conservar su trazabilidad.'))run(()=>call('protocol',{id:p.sesion_id,protocol_id:p.id,tipo:p.tipo,correlativo:p.correlativo,estado:'aprobado',revision:p.revision,element_ids:p.snapshot.pilas.map(e=>e.id),fijos:p.snapshot.fijos,request_id:crypto.randomUUID()}));}}>Aprobar protocolo</button>}
   </div></article>)}
   {preview&&<div role="dialog" aria-modal="true" aria-label="Vista previa del protocolo" className="fixed inset-0 z-[100] flex flex-col gap-2 bg-white p-4"><div className="flex items-center justify-between"><a href={preview} target="_blank" rel="noreferrer" className={button}>Abrir PDF en otra pestaña</a><button autoFocus className={button} onClick={()=>setPreview('')}>Cerrar vista previa</button></div><iframe title="Vista previa del protocolo" src={preview} className="w-full flex-1"/></div>}
  </div>;

@@ -1,5 +1,6 @@
 import { useTheme, useThemedStyles } from '@/theme/ThemeProvider';
 import {SpecialtyJournal} from '@/components/SpecialtyJournal';
+import {WorkPrevention} from '@/components/WorkPrevention';
 import type { ThemeColors } from '@/lib/theme';
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 import { Ionicons } from '@expo/vector-icons';
@@ -24,7 +25,7 @@ type Row = Record<string, any>;
 const tabs = [
   { key: 'avance', label: 'Avance' }, { key: 'equipos', label: 'Maquinaria' },
   { key: 'asistencia', label: 'Asistencia' }, { key: 'subcontratos', label: 'Subcontratos' },
-  { key: 'estadisticas', label: 'Estadísticas' },
+  { key: 'prevencion', label: 'Prevención' },{ key: 'estadisticas', label: 'Estadísticas' },
 ];
 const day = (value: any) => String(value || '').slice(0, 10);
 const today = localToday;
@@ -37,11 +38,11 @@ export default function WorkDetail() {
   const { id, nombre, especialidad, seccion } = useLocalSearchParams<{ id: string; nombre: string; especialidad?:string;seccion?:string }>();
   const { profile } = useAuth();
   useEffect(()=>{
-    const permissions:Record<string,string>={avance:'obras.avances.ver',equipos:'obras.maquinaria.ver',asistencia:'obras.personal.ver',subcontratos:'obras.subcontratos.ver',estadisticas:'obras.gestion.ver'};
+    const permissions:Record<string,string>={avance:'obras.avances.ver',equipos:'obras.maquinaria.ver',asistencia:'obras.personal.ver',subcontratos:'obras.subcontratos.ver',prevencion:'obras.prevencion.ver',estadisticas:'obras.gestion.ver'};
     if(seccion&&permissions[seccion]&&can(profile,permissions[seccion]))setTab(seccion);
   },[seccion,profile]);
   const authorized = canAccessWork(profile, nombre);
-  const [tab, setTab] = useState(() => can(profile,'obras.avances.ver') ? 'avance' : can(profile,'obras.maquinaria.ver') ? 'equipos' : can(profile,'obras.personal.ver') ? 'asistencia' : can(profile,'obras.subcontratos.ver') ? 'subcontratos' : 'estadisticas'); const [loading, setLoading] = useState(true); const [error, setError] = useState('');
+  const [tab, setTab] = useState(() => (can(profile,'obras.avances.ver')||can(profile,'obras.topografia.editar')) ? 'avance' : can(profile,'obras.maquinaria.ver') ? 'equipos' : can(profile,'obras.personal.ver') ? 'asistencia' : can(profile,'obras.subcontratos.ver') ? 'subcontratos' : can(profile,'obras.prevencion.ver') ? 'prevencion' : 'estadisticas'); const [loading, setLoading] = useState(true); const [error, setError] = useState('');
   const [expandedAttendance, setExpandedAttendance] = useState<string | null>(null);
   const [data, setData] = useState<Row>({ work: null, parts: [], adv: [], equip: [], attendance: [], workers: [], sub: [], subAdv: [], subAttendance: [], subPayments: [], maintenance: [] });
   const load = async () => {
@@ -99,7 +100,8 @@ export default function WorkDetail() {
   return <Screen refreshing={loading} onRefresh={load}>
     <Pressable onPress={() => router.back()} style={s.back}><Ionicons color={colors.ink} name="arrow-back" size={20} /><Text style={s.backText}>Volver a obras</Text></Pressable>
     <Header title={data.work?.nombre || nombre || 'Obra'} subtitle="Vista operativa en terreno" icon="business-outline" />
-    <Segments value={tab} options={tabs.filter(item => item.key === 'avance' ? can(profile,'obras.avances.ver') : item.key === 'equipos' ? can(profile,'obras.maquinaria.ver') : item.key === 'asistencia' ? can(profile,'obras.personal.ver') : item.key === 'subcontratos' ? can(profile,'obras.subcontratos.ver') : true)} onChange={setTab} />
+    <Segments value={tab} options={tabs.filter(item => item.key === 'avance' ? can(profile,'obras.avances.ver')||can(profile,'obras.topografia.editar') : item.key === 'equipos' ? can(profile,'obras.maquinaria.ver') : item.key === 'asistencia' ? can(profile,'obras.personal.ver') : item.key === 'subcontratos' ? can(profile,'obras.subcontratos.ver') : item.key==='prevencion'?can(profile,'obras.prevencion.ver'):can(profile,'obras.gestion.ver'))} onChange={setTab} />
+    {tab==='prevencion'&&authorized&&profile&&data.work&&<WorkPrevention profile={profile} workName={data.work.nombre}/>}
     {tab === 'avance' && authorized && profile && <SpecialtyJournal initialOpen={especialidad==='1'} profile={profile} workId={Number(id)} parts={data.parts||[]} onSaved={load} quantityAction={can(profile,'obras.avances.crear')?<WorkEntryActions mode="progress" profile={profile} workId={Number(id)} workName={data.work?.nombre || nombre || ''} parts={data.parts} onSaved={load}/>:null}/>}
     {tab === 'asistencia' && data.work && can(profile,'obras.personal.crear') && <ManualAttendance profile={profile!} workId={Number(id)} workName={data.work?.nombre || nombre || ''} work={data.work} onSaved={load} />}
     <ErrorBox text={error} />

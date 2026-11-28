@@ -15,6 +15,10 @@ await db.exec(`create schema private;create schema auth;create role anon;create 
  insert into partidas_obra values(1,1,'TEST','Pilas existentes',false),(2,1,'TEST','Hormigón losa',false),(3,1,'TEST','Excavación',false);
  insert into usuarios values('00000000-0000-4000-8000-000000000001','TEST','Tester','t');`);
 await db.exec(await readFile(new URL('../../supabase/schema/quality-specialties.sql',import.meta.url),'utf8'));
+await db.exec(`create table private.specialty_protocols(id uuid,obra_id integer,estado text,revision integer,snapshot jsonb,fecha date);
+ create table private.specialty_audit(obra_id integer,actor uuid,accion text,referencia text);
+ create function private.specialty_api(integer,text,jsonb) returns jsonb language sql as $$select '{}'::jsonb$$;`);
+await db.exec(await readFile(new URL('../../supabase/schema/protocol-review-flow.sql',import.meta.url),'utf8'));
 const server=await createServer({server:{host:'127.0.0.1',port:0}});await server.listen();
 const browser=await chromium.launch({headless:true});
 try{for(const width of [1440,390]){
@@ -25,7 +29,9 @@ try{for(const width of [1440,390]){
  page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
  page.on('console',m=>{if(m.type()==='error'&&/same key|unique.*key/i.test(m.text()))errors.push(m.text());});
  await page.route('https://**/*',async route=>{
-  if(route.request().url().includes('/rpc/quality_specialties_api')){
+  if(route.request().url().includes('/rpc/protocol_review_api')){
+   const p=route.request().postDataJSON();try{const r=await db.query('select public.protocol_review_api($1,$2,$3,$4) r',[p.p_work,p.p_kind,p.p_id,p.p_revision]);await route.fulfill({json:r.rows[0].r});}catch(e){await route.fulfill({status:400,json:{message:e.message}});}
+  }else if(route.request().url().includes('/rpc/quality_specialties_api')){
    const p=route.request().postDataJSON();
    try{const r=await db.query('select public.quality_specialties_api($1,$2,$3) r',[p.p_work,p.p_action,JSON.stringify(p.p_data)]);await route.fulfill({json:r.rows[0].r});}
    catch(e){await route.fulfill({status:400,json:{message:e.message}});}
@@ -135,6 +141,9 @@ try{for(const width of [1440,390]){
  await page.getByRole('button',{name:'Revisar y emitir protocolos',exact:true}).click();
  await page.getByRole('button',{name:'Ver / editar protocolo'}).click();
  assert.equal(await page.getByLabel('Resultado · Dimensiones',{exact:true}).inputValue(),'Conforme','Saved protocol retains original controls');
+ assert.equal(await page.getByRole('button',{name:'Aprobar protocolo',exact:true}).isDisabled(),true);
+ await page.getByRole('button',{name:'Marcar como revisado',exact:true}).click();
+ await page.getByText(/Revisado por Tester/).waitFor();
  await page.getByRole('button',{name:'Aprobar protocolo',exact:true}).click();
  await page.getByRole('status').filter({hasText:'Protocolo #1 aprobado'}).waitFor();
  const download=page.waitForEvent('download');await page.getByRole('button',{name:'Descargar PDF'}).click();
