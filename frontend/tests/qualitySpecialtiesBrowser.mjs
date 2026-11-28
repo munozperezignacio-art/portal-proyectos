@@ -23,6 +23,7 @@ try{for(const width of [1440,390]){
  const savedElements=[{id:'a',partida_id:1,numero:'1',norte:5923799.64,este:678626.48,etapa:'General',frente:'TORRE A'},{id:'b',partida_id:1,numero:'2',norte:0,este:678625.38,etapa:'Segunda',frente:'TORRE B'},{id:'other',partida_id:999,numero:'999',norte:1,este:2,etapa:'Otra',frente:'Otro'}];
  const page=await browser.newPage({viewport:{width,height:1100}}),errors=[];
  page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
+ page.on('console',m=>{if(m.type()==='error'&&/same key|unique.*key/i.test(m.text()))errors.push(m.text());});
  await page.route('https://**/*',async route=>{
   if(route.request().url().includes('/rpc/quality_specialties_api')){
    const p=route.request().postDataJSON();
@@ -66,6 +67,13 @@ try{for(const width of [1440,390]){
  await page.screenshot({path:`C:/Users/ignac/AppData/Local/Temp/quality-workflow-${width}.png`,fullPage:true});
  await page.getByRole('button',{name:'Configurar',exact:true}).click();
  const saved=page.getByRole('region',{name:'Coordenadas guardadas',exact:true});
+ for(let cycle=0;cycle<10;cycle++){
+  assert.equal(await saved.count(),1,`Exactly one coordinates panel, cycle ${cycle}`);
+  await page.getByRole('button',{name:'Topografía',exact:true}).click();
+  assert.equal(await saved.count(),0,'Coordinates unmount outside Configurar');
+  await page.getByRole('button',{name:'Configurar',exact:true}).click();
+ }
+ assert.equal(await saved.count(),1,'No accumulated panels after ten tab changes');
  await saved.getByText('Mostrando 2 de 2 pilas guardadas.').waitFor();
  assert.equal(await saved.locator('tbody tr').count(),2);
  await saved.getByLabel('Filtrar por frente').selectOption('TORRE A');
@@ -78,6 +86,13 @@ try{for(const width of [1440,390]){
  assert.equal(await saved.locator('tbody tr td').nth(1).textContent(),'0');
  await saved.getByRole('button',{name:'Limpiar filtros'}).click();
  assert.equal(nativeWrites.length,1,'Browsing coordinates never writes data');
+ for(let cycle=0;cycle<3;cycle++){
+  const save=page.getByRole('button',{name:'Guardar configuración de especialidad',exact:true});
+  await save.click();
+  await page.waitForFunction(()=>!Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='Guardar configuración de especialidad')?.disabled);
+  assert.equal(nativeWrites.length,cycle+2);
+  assert.equal(await saved.count(),1,'Refreshing after save keeps exactly one coordinates panel');
+ }
  await saved.screenshot({path:`C:/Users/ignac/AppData/Local/Temp/saved-coordinates-${width}.png`});
  const header=page.getByRole('heading',{name:'Especialidades de la obra',exact:true}).locator('..');
  assert.equal(await header.getByRole('button',{name:'Agregar especialidad',exact:true}).count(),1,'Add belongs to work specialty header');

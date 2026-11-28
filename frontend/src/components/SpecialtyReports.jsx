@@ -57,19 +57,19 @@ export default function SpecialtyReports({work,user,parts=[],quality=false,setti
    <div className={assignmentOnly?'flex justify-end gap-2 border-t border-slate-200 pt-4':''}><button className={assignmentOnly?'rounded-xl bg-blue-900 px-4 py-3 text-sm font-bold text-white disabled:opacity-50':button} disabled={busy} onClick={()=>action(()=>call('configure',{activa_desde:config.activa_desde,revision:config.revision,datos_fijos:config.datos_fijos,partida_id:Number(partId),request_id:crypto.randomUUID()}))}>Guardar configuración de especialidad</button></div>
    {cfg&&!assignmentOnly&&<p className="text-sm">Si ya registraste cantidades, vincula sus pilas en la pestaña Conciliaciones. Esa vinculación no suma avance nuevamente.</p>}
   </div>}
-  {tab==='settings'&&cfg&&!assignmentOnly&&<SavedPileCoordinates key={partId} elements={elements} workId={work.id} partId={Number(partId)} state={state} onSaved={refresh}/>}
-  {tab==='settings'&&cfg&&state.can_import&&!assignmentOnly&&<SpecialtyWorkbookImport key={partId} work={work} partId={Number(partId)} state={state} call={call} onSaved={refresh} catalogOnly/>}
+  {tab==='settings'&&cfg&&!assignmentOnly&&<SavedPileCoordinates key={`coordinates:${partId}`} elements={elements} workId={work.id} partId={Number(partId)} state={state} onSaved={refresh}/>}
+  {tab==='settings'&&cfg&&state.can_import&&!assignmentOnly&&<SpecialtyWorkbookImport key={`catalog-import:${partId}`} work={work} partId={Number(partId)} state={state} call={call} onSaved={refresh} catalogOnly/>}
   {tab==='settings'&&!cfg&&!assignmentOnly&&<p>Primero guarda la configuración de esta partida. A continuación podrás cargar aquí su archivo de coordenadas.</p>}
   {quality&&cfg&&tab==='reconciliation'&&state.can_configure&&<section className="space-y-3">
    <h4 className="font-bold">Avances por cantidad pendientes de identificar</h4>
-   <PendingReports key={partId} reports={state.reports} sessions={sessions} config={cfg} elements={elements} call={call} refresh={refresh}/>
+   <PendingReports key={`pending:${partId}`} reports={state.reports} sessions={sessions} config={cfg} elements={elements} call={call} refresh={refresh}/>
    <details className="rounded-xl border p-3"><summary className="cursor-pointer font-bold">Conciliaciones realizadas ({sessions.filter(s=>s.estado==='historica').length})</summary>
     {sessions.filter(s=>s.estado==='historica').map(s=><div key={s.id} className="flex flex-wrap items-center justify-between gap-2 border-t py-2">
      <span>{s.fecha.split('-').reverse().join('-')} · Reportes: {s.report_ids.join(', ')}</span>
      <button type="button" className={button} disabled={busy||state.protocols.some(p=>p.sesion_id===s.id)} onClick={()=>{if(window.confirm('¿Deshacer la conciliación del '+s.fecha.split('-').reverse().join('-')+'? Las pilas quedarán desvinculadas. Se conservarán los reportes y sus cantidades de avance.'))action(()=>call('undo_reconcile',{id:s.id,partida_id:s.partida_id,revision:s.revision}));}}>{state.protocols.some(p=>p.sesion_id===s.id)?'Protegida por protocolo':'Deshacer conciliación'}</button>
     </div>)}
    </details>
-   <SpecialtyWorkbookImport key={partId} work={work} partId={Number(partId)} state={state} call={call} onSaved={refresh}/>
+   <SpecialtyWorkbookImport key={`reconciliation-import:${partId}`} work={work} partId={Number(partId)} state={state} call={call} onSaved={refresh}/>
   </section>}
   {cfg&&tab==='journal'&&<div className="space-y-4">
    {!canExecute?<p>Tu rol no tiene permiso para registrar avances en esta obra.</p>:!draft?<div className="space-y-2"><label className="block text-sm font-bold">Fecha de la jornada<input className={field} type="date" min={cfg.activa_desde} max={today()} value={workDate} onChange={e=>setWorkDate(e.target.value)}/></label><p className="text-sm">{blocked||'Para registrar producción atrasada, selecciona el día en que se ejecutaron las pilas.'}</p><button type="button" className={button} disabled={!!blocked} onClick={start}>{activeSession?.estado==='abierta'?'Continuar jornada abierta':'Iniciar jornada de trabajo'}</button></div>:<>
@@ -83,7 +83,7 @@ export default function SpecialtyReports({work,user,parts=[],quality=false,setti
     <button type="button" className={button} disabled={draft.closeRequested} onClick={async()=>{if(!window.confirm('¿Cancelar toda la jornada? Se descartarán sus pilas y comentarios sin generar avance.'))return;await journal.cancel();setDraft((await journal.read()).draft);await sync();await sync();}}>Cancelar jornada</button>
    </>}
   </div>}
-  {quality&&cfg&&tab==='topography'&&<TopoInbox key={partId} sessions={sessions} elements={elements} disabled={!canTopo||busy} onSave={(e,datos)=>action(()=>call('topography',{partida_id:Number(partId),element_id:e.id,revision:e.revision_topografia,datos,request_id:crypto.randomUUID()}))}/>}
+  {quality&&cfg&&tab==='topography'&&<TopoInbox key={`topography:${partId}`} sessions={sessions} elements={elements} disabled={!canTopo||busy} onSave={(e,datos)=>action(()=>call('topography',{partida_id:Number(partId),element_id:e.id,revision:e.revision_topografia,datos,request_id:crypto.randomUUID()}))}/>}
   {cfg&&tab==='history'&&<><svg viewBox="0 0 600 400" className="max-h-96 w-full border rounded-xl" aria-label="Esquema de pilas por coordenadas">{diagram.map(e=><g key={e.id}><circle cx={e.x} cy={e.y} r="3" fill={e.status==='day'?'#10b981':e.status==='done'?'#243a80':'#d1d5db'}/><title>{e.etapa} · {e.numero}</title></g>)}</svg><p className="text-xs">Verde: jornada actual · Azul: ejecutada · Gris: pendiente.</p>{sessions.map(s=><details key={s.id} className="rounded-lg border p-3"><summary>{s.fecha.split('-').reverse().join('-')} · {s.estado} · {s.datos.pilas.filter(p=>p.terminada).length} pilas</summary><p className="text-sm mt-2">{s.datos.pilas.map(p=>elements.find(e=>e.id===p.element_id)?.numero).join(', ')}</p><p>{s.datos.observaciones}</p></details>)}</>}
 {cfg&&(quality||tab==='protocols')&&<div hidden={quality&&!['settings','protocols','review'].includes(tab)}><SpecialtyProtocols key={cfg.partida_id} view={quality?tab:'all'} work={work} user={user} state={state} cfg={cfg} sessions={sessions} elements={elements} call={call} refresh={refresh} renderTopo={e=><SpecialtyPileTopography mode="controls" key={e.id+':'+e.revision_topografia} element={e} disabled={!canTopo||busy} onSave={datos=>action(()=>call('topography',{partida_id:Number(partId),element_id:e.id,revision:e.revision_topografia,datos,request_id:crypto.randomUUID()}))}/>}/></div>}
  </section>;
