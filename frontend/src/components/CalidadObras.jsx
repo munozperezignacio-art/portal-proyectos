@@ -5,7 +5,7 @@ import { registrarEventoBitacora } from '../utils/bitacoraService';
 import { appendAudit, auditActor } from '../utils/documentAudit';
 import DocumentAuditTrail from './DocumentAuditTrail';
 import ModuleHeader from './ModuleHeader';
-import SpecialtyReports from './SpecialtyReports';
+import QualitySpecialties from './QualitySpecialties';
 import useUserPermissions from '../utils/useUserPermissions';
 import { can } from '../utils/permissionsCatalog';
 import { canTransitionNonConformity, nextNonConformityState } from '../utils/workflowRules';
@@ -339,7 +339,7 @@ export default function CalidadObras({ user, onBack, obraInicial = '', embedded 
     {!canCreate && <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-600">Acceso de consulta. La creación de PAC, RDI, recepciones y no conformidades está restringida por tu rol.</div>}
     {(clientName || clientEmail || clientPhone) && <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-950"><Mail className="h-3.5 w-3.5" /><span className="font-black">Mandante / inspección:</span><span>{clientName || 'Sin nombre'}{clientEmail ? ` · ${clientEmail}` : ''}{clientPhone ? ` · ${clientPhone}` : ''}</span></div>}
     <div className="flex flex-wrap gap-2 rounded-xl bg-slate-100 p-1.5">{[['resumen','Resumen'],['pac','PAC por partida'],['rdi','Solicitudes RDI'],['recepciones','Entrega y recepción'],['nc','No conformidades'],['especialidad','Protocolos por especialidad']].map(([id,label]) => <button key={id} onClick={() => setTab(id)} className={`rounded-lg px-3 py-2 text-xs font-bold ${tab === id ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-600'}`}>{label}</button>)}</div>
-    {tab==='especialidad' && (obraPerfil?.id||obras.find(o=>o.nombre===obraNombre)?.id) && <SpecialtyReports key={obraNombre} quality user={user} work={obraPerfil?.id?obraPerfil:obras.find(o=>o.nombre===obraNombre)} parts={partidasEjecutables}/>}
+    {tab==='especialidad' && (obraPerfil?.id||obras.find(o=>o.nombre===obraNombre)?.id) && <QualitySpecialties key={obraNombre} user={user} work={obraPerfil?.id?obraPerfil:obras.find(o=>o.nombre===obraNombre)} parts={partidasEjecutables}/>}
     {!obraNombre ? <div className="rounded-2xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500">Selecciona una obra para comenzar su control de calidad.</div> : loading ? <div className="p-10 text-center text-sm text-slate-500">Cargando calidad de obra…</div> : <>
       {tab === 'resumen' && <div className="space-y-4"><div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Metric icon={<ClipboardCheck />} label="PAC activos" value={pacs.filter(p => p.estado === 'Activo').length} detail={`${pacs.length} creados`} color="emerald" />
