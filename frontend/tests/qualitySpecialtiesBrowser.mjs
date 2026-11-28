@@ -20,6 +20,7 @@ const browser=await chromium.launch({headless:true});
 try{for(const width of [1440,390]){
  await db.exec('begin');
  let pileSettings=[];const nativeWrites=[];
+ const savedElements=[{id:'a',partida_id:1,numero:'1',norte:5923799.64,este:678626.48,etapa:'General',frente:'TORRE A'},{id:'b',partida_id:1,numero:'2',norte:0,este:678625.38,etapa:'Segunda',frente:'TORRE B'},{id:'other',partida_id:999,numero:'999',norte:1,este:2,etapa:'Otra',frente:'Otro'}];
  const page=await browser.newPage({viewport:{width,height:1100}}),errors=[];
  page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
  await page.route('https://**/*',async route=>{
@@ -30,7 +31,7 @@ try{for(const width of [1440,390]){
   }else if(route.request().url().includes('/rpc/specialty_api')){
    const p=route.request().postDataJSON();
    if(p.p_action==='configure'){nativeWrites.push(p.p_data);pileSettings=[{partida_id:p.p_data.partida_id,activa_desde:p.p_data.activa_desde,revision:1,datos_fijos:{}}];await route.fulfill({json:{ok:true}});}
-   else await route.fulfill({json:{actor:'test',settings:pileSettings,elements:[],sessions:[],protocols:[],users:[],can_configure:true,can_import:true}});
+   else {assert.equal(p.p_action,'state','No unexpected writes to existing piles');await route.fulfill({json:{actor:'test',settings:pileSettings,elements:savedElements,sessions:[],protocols:[],users:[],can_configure:true,can_import:true}});}
   }else if(route.request().url().includes('/rpc/work_fronts_api'))await route.fulfill({json:{fronts:['Frente Principal'],can_edit:true}});
   else await route.abort();
  });
@@ -64,6 +65,20 @@ try{for(const width of [1440,390]){
  assert.equal(await page.getByLabel('Jornada del protocolo').count(),0,'Review does not contain the create form');
  await page.screenshot({path:`C:/Users/ignac/AppData/Local/Temp/quality-workflow-${width}.png`,fullPage:true});
  await page.getByRole('button',{name:'Configurar',exact:true}).click();
+ const saved=page.getByRole('region',{name:'Coordenadas guardadas',exact:true});
+ await saved.getByText('Mostrando 2 de 2 pilas guardadas.').waitFor();
+ assert.equal(await saved.locator('tbody tr').count(),2);
+ await saved.getByLabel('Filtrar por frente').selectOption('TORRE A');
+ assert.equal(await saved.locator('tbody tr').count(),1);
+ await saved.getByLabel('Filtrar por etapa').selectOption('Segunda');
+ await saved.getByText('No hay pilas que coincidan con los filtros.').waitFor();
+ await saved.getByRole('button',{name:'Limpiar filtros'}).click();
+ await saved.getByLabel('Buscar pila').fill('2');
+ assert.equal(await saved.locator('tbody tr').count(),1);
+ assert.equal(await saved.locator('tbody tr td').nth(1).textContent(),'0');
+ await saved.getByRole('button',{name:'Limpiar filtros'}).click();
+ assert.equal(nativeWrites.length,1,'Browsing coordinates never writes data');
+ await saved.screenshot({path:`C:/Users/ignac/AppData/Local/Temp/saved-coordinates-${width}.png`});
  const header=page.getByRole('heading',{name:'Especialidades de la obra',exact:true}).locator('..');
  assert.equal(await header.getByRole('button',{name:'Agregar especialidad',exact:true}).count(),1,'Add belongs to work specialty header');
  await header.getByRole('button',{name:'Asignar especialidades y partidas',exact:true}).click();

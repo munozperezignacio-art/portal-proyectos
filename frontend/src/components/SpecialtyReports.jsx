@@ -5,6 +5,7 @@ import SpecialtyProtocols from './SpecialtyProtocols';
 import SpecialtyWorkbookImport from './SpecialtyWorkbookImport';
 import SpecialtyPileTopography from './SpecialtyPileTopography';
 import QualityWorkflowTabs from './QualityWorkflowTabs';
+import SavedPileCoordinates from './SavedPileCoordinates';
 
 const field='rounded-lg border border-slate-300 bg-white p-2 text-sm w-full';
 const button='rounded-lg border border-indigo-200 px-3 py-2 text-sm font-bold text-indigo-900 disabled:opacity-40';
@@ -56,6 +57,7 @@ export default function SpecialtyReports({work,user,parts=[],quality=false,setti
    <div className={assignmentOnly?'flex justify-end gap-2 border-t border-slate-200 pt-4':''}><button className={assignmentOnly?'rounded-xl bg-blue-900 px-4 py-3 text-sm font-bold text-white disabled:opacity-50':button} disabled={busy} onClick={()=>action(()=>call('configure',{activa_desde:config.activa_desde,revision:config.revision,datos_fijos:config.datos_fijos,partida_id:Number(partId),request_id:crypto.randomUUID()}))}>Guardar configuración de especialidad</button></div>
    {cfg&&!assignmentOnly&&<p className="text-sm">Si ya registraste cantidades, vincula sus pilas en la pestaña Conciliaciones. Esa vinculación no suma avance nuevamente.</p>}
   </div>}
+  {tab==='settings'&&cfg&&!assignmentOnly&&<SavedPileCoordinates key={partId} elements={elements}/>}
   {tab==='settings'&&cfg&&state.can_import&&!assignmentOnly&&<SpecialtyWorkbookImport key={partId} work={work} partId={Number(partId)} state={state} call={call} onSaved={refresh} catalogOnly/>}
   {tab==='settings'&&!cfg&&!assignmentOnly&&<p>Primero guarda la configuración de esta partida. A continuación podrás cargar aquí su archivo de coordenadas.</p>}
   {quality&&cfg&&tab==='reconciliation'&&state.can_configure&&<section className="space-y-3">
