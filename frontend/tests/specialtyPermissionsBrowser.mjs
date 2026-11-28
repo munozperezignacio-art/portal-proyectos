@@ -24,9 +24,9 @@ try{for(const width of [1440,390]){
  await page.getByRole('button',{name:'Guardar configuración de especialidad'}).click();
  await page.getByLabel('Archivo Excel de coordenadas').setInputFiles({name:'coordenadas.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer});
  await page.getByLabel('Frente de trabajo',{exact:true}).selectOption('Frente Principal');
- await page.getByRole('button',{name:'Cargar coordenadas de esta etapa'}).click();
+ await page.getByRole('button',{name:'Cargar coordenadas'}).click();
  await page.getByRole('status').filter({hasText:'Carga de coordenadas completada'}).waitFor();
- assert.equal(await page.getByRole('button',{name:'Cargar coordenadas de esta etapa'}).count(),0);
+ assert.equal(await page.getByRole('button',{name:'Cargar coordenadas'}).count(),0);
  assert.equal(await page.getByLabel('Archivo Excel de coordenadas').count(),0);
  const calls=await page.evaluate(()=>window.calls);
  assert.equal(calls.filter(c=>c.p_action==='configure').length,1);
@@ -47,7 +47,7 @@ try{for(const width of [1440,390]){
  await page.locator('.specialty-workbook-import').screenshot({path:`C:/Users/ignac/AppData/Local/Temp/coordinates-preview-${width}.png`});
  await page.evaluate(async()=>{const {supabase}=await import('/src/supabaseClient.js');const original=supabase.rpc;supabase.rpc=(name,p)=>p.p_action==='catalog'?Promise.resolve({data:null,error:{message:'Error de carga de prueba'}}):original(name,p);});
  await page.getByLabel('Frente de trabajo',{exact:true}).selectOption('Frente Principal');
- await page.getByRole('button',{name:'Cargar coordenadas de esta etapa'}).click();
+ await page.getByRole('button',{name:'Cargar coordenadas'}).click();
  await page.getByRole('status').filter({hasText:'Error de carga de prueba'}).waitFor();
  assert.equal(await page.getByLabel('Archivo Excel de coordenadas').count(),1);
  assert.equal(await page.getByText('Carga de coordenadas completada',{exact:false}).count(),0);

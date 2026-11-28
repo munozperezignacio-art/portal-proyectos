@@ -60,7 +60,7 @@ try{for(const width of [1440,390]){
  await page.getByLabel('Columna del frente').selectOption('3');
  await page.getByRole('button',{name:'Crear frente «TORRE A» en esta obra',exact:true}).click();
  await page.waitForFunction(()=>document.querySelector('select[aria-label="Vincular frente TORRE A"]')?.value==='TORRE A');
- await page.getByRole('button',{name:'Cargar coordenadas de esta etapa',exact:true}).click();
+ await page.getByRole('button',{name:'Cargar coordenadas',exact:true}).click();
  await page.getByText('✓ Carga de coordenadas completada').waitFor();
  assert.equal(imports[0].rows.length,290);assert(imports[0].rows.every(r=>r.frente==='TORRE A'));
  await page.getByRole('button',{name:'Corregir frente de reportes anteriores',exact:true}).click();

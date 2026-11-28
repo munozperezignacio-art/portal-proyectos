@@ -18,7 +18,7 @@ export default function SpecialtyPileTopography({element,disabled,onSave,histori
   const saved={...element.topografia,...Object.fromEntries(editableKeys.filter(k=>Object.hasOwn(data,k)).map(k=>[k,data[k]]))};
   setSaving(true);setError('');try{await onSave(saved);}catch(e){setError(e.message);}finally{setSaving(false);}
  };
- return <details className="specialty-protocols protocol-pile"><summary>{element.etapa} · Pila {element.numero}</summary>
+ return <details className="specialty-protocols protocol-pile"><summary>Pila {element.numero} · {element.frente||'Sin frente'}</summary>
   {!controlsOnly&&historicKeys.some(k=>editableKeys.includes(k)&&present(historical[k]))&&<div className="protocol-history"><p>Hay mediciones del Excel histórico disponibles para esta pila.</p><button disabled={disabled||saving} onClick={()=>setData(prev=>({...prev,...Object.fromEntries(historicKeys.filter(k=>editableKeys.includes(k)&&!present(prev[k])&&present(historical[k])).map(k=>[k,String(historical[k]).replace(',','.')]))}))}>Copiar datos históricos faltantes</button></div>}
   {!controlsOnly&&<><h4>Mediciones topográficas de la pila</h4><div className="protocol-fields">{fields.map(([k,label])=>input(k,label))}</div>
   {present(data.cota_diseno)&&<p>Cota de diseño histórica: {data.cota_diseno} m. Se conserva; los nuevos protocolos usan la plataforma configurada como cota de proyecto.</p>}</>}

@@ -8,8 +8,8 @@ test('only configured parts with catalogue are operational; Quality can configur
  assert.deepEqual(configuredAdvanceParts(parts,settings,[]),[]);
  assert.deepEqual(configuredAdvanceParts(parts,settings),[{id:1}]);
 });
-test('search handles number, stage, front, accents and whitespace',()=>{
+test('search handles number and front, accents and whitespace',()=>{
  const pile={numero:'13',etapa:'Etápa Norte',frente:'TORRE A'};
- for(const q of ['13','pila 13','etapa norte','  torre  a ','TORRE A 13'])assert.equal(matchesPile(pile,q),true,q);
+ for(const q of ['13','pila 13','  torre  a ','TORRE A 13'])assert.equal(matchesPile(pile,q),true,q);
  assert.equal(matchesPile(pile,'torre b'),false);assert.equal(matchesPile(null,'13'),false);
 });

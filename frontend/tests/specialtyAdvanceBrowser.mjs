@@ -3,6 +3,7 @@ import {createServer} from 'vite';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 const works=JSON.parse(await readFile(new URL('./fixtures/specialtyAdvanceWorks.json',import.meta.url),'utf8'));
+works.find(w=>w.id===100).elements=JSON.parse(await readFile(new URL('./fixtures/asturiasAllPiles.json',import.meta.url),'utf8')).sort((a,b)=>Number(a.numero)-Number(b.numero));
 const server=await createServer({server:{host:'127.0.0.1',port:0}});await server.listen();
 const browser=await chromium.launch({headless:true});
 try{for(const width of [1440,390])for(const work of works){
@@ -34,13 +35,25 @@ try{for(const width of [1440,390])for(const work of works){
  assert.equal(await page.getByLabel('Partida asociada').locator('option').count(),1);
  assert.equal(await page.getByRole('button',{name:/Configurar/}).count(),0);
  await page.getByLabel('Fecha de la jornada').fill('2026-11-28');await page.getByRole('button',{name:'Iniciar jornada de trabajo'}).click();
- const search=page.getByRole('searchbox');await search.fill('NOEXISTE');await page.getByText('No se encontraron pilas con ese número, etapa o frente en esta partida.').waitFor();
+ const search=page.getByRole('searchbox');await search.fill('NOEXISTE');await page.getByText('No se encontraron pilas con ese número o frente en esta partida.').waitFor();
+ if(work.id===100){
+  await search.fill('');assert.equal(await page.getByRole('button',{name:/^Agregar pila \d+$/}).count(),290);
+  assert.deepEqual((await page.getByRole('button',{name:/^Agregar pila \d+$/}).allTextContents()).slice(0,3),['Agregar pila 1','Agregar pila 2','Agregar pila 3']);
+  for(const pile of work.elements){await search.fill('Pila '+pile.numero);assert.equal(await page.getByRole('button',{name:/^Agregar pila \d+$/}).count(),1);assert.equal(await page.getByRole('button',{name:'Agregar pila '+pile.numero,exact:true}).count(),1);}
+  console.log(`${width}: execution search checked individually for all 290 piles`);
+ }
  await search.fill(work.id===100?'torre a':'frente principal');assert.equal(await page.getByRole('button',{name:'Agregar pila 1',exact:true}).count(),1);
  await search.fill('PILA 1');await page.getByRole('button',{name:'Agregar pila 1',exact:true}).click();await page.getByRole('button',{name:'En esta jornada'}).waitFor();
  await search.fill('pila 2');assert.equal(await page.locator('tbody tr').count(),0);
  if(work.id===98)assert.equal(await page.getByRole('button',{name:'Ejecución ya registrada'}).isDisabled(),true);
  await page.getByRole('button',{name:'Pilas de grava · Topografía',exact:true}).click();
  await page.getByRole('heading',{name:'Registrar topografía por pila'}).waitFor();
+ if(work.id===100){
+  const finder=page.getByRole('searchbox');assert.equal(await page.getByRole('button',{name:/^Agregar pila \d+$/}).count(),290);
+  for(const pile of work.elements){await finder.fill(pile.numero);assert.equal(await page.getByRole('button',{name:/^Agregar pila \d+$/}).count(),1);assert.equal(await page.getByRole('button',{name:'Agregar pila '+pile.numero,exact:true}).count(),1);}
+  await finder.fill('');assert.ok(!(await page.locator('main').innerText()).includes('General'));
+  console.log(`${width}: topography search checked individually for all 290 piles`);
+ }
  await page.getByRole('button',{name:'Agregar pila 2',exact:true}).click();await page.getByRole('button',{name:'Agregar pila 1',exact:true}).click();
  for(const n of [2,1]){await page.getByLabel(`Cota inicial (m) pila ${n}`,{exact:true}).fill('99,48');await page.getByLabel(`Cota final (m) pila ${n}`,{exact:true}).fill('85');}
  await page.screenshot({path:`C:/Users/ignac/AppData/Local/Temp/web-specialty-${work.id}-${width}.png`,fullPage:true});
@@ -56,5 +69,20 @@ try{for(const width of [1440,390])for(const work of works){
   }
  },work);
  await page.locator('#topo-only button').waitFor();assert.equal(await page.locator('#topo-only button').textContent(),'Pilas de grava · Topografía');assert.equal(await page.locator('#execute-only button').textContent(),'Pilas de grava · Ejecución');assert.equal(await page.locator('#no-permission button, #stale-work button').count(),0);
+ if(work.id===100){
+  await page.evaluate(async elements=>{
+   document.querySelector('main').hidden=true;const R=await import('/node_modules/.vite/deps/react.js'),D=await import('/node_modules/.vite/deps/react-dom_client.js'),React=R.default||R;
+   const {TopoInbox}=await import('/src/components/SpecialtyReports.jsx'),Coordinates=(await import('/src/components/SavedPileCoordinates.jsx')).default;
+   for(const [id,Component,props]of [['quality-topo',TopoInbox,{elements,sessions:[],disabled:true}],['coordinates',Coordinates,{elements}]]){const el=document.createElement('section');el.id=id;document.body.append(el);(D.default||D).createRoot(el).render(React.createElement(Component,props));}
+  },work.elements);
+  const quality=page.locator('#quality-topo'),coords=page.locator('#coordinates');await quality.getByText('290 pilas coinciden con los filtros.').waitFor();
+  while(await quality.getByRole('button',{name:'Ver más pilas'}).count())await quality.getByRole('button',{name:'Ver más pilas'}).click();
+  assert.equal(await quality.locator('summary').count(),290);assert.equal(await coords.locator('tbody tr').count(),290);
+  assert.deepEqual((await quality.locator('summary').allTextContents()).slice(0,3),['Pila 1 · TORRE A','Pila 2 · TORRE A','Pila 3 · TORRE A']);
+  for(const pile of work.elements){await quality.getByLabel('Número de pila',{exact:true}).fill('Pila '+pile.numero);assert.equal(await quality.locator('summary').count(),1);assert.equal(await quality.locator('summary').textContent(),`Pila ${pile.numero} · TORRE A`);await coords.getByLabel('Buscar pila',{exact:true}).fill(pile.numero);assert.equal(await coords.locator('tbody tr').count(),1);assert.equal(await coords.locator('tbody tr td').first().textContent(),pile.numero);}
+  await quality.getByLabel('Número de pila',{exact:true}).fill('2');await coords.getByLabel('Buscar pila',{exact:true}).fill('2');
+  assert.ok(!/General|Etapa/.test(await quality.innerText()));assert.ok(!/General|Etapa/.test(await coords.innerText()));
+  await quality.screenshot({path:`C:/Users/ignac/AppData/Local/Temp/quality-pile2-${width}.png`});console.log(`${width}: Quality topography and coordinates checked individually for all 290 piles`);
+ }
  assert.deepEqual(errors,[]);await page.close();console.log(`${work.nombre} ${width}: configured parts, search, execution status, topography order and preservation OK`);
 }}finally{await browser.close();await server.close();}

@@ -64,7 +64,7 @@ try{for(const width of [1440,390]){
  await page.getByText('Partida asociada',{exact:true}).waitFor();
  assert.equal(await page.getByRole('button',{name:'Guardar configuración',exact:true}).count(),0,'Setup hidden from protocol creation');
  await page.getByRole('button',{name:'Topografía',exact:true}).click();
- await page.getByText('0 pilas coinciden con los filtros.').waitFor();
+ await page.getByText('2 pilas coinciden con los filtros.').waitFor();
  await page.getByRole('button',{name:'Conciliaciones',exact:true}).click();
  await page.getByText('No hay avances por cantidad pendientes en esta partida.').waitFor();
  await page.getByRole('button',{name:'Revisar y emitir protocolos',exact:true}).click();
@@ -84,7 +84,7 @@ try{for(const width of [1440,390]){
  assert.equal(await saved.locator('tbody tr').count(),2);
  await saved.getByLabel('Filtrar por frente').selectOption('TORRE A');
  assert.equal(await saved.locator('tbody tr').count(),1);
- await saved.getByLabel('Filtrar por etapa').selectOption('Segunda');
+ await saved.getByLabel('Buscar pila').fill('99999');
  await saved.getByText('No hay pilas que coincidan con los filtros.').waitFor();
  await saved.getByRole('button',{name:'Limpiar filtros'}).click();
  await saved.getByLabel('Buscar pila').fill('2');
